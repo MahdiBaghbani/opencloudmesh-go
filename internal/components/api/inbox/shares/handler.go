@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package shares provides session-gated API handlers for inbox shares (list, detail, accept, decline, verify-access).
 package shares
 
@@ -18,7 +23,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -30,24 +36,25 @@ const (
 
 // InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.
 type InboxShareView struct {
-	ShareID           string                  `json:"shareId"`
-	ProviderID        string                  `json:"providerId"`
-	Name              string                  `json:"name"`
-	Description       string                  `json:"description,omitempty"`
-	Owner             string                  `json:"owner"`
-	Sender            string                  `json:"sender"`
-	SenderHost        string                  `json:"senderHost"`
-	ShareWith         string                  `json:"shareWith"`
-	ResourceType      string                  `json:"resourceType"`
-	ShareType         string                  `json:"shareType"`
-	Permissions       []string                `json:"permissions"`
-	Status            sharesinbox.ShareStatus `json:"status"`
-	CreatedAt         time.Time               `json:"createdAt"`
-	OwnerDisplayName  string                  `json:"ownerDisplayName,omitempty"`
-	SenderDisplayName string                  `json:"senderDisplayName,omitempty"`
+	ShareID           string             `json:"shareId"`
+	ProviderID        string             `json:"providerId"`
+	Name              string             `json:"name"`
+	Description       string             `json:"description,omitempty"`
+	Owner             string             `json:"owner"`
+	Sender            string             `json:"sender"`
+	SenderHost        string             `json:"senderHost"`
+	ShareWith         string             `json:"shareWith"`
+	ResourceType      string             `json:"resourceType"`
+	ShareType         string             `json:"shareType"`
+	Permissions       []string           `json:"permissions"`
+	Status            shares.ShareStatus `json:"status"`
+	CreatedAt         time.Time          `json:"createdAt"`
+	OwnerDisplayName  string             `json:"ownerDisplayName,omitempty"`
+	SenderDisplayName string             `json:"senderDisplayName,omitempty"`
 }
 
-func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
+// NewInboxShareView maps an incoming share to a list-safe API view without secrets.
+func NewInboxShareView(s *sharesincoming.IncomingShare) InboxShareView {
 	return InboxShareView{
 		ShareID:           s.ShareID,
 		ProviderID:        s.ProviderID,
@@ -67,6 +74,7 @@ func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
 	}
 }
 
+// InboxShareDetailView extends InboxShareView with protocol and WebDAV detail fields.
 type InboxShareDetailView struct {
 	InboxShareView
 
@@ -75,6 +83,7 @@ type InboxShareDetailView struct {
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
 
+// ProtocolDetailView groups WebDAV and webapp protocol arms for a share detail response.
 type ProtocolDetailView struct {
 	Name   string            `json:"name"`
 	WebDAV *WebDAVDetailView `json:"webdav,omitempty"`
@@ -103,11 +112,12 @@ func isAbsoluteWebDAVURI(uri string) bool {
 	if err != nil {
 		return false
 	}
+
 	return u.IsAbs()
 }
 
 // NewInboxShareDetailView returns a detail view with SharedSecret masked as [REDACTED].
-func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView {
+func NewInboxShareDetailView(s *sharesincoming.IncomingShare) InboxShareDetailView {
 	uri := s.WebDAVID
 
 	requirements := s.Requirements
@@ -152,6 +162,7 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 	}
 }
 
+// InboxListResponse is the JSON body for the inbox shares list endpoint.
 type InboxListResponse struct {
 	Shares []InboxShareView `json:"shares"`
 }
@@ -171,7 +182,7 @@ const maxPreviewBytes = 4096
 
 // Handler serves list, detail, accept, decline, and verify-access for inbox shares.
 type Handler struct {
-	repo         sharesinbox.IncomingShareRepo
+	repo         sharesincoming.IncomingShareRepo
 	accessClient access.RemoteAccessor
 	currentUser  func(context.Context) (*identity.User, error)
 	log          *slog.Logger
@@ -179,12 +190,13 @@ type Handler struct {
 
 // NewHandler returns a Handler with the given dependencies.
 func NewHandler(
-	repo sharesinbox.IncomingShareRepo,
+	repo sharesincoming.IncomingShareRepo,
 	accessClient access.RemoteAccessor,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
 	log = logutil.NoopIfNil(log)
+
 	return &Handler{
 		repo:         repo,
 		accessClient: accessClient,
@@ -205,6 +217,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.Error("failed to list inbox shares", "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to list inbox shares")
+
 		return
 	}
 
@@ -214,6 +227,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(InboxListResponse{Shares: views})
 }
 
@@ -235,38 +249,44 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusAccepted {
+	if share.Status == shares.ShareStatusAccepted {
 		w.Header().Set("Content-Type", "application/json")
+		//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 		json.NewEncoder(w).Encode(map[string]string{
-			"status":  string(sharesinbox.ShareStatusAccepted),
+			"status":  string(shares.ShareStatusAccepted),
 			"shareId": shareID,
 		})
+
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusDeclined {
+	if share.Status == shares.ShareStatusDeclined {
 		api.WriteConflict(w, "share has already been declined")
 		return
 	}
 
-	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, sharesinbox.ShareStatusAccepted); err != nil {
+	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, shares.ShareStatusAccepted); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
+
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(map[string]string{
-		"status":  string(sharesinbox.ShareStatusAccepted),
+		"status":  string(shares.ShareStatusAccepted),
 		"shareId": shareID,
 	})
 }
@@ -287,18 +307,24 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(r.Context(), shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
 	detail := NewInboxShareDetailView(share)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+
+	if err := json.NewEncoder(w).Encode(detail); err != nil {
+		h.log.Error("failed to encode share detail", "error", err)
+	}
 }
 
 // HandleDecline handles POST /api/inbox/shares/{shareId}/decline.
@@ -319,40 +345,50 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusDeclined {
+	if share.Status == shares.ShareStatusDeclined {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"status":  string(sharesinbox.ShareStatusDeclined),
+
+		if err := json.NewEncoder(w).Encode(map[string]string{
+			"status":  string(shares.ShareStatusDeclined),
 			"shareId": shareID,
-		})
+		}); err != nil {
+			h.log.Error("failed to encode declined share", "error", err)
+		}
+
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusAccepted {
+	if share.Status == shares.ShareStatusAccepted {
 		api.WriteConflict(w, "share has already been accepted")
 		return
 	}
 
-	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, sharesinbox.ShareStatusDeclined); err != nil {
+	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, shares.ShareStatusDeclined); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
+
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  string(sharesinbox.ShareStatusDeclined),
+
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"status":  string(shares.ShareStatusDeclined),
 		"shareId": shareID,
-	})
+	}); err != nil {
+		h.log.Error("failed to encode declined share", "error", err)
+	}
 }
 
 // HandleVerifyAccess handles POST /api/inbox/shares/{shareId}/verify-access; all access is server-side (no secrets to browser).
@@ -373,16 +409,18 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
-	if share.Status != sharesinbox.ShareStatusAccepted {
+	if share.Status != shares.ShareStatusAccepted {
 		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share must be accepted before verifying access")
 		return
 	}
@@ -420,11 +458,15 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		h.writeAccessError(w, err)
 		return
 	}
-	defer result.Response.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		result.Response.Body.Close()
+	}()
 
 	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
 		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable),
 			"remote server returned "+redactPeerValue(result.Response.Status, share.SharedSecret))
+
 		return
 	}
 
@@ -434,13 +476,16 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(VerifyAccessResponse{
+
+	if err := json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:                      true,
 		HTTPStatus:              result.Response.StatusCode,
 		ContentType:             redactPeerValue(result.Response.Header.Get("Content-Type"), share.SharedSecret),
 		ContentPreview:          redactPeerValue(string(preview), share.SharedSecret),
 		ContentPreviewTruncated: truncated,
-	})
+	}); err != nil {
+		h.log.Error("failed to encode verify access response", "error", err)
+	}
 }
 
 // isUnsafePath rejects share names containing /, \, or ..
@@ -456,6 +501,7 @@ func readBoundedPreview(r io.Reader) ([]byte, bool, error) {
 	if len(buf) > maxPreviewBytes {
 		return buf[:maxPreviewBytes], true, err
 	}
+
 	return buf, false, err
 }
 
@@ -466,8 +512,10 @@ func redactPeerValue(value, secret string) string {
 	if secret != "" {
 		value = strings.ReplaceAll(value, secret, redacted)
 	}
+
 	value = strings.ReplaceAll(value, "code=", "[REDACTED_CODE_PARAM]")
 	value = strings.ReplaceAll(value, "sharedSecret", "[REDACTED_FIELD]")
+
 	return value
 }
 
@@ -475,6 +523,7 @@ func redactPeerValue(value, secret string) string {
 func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:         false,
 		ReasonCode: reasonCode,
@@ -487,10 +536,12 @@ func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share not accepted")
 		return
 	}
+
 	if errors.Is(err, access.ErrTokenExchangeRequired) {
 		writeVerifyError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.VerifyCode(reason.PeerCapabilityMismatch), "token exchange required but not available")
 		return
 	}
+
 	if errors.Is(err, access.ErrRemoteAccessFailed) {
 		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable), "remote access failed: all methods exhausted")
 		return

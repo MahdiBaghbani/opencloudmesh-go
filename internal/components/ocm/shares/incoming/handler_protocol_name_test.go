@@ -1,12 +1,18 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 func shareBodyWithProtocolName(protocolName, ownerHost string) string {
@@ -31,8 +37,8 @@ func shareBodyWithProtocolName(protocolName, ownerHost string) string {
 }
 
 func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -51,8 +57,9 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -62,12 +69,13 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 }
 
 func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("invalid", "sender.com")))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("invalid", "sender.com")))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -77,12 +85,13 @@ func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav", ownerHost)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav", ownerHost)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -92,12 +101,13 @@ func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsMultiProtocolName(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi", ownerHost)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi", ownerHost)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 

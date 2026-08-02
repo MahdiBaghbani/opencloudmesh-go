@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package access
 
 import (
@@ -13,14 +18,15 @@ import (
 
 func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if exchangeDiscoveryHandler(w, r, "token") {
+		if exchangeDiscoveryHandler(t, w, r, "token") {
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	_, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
@@ -34,6 +40,7 @@ func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected unset protocol to fail closed")
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
 		t.Errorf("expected protocol mismatch error, got: %v", err)
@@ -43,7 +50,7 @@ func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 func TestAccess_NilDiscoveryFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	t.Cleanup(srv.Close)
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	decision, err := client.DecideAccessAuth(AccessOptions{
 		Share: &ShareInfo{
@@ -58,6 +65,7 @@ func TestAccess_NilDiscoveryFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected nil discovery to fail closed, got mode %q", decision.Mode)
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonDiscoveryFailed {
 		t.Errorf("expected discovery failed error, got: %v", err)
@@ -66,14 +74,15 @@ func TestAccess_NilDiscoveryFailsClosed(t *testing.T) {
 
 func TestAccess_NilShareFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if exchangeDiscoveryHandler(w, r, "token") {
+		if exchangeDiscoveryHandler(t, w, r, "token") {
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	_, err := client.Access(context.Background(), AccessOptions{
 		Share:    nil,
@@ -83,6 +92,7 @@ func TestAccess_NilShareFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected nil share to fail closed")
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
 		t.Errorf("expected protocol mismatch error, got: %v", err)

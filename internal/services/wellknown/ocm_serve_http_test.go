@@ -1,6 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wellknown
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,17 +20,15 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 	c := &resolve.ProviderConfig{
 		Provider: "TestProvider",
 	}
-	h, err := newOCMHandler(
+
+	h := newOCMHandler(
 		c,
 		nil,
-		handlerResolveInputs(t, "https://example.com", ""),
+		handlerResolveInputs(t, ""),
 		testLogger(),
 	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, req)
@@ -46,9 +50,11 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 	if !disc.Enabled {
 		t.Error("expected Enabled=true in response")
 	}
+
 	if disc.Provider != "TestProvider" {
 		t.Errorf("expected Provider 'TestProvider', got %q", disc.Provider)
 	}
+
 	if disc.TokenEndPoint == "" {
 		t.Error("expected non-empty tokenEndPoint")
 	}
@@ -56,12 +62,10 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	c := &resolve.ProviderConfig{}
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	h := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, req)

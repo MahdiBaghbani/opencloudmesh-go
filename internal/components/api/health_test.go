@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package api
 
 import (
@@ -5,16 +10,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestHealthHandler(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/healthz", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/healthz", nil)
 	w := httptest.NewRecorder()
 
 	HealthHandler(w, req)
 
 	res := w.Result()
-	defer res.Body.Close()
+	defer tshttp.MustClose(t, res.Body)
 
 	if res.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", res.StatusCode)

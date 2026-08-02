@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package interceptors
 
 import "fmt"
@@ -7,25 +12,31 @@ func GetProfileConfig(interceptorsCfg map[string]map[string]any, interceptorName
 	if interceptorsCfg == nil {
 		return nil, fmt.Errorf("no interceptors configured, cannot find %s profile %q", interceptorName, profileName)
 	}
+
 	interceptorCfg, ok := interceptorsCfg[interceptorName]
 	if !ok {
 		return nil, fmt.Errorf("no %s interceptor configured, cannot find profile %q", interceptorName, profileName)
 	}
+
 	profilesRaw, ok := interceptorCfg["profiles"]
 	if !ok {
 		return nil, fmt.Errorf("no %s profiles configured, cannot find profile %q", interceptorName, profileName)
 	}
+
 	profiles, ok := profilesRaw.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%s profiles is not a map, cannot find profile %q", interceptorName, profileName)
 	}
+
 	profileRaw, ok := profiles[profileName]
 	if !ok {
 		return nil, fmt.Errorf("%s profile %q not found", interceptorName, profileName)
 	}
+
 	profileConfig, ok := profileRaw.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%s profile %q is not a map", interceptorName, profileName)
 	}
+
 	return profileConfig, nil
 }

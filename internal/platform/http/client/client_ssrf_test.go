@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package client_test
 
 import (
@@ -60,7 +65,10 @@ func TestClient_SSRFProtection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Get(ctx, tt.url)
+			resp, err := client.Get(ctx, tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+			if resp != nil {
+				defer outboundtestutil.MustClose(t, resp.Body)
+			}
 
 			if tt.wantError {
 				if err == nil {
@@ -86,7 +94,10 @@ func TestClient_SSRFOff(t *testing.T) {
 
 	// With SSRF off, localhost should not be blocked at the SSRF check level
 	// (it will still fail to connect if nothing is listening)
-	_, err := client.Get(ctx, "http://localhost:99999/test")
+	resp, err := client.Get(ctx, "http://localhost:99999/test") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if resp != nil {
+		defer outboundtestutil.MustClose(t, resp.Body)
+	}
 
 	// Should not be an SSRF error
 	if httpclient.IsSSRFError(err) {
@@ -108,10 +119,15 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Get(context.Background(), tt.url)
+			resp, err := client.Get(context.Background(), tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+			if resp != nil {
+				defer outboundtestutil.MustClose(t, resp.Body)
+			}
+
 			if err == nil {
 				t.Error("expected SSRF error for loopback IPv6")
 			}
+
 			if !httpclient.IsSSRFError(err) {
 				t.Errorf("expected SSRF error, got: %v", err)
 			}
@@ -123,7 +139,11 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 	client := outboundtestutil.NewStrictNone(nil)
 
 	// Use a domain that definitely doesn't exist
-	_, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test")
+	resp, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if resp != nil {
+		defer outboundtestutil.MustClose(t, resp.Body)
+	}
+
 	if err == nil {
 		t.Fatal("expected error for unresolvable host")
 	}
@@ -165,7 +185,11 @@ func TestIsAllowedIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := c.Get(ctx, tt.url)
+			resp, err := c.Get(ctx, tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+			if resp != nil {
+				defer outboundtestutil.MustClose(t, resp.Body)
+			}
+
 			if tt.wantBlocked {
 				if !httpclient.IsSSRFError(err) {
 					t.Errorf("expected SSRF-blocked error for %s, got: %v", tt.url, err)
@@ -195,11 +219,16 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Get(context.Background(), tt.url)
+			resp, err := client.Get(context.Background(), tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+			if resp != nil {
+				defer outboundtestutil.MustClose(t, resp.Body)
+			}
+
 			if err == nil {
 				t.Errorf("expected SSRF error for %s", tt.name)
 				return
 			}
+
 			if !httpclient.IsSSRFError(err) {
 				t.Errorf("expected SSRF error, got: %v", err)
 			}
@@ -216,7 +245,7 @@ type blockingResolver struct {
 	unblockCh chan struct{}
 }
 
-func (r *blockingResolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
+func (r *blockingResolver) LookupIPAddr(ctx context.Context, _ string) ([]net.IPAddr, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -240,7 +269,12 @@ func TestContextAwareDNSCancellation(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	_, err := client.Get(ctx, "http://example.com/test")
+
+	resp, err := client.Get(ctx, "http://example.com/test") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if resp != nil {
+		defer outboundtestutil.MustClose(t, resp.Body)
+	}
+
 	elapsed := time.Since(start)
 
 	// Should return quickly (around 100ms), not hang

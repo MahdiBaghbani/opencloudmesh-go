@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package tls provides TLS certificate management for HTTP servers.
 package tls
 
@@ -24,8 +29,10 @@ import (
 )
 
 var (
+	// ErrInvalidTLSMode reports an invalid TLS mode configuration.
 	ErrInvalidTLSMode = errors.New("invalid TLS mode")
-	ErrMissingCert    = errors.New("missing certificate or key file")
+	// ErrMissingCert reports missing TLS certificate material.
+	ErrMissingCert = errors.New("missing certificate or key file")
 )
 
 // TLSManager handles TLS certificate loading and generation.
@@ -45,7 +52,7 @@ func NewTLSManager(cfg *config.TLSConfig, logger *slog.Logger) *TLSManager {
 func (m *TLSManager) GetTLSConfig(hostname string) (*cryptotls.Config, error) {
 	switch m.cfg.Mode {
 	case "off":
-		return nil, nil
+		return nil, nil //nolint:nilnil // intentional: (nil, nil) for TLS mode off; caller proceeds without a TLS config
 
 	case "static":
 		return m.loadStaticCert()
@@ -93,6 +100,7 @@ func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*cryptotls.Config, 
 	if cert, err := cryptotls.LoadX509KeyPair(certFile, keyFile); err == nil {
 		m.logger.Info("loaded existing self-signed certificate",
 			"cert_file", certFile)
+
 		return &cryptotls.Config{
 			Certificates: []cryptotls.Certificate{cert},
 			MinVersion:   cryptotls.VersionTLS12,
@@ -159,14 +167,14 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(certFile), 0700); err != nil {
-		return cryptotls.Certificate{}, fmt.Errorf("failed to create cert directory: %w", err)
+	if mkdirErr := os.MkdirAll(filepath.Dir(certFile), 0700); mkdirErr != nil {
+		return cryptotls.Certificate{}, fmt.Errorf("failed to create cert directory: %w", mkdirErr)
 	}
 
 	// Write certificate
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	if err := os.WriteFile(certFile, certPEM, 0644); err != nil {
-		return cryptotls.Certificate{}, fmt.Errorf("failed to write certificate: %w", err)
+	if writeErr := os.WriteFile(certFile, certPEM, 0644); writeErr != nil {
+		return cryptotls.Certificate{}, fmt.Errorf("failed to write certificate: %w", writeErr)
 	}
 
 	// Write private key
@@ -174,6 +182,7 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 	if err != nil {
 		return cryptotls.Certificate{}, fmt.Errorf("failed to marshal key: %w", err)
 	}
+
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
 		return cryptotls.Certificate{}, fmt.Errorf("failed to write key: %w", err)

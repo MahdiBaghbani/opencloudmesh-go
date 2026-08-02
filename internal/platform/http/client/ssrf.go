@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package client provides a safe outbound HTTP client with SSRF protections.
 // See client.go for the concrete implementation.
 //
@@ -27,10 +32,12 @@ func (c *Client) activeRoutePolicy() *config.SSRFRoutePolicyConfig {
 	if name == "" || c.cfg.SSRF.RoutePolicies == nil {
 		return nil
 	}
+
 	p, ok := c.cfg.SSRF.RoutePolicies[name]
 	if !ok {
 		return nil
 	}
+
 	return &p
 }
 
@@ -42,6 +49,7 @@ func (c *Client) checkSSRFURL(ctx context.Context, u *url.URL) error {
 	if port == "" {
 		return fmt.Errorf("%w: cannot derive effective port for scheme %q", ErrSSRFBlocked, u.Scheme)
 	}
+
 	return c.checkSSRFHostPort(ctx, u.Hostname(), port)
 }
 
@@ -53,6 +61,7 @@ func (c *Client) checkSSRF(ctx context.Context, addr string) error {
 		host = addr
 		port = ""
 	}
+
 	return c.checkSSRFHostPort(ctx, host, port)
 }
 
@@ -87,6 +96,7 @@ func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error
 	// Fail closed if any private IP fails policy.
 	ipAddrs, err := c.getResolver().LookupIPAddr(ctx, host)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return fmt.Errorf("%w: %s: %v", ErrHostUnresolvable, host, err)
 	}
 
@@ -103,14 +113,17 @@ func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error
 			return fmt.Errorf("%w: %s resolves to private IP %s and no active route policy is configured",
 				ErrSSRFBlocked, host, ip)
 		}
+
 		if !hostAllowed {
 			return fmt.Errorf("%w: %s resolves to private IP %s and host suffix is not in allowed list",
 				ErrSSRFBlocked, host, ip)
 		}
+
 		if !ipMatchesCIDRs(ip, policy) {
 			return fmt.Errorf("%w: %s resolves to IP %s not in allowed private CIDRs",
 				ErrSSRFBlocked, host, ip)
 		}
+
 		if !portAllowed(port, policy) {
 			return fmt.Errorf("%w: destination port %s is not in allowed ports",
 				ErrSSRFBlocked, port)
@@ -127,15 +140,19 @@ func (c *Client) checkIPWithPolicy(ip net.IP, port string, policy *config.SSRFRo
 	if c.isAllowedIP(ip) {
 		return nil
 	}
+
 	if policy == nil || !policy.AllowIPLiterals {
 		return fmt.Errorf("%w: IP %s is blocked (allow_ip_literals=false)", ErrSSRFBlocked, ip)
 	}
+
 	if !ipMatchesCIDRs(ip, policy) {
 		return fmt.Errorf("%w: IP %s not in allowed private CIDRs", ErrSSRFBlocked, ip)
 	}
+
 	if !portAllowed(port, policy) {
 		return fmt.Errorf("%w: destination port %s is not in allowed ports", ErrSSRFBlocked, port)
 	}
+
 	return nil
 }
 
@@ -158,16 +175,20 @@ func hostMatchesSuffix(host string, policy *config.SSRFRoutePolicyConfig) bool {
 	if policy == nil {
 		return false
 	}
+
 	for _, suffix := range policy.AllowPrivateHostSuffixes {
 		sfx := strings.ToLower(strings.TrimSpace(suffix))
+
 		sfx = strings.TrimPrefix(sfx, ".") // normalize exactly one leading dot
 		if sfx == "" {
 			continue
 		}
+
 		if host == sfx || strings.HasSuffix(host, "."+sfx) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -177,15 +198,18 @@ func ipMatchesCIDRs(ip net.IP, policy *config.SSRFRoutePolicyConfig) bool {
 	if policy == nil {
 		return false
 	}
+
 	for _, cidr := range policy.AllowPrivateCIDRs {
 		_, network, err := net.ParseCIDR(cidr)
 		if err != nil {
 			continue
 		}
+
 		if network.Contains(ip) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -196,14 +220,17 @@ func portAllowed(port string, policy *config.SSRFRoutePolicyConfig) bool {
 	if policy == nil || len(policy.AllowedPorts) == 0 {
 		return false
 	}
+
 	n, err := strconv.Atoi(port)
 	if err != nil {
 		return false
 	}
+
 	for _, p := range policy.AllowedPorts {
 		if p == n {
 			return true
 		}
 	}
+
 	return false
 }

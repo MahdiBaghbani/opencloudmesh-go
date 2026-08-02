@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
@@ -9,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -50,7 +57,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+			shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 			tokenStore := token.NewMemoryTokenStore()
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := tokenincoming.NewHandler(
@@ -59,7 +66,6 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				enabledSettings(),
 				enabledCodeFlow(),
 				"https://local.example.com",
-				capture.Logger,
 			)
 
 			if tt.setupShare {
@@ -70,7 +76,9 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 					ReceiverHost: tt.clientID,
 					LocalPath:    "/tmp/test.txt",
 				}
-				shareRepo.Create(context.Background(), share)
+				if err := shareRepo.Create(context.Background(), share); err != nil {
+					t.Fatalf("Create: %v", err)
+				}
 			}
 
 			form := url.Values{}
@@ -78,7 +86,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			form.Set("client_id", tt.clientID)
 			form.Set("code", tt.sharedSecret)
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				"/ocm/token",
 				strings.NewReader(form.Encode()),
@@ -102,9 +110,11 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 					t.Fatalf("failed to decode response: %v", err)
 				}
+
 				if resp.AccessToken == "" {
 					t.Fatal("access_token is empty")
 				}
+
 				sensitive = append(sensitive, resp.AccessToken)
 			}
 

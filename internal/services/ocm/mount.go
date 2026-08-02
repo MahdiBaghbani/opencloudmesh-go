@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocm
 
 import (
@@ -36,19 +41,30 @@ func mountProtocolRoutes(
 
 		r.With(middlewares...).Method(row.Method, row.Pattern, handler)
 	}
+
 	return nil
+}
+
+// mountJWKSRoute mounts the local OCM JWKS route (GET /jwks) directly. It is
+// public and unauthenticated, so it bypasses the POST HTTPSig/peer-resolution
+// middleware chain used by mountProtocolRoutes.
+func mountJWKSRoute(r chi.Router, inputs Inputs) {
+	r.Get(RouteJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
 }
 
 func protocolPostRows(opts service.RouteOpts) []service.RouteRow {
 	rows := service.DerivedRouteInventory(opts)
+
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Service != "ocm" || row.Method != http.MethodPost ||
 			row.SurfaceClass != service.SurfaceProtocol || row.Synthetic {
 			continue
 		}
+
 		out = append(out, row)
 	}
+
 	return out
 }
 
@@ -75,13 +91,22 @@ func middlewaresForRow(
 	if row.BodyLimitBytes <= 0 {
 		return nil, fmt.Errorf("ocm: route %q missing body limit", row.ID)
 	}
+
 	middlewares = append(middlewares, enforceOCMBodyLimit(row.BodyLimitBytes))
 
 	sig := inputs.SignatureMiddleware
+
 	switch row.PeerResolution {
 	case service.PeerResolutionShares:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveSharesRequest))
 	case service.PeerResolutionInviteAccepted:
+		// /invite-accepted requires signature verification and peer resolution.
+		// This covers the invite-acceptance-specific requirement and the sender-side
+		// verify-any-signature requirement. Admission follows Applicability rules 3
+		// and 4 conditionally on must-use-http-sig.
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L383-L387
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L440-L444
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest))
 	case service.PeerResolutionToken:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest))
@@ -99,6 +124,7 @@ func enforceOCMBodyLimit(limit int64) func(http.Handler) http.Handler {
 				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 				return
 			}
+
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 			next.ServeHTTP(w, r)
 		})

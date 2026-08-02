@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -16,25 +19,30 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-func runOutboundCrossAuthorityCase(
+// runOutboundDiscoveryFailureCase drives one outbound negative case whose peer
+// discovery fails (cross-authority, redirect-ssrf, malformed document). The
+// label identifies the scenario in failure messages.
+func runOutboundDiscoveryFailureCase(
 	t *testing.T,
 	pair *harness.StrictProtocolPair,
 	receiver *trustedProtocolPeer,
 	recordingReceiver *strictRecordingReceiver,
+	label string,
 ) {
 	t.Helper()
 
 	provider := pair.Server1
+
 	if receiver.DiscoveryHits() > 0 {
-		t.Fatal("cross-authority peer discovery hit before outgoing share attempt")
+		t.Fatalf("%s peer discovery hit before outgoing share attempt", label)
 	}
 
 	token := loginSubprocessAdminWithClient(t, provider)
-	shareFile := writeNegativeShareFile(t, "cross-authority")
+	shareFile := writeNegativeShareFile(t, label)
 
 	beforeSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
 	if err != nil {
-		t.Fatalf("snapshot persistence before cross-authority: %v", err)
+		t.Fatalf("snapshot persistence before %s: %v", label, err)
 	}
 
 	status, body := createOutgoingShareWithClient(t, provider, token, map[string]any{
@@ -43,71 +51,26 @@ func runOutboundCrossAuthorityCase(
 		"localPath":      shareFile,
 		"permissions":    []string{"read"},
 	})
+
 	wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
 	if status != wantStatus {
 		provider.DumpLogs(t)
-		t.Fatalf("cross-authority outgoing share: expected %d, got %d: %s", wantStatus, status, body)
+		t.Fatalf("%s outgoing share: expected %d, got %d: %s", label, wantStatus, status, body)
 	}
+
 	if receiver.DiscoveryHits() == 0 {
-		t.Fatal("expected discovery fetch before cross-authority rejection")
+		t.Fatalf("expected discovery fetch before %s rejection", label)
 	}
+
 	if receiver.PostCount() > 0 {
 		t.Fatalf("expected no outbound /ocm/shares, receiver postCount=%d", receiver.PostCount())
 	}
 
 	afterSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
 	if err != nil {
-		t.Fatalf("snapshot persistence after cross-authority: %v", err)
-	}
-	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
-	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
-	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
-	assertNoSecretInLogs(t, nil, provider)
-}
-
-func runOutboundRedirectSSRFCase(
-	t *testing.T,
-	pair *harness.StrictProtocolPair,
-	receiver *trustedProtocolPeer,
-	recordingReceiver *strictRecordingReceiver,
-) {
-	t.Helper()
-
-	provider := pair.Server1
-	if receiver.DiscoveryHits() > 0 {
-		t.Fatal("redirect-ssrf peer discovery hit before outgoing share attempt")
+		t.Fatalf("snapshot persistence after %s: %v", label, err)
 	}
 
-	token := loginSubprocessAdminWithClient(t, provider)
-	shareFile := writeNegativeShareFile(t, "redirect-ssrf")
-
-	beforeSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
-	if err != nil {
-		t.Fatalf("snapshot persistence before redirect-ssrf: %v", err)
-	}
-
-	status, body := createOutgoingShareWithClient(t, provider, token, map[string]any{
-		"receiverDomain": receiver.peerBaseURL,
-		"shareWith":      "bob@" + receiver.peerDomain,
-		"localPath":      shareFile,
-		"permissions":    []string{"read"},
-	})
-	wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
-	if status != wantStatus {
-		provider.DumpLogs(t)
-		t.Fatalf("redirect-ssrf outgoing share: expected %d, got %d: %s", wantStatus, status, body)
-	}
-	if receiver.DiscoveryHits() == 0 {
-		t.Fatal("expected discovery fetch before redirect-ssrf rejection")
-	}
-	if receiver.PostCount() > 0 {
-		t.Fatalf("expected no outbound /ocm/shares, receiver postCount=%d", receiver.PostCount())
-	}
-
-	afterSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
-	if err != nil {
-		t.Fatalf("snapshot persistence after redirect-ssrf: %v", err)
-	}
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
@@ -139,16 +102,19 @@ func runOutboundStaleTrustMembershipCase(
 		"localPath":      shareFile,
 		"permissions":    []string{"read"},
 	})
+
 	wantStatus := http.StatusBadGateway
 	if status != wantStatus {
 		provider.DumpLogs(t)
 		consumer.DumpLogs(t)
 		t.Fatalf("stale-trust outgoing share: expected %d, got %d: %s", wantStatus, status, body)
 	}
+
 	afterSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
 	if err != nil {
 		t.Fatalf("snapshot persistence after stale-trust membership: %v", err)
 	}
+
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
@@ -162,6 +128,7 @@ func writeNegativeShareFile(t *testing.T, label string) string {
 	if err := os.WriteFile(path, []byte("negative integration share payload for "+label), 0644); err != nil {
 		t.Fatalf("write share file: %v", err)
 	}
+
 	return path
 }
 
@@ -180,12 +147,14 @@ func startCrossAuthorityDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 				Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
 				ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")}}},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			tshttp.WriteJSON(w, disc)
 		case "/ocm/shares":
 			if r.Method == http.MethodPost {
 				peer.postCount.Add(1)
 			}
+
 			http.NotFound(w, r)
 		default:
 			http.NotFound(w, r)
@@ -204,6 +173,7 @@ func startRedirectSSRFDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 			if r.Method == http.MethodPost {
 				peer.postCount.Add(1)
 			}
+
 			http.NotFound(w, r)
 		default:
 			http.NotFound(w, r)

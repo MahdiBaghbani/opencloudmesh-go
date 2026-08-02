@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package directoryservice
 
 import (
@@ -54,10 +59,12 @@ func TestMapAlgorithm(t *testing.T) {
 
 func TestParsePublicKey(t *testing.T) {
 	kp := generateEd25519(t)
+
 	pub, err := parsePublicKey(kp.pem)
 	if err != nil {
 		t.Fatalf("parsePublicKey: %v", err)
 	}
+
 	if pub == nil {
 		t.Fatal("expected non-nil public key")
 	}

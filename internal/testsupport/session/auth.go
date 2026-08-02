@@ -1,8 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package session provides HTTP helpers for authenticated integration tests.
 package session
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,15 +18,16 @@ import (
 const defaultAdminPassword = "testpassword123"
 
 // Login exchanges credentials for a session bearer token at /api/auth/login.
-func Login(client *http.Client, baseURL, username, password string) (string, error) {
+func Login(ctx context.Context, client *http.Client, baseURL, username, password string) (string, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
+
 	if password == "" {
 		password = defaultAdminPassword
 	}
 
-	body, err := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{ //nolint:errchkjson // payload type cannot fail to encode, so the checked error is always nil
 		"username": username,
 		"password": password,
 	})
@@ -28,13 +35,24 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 		return "", fmt.Errorf("encode login body: %w", err)
 	}
 
-	resp, err := client.Post(baseURL+"/api/auth/login", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/auth/login", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("build login request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("POST login: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort body cleanup; close error is not actionable on an abandoned response
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read login response: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("login failed: status=%d body=%s", resp.StatusCode, respBody)
 	}
@@ -45,33 +63,40 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
 		return "", fmt.Errorf("decode login response: %w", err)
 	}
+
 	if parsed.Token == "" {
 		return "", fmt.Errorf("login returned empty token: %s", respBody)
 	}
+
 	return parsed.Token, nil
 }
 
 // NewRequest builds an HTTP request with optional JSON body and bearer auth.
-func NewRequest(method, baseURL, path, token string, payload any) (*http.Request, error) {
+func NewRequest(ctx context.Context, method, baseURL, path, token string, payload any) (*http.Request, error) {
 	var body io.Reader
+
 	if payload != nil {
 		encoded, err := json.Marshal(payload)
 		if err != nil {
 			return nil, fmt.Errorf("marshal body: %w", err)
 		}
+
 		body = bytes.NewReader(encoded)
 	}
 
-	req, err := http.NewRequest(method, baseURL+path, body)
+	req, err := http.NewRequestWithContext(ctx, method, baseURL+path, body)
 	if err != nil {
 		return nil, err
 	}
+
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+
 	return req, nil
 }
 
@@ -81,20 +106,23 @@ func DoJSON(client *http.Client, req *http.Request, dst any) (int, []byte, error
 		client = http.DefaultClient
 	}
 
+	//nolint:gosec // test-only helper; SSRF is not applicable to test infrastructure
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort body cleanup; close error is not actionable on an abandoned response
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return resp.StatusCode, nil, err
 	}
+
 	if dst != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, dst); err != nil {
 			return resp.StatusCode, raw, fmt.Errorf("decode response: %w", err)
 		}
 	}
+
 	return resp.StatusCode, raw, nil
 }

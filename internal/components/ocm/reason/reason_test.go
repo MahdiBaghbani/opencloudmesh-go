@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package reason_test
 
 import (
@@ -58,13 +63,25 @@ func TestReasonMappings(t *testing.T) {
 			if got := reason.OCMStatus(tt.code); got != tt.wantOCM {
 				t.Fatalf("OCMStatus(%q)=%d, want %d", tt.code, got, tt.wantOCM)
 			}
+
 			if got := reason.APIStatus(tt.code); got != tt.wantAPI {
 				t.Fatalf("APIStatus(%q)=%d, want %d", tt.code, got, tt.wantAPI)
 			}
+
 			if got := reason.VerifyCode(tt.code); got != tt.wantVerify {
 				t.Fatalf("VerifyCode(%q)=%q, want %q", tt.code, got, tt.wantVerify)
 			}
 		})
+	}
+}
+
+func TestOCMStatus_ShareAdmissionWireMessages(t *testing.T) {
+	if got := reason.OCMStatus(reason.SenderNotTrusted); got != http.StatusForbidden {
+		t.Fatalf("OCMStatus(SENDER_NOT_TRUSTED)=%d, want %d", got, http.StatusForbidden)
+	}
+
+	if got := reason.OCMStatus(reason.StorageError); got != http.StatusInternalServerError {
+		t.Fatalf("OCMStatus(STORAGE_ERROR)=%d, want %d", got, http.StatusInternalServerError)
 	}
 }
 

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package logutil provides nil-safe logger helpers.
 package logutil
 
@@ -7,7 +12,7 @@ import (
 )
 
 // noop is a package-level discard logger, created once.
-var noop = slog.New(slog.NewTextHandler(io.Discard, nil))
+var noop = slog.New(slog.NewTextHandler(io.Discard, nil)) //nolint:sloglint // intentional: io.Discard text handler kept over slog.DiscardHandler by design
 
 // Noop returns a logger that discards all output.
 func Noop() *slog.Logger { return noop }
@@ -18,5 +23,6 @@ func NoopIfNil(l *slog.Logger) *slog.Logger {
 	if l != nil {
 		return l
 	}
+
 	return noop
 }

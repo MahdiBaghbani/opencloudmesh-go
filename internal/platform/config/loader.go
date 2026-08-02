@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package config provides configuration loading and validation.
 package config
 
@@ -30,7 +35,7 @@ type LoaderOptions struct {
 	// FlagOverrides are CLI flag values that override config file values.
 	FlagOverrides FlagOverrides
 
-	// Logger is reserved for future use.
+	// Logger is accepted but not read by Load.
 	Logger *slog.Logger
 }
 
@@ -45,65 +50,198 @@ type FlagOverrides struct {
 	TokenExchangePath *string
 }
 
-// Load loads configuration with the following precedence:
+// Load loads configuration with the following precedence (lowest to highest):
 //  1. Determine effective mode: --mode flag > mode in config file > default (strict)
 //  2. Start from mode preset defaults
-//  3. Overlay TOML config file values
-//  4. Overlay CLI flags
-//  5. Validate enum fields
+//  3. Overlay TOML config file values (file overrides preset defaults)
+//  4. Overlay CLI flags (flags override file values)
+//  5. Overlay environment-variable overrides (env overrides both CLI flags
+//     and TOML file values; env is the highest layer)
+//  6. Validate enum fields
+//
+// Per-key precedence, from lowest to highest:
+//   - the mode preset/default applies when the key is absent from the TOML
+//     file, the CLI flags, and the environment;
+//   - the TOML file value overrides the preset/default when set;
+//   - CLI flags override the TOML file value when set (only keys with a flag);
+//   - OCM_CONFIG_* environment variables override the CLI flag value (when a
+//     flag exists for that key) and the TOML value, so env is the highest layer.
+//
+// An empty/unset OCM_CONFIG_* env var leaves the prior layer's value intact;
+// a non-empty env var replaces it. See applyEnvOverrides for the supported
+// variable list, which today includes OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK.
 //
 // If ConfigPath is provided but the file is missing, unreadable, or invalid TOML,
 // Load returns an error (fail fast). Unknown/undecoded TOML keys fail the load.
-func Load(opts LoaderOptions) (*Config, error) {
+func readConfigFile(configPath string) (fileConfig, toml.MetaData, error) {
 	var fc fileConfig
-	var md toml.MetaData
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fc, toml.MetaData{}, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+	}
+
+	md, err := toml.Decode(string(data), &fc)
+	if err != nil {
+		return fc, md, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	}
+
+	if undecoded := md.Undecoded(); len(undecoded) > 0 {
+		keys := make([]string, 0, len(undecoded))
+		for _, k := range undecoded {
+			keyStr := k.String()
+			// http.services and http.interceptors store nested maps as
+			// map[string]any; the TOML library cannot track leaf keys
+			// within untyped values, so they appear undecoded by design.
+			if strings.HasPrefix(keyStr, "http.services.") ||
+				strings.HasPrefix(keyStr, "http.interceptors.") {
+				continue
+			}
+
+			if isUnquotedMultiSegmentInstanceKey(k) {
+				return fc, md, fmt.Errorf(
+					"config file %s contains peer_compat instance host %q that must be a quoted TOML key; unquoted multi-segment hosts are not allowed",
+					configPath, keyStr,
+				)
+			}
+
+			keys = append(keys, keyStr)
+		}
+
+		if len(keys) > 0 {
+			sort.Strings(keys)
+			return fc, md, fmt.Errorf("config file %s contains unsupported keys: %s", configPath, strings.Join(keys, ", "))
+		}
+	}
+
+	return fc, md, nil
+}
+
+func applyTLSDirDefaults(cfg *Config, md toml.MetaData) error {
+	if !md.IsDefined("tls", "tls_dir") {
+		return nil
+	}
+
+	if strings.TrimSpace(cfg.TLS.TLSDir) == "" {
+		return fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
+	}
+
+	tlsDir := strings.TrimSpace(cfg.TLS.TLSDir)
+	if !md.IsDefined("tls", "self_signed_dir") {
+		cfg.TLS.SelfSignedDir = filepath.Join(tlsDir, "certs")
+	}
+
+	if !md.IsDefined("tls", "acme", "storage_dir") {
+		cfg.TLS.ACME.StorageDir = filepath.Join(tlsDir, "acme")
+	}
+
+	if !md.IsDefined("signature", "key_path") {
+		cfg.Signature.KeyPath = filepath.Join(tlsDir, "keys", "signing.pem")
+	}
+
+	return nil
+}
+
+func validateExplicitEmptyPersistenceBackend(md toml.MetaData, fc fileConfig) error {
+	if !md.IsDefined("persistence", "backend") {
+		return nil
+	}
+
+	if fc.Persistence != nil && fc.Persistence.Backend == "" {
+		return fmt.Errorf("persistence.backend is set but empty; provide a valid backend or remove the key")
+	}
+
+	return nil
+}
+
+func resolveEffectiveMode(fcMode, modeFlag string) (Mode, error) {
+	modeStr := "strict" // default
+	if fcMode != "" {
+		modeStr = fcMode
+	}
+
+	if modeFlag != "" {
+		modeStr = modeFlag
+	}
+
+	return ParseMode(modeStr)
+}
+
+func normalizeLoadedConfig(cfg *Config, md toml.MetaData, fc fileConfig) error {
+	if err := applyEnvOverrides(cfg); err != nil {
+		return err
+	}
+
+	if err := normalizePeerMappingConfig(cfg); err != nil {
+		return fmt.Errorf("invalid peer_compat configuration: %w", err)
+	}
+
+	if err := validatePeerMappingConfig(cfg); err != nil {
+		return fmt.Errorf("invalid peer_compat configuration: %w", err)
+	}
+
+	applySignatureDefaults(cfg)
+
+	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
+		return err
+	}
+
+	if err := applyTLSDirDefaults(cfg, md); err != nil {
+		return err
+	}
+
+	if err := validateExplicitEmptyPersistenceBackend(md, fc); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateLoadedConfig(cfg *Config) error {
+	if err := validateEnums(cfg); err != nil {
+		return err
+	}
+
+	if err := validatePublicOrigin(cfg); err != nil {
+		return err
+	}
+
+	validatedBasePath, err := localidentity.ValidateExternalBasePath(cfg.ExternalBasePath)
+	if err != nil {
+		return fmt.Errorf("invalid external_base_path: %w", err)
+	}
+
+	cfg.ExternalBasePath = validatedBasePath
+
+	if err := validateOutboundTLSPaths(cfg); err != nil {
+		return err
+	}
+
+	if err := validateProxyURL(cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Load reads, merges, and validates configuration from the given loader options.
+func Load(opts LoaderOptions) (*Config, error) {
+	var (
+		fc fileConfig
+		md toml.MetaData
+	)
 
 	// Load TOML file when a config path is provided.
 	if opts.ConfigPath != "" {
-		data, err := os.ReadFile(opts.ConfigPath)
+		var err error
+
+		fc, md, err = readConfigFile(opts.ConfigPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read config file %s: %w", opts.ConfigPath, err)
-		}
-		md, err = toml.Decode(string(data), &fc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
-		}
-		if undecoded := md.Undecoded(); len(undecoded) > 0 {
-			keys := make([]string, 0, len(undecoded))
-			for _, k := range undecoded {
-				keyStr := k.String()
-				// http.services and http.interceptors store nested maps as
-				// map[string]any; the TOML library cannot track leaf keys
-				// within untyped values, so they appear undecoded by design.
-				if strings.HasPrefix(keyStr, "http.services.") ||
-					strings.HasPrefix(keyStr, "http.interceptors.") {
-					continue
-				}
-				if isUnquotedMultiSegmentInstanceKey(k) {
-					return nil, fmt.Errorf(
-						"config file %s contains peer_compat instance host %q that must be a quoted TOML key; unquoted multi-segment hosts are not allowed",
-						opts.ConfigPath, keyStr,
-					)
-				}
-				keys = append(keys, keyStr)
-			}
-			if len(keys) > 0 {
-				sort.Strings(keys)
-				return nil, fmt.Errorf("config file %s contains unsupported keys: %s", opts.ConfigPath, strings.Join(keys, ", "))
-			}
+			return nil, err
 		}
 	}
 
-	// Determine effective mode.
-	modeStr := "strict" // default
-	if fc.Mode != "" {
-		modeStr = fc.Mode
-	}
-	if opts.ModeFlag != "" {
-		modeStr = opts.ModeFlag
-	}
-
-	mode, err := ParseMode(modeStr)
+	mode, err := resolveEffectiveMode(fc.Mode, opts.ModeFlag)
 	if err != nil {
 		return nil, err
 	}
@@ -119,66 +257,11 @@ func Load(opts LoaderOptions) (*Config, error) {
 	// Overlay CLI flag overrides.
 	overlayFlags(cfg, opts.FlagOverrides)
 
-	if err := normalizePeerMappingConfig(cfg); err != nil {
-		return nil, fmt.Errorf("invalid peer_compat configuration: %w", err)
-	}
-	if err := validatePeerMappingConfig(cfg); err != nil {
-		return nil, fmt.Errorf("invalid peer_compat configuration: %w", err)
-	}
-
-	applySignatureDefaults(cfg)
-	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
+	if err := normalizeLoadedConfig(cfg, md, fc); err != nil {
 		return nil, err
 	}
 
-	// Validate tls_dir and derive related TLS paths when set.
-	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {
-		return nil, fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
-	}
-
-	// Explicit empty persistence.backend fails fast.
-	// An absent key leaves the preset intact; an explicit empty string is an error.
-	if md.IsDefined("persistence", "backend") && fc.Persistence != nil && fc.Persistence.Backend == "" {
-		return nil, fmt.Errorf("persistence.backend is set but empty; provide a valid backend or remove the key")
-	}
-
-	if md.IsDefined("tls", "tls_dir") {
-		tlsDir := strings.TrimSpace(cfg.TLS.TLSDir)
-		if !md.IsDefined("tls", "self_signed_dir") {
-			cfg.TLS.SelfSignedDir = filepath.Join(tlsDir, "certs")
-		}
-		if !md.IsDefined("tls", "acme", "storage_dir") {
-			cfg.TLS.ACME.StorageDir = filepath.Join(tlsDir, "acme")
-		}
-		if !md.IsDefined("signature", "key_path") {
-			cfg.Signature.KeyPath = filepath.Join(tlsDir, "keys", "signing.pem")
-		}
-	}
-
-	// Validate enum fields; invalid values are fatal.
-	if err := validateEnums(cfg); err != nil {
-		return nil, err
-	}
-
-	// Validate public_origin format.
-	if err := validatePublicOrigin(cfg); err != nil {
-		return nil, err
-	}
-
-	// Validate and normalize external_base_path.
-	validatedBasePath, err := localidentity.ValidateExternalBasePath(cfg.ExternalBasePath)
-	if err != nil {
-		return nil, fmt.Errorf("invalid external_base_path: %w", err)
-	}
-	cfg.ExternalBasePath = validatedBasePath
-
-	// Validate outbound TLS CA paths.
-	if err := validateOutboundTLSPaths(cfg); err != nil {
-		return nil, err
-	}
-
-	// Validate outbound proxy URL.
-	if err := validateProxyURL(cfg); err != nil {
+	if err := validateLoadedConfig(cfg); err != nil {
 		return nil, err
 	}
 
@@ -190,15 +273,19 @@ func applySignatureDefaults(cfg *Config) {
 	if cfg.Signature.Label == "" {
 		cfg.Signature.Label = defaults.Label
 	}
+
 	if cfg.Signature.KidFragment == "" {
 		cfg.Signature.KidFragment = defaults.KidFragment
 	}
+
 	if cfg.Signature.CreatedMaxAgeSeconds == 0 {
 		cfg.Signature.CreatedMaxAgeSeconds = defaults.CreatedMaxAgeSeconds
 	}
+
 	if cfg.Signature.CreatedMaxSkewSeconds == 0 {
 		cfg.Signature.CreatedMaxSkewSeconds = defaults.CreatedMaxSkewSeconds
 	}
+
 	if len(cfg.Signature.AllowedAlgorithms) == 0 {
 		cfg.Signature.AllowedAlgorithms = append([]string(nil), defaults.AllowedAlgorithms...)
 	}
@@ -209,9 +296,11 @@ func normalizeAllowedAlgorithm(alg string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if !sigalg.IsImplemented(normalized) {
 		return "", fmt.Errorf("unsupported algorithm %q", alg)
 	}
+
 	return normalized, nil
 }
 
@@ -222,22 +311,28 @@ func NormalizeSignatureAllowedAlgorithms(algorithms []string) ([]string, error) 
 	if len(algorithms) == 0 {
 		return nil, fmt.Errorf("signature.allowed_algorithms must not be empty")
 	}
+
 	normalizedAlgs := make([]string, 0, len(algorithms))
+
 	seen := make(map[string]struct{}, len(algorithms))
 	for _, alg := range algorithms {
 		if strings.TrimSpace(alg) == "" {
 			return nil, fmt.Errorf("signature.allowed_algorithms must not contain empty values")
 		}
+
 		normalized, err := normalizeAllowedAlgorithm(alg)
 		if err != nil {
 			return nil, fmt.Errorf("signature.allowed_algorithms: %w", err)
 		}
+
 		if _, ok := seen[normalized]; ok {
 			continue
 		}
+
 		seen[normalized] = struct{}{}
 		normalizedAlgs = append(normalizedAlgs, normalized)
 	}
+
 	return normalizedAlgs, nil
 }
 
@@ -246,103 +341,172 @@ func normalizeSignatureConfig(sig *SignatureConfig) error {
 	if err != nil {
 		return err
 	}
+
 	sig.AllowedAlgorithms = normalized
+
 	return nil
 }
 
-// validateEnums validates enum-like config fields and returns an error for invalid values.
-func validateEnums(cfg *Config) error {
-	// mode is already validated by ParseMode before we get here
-
-	// tls.mode
+func validateTLSMode(cfg *Config) error {
 	switch cfg.TLS.Mode {
 	case "off", "static", "selfsigned", "acme":
-		// valid
+		return nil
 	default:
 		return fmt.Errorf("invalid tls.mode %q: must be one of off, static, selfsigned, acme", cfg.TLS.Mode)
 	}
+}
 
-	// outbound_http.ssrf.mode
+func validateSSRFMode(cfg *Config) error {
 	switch cfg.OutboundHTTP.SSRF.Mode {
 	case "strict", "off":
-		// valid
+		return nil
 	default:
 		return fmt.Errorf("invalid outbound_http.ssrf.mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRF.Mode)
 	}
+}
 
-	// outbound_http.ssrf.route_policy must reference a defined policy
-	if cfg.OutboundHTTP.SSRF.RoutePolicy != "" {
-		if _, ok := cfg.OutboundHTTP.SSRF.RoutePolicies[cfg.OutboundHTTP.SSRF.RoutePolicy]; !ok {
-			return fmt.Errorf(
-				"outbound_http.ssrf.route_policy %q references an undefined policy; define it under [outbound_http.ssrf.route_policies.%s]",
-				cfg.OutboundHTTP.SSRF.RoutePolicy,
-				cfg.OutboundHTTP.SSRF.RoutePolicy,
-			)
-		}
+func validateSSRFRoutePolicyRef(cfg *Config) error {
+	if cfg.OutboundHTTP.SSRF.RoutePolicy == "" {
+		return nil
 	}
 
-	// signature.label and timing fields
+	if _, ok := cfg.OutboundHTTP.SSRF.RoutePolicies[cfg.OutboundHTTP.SSRF.RoutePolicy]; !ok {
+		return fmt.Errorf(
+			"outbound_http.ssrf.route_policy %q references an undefined policy; define it under [outbound_http.ssrf.route_policies.%s]",
+			cfg.OutboundHTTP.SSRF.RoutePolicy,
+			cfg.OutboundHTTP.SSRF.RoutePolicy,
+		)
+	}
+
+	return nil
+}
+
+func validateSignatureFields(cfg *Config) error {
 	if cfg.Signature.Label == "" {
 		return fmt.Errorf("signature.label must not be empty")
 	}
+
 	if cfg.Signature.KidFragment == "" {
 		return fmt.Errorf("signature.kid_fragment must not be empty")
 	}
+
 	if cfg.Signature.CreatedMaxAgeSeconds <= 0 {
 		return fmt.Errorf("signature.created_max_age_seconds must be positive")
 	}
+
 	if cfg.Signature.CreatedMaxSkewSeconds < 0 {
 		return fmt.Errorf("signature.created_max_skew_seconds must be non-negative")
 	}
 
-	// cache.driver (empty defaults to memory)
+	return nil
+}
+
+// validateSignatureJwksURI performs static validation of a configured local
+// signature.jwks_uri override: absolute, http/https scheme, no credentials,
+// no fragment, and https unless the local public origin itself opts into
+// development HTTP transport. It intentionally does not check same-authority
+// against the resolved discovery endpoint; that check runs in wiring.Build
+// (discovery.ValidateLocalJwksURIOverride) once the endpoint authority is
+// known, reusing the same policy enforced for peer-advertised jwksUri so the
+// two paths never diverge.
+func validateSignatureJwksURI(cfg *Config) error {
+	raw := cfg.Signature.JwksURI
+	if raw == "" {
+		return nil
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid signature.jwks_uri: malformed")
+	}
+
+	if u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("invalid signature.jwks_uri: must be absolute")
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "https" && scheme != "http" {
+		return fmt.Errorf("invalid signature.jwks_uri: scheme %q is not allowed", u.Scheme)
+	}
+
+	if scheme == "http" && cfg.PublicScheme() != "http" {
+		return fmt.Errorf("invalid signature.jwks_uri: must use https outside development HTTP opt-in")
+	}
+
+	if u.User != nil {
+		return fmt.Errorf("invalid signature.jwks_uri: must not contain credentials")
+	}
+
+	// Bare "#" leaves Fragment empty after url.Parse; reject any fragment delimiter.
+	if strings.Contains(raw, "#") {
+		return fmt.Errorf("invalid signature.jwks_uri: must not contain a fragment")
+	}
+
+	return nil
+}
+
+func validateCacheDriver(cfg *Config) error {
 	switch cfg.Cache.Driver {
 	case "", "memory", "redis":
-		// valid (empty defaults to memory)
+		return nil
 	default:
 		return fmt.Errorf("invalid cache.driver %q: must be one of memory or redis", cfg.Cache.Driver)
 	}
+}
 
-	// peer trust validation
-	if cfg.PeerTrust.Enabled {
-		// config_paths must be non-empty when peer trust is enabled
-		if len(cfg.PeerTrust.ConfigPaths) == 0 {
-			return fmt.Errorf("peer_trust.config_paths must be non-empty when peer trust is enabled")
-		}
-		// each path must be readable
-		for _, path := range cfg.PeerTrust.ConfigPaths {
-			if _, err := os.Stat(path); err != nil {
-				return fmt.Errorf("peer_trust config path %q is not readable: %w", path, err)
-			}
+func validatePeerTrust(cfg *Config) error {
+	if !cfg.PeerTrust.Enabled {
+		return nil
+	}
+
+	if len(cfg.PeerTrust.ConfigPaths) == 0 {
+		return fmt.Errorf("peer_trust.config_paths must be non-empty when peer trust is enabled")
+	}
+
+	for _, path := range cfg.PeerTrust.ConfigPaths {
+		if _, err := os.Stat(path); err != nil {
+			return fmt.Errorf("peer_trust config path %q is not readable: %w", path, err)
 		}
 	}
 
-	// logging.level validation
+	return nil
+}
+
+func validateLoggingLevel(cfg *Config) error {
 	switch cfg.Logging.Level {
 	case "trace", "debug", "info", "warn", "error":
-		// valid
+		return nil
 	default:
 		return fmt.Errorf("invalid logging.level %q: must be one of trace, debug, info, warn, error", cfg.Logging.Level)
 	}
+}
 
-	// token_exchange.path validation (if path is set)
-	if cfg.TokenExchange.Path != "" {
-		path := cfg.TokenExchange.Path
-		if strings.TrimSpace(path) == "" {
-			return fmt.Errorf("invalid token_exchange.path: must not be empty")
-		}
-		if strings.Contains(path, "..") {
-			return fmt.Errorf("invalid token_exchange.path: must not contain '..'")
-		}
-		if strings.HasPrefix(path, "/") {
-			return fmt.Errorf("invalid token_exchange.path: must be relative (no leading slash)")
-		}
-		if strings.Contains(path, "://") {
-			return fmt.Errorf("invalid token_exchange.path: must not contain a scheme")
-		}
+func validateTokenExchangePath(cfg *Config) error {
+	if cfg.TokenExchange.Path == "" {
+		return nil
 	}
 
-	// persistence.backend validation - unknown values are a hard error; no silent fallback.
+	path := cfg.TokenExchange.Path
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("invalid token_exchange.path: must not be empty")
+	}
+
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("invalid token_exchange.path: must not contain '..'")
+	}
+
+	if strings.HasPrefix(path, "/") {
+		return fmt.Errorf("invalid token_exchange.path: must be relative (no leading slash)")
+	}
+
+	if strings.Contains(path, "://") {
+		return fmt.Errorf("invalid token_exchange.path: must not contain a scheme")
+	}
+
+	return nil
+}
+
+func validatePersistenceBackend(cfg *Config) error {
 	switch cfg.Persistence.Backend {
 	case BackendMemory, BackendJSON, BackendSQLite, BackendMirror:
 		// valid
@@ -352,6 +516,7 @@ func validateEnums(cfg *Config) error {
 			cfg.Persistence.Backend,
 		)
 	}
+
 	if cfg.Persistence.Backend != BackendMemory && cfg.Persistence.DataDir == "" {
 		return fmt.Errorf(
 			"persistence.data_dir is required for backend %q",
@@ -359,6 +524,21 @@ func validateEnums(cfg *Config) error {
 		)
 	}
 
+	return nil
+}
+
+func validateCompatibilityScope(cfg *Config) error {
+	scope, err := ParseCompatibilityScope(string(cfg.OCM.CompatibilityScope))
+	if err != nil {
+		return err
+	}
+
+	cfg.OCM.CompatibilityScope = scope
+
+	return nil
+}
+
+func validateDiscoveryPolicies(cfg *Config) error {
 	switch cfg.OCM.Discovery.PeerAPIVersionPolicy {
 	case "accept-any", "exact", "at-least-1.4":
 		// valid
@@ -379,17 +559,34 @@ func validateEnums(cfg *Config) error {
 		)
 	}
 
-	if err := validateSSRFRoutePolicyGuardrails(cfg); err != nil {
-		return err
+	return nil
+}
+
+// validateEnums validates enum-like config fields and returns an error for invalid values.
+func validateEnums(cfg *Config) error {
+	// mode is already validated by ParseMode before we get here
+	validators := []func(*Config) error{
+		validateTLSMode,
+		validateSSRFMode,
+		validateSSRFRoutePolicyRef,
+		validateSignatureFields,
+		validateSignatureJwksURI,
+		validateCacheDriver,
+		validatePeerTrust,
+		validateLoggingLevel,
+		validateTokenExchangePath,
+		validatePersistenceBackend,
+		validateCompatibilityScope,
+		validateDiscoveryPolicies,
+		validateSSRFRoutePolicyGuardrails,
+		validateStrictModeGuardrails,
+		validateRatelimitConfig,
 	}
 
-	if err := validateStrictModeGuardrails(cfg); err != nil {
-		return err
-	}
-
-	// http.interceptors.ratelimit validation (fail fast)
-	if err := validateRatelimitConfig(cfg); err != nil {
-		return err
+	for _, validator := range validators {
+		if err := validator(cfg); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -408,15 +605,85 @@ func validateStrictModeGuardrails(cfg *Config) error {
 	if cfg == nil || cfg.Mode != "strict" {
 		return nil
 	}
+
+	if !cfg.OCM.MustInviteEnforced() {
+		return fmt.Errorf("mode=strict requires ocm.invite.enforce_must_invite!=false")
+	}
+
 	if cfg.TLS.Mode == "off" {
 		return fmt.Errorf("mode=strict requires tls.mode!=off")
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		return fmt.Errorf("mode=strict requires outbound_http.ssrf.mode=strict")
 	}
+
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		return fmt.Errorf("mode=strict requires outbound_http.insecure_skip_verify=false")
 	}
+
+	return nil
+}
+
+func validateSSRFRoutePolicyHostSuffixes(activePolicy, prefix string, policy SSRFRoutePolicyConfig) error {
+	if len(policy.AllowPrivateHostSuffixes) == 0 {
+		return fmt.Errorf(
+			"active ssrf route policy %q requires non-empty %s.allow_private_host_suffixes",
+			activePolicy, prefix,
+		)
+	}
+
+	for _, suffix := range policy.AllowPrivateHostSuffixes {
+		if strings.TrimSpace(suffix) == "" {
+			return fmt.Errorf(
+				"active ssrf route policy %q has blank entry in %s.allow_private_host_suffixes",
+				activePolicy, prefix,
+			)
+		}
+	}
+
+	return nil
+}
+
+func validateSSRFRoutePolicyCIDREmpty(activePolicy, prefix string, policy SSRFRoutePolicyConfig) error {
+	if len(policy.AllowPrivateCIDRs) == 0 {
+		return fmt.Errorf(
+			"active ssrf route policy %q requires non-empty %s.allow_private_cidrs",
+			activePolicy, prefix,
+		)
+	}
+
+	return nil
+}
+
+func validateSSRFRoutePolicyCIDRContent(activePolicy, prefix string, policy SSRFRoutePolicyConfig) error {
+	for _, cidr := range policy.AllowPrivateCIDRs {
+		if cidr == "0.0.0.0/0" || cidr == "::/0" {
+			return fmt.Errorf(
+				"active ssrf route policy %q forbids catch-all CIDR %q in %s.allow_private_cidrs",
+				activePolicy, cidr, prefix,
+			)
+		}
+
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf(
+				"active ssrf route policy %q has invalid CIDR %q in %s.allow_private_cidrs: %w",
+				activePolicy, cidr, prefix, err,
+			)
+		}
+	}
+
+	return nil
+}
+
+func validateSSRFRoutePolicyPortsEmpty(activePolicy, prefix string, policy SSRFRoutePolicyConfig) error {
+	if len(policy.AllowedPorts) == 0 {
+		return fmt.Errorf(
+			"active ssrf route policy %q requires non-empty %s.allowed_ports",
+			activePolicy, prefix,
+		)
+	}
+
 	return nil
 }
 
@@ -436,60 +703,33 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 
 	prefix := fmt.Sprintf("outbound_http.ssrf.route_policies.%s", activePolicy)
 
-	if len(policy.AllowPrivateHostSuffixes) == 0 {
-		return fmt.Errorf(
-			"active ssrf route policy %q requires non-empty %s.allow_private_host_suffixes",
-			activePolicy, prefix,
-		)
+	if err := validateSSRFRoutePolicyHostSuffixes(activePolicy, prefix, policy); err != nil {
+		return err
 	}
-	for _, suffix := range policy.AllowPrivateHostSuffixes {
-		if strings.TrimSpace(suffix) == "" {
-			return fmt.Errorf(
-				"active ssrf route policy %q has blank entry in %s.allow_private_host_suffixes",
-				activePolicy, prefix,
-			)
-		}
+
+	if err := validateSSRFRoutePolicyCIDREmpty(activePolicy, prefix, policy); err != nil {
+		return err
 	}
-	if len(policy.AllowPrivateCIDRs) == 0 {
-		return fmt.Errorf(
-			"active ssrf route policy %q requires non-empty %s.allow_private_cidrs",
-			activePolicy, prefix,
-		)
+
+	if err := validateSSRFRoutePolicyPortsEmpty(activePolicy, prefix, policy); err != nil {
+		return err
 	}
-	if len(policy.AllowedPorts) == 0 {
-		return fmt.Errorf(
-			"active ssrf route policy %q requires non-empty %s.allowed_ports",
-			activePolicy, prefix,
-		)
-	}
+
 	if policy.AllowIPLiterals {
 		return fmt.Errorf(
 			"active ssrf route policy %q requires %s.allow_ip_literals=false",
 			activePolicy, prefix,
 		)
 	}
-	for _, cidr := range policy.AllowPrivateCIDRs {
-		if cidr == "0.0.0.0/0" || cidr == "::/0" {
-			return fmt.Errorf(
-				"active ssrf route policy %q forbids catch-all CIDR %q in %s.allow_private_cidrs",
-				activePolicy, cidr, prefix,
-			)
-		}
-		if _, _, err := net.ParseCIDR(cidr); err != nil {
-			return fmt.Errorf(
-				"active ssrf route policy %q has invalid CIDR %q in %s.allow_private_cidrs: %w",
-				activePolicy, cidr, prefix, err,
-			)
-		}
+
+	if err := validateSSRFRoutePolicyCIDRContent(activePolicy, prefix, policy); err != nil {
+		return err
 	}
-	for _, port := range policy.AllowedPorts {
-		if port < 1 || port > 65535 {
-			return fmt.Errorf(
-				"active ssrf route policy %q has invalid port %d in %s.allowed_ports: must be in range 1-65535",
-				activePolicy, port, prefix,
-			)
-		}
+
+	if err := validateSSRFRoutePolicyPortsContent(activePolicy, prefix, policy); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -500,6 +740,7 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 func validateRatelimitConfig(cfg *Config) error {
 	// Collect available profile names from http.interceptors.ratelimit.profiles
 	profiles := make(map[string]bool)
+
 	if cfg.HTTP.Interceptors != nil {
 		if rlCfg, ok := cfg.HTTP.Interceptors["ratelimit"]; ok {
 			if profilesRaw, ok := rlCfg["profiles"]; ok {
@@ -509,6 +750,7 @@ func validateRatelimitConfig(cfg *Config) error {
 						if _, ok := profile.(map[string]any); !ok {
 							return fmt.Errorf("http.interceptors.ratelimit.profiles.%s must be a map", name)
 						}
+
 						profiles[name] = true
 					}
 				} else {
@@ -635,19 +877,23 @@ func validateOutboundTLSPaths(cfg *Config) error {
 		if err != nil {
 			return fmt.Errorf("outbound_http.tls_root_ca_file: %w", err)
 		}
+
 		if !fi.Mode().IsRegular() {
 			return fmt.Errorf("outbound_http.tls_root_ca_file: %q is not a regular file", cfg.OutboundHTTP.TLSRootCAFile)
 		}
 	}
+
 	if cfg.OutboundHTTP.TLSRootCADir != "" {
 		fi, err := os.Stat(cfg.OutboundHTTP.TLSRootCADir)
 		if err != nil {
 			return fmt.Errorf("outbound_http.tls_root_ca_dir: %w", err)
 		}
+
 		if !fi.IsDir() {
 			return fmt.Errorf("outbound_http.tls_root_ca_dir: %q is not a directory", cfg.OutboundHTTP.TLSRootCADir)
 		}
 	}
+
 	return nil
 }
 
@@ -659,13 +905,29 @@ func isUnquotedMultiSegmentInstanceKey(key toml.Key) bool {
 	if len(key) < 8 {
 		return false
 	}
+
 	if key[0] != "ocm" || key[1] != "peer_compat" || key[2] != "platform" {
 		return false
 	}
+
 	if key[4] != "instance" {
 		return false
 	}
+
 	return len(key) > 7
+}
+
+func validateSSRFRoutePolicyPortsContent(activePolicy, prefix string, policy SSRFRoutePolicyConfig) error {
+	for _, port := range policy.AllowedPorts {
+		if port < 1 || port > 65535 {
+			return fmt.Errorf(
+				"active ssrf route policy %q has invalid port %d in %s.allowed_ports: must be in range 1-65535",
+				activePolicy, port, prefix,
+			)
+		}
+	}
+
+	return nil
 }
 
 // normalizePeerMappingConfig canonicalizes host keys in [ocm.peer_compat] using
@@ -676,6 +938,7 @@ func normalizePeerMappingConfig(cfg *Config) error {
 	}
 
 	scheme := cfg.PublicScheme()
+
 	cfg.OCM.PeerMapping.scheme = scheme
 	if len(cfg.OCM.PeerMapping.HostPlatform) > 0 {
 		normalized := make(map[string]string, len(cfg.OCM.PeerMapping.HostPlatform))
@@ -684,11 +947,14 @@ func normalizePeerMappingConfig(cfg *Config) error {
 			if err != nil {
 				return fmt.Errorf("host_platform key %q: %w", host, err)
 			}
+
 			if _, exists := normalized[norm]; exists {
 				return fmt.Errorf("duplicate normalized host %q", norm)
 			}
+
 			normalized[norm] = platform
 		}
+
 		cfg.OCM.PeerMapping.HostPlatform = normalized
 	}
 
@@ -696,24 +962,28 @@ func normalizePeerMappingConfig(cfg *Config) error {
 		if len(overlay.Instance) == 0 {
 			continue
 		}
+
 		normalizedInstances := make(map[string]PeerMappingInstanceOverlay, len(overlay.Instance))
 		for host, instance := range overlay.Instance {
 			norm, err := hostport.Normalize(host, scheme)
 			if err != nil {
 				return fmt.Errorf("platform.%s.instance key %q: %w", platformName, host, err)
 			}
+
 			if _, exists := normalizedInstances[norm]; exists {
 				return fmt.Errorf("duplicate normalized host %q", norm)
 			}
+
 			normalizedInstances[norm] = instance
 		}
+
 		cfg.OCM.PeerMapping.Platform[platformName] = PeerPlatformOverlay{
 			IncludesTokenExchangeRequirement: overlay.IncludesTokenExchangeRequirement,
 			RequiresTokenExchangeRequirement: overlay.RequiresTokenExchangeRequirement,
-			RequiresHTTPRequestSignatures:    overlay.RequiresHTTPRequestSignatures,
 			Instance:                         normalizedInstances,
 		}
 	}
+
 	return nil
 }
 
@@ -721,19 +991,24 @@ func normalizePeerMappingConfig(cfg *Config) error {
 // and host_platform maps after normalization.
 func validatePeerMappingConfig(cfg *Config) error {
 	seen := make(map[string]struct{})
+
 	for platformName, overlay := range cfg.OCM.PeerMapping.Platform {
 		for host := range overlay.Instance {
 			if _, exists := seen[host]; exists {
 				return fmt.Errorf("duplicate host binding %q (platform %s instance)", host, platformName)
 			}
+
 			seen[host] = struct{}{}
 		}
 	}
+
 	for host, platform := range cfg.OCM.PeerMapping.HostPlatform {
 		if _, exists := seen[host]; exists {
 			return fmt.Errorf("duplicate host binding %q (host_platform maps to %s)", host, platform)
 		}
+
 		seen[host] = struct{}{}
 	}
+
 	return nil
 }

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package webdav provides the /webdav/* endpoints as a registry service.
 package webdav
 
@@ -33,10 +38,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "webdav", "unused_keys", unused)
 	}
@@ -53,14 +60,17 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	return &Service{router: r, conf: &c, log: log, handler: handler}, nil
 }
 
+// Handler returns the service HTTP handler; implements service.Service.
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
+// Prefix returns the service URL prefix; implements service.Service.
 func (s *Service) Prefix() string {
 	return "webdav"
 }
 
+// Close performs no cleanup for this service; implements service.Service.
 func (s *Service) Close() error {
 	return nil
 }

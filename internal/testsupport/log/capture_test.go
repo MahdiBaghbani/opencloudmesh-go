@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package log_test
 
 import (
@@ -13,6 +18,7 @@ func TestLogCapture_Contains(t *testing.T) {
 	if !capture.Contains("unused config keys") {
 		t.Error("Contains: expected true for present substring")
 	}
+
 	if capture.Contains("absent substring") {
 		t.Error("Contains: expected false for absent substring")
 	}
@@ -35,6 +41,7 @@ func TestLogCapture_FiltersInfoAndDebug(t *testing.T) {
 	if capture.Contains("info should not appear") {
 		t.Error("Contains: expected false for Info message filtered by warn level")
 	}
+
 	if capture.Contains("debug should not appear") {
 		t.Error("Contains: expected false for Debug message filtered by warn level")
 	}

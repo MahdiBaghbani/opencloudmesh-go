@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package peertrust
 
 import (
@@ -64,9 +69,11 @@ func NewTrustGroupManager(
 	refreshTimeout time.Duration,
 ) *TrustGroupManager {
 	logger = logutil.NoopIfNil(logger)
+
 	if refreshTimeout <= 0 {
 		refreshTimeout = 10 * time.Second
 	}
+
 	return &TrustGroupManager{
 		trustGroups:            make(map[string]*TrustGroup),
 		cacheConfig:            cacheConfig,
@@ -77,7 +84,7 @@ func NewTrustGroupManager(
 	}
 }
 
-// AddTrustGroup registers a trust group config (loaded from K2 JSON).
+// AddTrustGroup registers a trust group config loaded from JSON.
 func (m *TrustGroupManager) AddTrustGroup(cfg *TrustGroupConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -88,7 +95,7 @@ func (m *TrustGroupManager) AddTrustGroup(cfg *TrustGroupConfig) {
 	}
 }
 
-// IsMember checks if a host is a member of any enabled trust group (M1 union).
+// IsMember checks if a host is a member of any enabled trust group.
 // When requireVerified is true, only members from verified directory listings match.
 func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVerified bool) bool {
 	m.mu.RLock()
@@ -115,19 +122,27 @@ func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVe
 }
 
 // isMemberOf checks if a host matches any precomputed member authority in the trust group.
+// Member authorities are normalized with hostport.Normalize at refresh time; this is an
+// ocmgo implementation choice. The OCM spec defines denylist/allowlist as IP-address
+// based (IETF-OCM.md:759-762;
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L759-L762)
+// and does not define FQDN matching.
 func (m *TrustGroupManager) isMemberOf(tg *TrustGroup, host string, requireVerified bool) bool {
 	normalized, err := hostport.Normalize(host, m.scheme)
 	if err != nil {
 		return false
 	}
+
 	for _, authority := range tg.memberAuthorities {
 		if authority.normalized == normalized {
 			if requireVerified && !authority.verified {
 				continue
 			}
+
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -138,19 +153,24 @@ func (m *TrustGroupManager) triggerRefreshIfNeeded(_ context.Context, tg *TrustG
 
 	if age > m.cacheConfig.TTL {
 		enabledCount := 0
+
 		for _, ds := range tg.config.DirectoryServices {
 			if ds.Enabled {
 				enabledCount++
 			}
 		}
+
 		if enabledCount == 0 {
 			enabledCount = 1
 		}
+
 		timeout := m.refreshTimeout * time.Duration(enabledCount)
 
+		//nolint:gosec,contextcheck // intentional fire-and-forget background work that must outlive the request; cannot use the request context
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
+
 			m.refreshTrustGroup(ctx, tg)
 		}()
 	}
@@ -163,6 +183,7 @@ func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGrou
 		tg.refreshMu.Unlock()
 		return
 	}
+
 	tg.refreshing = true
 	tg.refreshMu.Unlock()
 
@@ -187,6 +208,7 @@ func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGrou
 				"trust_group", tg.config.TrustGroupID,
 				"directory_service_url", ds.URL,
 				"error", err)
+
 			continue // keep cache if fetch fails
 		}
 
@@ -220,10 +242,12 @@ func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Li
 			if err != nil {
 				continue
 			}
+
 			normalized, err := hostport.Normalize(u.Host, m.scheme)
 			if err != nil {
 				continue
 			}
+
 			if listing.Verified {
 				verifiedMap[normalized] = true
 			} else if _, exists := verifiedMap[normalized]; !exists {
@@ -236,6 +260,7 @@ func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Li
 	for norm, verified := range verifiedMap {
 		result = append(result, memberAuthority{normalized: norm, verified: verified})
 	}
+
 	return result
 }
 
@@ -244,10 +269,11 @@ func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var result []*TrustGroupConfig
+	result := make([]*TrustGroupConfig, 0, len(m.trustGroups))
 	for _, tg := range m.trustGroups {
 		result = append(result, tg.config)
 	}
+
 	return result
 }
 

@@ -1,8 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -16,7 +20,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 	httpCfg := tshttp.PermissiveConfig()
 
 	t.Run("webdav-receive invalid uri kind", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 			raw := validDiscoveryPayload(serverURL, map[string]any{
 				"resourceTypes": []any{
 					map[string]any{
@@ -28,22 +32,25 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 					},
 				},
 			})
+
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw)
+			tshttp.MustEncodeJSON(t, w, raw)
 		})
 
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
 		_, err := client.Discover(context.Background(), server.URL)
 		if err == nil {
 			t.Fatal("expected error for malformed webdav-receive uri")
 		}
+
 		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
 			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
 		}
 	})
 
 	t.Run("webdav non-string type", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 			raw := validDiscoveryPayload(serverURL, map[string]any{
 				"resourceTypes": []any{
 					map[string]any{
@@ -55,22 +62,25 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 					},
 				},
 			})
+
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw)
+			tshttp.MustEncodeJSON(t, w, raw)
 		})
 
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
 		_, err := client.Discover(context.Background(), server.URL)
 		if err == nil {
 			t.Fatal("expected error for webdav non-string type")
 		}
+
 		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
 			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
 		}
 	})
 
 	t.Run("webdav-receive non-object", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 			raw := validDiscoveryPayload(serverURL, map[string]any{
 				"resourceTypes": []any{
 					map[string]any{
@@ -82,15 +92,18 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 					},
 				},
 			})
+
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw)
+			tshttp.MustEncodeJSON(t, w, raw)
 		})
 
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
 		_, err := client.Discover(context.Background(), server.URL)
 		if err == nil {
 			t.Fatal("expected error for webdav-receive non-object")
 		}
+
 		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
 			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
 		}
@@ -109,7 +122,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 
 		for _, tc := range roles {
 			t.Run(tc.name, func(t *testing.T) {
-				server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+				server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 					raw := validDiscoveryPayload(serverURL, map[string]any{
 						"resourceTypes": []any{
 							map[string]any{
@@ -121,22 +134,28 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 							},
 						},
 					})
+
 					w.Header().Set("Content-Type", "application/json")
-					json.NewEncoder(w).Encode(raw)
+					tshttp.MustEncodeJSON(t, w, raw)
 				})
 
 				client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
 				disc, err := client.Discover(context.Background(), server.URL)
 				if err != nil {
 					t.Fatalf("Discover failed: %v", err)
 				}
+
 				if len(disc.ResourceTypes) != 1 {
 					t.Fatalf("resourceTypes len = %d", len(disc.ResourceTypes))
 				}
+
 				if _, ok := disc.ResourceTypes[0].Protocols[tc.name]; !ok {
 					t.Fatalf("protocol role %q was dropped from Protocols", tc.name)
 				}
+
 				found := false
+
 				want := "protocol role \"" + tc.name + "\" preserved but not locally shape-validated"
 				for _, w := range disc.Warnings {
 					if w == want {
@@ -144,6 +163,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 						break
 					}
 				}
+
 				if !found {
 					t.Fatalf("expected warning %q, got %v", want, disc.Warnings)
 				}

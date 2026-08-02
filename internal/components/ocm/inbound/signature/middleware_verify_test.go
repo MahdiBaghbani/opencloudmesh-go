@@ -1,14 +1,27 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package signature_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
@@ -18,19 +31,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"log/slog"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"strings"
-	"testing"
-	"time"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 	// Create a key manager and signer
 	km := crypto.NewKeyManager("", "https://sender.example.com")
-	km.LoadOrGenerate()
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate: %v", err)
+	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	cfg := defaultSigTestConfig()
@@ -49,17 +59,20 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 		if pi == nil || !pi.Authenticated {
 			t.Error("expected authenticated peer identity")
 		}
+
 		if pi.Authority == "" {
 			t.Error("expected non-empty Authority")
 		}
+
 		if pi.AuthorityForCompare == "" {
 			t.Error("expected non-empty AuthorityForCompare")
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -81,7 +94,10 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	// Use explicit :443 in the sender's external origin so the keyId includes it.
 	km := crypto.NewKeyManager("", "https://sender.example.com:443")
-	km.LoadOrGenerate()
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate: %v", err)
+	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	cfg := defaultSigTestConfig()
@@ -97,7 +113,7 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	// Peer resolver returns "sender.example.com" (without :443).
 	// The keyId will contain :443 explicitly.
 	// Scheme-aware comparison must treat them as equivalent.
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
 
@@ -110,11 +126,12 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 		if pi.AuthorityForCompare != "sender.example.com" {
 			t.Errorf("expected AuthorityForCompare 'sender.example.com', got %q", pi.AuthorityForCompare)
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	body := []byte(`{"sender":"user@sender.example.com"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -156,31 +173,38 @@ func TestSignatureMiddleware_UsesSignatureConfigLabel(t *testing.T) {
 		if pi == nil || !pi.Authenticated {
 			t.Error("expected authenticated peer identity")
 		}
+
 		if pi.AuthorityForCompare != "sender.example.com" {
 			t.Errorf("AuthorityForCompare = %q, want sender.example.com", pi.AuthorityForCompare)
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatal(err)
 	}
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected signed request with configured label to pass, got %d: %s", w.Code, w.Body.String())
 	}
 
 	defaultSigner := crypto.NewRFC9421Signer(km)
-	defaultReq := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
+
+	defaultReq := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	if err := defaultSigner.SignRequest(defaultReq, body); err != nil {
 		t.Fatal(err)
 	}
+
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, defaultReq)
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected default ocm label with tag to verify label-free, got %d", w.Code)
 	}
@@ -190,28 +214,31 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	keyID := "sender.example.com#ec1"
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
 			keyID: {
-				KeyID: keyID, Algorithm: sigalg.ECDSAP256SHA256, PublicKey: &priv.PublicKey,
+				KeyID: keyID, PublicKey: &priv.PublicKey,
 				JWKKty: "EC", JWKCrv: "P-256", JWKAlg: "ES256",
 			},
 		},
 	}
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
+
 	now := time.Now().UTC()
 	req.Header.Set("Date", now.Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -223,56 +250,71 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 		created, keyID,
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+
 	sigBase, err := crypto.BuildSignatureBase(req, components)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fullBase := sigBase + `"@signature-params": ` + paramsRaw
 	sum := sha256.Sum256([]byte(fullBase))
+
 	r, s, err := ecdsa.Sign(rand.Reader, priv, sum[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	raw, err := sigalg.EncodeECDSARawRS(r, s, 32)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(raw)))
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for omit-alg ECDSA, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
-// ECDSA P-256 with Signature-Input alg omitted, resolved via live JWKS.
+// ECDSA P-256 JWKS omitting alg is rejected with a 502 lookup failure.
 func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testing.T) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	x := base64.RawURLEncoding.EncodeToString(padCoordMiddleware(priv.X.Bytes(), 32))
 	y := base64.RawURLEncoding.EncodeToString(padCoordMiddleware(priv.Y.Bytes(), 32))
 
-	var keyID string
-	var srv *httptest.Server
+	var (
+		keyID string
+		srv   *httptest.Server
+	)
+
+	jwkPath := "/ocm/jwks"
+
+	var jwksURI string
+
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case jwks.WellKnownPath:
+		case jwkPath:
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{
+			tshttp.MustEncodeJSON(t, w, jwks.Set{Keys: []jwks.Key{{
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			tshttp.MustEncodeJSON(t, w, map[string]any{
 				"enabled":      true,
 				"apiVersion":   "1.4.0",
 				"endPoint":     srv.URL + "/ocm",
 				"capabilities": []string{"http-sig"},
 				"criteria":     []string{"must-use-http-sig"},
+				"jwksUri":      jwksURI,
 			})
 		default:
 			http.NotFound(w, r)
@@ -284,7 +326,9 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	keyID = authority + "#ec1"
+	jwksURI = srv.URL + jwkPath
 
 	outboundCfg := &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
@@ -292,22 +336,25 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := discovery.NewPeerDiscoveryAdapter(rawClient)
+	discClient := discovery.NewClient(rawClient, nil)
+	adapter := discovery.NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	mw := newTestSignatureMiddleware(cfg, adapter, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
+
 	now := time.Now().UTC()
 	req.Header.Set("Date", now.Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -318,27 +365,37 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 		now.Unix(), keyID,
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+
 	sigBase, err := crypto.BuildSignatureBase(req, components)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fullBase := sigBase + `"@signature-params": ` + paramsRaw
 	sum := sha256.Sum256([]byte(fullBase))
+
 	r, s, err := ecdsa.Sign(rand.Reader, priv, sum[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	raw, err := sigalg.EncodeECDSARawRS(r, s, 32)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(raw)))
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for JWKS->peer->middleware omit-alg ECDSA chain, got %d: %s", w.Code, w.Body.String())
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 for JWKS omit-alg ECDSA chain, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if got := strings.TrimSpace(w.Body.String()); got != "signature key lookup failed" {
+		t.Fatalf("body = %q, want signature key lookup failed", got)
 	}
 }
 func TestSignatureMiddleware_IfPresent_StrictMode_AcceptsSigned(t *testing.T) {
@@ -346,6 +403,7 @@ func TestSignatureMiddleware_IfPresent_StrictMode_AcceptsSigned(t *testing.T) {
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	cfg := defaultSigTestConfig()
@@ -362,13 +420,16 @@ func TestSignatureMiddleware_IfPresent_StrictMode_AcceptsSigned(t *testing.T) {
 		if pi == nil || !pi.Authenticated {
 			t.Fatal("expected authenticated peer identity")
 		}
+
 		if pi.AuthorityForCompare != "nc.example.com" {
 			t.Fatalf("AuthorityForCompare = %q, want nc.example.com", pi.AuthorityForCompare)
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "https://receiver.example.com/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "https://receiver.example.com/.well-known/ocm", nil)
+
 	req.Host = "receiver.example.com"
 	if err := signer.SignRequest(req, nil); err != nil {
 		t.Fatalf("SignRequest: %v", err)
@@ -385,7 +446,9 @@ func padCoordMiddleware(b []byte, size int) []byte {
 	if len(b) >= size {
 		return b
 	}
+
 	out := make([]byte, size)
 	copy(out[size-len(b):], b)
+
 	return out
 }

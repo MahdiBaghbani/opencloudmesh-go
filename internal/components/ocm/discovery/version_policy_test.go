@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery
 
 import (
@@ -38,6 +43,7 @@ func TestVersionPolicyFromConfig(t *testing.T) {
 			if p.Mode != tt.wantM {
 				t.Fatalf("Mode = %v, want %v", p.Mode, tt.wantM)
 			}
+
 			if p.Warn != tt.wantW {
 				t.Fatalf("Warn = %v, want %v", p.Warn, tt.wantW)
 			}
@@ -50,6 +56,7 @@ func TestNewVersionPolicy_DefaultAcceptAnyWarnAnyDiff(t *testing.T) {
 	if p.Mode != APIVersionAcceptAny {
 		t.Fatalf("Mode = %v, want APIVersionAcceptAny", p.Mode)
 	}
+
 	if p.Warn != WarnAnyDiff {
 		t.Fatalf("Warn = %v, want WarnAnyDiff", p.Warn)
 	}
@@ -68,6 +75,7 @@ func TestCompareDotTriple_Unparseable(t *testing.T) {
 		if _, ok := compareDotTriple(s, spec.APIVersionPin); ok {
 			t.Fatalf("compareDotTriple(%q, pin) ok=true, want false", s)
 		}
+
 		if _, ok := compareDotTriple(spec.APIVersionPin, s); ok && s != "" {
 			t.Fatalf("compareDotTriple(pin, %q) ok=true, want false", s)
 		}
@@ -89,6 +97,7 @@ func TestCompareDotTriple_Ordering(t *testing.T) {
 		if !ok {
 			t.Fatalf("compareDotTriple(%q, %q) ok=false", tt.a, tt.b)
 		}
+
 		if cmp != tt.want {
 			t.Fatalf("compareDotTriple(%q, %q) = %d, want %d", tt.a, tt.b, cmp, tt.want)
 		}
@@ -116,7 +125,7 @@ func TestVersionPolicy_Accept(t *testing.T) {
 		{
 			name:   "at-least-1.4",
 			mode:   APIVersionAtLeast14,
-			accept: func(v string) bool { return atLeast14(v) },
+			accept: atLeast14,
 		},
 	}
 
@@ -156,13 +165,16 @@ func TestVersionPolicy_Accept(t *testing.T) {
 					if ok != m.accept(v) {
 						t.Errorf("Accept(%q) ok=%v, want %v", v, ok, m.accept(v))
 					}
+
 					wantWarn := w.shouldWarn(v) && ok
 					if wantWarn && warning == "" {
 						t.Errorf("Accept(%q) warning empty, want non-empty", v)
 					}
+
 					if !wantWarn && warning != "" {
 						t.Errorf("Accept(%q) warning=%q, want empty", v, warning)
 					}
+
 					if wantWarn && w.warn == WarnAnyDiff && !strings.Contains(warning, "differs from pin") {
 						t.Errorf("Accept(%q) warning=%q, want differs-from-pin text", v, warning)
 					}
@@ -174,10 +186,12 @@ func TestVersionPolicy_Accept(t *testing.T) {
 
 func TestVersionPolicy_Accept_EmptyRejected(t *testing.T) {
 	p := NewVersionPolicy()
+
 	ok, warn := p.Accept("")
 	if ok {
 		t.Fatal("Accept(\"\") ok=true, want false")
 	}
+
 	if warn != "" {
 		t.Fatalf("Accept(\"\") warning=%q, want empty", warn)
 	}

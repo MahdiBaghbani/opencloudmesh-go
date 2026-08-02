@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package ui provides the /ui/* endpoints as a registry service.
 package ui
 
@@ -45,15 +50,17 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "ui", "unused_keys", unused)
 	}
 
-	uiHandler, err := ui.NewHandler(inputs.LocalIdentity.ExternalBasePath, c.Wayf.Enabled, inputs.LocalIdentity.ProviderDomain)
+	uiHandler, err := ui.NewHandler(inputs.LocalIdentity.ExternalBasePath, inputs.LocalIdentity.ProviderDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +74,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		r.Get(RouteWAYF, uiHandler.Wayf)
 		log.Info("WAYF UI enabled", "wayf_path", "/ui/wayf")
 	}
+
 	if c.InviteAccept.Enabled {
 		r.Get(RouteAcceptInvite, uiHandler.AcceptInvite)
 		log.Info("invite accept UI enabled", "accept_invite_path", "/ui/accept-invite")
@@ -75,14 +83,17 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	return &Service{router: r, conf: &c, log: log}, nil
 }
 
+// Handler returns the service HTTP handler; implements service.Service.
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
+// Prefix returns the service URL prefix; implements service.Service.
 func (s *Service) Prefix() string {
 	return "ui"
 }
 
+// Close performs no cleanup for this service; implements service.Service.
 func (s *Service) Close() error {
 	return nil
 }

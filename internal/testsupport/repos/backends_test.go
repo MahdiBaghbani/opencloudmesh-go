@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package repos
 
 import (
@@ -14,6 +19,7 @@ func TestBackendListsDerivedFromAllBackends(t *testing.T) {
 	for i, tr := range OpenTestRepos() {
 		openNames[i] = tr.Name
 	}
+
 	if !slices.Equal(openNames, all) {
 		t.Fatalf("OpenTestRepos names = %v, want AllBackends = %v", openNames, all)
 	}

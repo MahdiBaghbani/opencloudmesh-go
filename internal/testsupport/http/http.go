@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package http provides test helper factories for outbound HTTP client configs
 // and clients. Helpers return fresh values so callers can safely override
 // individual fields without affecting other tests.
@@ -26,7 +31,7 @@ const DefaultShutdownWait = config.DefaultTestShutdownWait
 func PermissiveConfig() *config.OutboundHTTPConfig {
 	return &config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyEnvFallback: false,
+		UseEnvFallback:   false,
 		TimeoutMS:        TestOutboundTimeoutMS,
 		ConnectTimeoutMS: TestOutboundConnectMS,
 		MaxRedirects:     config.DefaultOutboundMaxRedirects,

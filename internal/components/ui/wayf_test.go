@@ -1,6 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ui_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,16 +21,17 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if id.ProviderDomain != "cloud.example.com" {
 		t.Fatalf("ProviderDomain = %q, want cloud.example.com (default port stripped)", id.ProviderDomain)
 	}
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, true, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf?token=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf?token=abc", nil)
 	w := httptest.NewRecorder()
 	handler.Wayf(w, req)
 
@@ -36,18 +43,19 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 	if !strings.Contains(body, `const providerDomain = "cloud.example.com"`) {
 		t.Errorf("expected stripped provider domain in WAYF page, got body snippet around providerDomain")
 	}
+
 	if strings.Contains(body, "cloud.example.com:443") {
 		t.Error("expected default port stripped from providerDomain in WAYF page")
 	}
 }
 
 func TestWayf_ReadsTokenFromQuery(t *testing.T) {
-	handler, err := ui.NewHandler("", true, "alice.example.com")
+	handler, err := ui.NewHandler("", "alice.example.com")
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf?token=invite-token-123", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf?token=invite-token-123", nil)
 	w := httptest.NewRecorder()
 	handler.Wayf(w, req)
 
@@ -66,16 +74,17 @@ func TestWayf_NonDefaultPortPreservedInProviderDomain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if id.ProviderDomain != "cloud.example.com:9200" {
 		t.Fatalf("ProviderDomain = %q, want cloud.example.com:9200", id.ProviderDomain)
 	}
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, true, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf?token=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf?token=abc", nil)
 	w := httptest.NewRecorder()
 	handler.Wayf(w, req)
 
@@ -91,18 +100,19 @@ func TestNewHandler_UsesValidatedExternalBasePath(t *testing.T) {
 		t.Fatalf("Derive: %v", err)
 	}
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, false, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/login", nil)
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
+
 	if body := w.Body.String(); !strings.Contains(body, "/ocm") {
 		t.Error("expected validated base path in login page")
 	}

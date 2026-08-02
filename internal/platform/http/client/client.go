@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package client provides a safe outbound HTTP client with SSRF protections.
 package client
 
@@ -16,15 +21,24 @@ import (
 )
 
 var (
-	ErrSSRFBlocked         = errors.New("request blocked by SSRF protection")
-	ErrTooManyRedirects    = errors.New("too many redirects")
-	ErrResponseTooLarge    = errors.New("response body too large")
-	ErrInvalidURL          = errors.New("invalid URL")
-	ErrRedirectBlocked     = errors.New("redirect blocked by policy")
-	ErrSignedNoRedirect    = errors.New("signed requests cannot follow redirects")
+	// ErrSSRFBlocked reports an SSRF-blocked outbound request.
+	ErrSSRFBlocked = errors.New("request blocked by SSRF protection")
+	// ErrTooManyRedirects reports excessive HTTP redirects.
+	ErrTooManyRedirects = errors.New("too many redirects")
+	// ErrResponseTooLarge reports an oversized response body.
+	ErrResponseTooLarge = errors.New("response body too large")
+	// ErrInvalidURL reports an invalid outbound URL.
+	ErrInvalidURL = errors.New("invalid URL")
+	// ErrRedirectBlocked reports a redirect blocked by policy.
+	ErrRedirectBlocked = errors.New("redirect blocked by policy")
+	// ErrSignedNoRedirect reports a redirect attempt on a signed request.
+	ErrSignedNoRedirect = errors.New("signed requests cannot follow redirects")
+	// ErrRedirectNotSameHost reports a cross-host redirect.
 	ErrRedirectNotSameHost = errors.New("redirect to different host blocked")
-	ErrRedirectDowngrade   = errors.New("redirect from https to http blocked")
-	ErrHostUnresolvable    = errors.New("host could not be resolved")
+	// ErrRedirectDowngrade reports an HTTPS-to-HTTP redirect.
+	ErrRedirectDowngrade = errors.New("redirect from https to http blocked")
+	// ErrHostUnresolvable reports an unresolvable outbound host.
+	ErrHostUnresolvable = errors.New("host could not be resolved")
 )
 
 // RequestOptions controls per-request behavior.
@@ -49,10 +63,10 @@ type Client struct {
 // New creates a new safe HTTP client.
 // Proxy selection precedence:
 //   - cfg.ProxyURL set: all requests route through this explicit proxy; env vars ignored.
-//   - cfg.ProxyURL empty and cfg.ProxyEnvFallback true: HTTP_PROXY, HTTPS_PROXY, and
-//     NO_PROXY env vars are read once at New() time and honored for all requests.
-//     To pick up env changes, recreate the client.
-//   - cfg.ProxyURL empty and cfg.ProxyEnvFallback false: requests go direct; env
+//   - cfg.ProxyURL empty and cfg.UseEnvFallback (use_env_fallback) true:
+//     HTTP_PROXY, HTTPS_PROXY, and NO_PROXY env vars are read once at New() time
+//     and honored for all requests. To pick up env changes, recreate the client.
+//   - cfg.ProxyURL empty and cfg.UseEnvFallback false: requests go direct; env
 //     proxy vars are ignored.
 //
 // Destination SSRF checks always apply in strict mode regardless of proxy routing.
@@ -74,7 +88,7 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	c.httpClient = &http.Client{
 		Transport: c.newTransport(rootCAs, proxyFunc),
 		Timeout:   time.Duration(cfg.TimeoutMS) * time.Millisecond,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
@@ -92,6 +106,7 @@ func (c *Client) getResolver() Resolver {
 	if c.resolver != nil {
 		return c.resolver
 	}
+
 	return net.DefaultResolver
 }
 
@@ -105,8 +120,10 @@ func (c *Client) isStrictMode() bool {
 func (c *Client) Get(ctx context.Context, urlStr string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
+
 	return c.DoWithOptions(req, RequestOptions{IsSigned: false})
 }
 
@@ -135,6 +152,7 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 
 	isSigned := opts.IsSigned || hasSignatureHeaders(req)
 
+	//nolint:gosec // request URL is preflighted by checkSSRFURL in strict mode before Do()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -142,9 +160,11 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 
 	if isRedirect(resp.StatusCode) {
 		if isSigned {
+			//nolint:errcheck // best-effort cleanup; error is not actionable
 			resp.Body.Close()
 			return nil, fmt.Errorf("%w: received %d", ErrSignedNoRedirect, resp.StatusCode)
 		}
+
 		return c.followRedirect(req, resp, 0)
 	}
 
@@ -158,13 +178,18 @@ func hasSignatureHeaders(req *http.Request) bool {
 
 // followRedirect follows a single redirect with strict constraints.
 func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, depth int) (*http.Response, error) {
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
+
 	ctx := origReq.Context()
 
 	maxRedirects := c.cfg.MaxRedirects
 	if maxRedirects <= 0 {
 		maxRedirects = 1
 	}
+
 	if depth >= maxRedirects {
 		return nil, fmt.Errorf("%w: exceeded limit of %d", ErrTooManyRedirects, maxRedirects)
 	}
@@ -176,6 +201,7 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 
 	redirectURL, err := url.Parse(location)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return nil, fmt.Errorf("%w: invalid Location: %v", ErrRedirectBlocked, err)
 	}
 
@@ -194,18 +220,21 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	// SSRF revalidation on redirect target (defense-in-depth; same-host is
 	// already enforced above). Catches DNS rebinding and enforces route policy.
 	if c.isStrictMode() {
-		if err := c.checkSSRFURL(ctx, redirectURL); err != nil {
-			return nil, err
+		if ssrfErr := c.checkSSRFURL(ctx, redirectURL); ssrfErr != nil {
+			return nil, ssrfErr
 		}
 	}
 
+	//nolint:gosec // redirect URL is same-host validated and re-checked by checkSSRFURL in strict mode before Do()
 	newReq, err := http.NewRequestWithContext(ctx, origReq.Method, redirectURL.String(), nil)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return nil, fmt.Errorf("%w: %v", ErrRedirectBlocked, err)
 	}
 
 	copyRedirectHeaders(origReq, newReq)
 
+	//nolint:gosec // redirect target is same-host validated and re-checked by checkSSRFURL in strict mode before Do()
 	newResp, err := c.httpClient.Do(newReq)
 	if err != nil {
 		return nil, err
@@ -224,9 +253,13 @@ func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Resp
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
 
 	limitedReader := io.LimitReader(resp.Body, c.cfg.MaxResponseBytes+1)
+
 	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, resp, err

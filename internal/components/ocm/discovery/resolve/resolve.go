@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package resolve derives OCM discovery provider configuration from service-local
 // TOML plus narrow ResolveInputs supplied by wiring. Endpoint derivation requires
 // a non-empty PublicOrigin in ResolveInputs.LocalIdentity.
@@ -5,6 +10,7 @@ package resolve
 
 import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -34,7 +40,7 @@ type BuildInputs struct {
 
 // Resolve applies service-local defaults, derives cross-cutting values from
 // ResolveInputs and route inventory when not explicitly set in per-service TOML,
-// maps CodeFlow.Evaluate() facts into build params, and returns the resolved
+// maps the resolved code-flow facts into build params, and returns the resolved
 // discovery build params.
 func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs) BuildInputs {
 	c.ApplyDefaults()
@@ -43,6 +49,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	if routeOpts.TokenExchangePath == "" {
 		routeOpts.TokenExchangePath = in.TokenExchangePath
 	}
+
 	if routeOpts.TokenExchangePath == "" {
 		routeOpts.TokenExchangePath = "token"
 	}
@@ -53,6 +60,11 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	webdavRoot := projected.WebDAVRoot
 	tokenEndPoint := projected.TokenEndPoint
 	inviteAcceptDialog := projected.InviteAcceptDialog
+
+	jwksURI := in.JwksURIOverride
+	if jwksURI == "" {
+		jwksURI = projected.JwksURI
+	}
 
 	if _, set := rawOCMProvider["webdav_root"]; set {
 		webdavRoot = c.WebDAVRoot
@@ -66,6 +78,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	if te, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
 		rawTE = te
 	}
+
 	if _, set := rawTE["path"]; !set && c.TokenExchange.Path == "" {
 		c.TokenExchange.Path = routeOpts.TokenExchangePath
 	} else if c.TokenExchange.Path != "" {
@@ -82,7 +95,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	}
 
 	advertiseHTTPSig := in.KeyManager != nil
-	ev := in.CodeFlow.Evaluate()
+	facts := resolveFacts(in)
 
 	return BuildInputs{
 		Params: discovery.BuildParams{
@@ -95,9 +108,25 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			InvitesEnabled:         routeOpts.InvitesEnabled,
 			WayfEnabled:            routeOpts.WayfEnabled,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
-			TokenExchangeCapable:   ev.TokenExchangeCapable,
-			RequiresTokenExchange:  ev.RequiresTokenExchange,
-			RequiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
+			JwksURI:                jwksURI,
+			TokenExchangeCapable:   in.CodeFlow != nil,
+			RequiresTokenExchange:  facts.RequiresTokenExchange,
+			RequiresHTTPSignatures: facts.RequiresHTTPRequestSignatures,
+			AdvertiseDenylist:      in.AdvertiseDenylist,
+			AdvertiseAllowlist:     in.AdvertiseAllowlist,
+			AdvertiseMustInvite:    in.AdvertiseMustInvite,
 		},
 	}
+}
+
+// resolveFacts derives the code-flow facts for the local discovery document.
+// When a scope-gated resolver is wired, it is consulted with the local provider
+// domain as the host. When no resolver is wired, the legacy CodeFlow.Evaluate path
+// is used as a fallback.
+func resolveFacts(in ResolveInputs) policy.Facts {
+	if in.Resolver != nil {
+		return in.Resolver.ResolveFacts(in.LocalIdentity.ProviderDomain)
+	}
+
+	return in.CodeFlow.Evaluate()
 }

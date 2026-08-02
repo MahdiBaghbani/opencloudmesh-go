@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ui
 
 import (
@@ -5,10 +10,15 @@ import (
 )
 
 const (
-	RouteLogin        = "/login"
-	RouteInbox        = "/inbox"
-	RouteOutgoing     = "/outgoing"
-	RouteWAYF         = "/wayf"
+	// RouteLogin is the UI login route path.
+	RouteLogin = "/login"
+	// RouteInbox is the UI inbox route path.
+	RouteInbox = "/inbox"
+	// RouteOutgoing is the UI outgoing route path.
+	RouteOutgoing = "/outgoing"
+	// RouteWAYF is the UI WAYF route path.
+	RouteWAYF = "/wayf"
+	// RouteAcceptInvite is the UI accept-invite route path.
 	RouteAcceptInvite = "/accept-invite"
 )
 

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wellknown
 
 import (
@@ -35,16 +40,19 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
+
 	topLevel := make(map[string]any, len(m))
 	for k, v := range m {
 		if k != "ocmprovider" {
 			topLevel[k] = v
 		}
 	}
+
 	unused, err := svccfg.DecodeWithUnused(topLevel, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "wellknown", "unused_keys", unused)
 	}
@@ -65,9 +73,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		conf:   &c,
 	}
 
-	if err := s.routerInit(inputs, rawOCMProvider, log); err != nil {
-		return nil, err
-	}
+	s.routerInit(inputs, rawOCMProvider, log)
 
 	return s, nil
 }
@@ -79,19 +85,16 @@ func discoveryHandler(
 	if signatureMiddleware == nil {
 		return handler
 	}
+
 	return signatureMiddleware.VerifyOCMRequestIfPresent()(handler)
 }
 
-func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) error {
-	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
-	if err != nil {
-		return err
-	}
+func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) {
+	handler := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
+
 	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
 	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)
 	s.router.Get(RouteWellKnownOCMSlash, ocm.ServeHTTP)
-	s.router.Get(RouteWellKnownJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
-	return nil
 }
 
 // Close implements service.Service.

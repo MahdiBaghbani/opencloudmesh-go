@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package resolve
 
 import (
@@ -15,4 +20,21 @@ type ResolveInputs struct {
 	TokenExchangePath string
 	KeyManager        *crypto.KeyManager
 	CodeFlow          *policy.CodeFlow
+	// Resolver is the scope-gated peer-mapping resolver that drives discovery
+	// criteria and capabilities. When nil, Resolve falls back to CodeFlow.Evaluate.
+	Resolver *policy.PeerMappingResolver
+	// JwksURIOverride is the configured signature.jwks_uri override. Empty
+	// means derive the advertised jwksUri from the route-inventory projection
+	// (the GET /jwks route's DiscoveryFields projection), not a fixed path.
+	JwksURIOverride string
+
+	// AdvertiseDenylist and AdvertiseAllowlist reflect peer_trust policy lists
+	// wired by the caller. The caller sets these only when peer_trust.enabled is
+	// true and the corresponding list is nonempty; otherwise both stay false.
+	AdvertiseDenylist  bool
+	AdvertiseAllowlist bool
+
+	// AdvertiseMustInvite reflects must-invite enforcement wired by the caller.
+	// Enforcement is on by default; an explicit opt-out clears this flag.
+	AdvertiseMustInvite bool
 }

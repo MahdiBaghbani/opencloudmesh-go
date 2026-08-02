@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 // Package peerorigin resolves peer origin (scheme and base URL) and validates
 // absolute-URI peer authorities for OCM outbound and inbound peer-boundary
@@ -46,10 +48,12 @@ func (r *Resolver) Resolve(peerInput string) Decision {
 	}
 
 	allowHTTP := r != nil && r.devAllowHTTP
+
 	scheme := "https"
 	if allowHTTP {
 		scheme = "http"
 	}
+
 	switch inputScheme {
 	case "https":
 		scheme = "https"
@@ -86,6 +90,7 @@ func (r *Resolver) IsAbsoluteURIAllowed(absoluteURI, peerInput string) bool {
 	if origin.PeerDomain == "" {
 		return false
 	}
+
 	if uriScheme == "http" && !origin.AllowHTTP {
 		return false
 	}
@@ -114,9 +119,11 @@ func authorityMatch(leftAuthority, rightAuthority, scheme string) bool {
 	if err != nil {
 		return false
 	}
+
 	right, err := hostport.Normalize(rightAuthority, scheme)
 	if err != nil {
 		return false
 	}
+
 	return left == right
 }

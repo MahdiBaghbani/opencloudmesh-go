@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Immutable GitHub Actions pin manifest (SSOT for CI and release workflows).
+# release: upstream tag at pin time; sha: lowercase 40-char commit for that tag.
+schema_version: 1
+pins:
+  actions/checkout:
+    release: v7.0.1
+    sha: 3d3c42e5aac5ba805825da76410c181273ba90b1
+  actions/setup-go:
+    release: v7.0.0
+    sha: b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+  actions/upload-artifact:
+    release: v7.0.1
+    sha: 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+  golangci/golangci-lint-action:
+    release: v9.3.0
+    sha: ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
+  golang/govulncheck-action:
+    release: v1.1.0
+    sha: 032d45514ae346b1db93c04b0c90b841c370344f
+  astral-sh/setup-uv:
+    release: v9.0.0
+    sha: c771a70e6277c0a99b617c7a806ffedaca235ff9
+  github/codeql-action/upload-sarif:
+    release: v4.37.4
+    sha: f205ea1c3313d32999d8d6a48b4f6530d4437b38
+  docker/setup-buildx-action:
+    release: v4.2.0
+    sha: bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+  docker/login-action:
+    release: v4.6.0
+    sha: dbcb813823bdd20940b903addbd779551569679f
+  docker/build-push-action:
+    release: v7.3.0
+    sha: 53b7df96c91f9c12dcc8a07bcb9ccacbed38856a

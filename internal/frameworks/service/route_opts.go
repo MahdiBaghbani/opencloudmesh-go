@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package service
 
 import (
@@ -23,6 +28,7 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 	if cfg == nil {
 		return opts
 	}
+
 	opts.ExternalBasePath = cfg.ExternalBasePath
 
 	if uiCfg := cfg.BuildServiceConfig("ui"); uiCfg != nil {
@@ -31,6 +37,7 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 				opts.WayfEnabled = true
 			}
 		}
+
 		if inviteAccept, ok := uiCfg["invite_accept"].(map[string]any); ok {
 			if enabled, ok := inviteAccept["enabled"].(bool); ok && enabled {
 				opts.InviteAcceptEnabled = true
@@ -40,6 +47,7 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 
 	tokenPath := resolveTokenExchangePath(cfg)
 	opts.TokenExchangePath = tokenPath
+
 	return opts
 }
 
@@ -51,9 +59,11 @@ func resolveTokenExchangePath(cfg *config.Config) string {
 			}
 		}
 	}
+
 	if cfg.TokenExchange.Path != "" {
 		return cfg.TokenExchange.Path
 	}
+
 	return "token"
 }
 

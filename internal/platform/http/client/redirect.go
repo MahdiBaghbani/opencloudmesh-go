@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package client provides a safe outbound HTTP client with SSRF protections.
 // See client.go for the concrete implementation.
 //
@@ -21,6 +26,7 @@ func isSameHost(a, b *url.URL) bool {
 	if !strings.EqualFold(a.Hostname(), b.Hostname()) {
 		return false
 	}
+
 	return effectivePort(a) == effectivePort(b)
 }
 
@@ -36,6 +42,7 @@ func effectivePort(u *url.URL) string {
 	if port == defaultPort(u.Scheme) {
 		return defaultPort(u.Scheme)
 	}
+
 	return port
 }
 
@@ -57,6 +64,7 @@ func copyRedirectHeaders(src, dst *http.Request) {
 	if ua := src.Header.Get("User-Agent"); ua != "" {
 		dst.Header.Set("User-Agent", ua)
 	}
+
 	if accept := src.Header.Get("Accept"); accept != "" {
 		dst.Header.Set("Accept", accept)
 	}

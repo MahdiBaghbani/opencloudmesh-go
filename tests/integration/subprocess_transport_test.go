@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -9,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -29,6 +32,7 @@ func TestSubprocessTransportFollowsExtraConfigTLS(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "tls-override",
 		Mode: "dev",
@@ -45,11 +49,17 @@ mode = "selfsigned"
 		t.Fatalf("BaseURL should follow the overriding TLS config (https), got %q", srv.BaseURL)
 	}
 
-	resp, err := srv.Client().Get(srv.BaseURL + "/api/healthz")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/healthz", nil)
+	if err != nil {
+		t.Fatalf("build healthz request: %v", err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("health check against overridden TLS listener failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected healthz 200 over https listener, got %d", resp.StatusCode)
 	}
@@ -71,6 +81,7 @@ func TestSubprocessDiscoveryFollowsExtraConfigTLS(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "tls-override-discovery",
 		Mode: "dev",
@@ -85,11 +96,17 @@ mode = "selfsigned"
 		t.Fatalf("BaseURL should follow the overriding TLS config (https), got %q", srv.BaseURL)
 	}
 
-	resp, err := srv.Client().Get(srv.BaseURL + "/.well-known/ocm")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("build discovery request: %v", err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get discovery: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("discovery returned %d", resp.StatusCode)
 	}

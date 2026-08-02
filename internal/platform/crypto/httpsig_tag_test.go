@@ -1,16 +1,22 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package crypto_test
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigparams"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigparams"
 )
 
 func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
@@ -20,10 +26,12 @@ func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := httpsigTestBodyJSON
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatalf("SignRequest: %v", err)
@@ -31,6 +39,7 @@ func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 
 	foreignSigInput := `sig1=("@method" "@target-uri" "content-digest" "content-length" "date");created=1;keyid="foreign.example#k1";alg="ed25519"`
 	foreignSignature := "sig1=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:"
+
 	req.Header.Set("Signature-Input", foreignSigInput+", "+req.Header.Get("Signature-Input"))
 	req.Header.Set("Signature", foreignSignature+", "+req.Header.Get("Signature"))
 
@@ -38,6 +47,7 @@ func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 	if !result.Verified {
 		t.Fatalf("expected verification of the ocm member alongside an ignored foreign label, got verified=false reason=%s err=%v", result.Reason, result.Error)
 	}
+
 	if result.KeyID != km.GetKeyID() {
 		t.Errorf("KeyID = %q, want %q", result.KeyID, km.GetKeyID())
 	}
@@ -50,18 +60,20 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 	digest := httpsigContentDigestHeader(body)
 
 	newReq := func(sigInput, signature string) *http.Request {
-		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", sigInput)
 		req.Header.Set("Signature", signature)
+
 		return req
 	}
 
 	t.Run("duplicate_signature_input", func(t *testing.T) {
 		fetched := false
+
 		result := verifier.VerifyRequest(newReq(
 			fmt.Sprintf(
 				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519";tag="ocm"`,
@@ -75,12 +87,15 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 		if result.Verified {
 			t.Fatal("expected duplicate tag rejection")
 		}
+
 		if result.Reason != crypto.ReasonMalformed {
 			t.Fatalf("Reason=%q want malformed (err=%v)", result.Reason, result.Error)
 		}
+
 		if result.Error == nil || !strings.Contains(result.Error.Error(), `multiple tag="ocm" signatures`) {
 			t.Fatalf("error = %v, want multiple tag=\"ocm\" signatures", result.Error)
 		}
+
 		if fetched {
 			t.Fatal("key fetch must not run after duplicate-tag rejection")
 		}
@@ -88,6 +103,7 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 
 	t.Run("duplicate_signature", func(t *testing.T) {
 		fetched := false
+
 		result := verifier.VerifyRequest(newReq(
 			fmt.Sprintf(
 				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm"`,
@@ -101,12 +117,15 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 		if result.Verified {
 			t.Fatal("expected duplicate Signature label rejection")
 		}
+
 		if result.Reason != crypto.ReasonMalformed {
 			t.Fatalf("Reason=%q want malformed (err=%v)", result.Reason, result.Error)
 		}
+
 		if result.Error == nil || !strings.Contains(result.Error.Error(), `multiple "ocm" signatures`) {
 			t.Fatalf("error = %v, want multiple ocm signatures", result.Error)
 		}
+
 		if fetched {
 			t.Fatal("key fetch must not run after duplicate-label rejection")
 		}
@@ -119,7 +138,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 	body := httpsigTestBodyJSON
 	digest := httpsigContentDigestHeader(body)
 
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", digest)
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 	req.Header.Set("Date", httpsigStandardDate)
@@ -130,6 +149,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 	req.Header.Set("Signature", httpsigPlaceholderSig)
 
 	fetched := false
+
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
 		fetched = true
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
@@ -137,6 +157,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected duplicate ocm member rejection")
 	}
+
 	if fetched {
 		t.Fatal("key fetch must not run after duplicate ocm member rejection")
 	}
@@ -145,7 +166,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`sig1=("@method" "@target-uri" "date");created=%d;keyid="a#1";alg="ed25519"`,
@@ -154,6 +175,7 @@ func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 	req.Header.Set("Signature", "sig1=:AAAA:")
 
 	fetched := false
+
 	result := verifier.VerifyRequest(req, nil, func(string) (sigalg.ResolvedPublicKey, error) {
 		fetched = true
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
@@ -161,9 +183,11 @@ func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected rejection when no ocm member is present")
 	}
+
 	if result.Error == nil || !strings.Contains(result.Error.Error(), "ocm") {
 		t.Fatalf("error = %v, want missing ocm member", result.Error)
 	}
+
 	if fetched {
 		t.Fatal("key fetch must not run when no ocm member is present")
 	}
@@ -177,10 +201,12 @@ func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	body := httpsigTestBodyJSON
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, body); err != nil {
@@ -191,11 +217,13 @@ func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
 	if strings.Count(sigInput, `tag="ocm"`) != 1 {
 		t.Fatalf("Signature-Input must contain exactly one tag=\"ocm\": %q", sigInput)
 	}
+
 	if !strings.HasSuffix(sigInput, `;tag="ocm"`) {
 		t.Fatalf("tag=\"ocm\" must be appended at the end: %q", sigInput)
 	}
 
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
 	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("verification of signed request with tag failed: %v", result.Error)
@@ -211,10 +239,12 @@ func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	body := httpsigTestBodyJSON
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, body); err != nil {
@@ -225,14 +255,17 @@ func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
 	if !strings.HasPrefix(sigInput, "customlabel=") {
 		t.Fatalf("Signature-Input = %q, want customlabel= prefix", sigInput)
 	}
+
 	if strings.Count(sigInput, `tag="ocm"`) != 1 {
 		t.Fatalf("Signature-Input must contain exactly one tag=\"ocm\": %q", sigInput)
 	}
+
 	if !strings.HasSuffix(sigInput, `;tag="ocm"`) {
 		t.Fatalf("tag=\"ocm\" must be appended at the end: %q", sigInput)
 	}
 
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
 	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("verification of signed request with custom label failed: %v", result.Error)
@@ -243,7 +276,7 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 	km := mustHTTPSigKeyManager(t)
 
 	signOpts := crypto.DefaultRFC9421Options()
-	signOpts.Now = func() time.Time { return httpsigFixedNow() }
+	signOpts.Now = httpsigFixedNow
 	signOpts.Label = "not-ocm"
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, signOpts)
@@ -252,10 +285,12 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(verifyOpts)
 
 	body := httpsigTestBodyJSON
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, body); err != nil {
@@ -271,6 +306,7 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 	if !result.Verified {
 		t.Fatalf("expected verification by tag to ignore label, got verified=false reason=%s err=%v", result.Reason, result.Error)
 	}
+
 	if result.KeyID != km.GetKeyID() {
 		t.Errorf("KeyID = %q, want %q", result.KeyID, km.GetKeyID())
 	}
@@ -283,13 +319,14 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 	body := httpsigTestBodyJSON
 	digest := httpsigContentDigestHeader(body)
 	newReq := func(sigInput string) *http.Request {
-		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", sigInput)
 		req.Header.Set("Signature", httpsigPlaceholderSig)
+
 		return req
 	}
 
@@ -326,6 +363,7 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 			if result.Verified {
 				t.Fatal("expected verification failure")
 			}
+
 			if result.Reason != tc.wantReason {
 				t.Fatalf("Reason=%q, want %q (err=%v)", result.Reason, tc.wantReason, result.Error)
 			}
@@ -342,20 +380,23 @@ func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := httpsigTestBodyJSON
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 
-	if err := signer.SignRequest(req, body); err != nil {
-		t.Fatalf("SignRequest failed: %v", err)
+	if serr := signer.SignRequest(req, body); serr != nil {
+		t.Fatalf("SignRequest failed: %v", serr)
 	}
 
 	sigInput := req.Header.Get("Signature-Input")
 	if !strings.HasPrefix(sigInput, "integritylabel=") {
 		t.Fatalf("Signature-Input = %q, want integritylabel= prefix", sigInput)
 	}
+
 	if !strings.Contains(sigInput, `;tag="ocm"`) {
 		t.Fatalf("Signature-Input must include tag parameter: %q", sigInput)
 	}
@@ -369,10 +410,12 @@ func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindTaggedLabel: %v", err)
 	}
+
 	params, err := sigparams.ParseSignatureInput(sigInput, label)
 	if err != nil {
 		t.Fatalf("ParseSignatureInput: %v", err)
 	}
+
 	if !strings.Contains(params.Raw, `;tag="ocm"`) {
 		t.Fatalf("@signature-params raw entry must preserve tag: %q", params.Raw)
 	}

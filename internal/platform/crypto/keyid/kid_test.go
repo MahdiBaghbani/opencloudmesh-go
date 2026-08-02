@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package keyid_test
 
 import (
@@ -18,6 +23,7 @@ func TestParseKid_HostFragment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseKid: %v", err)
 	}
+
 	if parsed.Authority != "example.com" || parsed.Fragment != "key1" {
 		t.Fatalf("parsed = %+v", parsed)
 	}
@@ -28,23 +34,9 @@ func TestKidFromPublicOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("KidFromPublicOrigin: %v", err)
 	}
+
 	if got != "example.com:9200#key1" {
 		t.Fatalf("kid = %q", got)
-	}
-}
-
-func TestKidMatches(t *testing.T) {
-	if !keyid.KidMatches("example.com#key1", "example.com#key1") {
-		t.Fatal("expected match")
-	}
-	if keyid.KidMatches("example.com#key1", "other.example#key1") {
-		t.Fatal("expected mismatch")
-	}
-	if !keyid.KidMatches("example.com:443#key1", "example.com#key1") {
-		t.Fatal("expected default-port match")
-	}
-	if !keyid.KidMatches("https://Example.COM:443/ocm#key1", "example.com#key1") {
-		t.Fatal("expected absolute-URI / host#fragment match after canonicalize")
 	}
 }
 
@@ -53,9 +45,11 @@ func TestParseKid_AbsoluteURI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseKid: %v", err)
 	}
+
 	if parsed.Fragment != "key-1" {
 		t.Fatalf("Fragment = %q", parsed.Fragment)
 	}
+
 	if parsed.Authority != "example.com" {
 		t.Fatalf("Authority = %q", parsed.Authority)
 	}
@@ -72,10 +66,12 @@ func TestCanonicalJWKSAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseKid: %v", err)
 	}
+
 	scheme, authority, err := keyid.CanonicalJWKSAuthority(hostFrag)
 	if err != nil {
 		t.Fatalf("CanonicalJWKSAuthority: %v", err)
 	}
+
 	if scheme != "https" || authority != "example.com" {
 		t.Fatalf("host#fragment = %s %q, want https example.com", scheme, authority)
 	}
@@ -84,10 +80,12 @@ func TestCanonicalJWKSAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseKid URI: %v", err)
 	}
+
 	scheme, authority, err = keyid.CanonicalJWKSAuthority(abs)
 	if err != nil {
 		t.Fatalf("CanonicalJWKSAuthority URI: %v", err)
 	}
+
 	if scheme != "https" || authority != "example.com" {
 		t.Fatalf("absolute URI = %s %q, want https example.com", scheme, authority)
 	}

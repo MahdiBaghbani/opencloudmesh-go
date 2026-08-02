@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package protocol provides TOML config fragments for strict two-server protocol
 // integration tests. It does not start servers or assert outcomes.
 package protocol
@@ -66,6 +71,8 @@ allow_ip_literals = false
 `, tlsCert, tlsKey, opts.LoopbackHost, formatPortList(opts.AllowedPorts))
 
 	switch opts.Variant {
+	case VariantProtocolPair:
+		// no variant-specific block; base config suffices
 	case VariantPeerTrustStaleMembership:
 		cfg += `
 [peer_trust]
@@ -88,9 +95,11 @@ func formatPortList(ports []int) string {
 	if len(ports) == 0 {
 		return ""
 	}
+
 	parts := make([]string, len(ports))
 	for i, p := range ports {
 		parts[i] = fmt.Sprintf("%d", p)
 	}
+
 	return strings.Join(parts, ", ")
 }

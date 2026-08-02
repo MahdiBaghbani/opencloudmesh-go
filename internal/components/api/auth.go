@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package api
 
 import (
@@ -8,7 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
-const SessionTTL = 24 * time.Hour
+const SessionTTL = 24 * time.Hour //nolint:revive // exported: obvious default auth session TTL duration constant
 
 // AuthHandler serves login, logout, and current-user endpoints.
 type AuthHandler struct {
@@ -26,18 +31,20 @@ func NewAuthHandler(repo identity.PartyRepo, sessions identity.SessionRepo, auth
 	}
 }
 
+// LoginRequest carries the body for POST /api/auth/login.
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
+// LoginResponse carries the body returned by POST /api/auth/login.
 type LoginResponse struct {
 	Token     string `json:"token"`
-	ExpiresAt string `json:"expires_at"`
+	ExpiresAt string `json:"expiresAt"`
 	User      struct {
 		ID          string `json:"id"`
 		Username    string `json:"username"`
-		DisplayName string `json:"display_name"`
+		DisplayName string `json:"displayName"`
 		Role        string `json:"role"`
 	} `json:"user"`
 }
@@ -75,6 +82,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set cookie for browser clients
+	//nolint:gosec // cookie already sets HttpOnly:true, Secure:r.TLS != nil, SameSite:Lax; gosec heuristic misses the conditional Secure
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    session.Token,
@@ -111,14 +119,20 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	h.sessions.Delete(ctx, token)
+	if err := h.sessions.Delete(ctx, token); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "session_error", "failed to delete session")
+		return
+	}
 
+	//nolint:gosec // deletion cookie mirrors the login cookie flags (HttpOnly, conditional Secure, SameSite:Lax); gosec heuristic still flags conditional Secure
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 
@@ -134,6 +148,7 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
 	session, err := h.sessions.Get(ctx, token)
 	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "invalid_session", "session expired or invalid")
@@ -149,7 +164,7 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	resp := struct {
 		ID          string `json:"id"`
 		Username    string `json:"username"`
-		DisplayName string `json:"display_name"`
+		DisplayName string `json:"displayName"`
 		Email       string `json:"email,omitempty"`
 		Role        string `json:"role"`
 	}{
@@ -169,6 +184,7 @@ func extractToken(r *http.Request) string {
 	if len(auth) > 7 && auth[:7] == "Bearer " {
 		return auth[7:]
 	}
+
 	cookie, err := r.Cookie("session")
 	if err == nil {
 		return cookie.Value
@@ -180,12 +196,14 @@ func extractToken(r *http.Request) string {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(data)
 }
 
 func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(map[string]string{
 		"error":   code,
 		"message": message,

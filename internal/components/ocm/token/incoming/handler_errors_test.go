@@ -1,15 +1,21 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
+
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -17,38 +23,18 @@ import (
 )
 
 func TestHandler_InvalidCode(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
-
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "nonexistent-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	handler.HandleToken(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-
-	var resp token.OAuthError
-	json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Error != token.ErrorInvalidGrant {
-		t.Errorf("expected error %q, got %q", token.ErrorInvalidGrant, resp.Error)
-	}
+	assertTokenFormRejected(t, form, token.ErrorInvalidGrant)
 }
 
 func TestHandler_ClientMismatch(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -58,15 +44,18 @@ func TestHandler_ClientMismatch(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "wrong-receiver.example.com")
 	form.Set("code", "secret-mismatch")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -76,9 +65,136 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	}
 
 	var resp token.OAuthError
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
 	if resp.Error != token.ErrorInvalidClient {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
+	}
+}
+
+func TestHandler_NormalizeError_InvalidClient(t *testing.T) {
+	tests := []struct {
+		name         string
+		providerID   string
+		webdavID     string
+		sharedSecret string
+		receiverHost string
+		clientID     string
+	}{
+		{
+			name:         "client_id normalize error",
+			providerID:   "provider-normalize-error",
+			webdavID:     "webdav-normalize-error",
+			sharedSecret: "normalize-error-secret",
+			receiverHost: "receiver.example.com",
+			clientID:     "https://receiver.example.com",
+		},
+		{
+			name:         "receiver host normalize error",
+			providerID:   "provider-receiver-normalize-error",
+			webdavID:     "webdav-receiver-normalize-error",
+			sharedSecret: "receiver-normalize-error-secret",
+			receiverHost: "https://receiver.example.com",
+			clientID:     "receiver.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shareRepo := tsrepos.OpenMemory(t).OutgoingShares
+			tokenStore := token.NewMemoryTokenStore()
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
+
+			share := &sharesoutgoing.OutgoingShare{
+				ProviderID:   tt.providerID,
+				WebDAVID:     tt.webdavID,
+				SharedSecret: tt.sharedSecret,
+				ReceiverHost: tt.receiverHost,
+				LocalPath:    "/tmp/test.txt",
+			}
+			if err := shareRepo.Create(context.Background(), share); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("client_id", tt.clientID)
+			form.Set("code", tt.sharedSecret)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			w := httptest.NewRecorder()
+
+			handler.HandleToken(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+
+			var resp token.OAuthError
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatalf("Decode: %v", err)
+			}
+
+			if resp.Error != token.ErrorInvalidClient {
+				t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
+			}
+
+			if resp.ErrorDescription != "invalid client_id" {
+				t.Errorf("expected description %q, got %q", "invalid client_id", resp.ErrorDescription)
+			}
+		})
+	}
+}
+
+func TestHandler_NormalizeError_NoRawFallback(t *testing.T) {
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
+
+	invalidClientID := "https://receiver.example.com"
+
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-raw-fallback-guard",
+		WebDAVID:     "webdav-raw-fallback-guard",
+		SharedSecret: "raw-fallback-guard-secret",
+		ReceiverHost: invalidClientID,
+		LocalPath:    "/tmp/test.txt",
+	}
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("client_id", invalidClientID)
+	form.Set("code", "raw-fallback-guard-secret")
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 (fail-closed), got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
+	if resp.Error != token.ErrorInvalidClient {
+		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
+	}
+
+	if resp.ErrorDescription != "invalid client_id" {
+		t.Errorf("expected description %q, got %q", "invalid client_id", resp.ErrorDescription)
 	}
 }
 
@@ -94,11 +210,13 @@ func TestTokenStore_Expiration(t *testing.T) {
 	// Manually set to expired
 	expired.ExpiresAt = expired.IssuedAt // already expired
 
-	store.Store(ctx, expired)
+	if err := store.Store(ctx, expired); err != nil {
+		t.Fatalf("Store: %v", err)
+	}
 
 	// Try to get it
 	_, err := store.Get(ctx, "expired-token")
-	if err != token.ErrTokenExpired {
+	if !errors.Is(err, token.ErrTokenExpired) {
 		t.Errorf("expected ErrTokenExpired, got %v", err)
 	}
 }

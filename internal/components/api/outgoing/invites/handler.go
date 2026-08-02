@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package invites provides the session-gated handler for POST /api/invites/outgoing (create invite tokens).
 package invites
 
@@ -36,6 +41,7 @@ func NewHandler(
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
+
 	return &Handler{
 		outgoingRepo:  outgoingRepo,
 		localProvider: localProvider,
@@ -71,6 +77,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("failed to generate invite token", "error", err)
 		api.WriteInternalError(w, "failed to generate token")
+
 		return
 	}
 
@@ -89,6 +96,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	if err := h.outgoingRepo.Create(ctx, invite); err != nil {
 		h.logger.Error("failed to create invite", "error", err)
 		api.WriteInternalError(w, "failed to create invite")
+
 		return
 	}
 
@@ -96,12 +104,15 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(invites.CreateOutgoingResponse{
+
+	if err := json.NewEncoder(w).Encode(invites.CreateOutgoingResponse{
 		InviteString: inviteString,
 		Token:        token,
 		ProviderFQDN: h.localProvider,
 		ExpiresAt:    invite.ExpiresAt,
-	})
+	}); err != nil {
+		h.logger.Error("failed to encode invite response", "error", err)
+	}
 }
 
 func generateToken() (string, error) {
@@ -109,5 +120,6 @@ func generateToken() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
+
 	return hex.EncodeToString(b), nil
 }

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package repos
 
 import (
@@ -8,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
@@ -22,19 +28,27 @@ var _ sharesoutgoing.OutgoingShareRepo = (*outgoingShareAdapter)(nil)
 
 func (a *outgoingShareAdapter) Create(ctx context.Context, share *sharesoutgoing.OutgoingShare) error {
 	if share.ShareID == "" {
-		id, _ := uuid.NewV7()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate share id: %w", err)
+		}
+
 		share.ShareID = id.String()
 	}
+
 	if share.CreatedAt.IsZero() {
 		share.CreatedAt = time.Now()
 	}
+
 	s := appOutgoingShareToStore(share)
 	if err := a.s.CreateOutgoingShare(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
-			return fmt.Errorf("share already exists: %s", share.ShareID)
+			return fmt.Errorf("share already exists: %w", store.ErrAlreadyExists)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -44,8 +58,10 @@ func (a *outgoingShareAdapter) GetByID(ctx context.Context, shareID string) (*sh
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found: %s", shareID)
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
@@ -55,19 +71,23 @@ func (a *outgoingShareAdapter) GetByProviderID(ctx context.Context, providerID s
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found for providerId: %s", providerID)
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
 func (a *outgoingShareAdapter) GetByWebDAVID(ctx context.Context, webdavID string) (*sharesoutgoing.OutgoingShare, error) {
-	s, err := a.s.GetOutgoingShareByWebDAVId(ctx, webdavID)
+	s, err := a.s.GetOutgoingShareByWebDAVID(ctx, webdavID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found for webdavId: %s", webdavID)
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
@@ -77,8 +97,10 @@ func (a *outgoingShareAdapter) GetBySharedSecret(ctx context.Context, sharedSecr
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found for sharedSecret")
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
@@ -87,10 +109,12 @@ func (a *outgoingShareAdapter) List(ctx context.Context) ([]*sharesoutgoing.Outg
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]*sharesoutgoing.OutgoingShare, 0, len(storeShares))
 	for _, s := range storeShares {
 		result = append(result, storeOutgoingShareToApp(s))
 	}
+
 	return result, nil
 }
 
@@ -100,8 +124,10 @@ func (a *outgoingShareAdapter) Update(ctx context.Context, share *sharesoutgoing
 		if errors.Is(err, store.ErrNotFound) {
 			return fmt.Errorf("share not found: %s", share.ShareID)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -110,9 +136,9 @@ func (a *outgoingShareAdapter) Update(ctx context.Context, share *sharesoutgoing
 // the write path maps SentAt -> UpdatedAt, so the read path reverses that.
 func storeOutgoingShareToApp(s *store.OutgoingShare) *sharesoutgoing.OutgoingShare {
 	return &sharesoutgoing.OutgoingShare{
-		ShareID:          s.ShareId,
-		ProviderID:       s.ProviderId,
-		WebDAVID:         s.WebDAVId,
+		ShareID:          s.ShareID,
+		ProviderID:       s.ProviderID,
+		WebDAVID:         s.WebDAVID,
 		SharedSecret:     s.SharedSecret,
 		LocalPath:        s.LocalPath,
 		ReceiverHost:     s.ReceiverHost,
@@ -124,19 +150,21 @@ func storeOutgoingShareToApp(s *store.OutgoingShare) *sharesoutgoing.OutgoingSha
 		Permissions:      permStringToSlice(s.Permissions),
 		Owner:            s.Owner,
 		Sender:           s.Sender,
-		Status:           s.State,
+		Status:           shares.OutgoingShareStatus(s.Status),
 		Error:            s.Error,
-		CreatedAt:        unixToTime(s.CreatedAt),
-		SentAt:           unixToTimePtr(s.UpdatedAt),
+		// Copy the slice so callers cannot mutate the store's backing array.
+		Requirements: append([]string(nil), s.Requirements...),
+		CreatedAt:    unixToTime(s.CreatedAt),
+		SentAt:       unixToTimePtr(s.UpdatedAt),
 	}
 }
 
 // appOutgoingShareToStore converts an app-layer model to the store model.
 func appOutgoingShareToStore(a *sharesoutgoing.OutgoingShare) *store.OutgoingShare {
 	return &store.OutgoingShare{
-		ShareId:          a.ShareID,
-		ProviderId:       a.ProviderID,
-		WebDAVId:         a.WebDAVID,
+		ShareID:          a.ShareID,
+		ProviderID:       a.ProviderID,
+		WebDAVID:         a.WebDAVID,
 		SharedSecret:     a.SharedSecret,
 		LocalPath:        a.LocalPath,
 		ReceiverHost:     a.ReceiverHost,
@@ -148,9 +176,11 @@ func appOutgoingShareToStore(a *sharesoutgoing.OutgoingShare) *store.OutgoingSha
 		Permissions:      permSliceToString(a.Permissions),
 		Owner:            a.Owner,
 		Sender:           a.Sender,
-		State:            a.Status,
+		Status:           string(a.Status),
 		Error:            a.Error,
-		CreatedAt:        timeToUnix(a.CreatedAt),
-		UpdatedAt:        timePtrToUnix(a.SentAt),
+		// Copy the slice so the store cannot mutate the caller's backing array.
+		Requirements: append([]string(nil), a.Requirements...),
+		CreatedAt:    timeToUnix(a.CreatedAt),
+		UpdatedAt:    timePtrToUnix(a.SentAt),
 	}
 }

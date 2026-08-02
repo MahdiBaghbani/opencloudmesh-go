@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -51,14 +53,17 @@ func assertNoUnexpectedNetwork(t *testing.T, servers []*harness.SubprocessServer
 		if srv == nil {
 			continue
 		}
+
 		logText := srv.ReadLog(t)
 		for _, needle := range unexpectedProtocolOutboundNeedles {
 			if !strings.Contains(logText, needle) {
 				continue
 			}
+
 			if logLineAllowed(logText, needle, allowed) {
 				continue
 			}
+
 			srv.DumpLogs(t)
 			t.Fatalf("server %s log contains unexpected PROTOCOL outbound marker %q", srv.Name, needle)
 		}
@@ -85,10 +90,12 @@ func assertNoOutboundFallback(
 		"POST /ocm/shares",
 		"/ocm/shares",
 	}
+
 	for _, srv := range servers {
 		if srv == nil {
 			continue
 		}
+
 		logText := srv.ReadLog(t)
 		for _, needle := range fallbackNeedles {
 			if strings.Contains(logText, needle) && !logLineAllowed(logText, needle, allowed) {
@@ -104,8 +111,16 @@ func assertPersistenceUnchanged(t *testing.T, before, after tsprotocol.Persisten
 	t.Helper()
 
 	if !tsprotocol.SnapshotEqual(before, after) {
-		b, _ := tsprotocol.CanonicalSnapshotBytes(before)
-		a, _ := tsprotocol.CanonicalSnapshotBytes(after)
+		b, err := tsprotocol.CanonicalSnapshotBytes(before)
+		if err != nil {
+			t.Fatalf("canonical snapshot before: %v", err)
+		}
+
+		a, err := tsprotocol.CanonicalSnapshotBytes(after)
+		if err != nil {
+			t.Fatalf("canonical snapshot after: %v", err)
+		}
+
 		t.Fatalf("persistence changed\nbefore: %s\nafter: %s", string(b), string(a))
 	}
 }
@@ -119,10 +134,12 @@ func assertNoSecretInLogs(t *testing.T, secrets []string, servers ...*harness.Su
 		if secret == "" {
 			continue
 		}
+
 		for _, srv := range servers {
 			if srv == nil {
 				continue
 			}
+
 			if srv.LogContainsAny(secret) {
 				srv.DumpLogs(t)
 				t.Fatalf("server %s log contains secret substring", srv.Name)
@@ -136,12 +153,15 @@ func logLineAllowed(logText, needle string, allowed []string) bool {
 		if !strings.Contains(line, needle) {
 			continue
 		}
+
 		for _, permit := range allowed {
 			if permit != "" && strings.Contains(line, permit) {
 				return true
 			}
 		}
+
 		return false
 	}
+
 	return false
 }

@@ -1,8 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -45,7 +49,7 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 
 	for _, fx := range fixtures {
 		t.Run(fx.name, func(t *testing.T) {
-			server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+			server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 				raw := validDiscoveryPayload(serverURL, map[string]any{
 					"apiVersion": fx.apiVersion,
 					"resourceTypes": []any{
@@ -56,17 +60,20 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 						},
 					},
 				})
-				json.NewEncoder(w).Encode(raw)
+				tshttp.MustEncodeJSON(t, w, raw)
 			})
 			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
 			disc, err := client.Discover(context.Background(), server.URL)
 			if err != nil {
 				t.Fatalf("Discover failed: %v", err)
 			}
+
 			if len(disc.Warnings) == 0 {
 				t.Fatal("expected warnings for real-peer fixture")
 			}
-			if fx.apiVersion != spec.APIVersionPin && !hasWarningSubstring(disc.Warnings, "differs from pin") {
+
+			if fx.apiVersion != spec.APIVersionPin && !hasDiffersFromPinWarning(disc.Warnings) {
 				t.Fatalf("expected differs-from-pin warning, got %v", disc.Warnings)
 			}
 		})

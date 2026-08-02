@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package logutil
 
 import (
@@ -18,6 +23,7 @@ type CapturingLogger struct {
 func NewCapturingLogger(level slog.Level) *CapturingLogger {
 	capture := &CapturingLogger{buf: &bytes.Buffer{}}
 	capture.Logger = slog.New(slog.NewTextHandler(capture, &slog.HandlerOptions{Level: level}))
+
 	return capture
 }
 
@@ -25,6 +31,7 @@ func NewCapturingLogger(level slog.Level) *CapturingLogger {
 func (c *CapturingLogger) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	return c.buf.Write(p)
 }
 
@@ -32,6 +39,7 @@ func (c *CapturingLogger) Write(p []byte) (int, error) {
 func (c *CapturingLogger) Output() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	return c.buf.String()
 }
 
@@ -48,6 +56,7 @@ func (c *CapturingLogger) ContainsAny(needles ...string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -55,5 +64,6 @@ func (c *CapturingLogger) ContainsAny(needles ...string) bool {
 func (c *CapturingLogger) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.buf.Reset()
 }

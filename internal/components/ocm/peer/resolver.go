@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package peer provides peer resolvers for OCM signature middleware. Extracts declared peer from request bodies.
 package peer
 
@@ -11,14 +16,15 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 )
 
+// Resolver extracts the declared peer host from OCM request bodies.
 type Resolver struct{}
 
-func NewResolver() *Resolver {
+func NewResolver() *Resolver { //nolint:revive // exported: trivial constructor for stateless Resolver
 	return &Resolver{}
 }
 
 // ResolveSharesRequest extracts peer from POST /ocm/shares. Prefers sender, falls back to owner; returns provider (last-@).
-func (p *Resolver) ResolveSharesRequest(r *http.Request, body []byte) (string, error) {
+func (p *Resolver) ResolveSharesRequest(_ *http.Request, body []byte) (string, error) {
 	var req struct {
 		Sender string `json:"sender"`
 		Owner  string `json:"owner"`
@@ -45,7 +51,8 @@ func (p *Resolver) ResolveSharesRequest(r *http.Request, body []byte) (string, e
 	return provider, nil
 }
 
-func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (string, error) {
+// ResolveInviteAcceptedRequest extracts the recipient provider from POST /ocm/invite-accepted.
+func (p *Resolver) ResolveInviteAcceptedRequest(_ *http.Request, body []byte) (string, error) {
 	var req struct {
 		RecipientProvider string `json:"recipientProvider"`
 	}
@@ -57,6 +64,7 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 	if req.RecipientProvider == "" {
 		return "", fmt.Errorf("no recipientProvider in invite-accepted request")
 	}
+
 	if strings.Contains(req.RecipientProvider, "://") {
 		return "", fmt.Errorf("invalid recipientProvider in invite-accepted request")
 	}
@@ -64,14 +72,17 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 	return req.RecipientProvider, nil
 }
 
-func (p *Resolver) ResolveTokenRequest(r *http.Request, body []byte) (string, error) {
+// ResolveTokenRequest extracts the client_id from a token request body.
+func (p *Resolver) ResolveTokenRequest(_ *http.Request, body []byte) (string, error) {
 	clientID, err := parseTokenClientID(body)
 	if err != nil {
 		return "", err
 	}
+
 	if strings.Contains(clientID, "://") {
 		return "", fmt.Errorf("invalid client_id in token request")
 	}
+
 	return clientID, nil
 }
 
@@ -80,9 +91,11 @@ func parseTokenClientID(body []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse token request: %w", err)
 	}
+
 	clientID := strings.TrimSpace(values.Get("client_id"))
 	if clientID == "" {
 		return "", fmt.Errorf("no client_id in token request")
 	}
+
 	return clientID, nil
 }

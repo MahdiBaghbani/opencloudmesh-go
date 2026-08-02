@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package cache provides caching with TTL support for discovery and rate limiting.
 // Uses a Reva-style registry pattern: drivers register via init(), callers use NewDefault() or NewFromConfig().
 package cache
@@ -11,8 +16,10 @@ import (
 )
 
 var (
+	// ErrNotFound reports a missing cache key.
 	ErrNotFound = errors.New("key not found")
-	ErrExpired  = errors.New("key expired")
+	// ErrExpired reports an expired cache entry.
+	ErrExpired = errors.New("key expired")
 )
 
 // Driver registry (Reva-style)
@@ -31,6 +38,7 @@ type DriverFactory func(config map[string]any) CacheWithCounter
 func RegisterDriver(name string, factory DriverFactory) {
 	driversMu.Lock()
 	defer driversMu.Unlock()
+
 	drivers[name] = factory
 }
 
@@ -51,7 +59,9 @@ func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounte
 	}
 
 	driversMu.RLock()
+
 	factory, ok := drivers[driver]
+
 	driversMu.RUnlock()
 
 	if !ok {
@@ -60,6 +70,7 @@ func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounte
 
 	// Extract driver-specific config (may be nil)
 	var driverConfig map[string]any
+
 	if driversConfig != nil {
 		if cfg, ok := driversConfig[driver]; ok {
 			if cfgMap, ok := cfg.(map[string]any); ok {
@@ -74,7 +85,9 @@ func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounte
 // newByDriver returns a cache for the named driver, panicking if not found.
 func newByDriver(name string, config map[string]any) CacheWithCounter {
 	driversMu.RLock()
+
 	factory, ok := drivers[name]
+
 	driversMu.RUnlock()
 
 	if !ok {
@@ -139,8 +152,17 @@ var _ Cache = (*NoopCache)(nil)
 // NewNoopCache returns a Cache whose Get always misses and whose writes are discarded.
 func NewNoopCache() *NoopCache { return &NoopCache{} }
 
-func (n *NoopCache) Get(_ context.Context, _ string) ([]byte, error)                  { return nil, ErrNotFound }
+// Get always misses with ErrNotFound; implements Cache.
+func (n *NoopCache) Get(_ context.Context, _ string) ([]byte, error) { return nil, ErrNotFound }
+
+// Set discards the write; implements Cache.
 func (n *NoopCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error { return nil }
-func (n *NoopCache) Delete(_ context.Context, _ string) error                         { return nil }
-func (n *NoopCache) Exists(_ context.Context, _ string) (bool, error)                 { return false, nil }
-func (n *NoopCache) Close() error                                                     { return nil }
+
+// Delete performs no work; implements Cache.
+func (n *NoopCache) Delete(_ context.Context, _ string) error { return nil }
+
+// Exists always reports false; implements Cache.
+func (n *NoopCache) Exists(_ context.Context, _ string) (bool, error) { return false, nil }
+
+// Close performs no cleanup; implements Cache.
+func (n *NoopCache) Close() error { return nil }

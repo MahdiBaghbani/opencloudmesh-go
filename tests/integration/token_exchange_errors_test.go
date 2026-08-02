@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -24,6 +27,7 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "token-errors",
 		Mode: "dev",
@@ -74,7 +78,9 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := tt.data.Encode()
-			req, err := http.NewRequest(
+
+			req, err := http.NewRequestWithContext(
+				t.Context(),
 				http.MethodPost,
 				srv.BaseURL+"/ocm/token",
 				strings.NewReader(body),
@@ -82,19 +88,25 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to build token request: %v", err)
 			}
+
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := peer.signer.Sign(req); err != nil {
-				t.Fatalf("failed to sign token request: %v", err)
+
+			if serr := peer.signer.Sign(req); serr != nil {
+				t.Fatalf("failed to sign token request: %v", serr)
 			}
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if err != nil {
 				t.Fatalf("failed to call token endpoint: %v", err)
 			}
-			defer resp.Body.Close()
+			defer tshttp.MustClose(t, resp.Body)
 
 			if resp.StatusCode != tt.expectedStatus {
-				respBody, _ := io.ReadAll(resp.Body)
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("read response body: %v", err)
+				}
+
 				t.Fatalf("expected status %d, got %d: %s", tt.expectedStatus, resp.StatusCode, respBody)
 			}
 
@@ -103,9 +115,11 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 				if err != nil {
 					t.Fatalf("failed to read middleware body: %v", err)
 				}
+
 				if got := strings.TrimSpace(string(respBody)); got != tt.middlewarePlain {
 					t.Fatalf("expected middleware body %q, got %q", tt.middlewarePlain, got)
 				}
+
 				return
 			}
 

@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package identity_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,9 +23,11 @@ func TestMemorySessionRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
+
 	if session.Token == "" {
 		t.Error("token should be assigned")
 	}
+
 	if session.UserID != "user-123" {
 		t.Errorf("expected userID 'user-123', got %q", session.UserID)
 	}
@@ -29,18 +37,19 @@ func TestMemorySessionRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
+
 	if got.UserID != "user-123" {
 		t.Errorf("expected userID 'user-123', got %q", got.UserID)
 	}
 
 	// Delete session
-	if err := repo.Delete(ctx, session.Token); err != nil {
-		t.Fatalf("Delete failed: %v", err)
+	if serr := repo.Delete(ctx, session.Token); serr != nil {
+		t.Fatalf("Delete failed: %v", serr)
 	}
 
 	// Get should fail after delete
 	_, err = repo.Get(ctx, session.Token)
-	if err != identity.ErrSessionNotFound {
+	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound, got %v", err)
 	}
 }
@@ -60,7 +69,7 @@ func TestMemorySessionRepo_ExpiredSession(t *testing.T) {
 
 	// Get should return expired error
 	_, err = repo.Get(ctx, session.Token)
-	if err != identity.ErrSessionExpired {
+	if !errors.Is(err, identity.ErrSessionExpired) {
 		t.Errorf("expected ErrSessionExpired, got %v", err)
 	}
 }
@@ -70,21 +79,29 @@ func TestMemorySessionRepo_DeleteByUser(t *testing.T) {
 	ctx := context.Background()
 
 	// Create multiple sessions for same user
-	s1, _ := repo.Create(ctx, "user-123", time.Hour)
-	s2, _ := repo.Create(ctx, "user-123", time.Hour)
+	s1, err := repo.Create(ctx, "user-123", time.Hour)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	s2, err := repo.Create(ctx, "user-123", time.Hour)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	// Delete all sessions for user
-	if err := repo.DeleteByUser(ctx, "user-123"); err != nil {
-		t.Fatalf("DeleteByUser failed: %v", err)
+	if serr := repo.DeleteByUser(ctx, "user-123"); serr != nil {
+		t.Fatalf("DeleteByUser failed: %v", serr)
 	}
 
 	// Both sessions should be gone
-	_, err := repo.Get(ctx, s1.Token)
-	if err != identity.ErrSessionNotFound {
+	_, err = repo.Get(ctx, s1.Token)
+	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound for s1, got %v", err)
 	}
+
 	_, err = repo.Get(ctx, s2.Token)
-	if err != identity.ErrSessionNotFound {
+	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound for s2, got %v", err)
 	}
 }
@@ -94,17 +111,25 @@ func TestMemorySessionRepo_DeleteExpired(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a session that will expire immediately
-	repo.Create(ctx, "user-123", time.Millisecond)
+	_, err := repo.Create(ctx, "user-123", time.Millisecond)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
 	time.Sleep(10 * time.Millisecond)
 
 	// Create a session that won't expire
-	s2, _ := repo.Create(ctx, "user-456", time.Hour)
+	s2, err := repo.Create(ctx, "user-456", time.Hour)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	// Delete expired
 	count, err := repo.DeleteExpired(ctx)
 	if err != nil {
 		t.Fatalf("DeleteExpired failed: %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("expected 1 expired session, got %d", count)
 	}

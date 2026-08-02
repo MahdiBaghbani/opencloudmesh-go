@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package tls_test
 
 import (
@@ -18,10 +23,12 @@ import (
 
 func mustCreateCAPEM(t *testing.T) []byte {
 	t.Helper()
+
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	template := x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: "Test CA"},
@@ -31,10 +38,12 @@ func mustCreateCAPEM(t *testing.T) []byte {
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 	}
+
 	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 }
 
@@ -43,6 +52,7 @@ func TestBuildRootCAPool_NilWhenBothEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if pool != nil {
 		t.Error("expected nil pool when both caFile and caDir are empty")
 	}
@@ -51,6 +61,7 @@ func TestBuildRootCAPool_NilWhenBothEmpty(t *testing.T) {
 func TestBuildRootCAPool_FileOnly(t *testing.T) {
 	tmp := t.TempDir()
 	caFile := filepath.Join(tmp, "ca.pem")
+
 	pemData := mustCreateCAPEM(t)
 	if err := os.WriteFile(caFile, pemData, 0644); err != nil {
 		t.Fatal(err)
@@ -60,11 +71,12 @@ func TestBuildRootCAPool_FileOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if pool == nil {
 		t.Fatal("expected non-nil pool")
 	}
 	// Pool should contain at least the system certs plus our cert
-	if len(pool.Subjects()) == 0 {
+	if len(pool.Subjects()) == 0 { //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
 		t.Error("expected pool to contain certificates")
 	}
 }
@@ -72,6 +84,7 @@ func TestBuildRootCAPool_FileOnly(t *testing.T) {
 func TestBuildRootCAPool_DirOnly(t *testing.T) {
 	tmp := t.TempDir()
 	caPath := filepath.Join(tmp, "ca.crt")
+
 	pemData := mustCreateCAPEM(t)
 	if err := os.WriteFile(caPath, pemData, 0644); err != nil {
 		t.Fatal(err)
@@ -81,10 +94,12 @@ func TestBuildRootCAPool_DirOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if pool == nil {
 		t.Fatal("expected non-nil pool")
 	}
-	if len(pool.Subjects()) == 0 {
+
+	if len(pool.Subjects()) == 0 { //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
 		t.Error("expected pool to contain certificates")
 	}
 }
@@ -92,15 +107,19 @@ func TestBuildRootCAPool_DirOnly(t *testing.T) {
 func TestBuildRootCAPool_Merged(t *testing.T) {
 	tmp := t.TempDir()
 	caFile := filepath.Join(tmp, "ca1.pem")
+
 	caDir := filepath.Join(tmp, "cadir")
-	if err := os.MkdirAll(caDir, 0755); err != nil {
+	if err := os.MkdirAll(caDir, 0755); err != nil { //nolint:gosec // test fixture: 0755 on a local controlled test temp dir, not an attacker-controlled production path
 		t.Fatal(err)
 	}
+
 	pem1 := mustCreateCAPEM(t)
+
 	pem2 := mustCreateCAPEM(t)
 	if err := os.WriteFile(caFile, pem1, 0644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(caDir, "ca2.pem"), pem2, 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -109,11 +128,13 @@ func TestBuildRootCAPool_Merged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if pool == nil {
 		t.Fatal("expected non-nil pool")
 	}
-	if len(pool.Subjects()) < 2 {
-		t.Errorf("expected pool to contain at least 2 certs (file + dir), got %d", len(pool.Subjects()))
+
+	if len(pool.Subjects()) < 2 { //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
+		t.Errorf("expected pool to contain at least 2 certs (file + dir), got %d", len(pool.Subjects())) //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
 	}
 }
 
@@ -126,6 +147,7 @@ func TestBuildRootCAPool_InvalidFile(t *testing.T) {
 
 func TestBuildRootCAPool_InvalidPEM(t *testing.T) {
 	tmp := t.TempDir()
+
 	caFile := filepath.Join(tmp, "bad.pem")
 	if err := os.WriteFile(caFile, []byte("not valid PEM"), 0644); err != nil {
 		t.Fatal(err)
@@ -142,6 +164,7 @@ func TestBuildRootCAPool_DirWithNonPEMFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmp, "readme.txt"), []byte("ignore me"), 0644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(tmp, "data.bin"), []byte{0x00, 0x01}, 0644); err != nil {
 		t.Fatal(err)
 	}

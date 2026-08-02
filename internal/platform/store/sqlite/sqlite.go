@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package sqlite implements a SQLite-based persistence driver using GORM.
 // It is a thin wrapper over the shared sqlitecore.Core engine.
 package sqlite
@@ -27,6 +32,7 @@ func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 	if cfg.DataDir == "" {
 		return nil, fmt.Errorf("data_dir is required for sqlite driver")
 	}
+
 	return &Driver{dataDir: cfg.DataDir}, nil
 }
 
@@ -36,12 +42,14 @@ func (d *Driver) Name() string {
 }
 
 // Init opens the SQLite database and runs AutoMigrate via the shared core.
-func (d *Driver) Init(ctx context.Context) error {
+func (d *Driver) Init(_ context.Context) error {
 	core, err := sqlitecore.Open(d.dataDir)
 	if err != nil {
 		return err
 	}
+
 	d.core = core
+
 	return nil
 }
 
@@ -50,116 +58,134 @@ func (d *Driver) Close() error {
 	return d.core.Close()
 }
 
-// OutgoingShareStore implementation
-
+// CreateOutgoingShare creates a new outgoing share.
 func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
 	return d.core.CreateOutgoingShare(ctx, share)
 }
 
-func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareId string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShareByID(ctx, shareId)
+// GetOutgoingShareByID retrieves an outgoing share by its local share id.
+func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareID string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareByID(ctx, shareID)
 }
 
-func (d *Driver) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShare(ctx, providerId)
+// GetOutgoingShare retrieves an outgoing share by provider id.
+func (d *Driver) GetOutgoingShare(ctx context.Context, providerID string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShare(ctx, providerID)
 }
 
-func (d *Driver) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShareByWebDAVId(ctx, webdavId)
+// GetOutgoingShareByWebDAVID retrieves an outgoing share by webdav id.
+func (d *Driver) GetOutgoingShareByWebDAVID(ctx context.Context, webdavID string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareByWebDAVID(ctx, webdavID)
 }
 
+// GetOutgoingShareBySharedSecret retrieves an outgoing share by shared secret.
 func (d *Driver) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret string) (*store.OutgoingShare, error) {
 	return d.core.GetOutgoingShareBySharedSecret(ctx, sharedSecret)
 }
 
+// UpdateOutgoingShare updates an existing outgoing share.
 func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
 	return d.core.UpdateOutgoingShare(ctx, share)
 }
 
-func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) error {
-	return d.core.DeleteOutgoingShare(ctx, providerId)
+// DeleteOutgoingShare deletes an outgoing share by provider id.
+func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerID string) error {
+	return d.core.DeleteOutgoingShare(ctx, providerID)
 }
 
+// ListOutgoingShares returns all outgoing shares.
 func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, error) {
 	return d.core.ListOutgoingShares(ctx)
 }
 
-// IncomingShareStore implementation
-
+// CreateIncomingShare creates a new incoming share.
 func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
 	return d.core.CreateIncomingShare(ctx, share)
 }
 
-func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*store.IncomingShare, error) {
-	return d.core.GetIncomingShareByIDForRecipient(ctx, shareId, recipientUserId)
+// GetIncomingShareByIDForRecipient retrieves an incoming share by share id scoped to a recipient.
+func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*store.IncomingShare, error) {
+	return d.core.GetIncomingShareByIDForRecipient(ctx, shareID, recipientUserID)
 }
 
-func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
-	return d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerId)
+// GetIncomingShareByProviderKey retrieves an incoming share by sending server and provider id.
+func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerID string) (*store.IncomingShare, error) {
+	return d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerID)
 }
 
-func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*store.IncomingShare, error) {
-	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserId)
+// ListIncomingSharesByRecipient returns incoming shares for the given recipient user.
+func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*store.IncomingShare, error) {
+	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserID)
 }
 
-func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error {
-	return d.core.UpdateIncomingShareStatusForRecipient(ctx, shareId, recipientUserId, state)
+// UpdateIncomingShareStatusForRecipient updates the status of an incoming share scoped to a recipient.
+func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, status string) error {
+	return d.core.UpdateIncomingShareStatusForRecipient(ctx, shareID, recipientUserID, status)
 }
 
-func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error {
-	return d.core.DeleteIncomingShareForRecipient(ctx, shareId, recipientUserId)
+// DeleteIncomingShareForRecipient deletes an incoming share scoped to a recipient.
+func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error {
+	return d.core.DeleteIncomingShareForRecipient(ctx, shareID, recipientUserID)
 }
 
-// OutgoingInviteStore implementation
-
+// CreateOutgoingInvite creates a new outgoing invite.
 func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
 	return d.core.CreateOutgoingInvite(ctx, invite)
 }
 
+// GetOutgoingInvite retrieves an outgoing invite by id.
 func (d *Driver) GetOutgoingInvite(ctx context.Context, id string) (*store.OutgoingInvite, error) {
 	return d.core.GetOutgoingInvite(ctx, id)
 }
 
+// GetOutgoingInviteByToken retrieves an outgoing invite by token.
 func (d *Driver) GetOutgoingInviteByToken(ctx context.Context, token string) (*store.OutgoingInvite, error) {
 	return d.core.GetOutgoingInviteByToken(ctx, token)
 }
 
+// UpdateOutgoingInvite updates an existing outgoing invite.
 func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
 	return d.core.UpdateOutgoingInvite(ctx, invite)
 }
 
+// DeleteOutgoingInvite deletes an outgoing invite by id.
 func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 	return d.core.DeleteOutgoingInvite(ctx, id)
 }
 
-func (d *Driver) ListOutgoingInvites(ctx context.Context, userId string) ([]*store.OutgoingInvite, error) {
-	return d.core.ListOutgoingInvites(ctx, userId)
+// ListOutgoingInvites returns outgoing invites for a user. An empty userID lists all invites.
+func (d *Driver) ListOutgoingInvites(ctx context.Context, userID string) ([]*store.OutgoingInvite, error) {
+	return d.core.ListOutgoingInvites(ctx, userID)
 }
 
-// IncomingInviteStore implementation
-
+// CreateIncomingInvite creates a new incoming invite.
 func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
 	return d.core.CreateIncomingInvite(ctx, invite)
 }
 
-func (d *Driver) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*store.IncomingInvite, error) {
-	return d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserId)
+// GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
+func (d *Driver) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserID)
 }
 
-func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
-	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserId)
+// GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
+func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserID string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserID)
 }
 
-func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserId string, status string) error {
-	return d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserId, status)
+// UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite scoped to a recipient.
+func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error {
+	return d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, status, senderUserID, senderFQDNNormalized)
 }
 
-func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) error {
-	return d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserId)
+// DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
+func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) error {
+	return d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserID)
 }
 
-func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*store.IncomingInvite, error) {
-	return d.core.ListIncomingInvites(ctx, recipientUserId)
+// ListIncomingInvites returns incoming invites for a recipient user.
+func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserID string) ([]*store.IncomingInvite, error) {
+	return d.core.ListIncomingInvites(ctx, recipientUserID)
 }
 
 // Compile-time interface checks

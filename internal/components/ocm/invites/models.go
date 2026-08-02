@@ -1,5 +1,12 @@
-// Package invites provides shared types for OCM invitations. Subpackages: inbox (storage),
-// outgoing (storage), incoming (POST /ocm/invite-accepted handler).
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+// Package invites provides shared types for OCM invitations. Subpackages:
+// incoming (received-invite storage plus the invite-accepted domain port),
+// outgoing (created-invite storage), outgoing/accepted (POST
+// /ocm/invite-accepted handler serving our outgoing invites).
 package invites
 
 import (
@@ -9,18 +16,23 @@ import (
 	"time"
 )
 
+// InviteStatus tracks the lifecycle state of an OCM invite (pending, accepted, declined).
 type InviteStatus string
 
 const (
-	InviteStatusPending  InviteStatus = "pending"
+	// InviteStatusPending is the pending invite status.
+	InviteStatusPending InviteStatus = "pending"
+	// InviteStatusAccepted is the accepted invite status.
 	InviteStatusAccepted InviteStatus = "accepted"
+	// InviteStatusDeclined is the declined invite status.
 	InviteStatusDeclined InviteStatus = "declined"
-	InviteStatusExpired  InviteStatus = "expired"
 )
 
 var (
+	// ErrInviteNotFound reports a missing invite.
 	ErrInviteNotFound = errors.New("invite not found")
-	ErrTokenNotFound  = errors.New("token not found")
+	// ErrTokenNotFound reports a missing invite token.
+	ErrTokenNotFound = errors.New("token not found")
 )
 
 // CreateOutgoingRequest is the body for POST /api/invites/outgoing.
@@ -37,14 +49,32 @@ type CreateOutgoingResponse struct {
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
-// ParseInviteString decodes base64 invite string; splits on last '@' into token and provider FQDN. Provider must not contain scheme.
+// ParseInviteString decodes a base64url invite string, accepting padded or unpadded
+// base64url and legacy standard base64, then splits on the last '@' into token and
+// provider FQDN. Provider must not contain scheme.
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L485-L498
 func ParseInviteString(inviteString string) (token, providerFQDN string, err error) {
-	decoded, err := base64.StdEncoding.DecodeString(inviteString)
-	if err != nil {
+	var (
+		decoded   []byte
+		decodeErr error
+	)
+	for _, enc := range []*base64.Encoding{
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+		base64.StdEncoding,
+	} {
+		decoded, decodeErr = enc.DecodeString(inviteString)
+		if decodeErr == nil {
+			break
+		}
+	}
+
+	if decodeErr != nil {
 		return "", "", errors.New("invalid base64 encoding")
 	}
 
 	inner := string(decoded)
+
 	atIdx := strings.LastIndex(inner, "@")
 	if atIdx == -1 {
 		return "", "", errors.New("invalid invite format: missing @")
@@ -56,6 +86,7 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 	if token == "" {
 		return "", "", errors.New("invalid invite format: empty token")
 	}
+
 	if providerFQDN == "" {
 		return "", "", errors.New("invalid invite format: empty provider")
 	}
@@ -68,7 +99,10 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 	return token, providerFQDN, nil
 }
 
+// BuildInviteString joins token and provider FQDN with '@' and encodes the result
+// using base64url (RFC 4648 Section 5) with padding omitted.
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L127-L130
 func BuildInviteString(token, providerFQDN string) string {
 	inner := token + "@" + providerFQDN
-	return base64.StdEncoding.EncodeToString([]byte(inner))
+	return base64.RawURLEncoding.EncodeToString([]byte(inner))
 }

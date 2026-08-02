@@ -1,3 +1,10 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 # Architecture
 
 This document describes how the opencloudmesh-go server is structured, how
@@ -85,6 +92,36 @@ OCM protocol behavior is pinned to a vendored spec snapshot:
 
 `internal/architecture/spec_pin_test.go` asserts the pin is present and
 matches the expected commit.
+
+## Signing direction
+
+The OCM-API [Signing Direction Index][signing-direction-index] is the
+authoritative signer/verifier map for protocol HTTP Message Signatures.
+The index is INFORMATIVE. HTTP Message Signatures apply only when the
+peer advertises `http-sig`; `must-use-http-sig` makes signing mandatory
+for inbound requests. See the [applicability rules][signing-applicability].
+
+[signing-direction-index]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L952-L983
+[signing-applicability]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
+
+| Flow | Endpoint | Signer | Verifier |
+| ---- | -------- | ------ | -------- |
+| Share Creation Notification | POST /shares | Sending Server | Receiving Server |
+| Token Request | POST {tokenEndPoint} | Receiving Server | Sending Server |
+| Invite Acceptance | POST /invite-accepted | Invite Receiver | Invite Sender |
+| Request for a Share | POST /request-share | Requesting Server | Requested Server |
+| Share Acceptance Notification | POST /notifications | Receiving Server | Sending Server |
+| Sender-initiated Notification | POST /notifications | Sending Server SHOULD sign | Receiving Server |
+
+ocmgo signs outbound requests conditionally when the peer advertises
+`http-sig`, and fails closed when no signer is available while the peer
+advertises `http-sig`. Inbound verification runs through the signature
+middleware (internal/components/ocm/inbound/signature/middleware.go), wired
+per route in internal/services/ocm/mount.go: it verifies any present OCM
+signature and rejects unsigned requests when `must-use-http-sig` applies.
+Outbound signing lives in `internal/components/ocm/outbound/poster.go` and
+`internal/components/ocm/token/outgoing/client.go`. Protocol endpoint
+handlers (shares, invites, token) sit behind that middleware.
 
 ## Architecture guard tests
 

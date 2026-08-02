@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package address provides OCM address parsing and formatting.
 // Format: identifier@host[:port]. Split on last '@'; identifier may contain '@'.
 package address
@@ -27,6 +32,7 @@ func Parse(addr string) (identifier, provider string, err error) {
 	if identifier == "" {
 		return "", "", fmt.Errorf("invalid OCM address: empty identifier in %q", addr)
 	}
+
 	if provider == "" {
 		return "", "", fmt.Errorf("invalid OCM address: empty provider in %q", addr)
 	}
@@ -34,6 +40,7 @@ func Parse(addr string) (identifier, provider string, err error) {
 	if strings.Contains(provider, "://") {
 		return "", "", fmt.Errorf("invalid OCM address: provider contains scheme in %q", addr)
 	}
+
 	if strings.Contains(provider, "/") {
 		return "", "", fmt.Errorf("invalid OCM address: provider contains path in %q", addr)
 	}
@@ -41,9 +48,11 @@ func Parse(addr string) (identifier, provider string, err error) {
 	return identifier, provider, nil
 }
 
-// EncodeFederatedOpaqueID produces base64url(userID + "@" + idp) for protocol use.
+// EncodeFederatedOpaqueID produces base64url(userID + "@" + idp) for protocol use,
+// encoded using base64url (RFC 4648 Section 5) with padding omitted.
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L127-L130
 func EncodeFederatedOpaqueID(userID string, idp string) string {
-	return base64.URLEncoding.EncodeToString([]byte(userID + "@" + idp))
+	return base64.RawURLEncoding.EncodeToString([]byte(userID + "@" + idp))
 }
 
 // DecodeFederatedOpaqueID decodes base64url; tries padded, raw, then std base64.
@@ -62,6 +71,7 @@ func DecodeFederatedOpaqueID(encoded string) (userID string, idp string, ok bool
 		}
 
 		payload := string(decoded)
+
 		idx := strings.LastIndex(payload, "@")
 		if idx < 0 || idx == 0 || idx == len(payload)-1 {
 			continue

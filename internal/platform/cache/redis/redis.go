@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package redis provides a Redis/Valkey cache driver using valkey-go.
 // Fail-fast: when cache.driver=redis is configured, startup fails if Redis is unreachable.
 package redis
@@ -16,43 +21,64 @@ import (
 
 func init() {
 	cache.RegisterDriver("redis", func(config map[string]any) cache.CacheWithCounter {
-		cfg := DefaultConfig()
-		if config != nil {
-			if v, ok := config["addr"].(string); ok && v != "" {
-				cfg.Addr = v
-			}
-			if v, ok := config["password"].(string); ok {
-				cfg.Password = v
-			}
-			if v, ok := config["db"]; ok {
-				if db, ok := toInt(v); ok {
-					cfg.DB = db
-				}
-			}
-			if v, ok := config["dial_timeout_ms"]; ok {
-				if ms, ok := toInt(v); ok && ms > 0 {
-					cfg.DialTimeout = time.Duration(ms) * time.Millisecond
-				}
-			}
-			if v, ok := config["conn_timeout_ms"]; ok {
-				if ms, ok := toInt(v); ok && ms > 0 {
-					cfg.ConnTimeout = time.Duration(ms) * time.Millisecond
-				}
-			}
-			if v, ok := config["default_ttl_seconds"]; ok {
-				if secs, ok := toInt(v); ok && secs > 0 {
-					cfg.DefaultTTL = time.Duration(secs) * time.Second
-				}
-			}
-		}
+		cfg := loadRedisConfig(config)
 
 		c, err := New(cfg)
 		if err != nil {
 			// Fail-fast: panic on connection failure when redis driver is explicitly configured
 			panic(fmt.Sprintf("redis cache driver failed to initialize: %v", err))
 		}
+
 		return c
 	})
+}
+
+func loadRedisConfig(config map[string]any) *Config {
+	cfg := DefaultConfig()
+	if config == nil {
+		return cfg
+	}
+
+	loadRedisConnectionConfig(config, cfg)
+	loadRedisTimeoutConfig(config, cfg)
+
+	return cfg
+}
+
+func loadRedisConnectionConfig(config map[string]any, cfg *Config) {
+	if v, ok := config["addr"].(string); ok && v != "" {
+		cfg.Addr = v
+	}
+
+	if v, ok := config["password"].(string); ok {
+		cfg.Password = v
+	}
+
+	if v, ok := config["db"]; ok {
+		if db, ok := toInt(v); ok {
+			cfg.DB = db
+		}
+	}
+}
+
+func loadRedisTimeoutConfig(config map[string]any, cfg *Config) {
+	if v, ok := config["dial_timeout_ms"]; ok {
+		if ms, ok := toInt(v); ok && ms > 0 {
+			cfg.DialTimeout = time.Duration(ms) * time.Millisecond
+		}
+	}
+
+	if v, ok := config["conn_timeout_ms"]; ok {
+		if ms, ok := toInt(v); ok && ms > 0 {
+			cfg.ConnTimeout = time.Duration(ms) * time.Millisecond
+		}
+	}
+
+	if v, ok := config["default_ttl_seconds"]; ok {
+		if secs, ok := toInt(v); ok && secs > 0 {
+			cfg.DefaultTTL = time.Duration(secs) * time.Second
+		}
+	}
 }
 
 func toInt(v any) (int, bool) {
@@ -161,6 +187,7 @@ func (c *Cache) healthCheck(ctx context.Context) error {
 
 	// Test counter script execution with a temporary key
 	testKey := "__ocm_cache_health_check__"
+
 	result := c.counterScript.Exec(ctx, c.client, []string{testKey}, []string{"1", "1000"})
 	if err := result.Error(); err != nil {
 		return fmt.Errorf("counter script test failed: %w", err)
@@ -179,6 +206,7 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 		if valkey.IsValkeyNil(err) {
 			return nil, cache.ErrNotFound
 		}
+
 		return nil, err
 	}
 
@@ -186,6 +214,7 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return data, nil
 }
 
@@ -196,6 +225,7 @@ func (c *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Dura
 	}
 
 	resp := c.client.Do(ctx, c.client.B().Set().Key(key).Value(string(value)).Px(ttl).Build())
+
 	return resp.Error()
 }
 
@@ -211,10 +241,12 @@ func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
 	if err := resp.Error(); err != nil {
 		return false, err
 	}
+
 	count, err := resp.AsInt64()
 	if err != nil {
 		return false, err
 	}
+
 	return count > 0, nil
 }
 
@@ -238,6 +270,7 @@ func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time
 	if err != nil {
 		return 0, time.Time{}, fmt.Errorf("unexpected script result: %w", err)
 	}
+
 	if len(arr) != 2 {
 		return 0, time.Time{}, fmt.Errorf("unexpected script result length: %d", len(arr))
 	}
@@ -258,6 +291,7 @@ func (c *Cache) GetCount(ctx context.Context, key string) (int64, error) {
 		if valkey.IsValkeyNil(err) {
 			return 0, nil
 		}
+
 		return 0, err
 	}
 
@@ -266,6 +300,7 @@ func (c *Cache) GetCount(ctx context.Context, key string) (int64, error) {
 		// Key exists but is not an integer (shouldn't happen for counters)
 		return 0, err
 	}
+
 	return val, nil
 }
 

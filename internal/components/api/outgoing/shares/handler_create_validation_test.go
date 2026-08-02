@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package shares_test
 
 import (
@@ -9,19 +14,21 @@ import (
 	"os"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 )
 
 func TestHandleCreate_Unauthenticated_Returns401(t *testing.T) {
-	handler := newTestHandler(failCurrentUser())
+	handler := newTestHandler(t, failCurrentUser())
 
 	body := `{"receiverDomain":"example.com","shareWith":"user@example.com","localPath":"/tmp/test.txt","permissions":["read"]}`
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -33,7 +40,7 @@ func TestHandleCreate_Unauthenticated_Returns401(t *testing.T) {
 
 func TestHandleCreate_MissingFields(t *testing.T) {
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	handler := newTestHandler(testCurrentUser(user))
+	handler := newTestHandler(t, testCurrentUser(user))
 
 	tests := []struct {
 		name string
@@ -47,8 +54,9 @@ func TestHandleCreate_MissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(tt.body))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
+
 			w := httptest.NewRecorder()
 
 			handler.HandleCreate(w, req)
@@ -62,7 +70,7 @@ func TestHandleCreate_MissingFields(t *testing.T) {
 
 func TestHandleCreate_FileNotFound(t *testing.T) {
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	handler := newTestHandler(testCurrentUser(user))
+	handler := newTestHandler(t, testCurrentUser(user))
 	handler.SetAllowedPaths([]string{"/tmp"})
 
 	body := `{
@@ -72,8 +80,9 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 		"permissions": ["read"]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -85,15 +94,22 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 
 func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	handler := newTestHandler(testCurrentUser(user))
+	handler := newTestHandler(t, testCurrentUser(user))
 	handler.SetAllowedPaths([]string{"/tmp"})
 
 	tmpFile, err := os.CreateTemp("/tmp", "outgoing-perm-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Errorf("remove temp file: %v", err)
+		}
+	}()
+
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
 
 	body := `{
 		"receiverDomain": "example.com",
@@ -102,8 +118,9 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 		"permissions": ["write"]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -111,6 +128,7 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if !bytes.Contains(w.Body.Bytes(), []byte("permissions must be read-only")) {
 		t.Fatalf("expected read-only permissions error, got: %s", w.Body.String())
 	}
@@ -118,7 +136,7 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 
 func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	user := &identity.User{ID: "user-uuid-123", Username: "alice", Email: "alice@example.org"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 
 	discClient := makeDummyDiscoveryClient()
 	handler := outgoingshares.NewHandler(
@@ -138,8 +156,15 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		if rerr := os.Remove(tmpFile.Name()); rerr != nil {
+			t.Errorf("remove temp file: %v", rerr)
+		}
+	}()
+
+	if cerr := tmpFile.Close(); cerr != nil {
+		t.Fatalf("close temp file: %v", cerr)
+	}
 
 	body := `{
 		"receiverDomain": "receiver.example.com",
@@ -148,8 +173,9 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 		"permissions": ["read"]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -174,9 +200,9 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 
 func TestHandleCreate_MethodNotAllowed(t *testing.T) {
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	handler := newTestHandler(testCurrentUser(user))
+	handler := newTestHandler(t, testCurrentUser(user))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/shares/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/shares/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -188,11 +214,12 @@ func TestHandleCreate_MethodNotAllowed(t *testing.T) {
 
 func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	handler := newTestHandler(testCurrentUser(user))
+	handler := newTestHandler(t, testCurrentUser(user))
 
 	body := `{"shareWith":"user@example.com","localPath":"/tmp/test.txt","permissions":["read"]}`
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -206,15 +233,18 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	errObj, ok := resp["error"]
 	if !ok {
 		t.Fatal("error response missing 'error' field (should use api error envelope)")
 	}
+
 	errMap, ok := errObj.(map[string]interface{})
 	if !ok {
 		t.Fatal("error field is not an object")
 	}
-	if _, ok := errMap["reason_code"]; !ok {
-		t.Error("error response missing reason_code field (should use api error envelope)")
+
+	if _, ok := errMap["reasonCode"]; !ok {
+		t.Error("error response missing reasonCode field (should use api error envelope)")
 	}
 }

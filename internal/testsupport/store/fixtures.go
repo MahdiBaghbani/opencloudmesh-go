@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package store provides shared test helpers for store driver tests.
 package store
 
@@ -15,7 +20,7 @@ func NewOutgoingInviteFixture() *store.OutgoingInvite {
 		ProviderFQDN:    "example.com",
 		InviteString:    "ocm://invite/test",
 		RecipientEmail:  "bob@remote.com",
-		CreatedByUserId: "alice",
+		CreatedByUserID: "alice",
 		Status:          "pending",
 		ExpiresAt:       time.Now().Add(24 * time.Hour).Unix(),
 		CreatedAt:       time.Now().Unix(),
@@ -30,7 +35,7 @@ func NewIncomingInviteFixture() *store.IncomingInvite {
 		Token:           "test-invite-token",
 		InviteString:    "ocm://invite/test",
 		SenderFQDN:      "remote.example",
-		RecipientUserId: "alice",
+		RecipientUserID: "alice",
 		Status:          "pending",
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
@@ -40,9 +45,9 @@ func NewIncomingInviteFixture() *store.IncomingInvite {
 // NewOutgoingShareFixture creates a test outgoing share.
 func NewOutgoingShareFixture() *store.OutgoingShare {
 	return &store.OutgoingShare{
-		ShareId:      "test-share-id",
-		ProviderId:   "test-provider-id",
-		WebDAVId:     "test-webdav-id",
+		ShareID:      "test-share-id",
+		ProviderID:   "test-provider-id",
+		WebDAVID:     "test-webdav-id",
 		SharedSecret: "super-secret-token",
 		LocalPath:    "/path/to/file.txt",
 		Owner:        "alice@example.com",
@@ -52,7 +57,7 @@ func NewOutgoingShareFixture() *store.OutgoingShare {
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "sent",
+		Status:       "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
@@ -61,20 +66,20 @@ func NewOutgoingShareFixture() *store.OutgoingShare {
 // NewIncomingShareFixture creates a test incoming share.
 func NewIncomingShareFixture() *store.IncomingShare {
 	return &store.IncomingShare{
-		ShareId:       "test-share-id",
-		SendingServer: "sender.com",
-		ProviderId:    "remote-provider-id",
-		WebDAVId:      "remote-webdav-id",
-		SharedSecret:  "received-secret",
-		Owner:         "alice@sender.com",
-		Sender:        "alice@sender.com",
-		ShareWith:     "bob@example.com",
-		Name:          "shared-file.txt",
-		ResourceType:  "file",
-		Permissions:   "read",
-		State:         "pending",
-		UserId:        "bob",
-		CreatedAt:     time.Now().Unix(),
-		UpdatedAt:     time.Now().Unix(),
+		ShareID:         "test-share-id",
+		SenderHost:      "sender.com",
+		ProviderID:      "remote-provider-id",
+		WebDAVID:        "remote-webdav-id",
+		SharedSecret:    "received-secret",
+		Owner:           "alice@sender.com",
+		Sender:          "alice@sender.com",
+		ShareWith:       "bob@example.com",
+		Name:            "shared-file.txt",
+		ResourceType:    "file",
+		Permissions:     "read",
+		Status:          "pending",
+		RecipientUserID: "bob",
+		CreatedAt:       time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
 	}
 }

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package outgoing_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
@@ -26,9 +29,9 @@ func TestClient_Exchange_NoSignerRejected(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: "https://peer.example.com/token",
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
-		t.Fatal("expected error when token exchange has no signer")
+		t.Fatal("expected error when token exchange has no signer for http-sig peer")
 	}
 }
 
@@ -37,15 +40,16 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 		if r.Header.Get("Signature") == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(token.OAuthError{
+			tshttp.MustEncodeJSON(t, w, token.OAuthError{
 				Error:            token.ErrorUnauthorized,
 				ErrorDescription: "signature required",
 			})
+
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
+		tshttp.MustEncodeJSON(t, w, token.TokenResponse{
 			AccessToken: "signed-token",
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,
@@ -62,46 +66,16 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
-
+	}, httpSigDiscovery())
 	if err != nil {
 		t.Fatalf("Exchange should succeed with signature: %v", err)
 	}
+
 	if result.AccessToken != "signed-token" {
 		t.Errorf("expected 'signed-token', got %s", result.AccessToken)
 	}
 }
 
-func TestClient_Exchange_AlwaysSigns(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Signature") == "" {
-			t.Error("expected signed token exchange")
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "signed-token",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		})
-	}))
-	defer server.Close()
-
-	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{Mode: "off"},
-	}, nil))
-
-	client := tokenoutgoing.NewClient(httpClient, &mockSigner{}, "local.example.com")
-
-	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: server.URL,
-		SharedSecret:  "test-secret",
-	})
-
-	if err != nil {
-		t.Fatalf("Exchange should succeed with signature: %v", err)
-	}
-	if result.AccessToken != "signed-token" {
-		t.Errorf("expected 'signed-token', got %s", result.AccessToken)
-	}
+func TestClient_Exchange_SignsWhenReceiverAdvertisesHTTPSig(t *testing.T) {
+	runExchangeSignatureCase(t, true, "local.example.com", httpSigDiscovery(), "signed-token")
 }

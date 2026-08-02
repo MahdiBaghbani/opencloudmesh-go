@@ -1,13 +1,15 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package signature_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
-	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +17,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
@@ -24,14 +31,14 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 
 	mw := newStrictSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -43,10 +50,14 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 	// Create two different key managers
 	kmSender := crypto.NewKeyManager("", "https://sender.example.com")
-	kmSender.LoadOrGenerate()
+	if err := kmSender.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate sender: %v", err)
+	}
 
 	kmAttacker := crypto.NewKeyManager("", "https://attacker.example.com")
-	kmAttacker.LoadOrGenerate()
+	if err := kmAttacker.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate attacker: %v", err)
+	}
 
 	signer := crypto.NewRFC9421Signer(kmSender)
 
@@ -62,15 +73,18 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
-	signer.SignRequest(req, body)
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -100,7 +114,7 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 	// A syntactically valid but wrong 64-byte signature in RFC 9421 format.
 	zeroSig := base64.StdEncoding.EncodeToString(make([]byte, 64))
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
 
@@ -128,14 +142,15 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
+
 			if tt.signature != "" {
 				req.Header.Set("Signature", tt.signature)
 			}
@@ -217,26 +232,30 @@ func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if tt.wantCode != http.StatusOK {
 					t.Fatal("handler should not run for rejected request")
 				}
+
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
+
 			if tt.signature != "" {
 				req.Header.Set("Signature", tt.signature)
 			}
+
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
 			if w.Code != tt.wantCode {
 				t.Errorf("want status %d, got %d (body: %s)", tt.wantCode, w.Code, w.Body.String())
 			}
+
 			if tt.wantBody != "" && strings.TrimSpace(w.Body.String()) != tt.wantBody {
 				t.Errorf("want body %q, got %q", tt.wantBody, w.Body.String())
 			}
@@ -248,6 +267,7 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	cfg := defaultSigTestConfig()
@@ -260,14 +280,15 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when content digest verification fails")
 	}))
 
 	signedBody := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(signedBody))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(signedBody))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
+
 	if err := signer.SignRequest(req, signedBody); err != nil {
 		t.Fatal(err)
 	}
@@ -289,11 +310,11 @@ func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
 	pd := &mockPeerDiscovery{}
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run for invalid signature")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri");created=1;keyid="https://nc.example.com#main-key";tag="ocm"`)
 	req.Header.Set("Signature", "ocm=:invalid:")
 
@@ -311,22 +332,24 @@ func TestSignatureMiddleware_RequireSignatureAndPeer_Advertised_UnsignedRejects(
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 	mw.SetLocalHTTPSigPolicy(true, true)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when advertised unsigned request is rejected")
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for advertised unsigned request, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if strings.TrimSpace(w.Body.String()) != "signature required" {
 		t.Fatalf("body = %q, want signature required", w.Body.String())
 	}
@@ -339,5 +362,6 @@ func newStrictSignatureMiddleware(
 ) *sig.SignatureMiddleware {
 	mw := newTestSignatureMiddleware(cfg, pd, publicOrigin, logger)
 	mw.SetLocalHTTPSigPolicy(true, true)
+
 	return mw
 }

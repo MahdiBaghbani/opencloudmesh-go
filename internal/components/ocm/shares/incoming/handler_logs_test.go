@@ -1,16 +1,24 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -37,17 +45,19 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := sharesinbox.NewMemoryIncomingShareRepo()
-			partyRepo := setupTestPartyRepo()
+			repo := tsrepos.OpenMemory(t).IncomingShares
+			partyRepo := setupTestPartyRepo(t)
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := incoming.NewHandler(
 				repo,
 				partyRepo,
 				nil,
+				nil,
+				nil,
+				false,
 				"localhost:9200",
 				"https",
-				policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil),
-				capture.Logger,
+				policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal),
 			)
 
 			body := validShareBodyWithOwnerAndSenderHosts(
@@ -62,7 +72,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				[]byte(tt.sharedSecret),
 			)
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				"/ocm/shares",
 				bytes.NewReader(bodyBytes),
@@ -77,6 +87,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			if w.Code != http.StatusCreated && w.Code != http.StatusOK {
 				t.Fatalf("expected success status, got %d: %s", w.Code, w.Body.String())
 			}
+
 			if capture.ContainsAny(
 				tt.sharedSecret,
 				tt.authorization,

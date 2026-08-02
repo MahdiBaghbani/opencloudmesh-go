@@ -1,5 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Minimal protocol admission checks for the current OCM wire contract.
-// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 package spec
 
 import (
@@ -31,8 +36,8 @@ var SupportedWebappPermissions = []string{"view", "read", "write", "share"}
 // SupportedWebappRequirements lists the webapp requirement tokens this
 // implementation recognizes. The name is kept for consistency with the other
 // Supported* lists, but only must-exchange-token is admitted; must-use-mfa is
-// listed solely to be hard-rejected at admit with a GAP note, not because it is
-// admitted (enforce-mfa is not implemented yet).
+// listed solely to be hard-rejected at admit because MFA enforcement is not
+// supported.
 var SupportedWebappRequirements = []string{RequirementMustExchangeToken, RequirementMustUseMFA}
 
 // IsSupportedResourceType reports whether resourceType is accepted for share creation.
@@ -42,6 +47,7 @@ func IsSupportedResourceType(resourceType string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -56,11 +62,12 @@ func ValidateProtocolArms(raw map[string]json.RawMessage) error {
 			return errUnsupportedProtocolArm
 		}
 	}
+
 	return nil
 }
 
 // ValidateProtocolShape checks the minimal current-purpose protocol shape.
-// The named "webdav" shape requires a webdav arm (legacy behavior). The
+// The named "webdav" shape requires a webdav arm. The
 // "multi" shape requires at least one supported arm: webdav or webapp. This
 // admits a webapp-only arm under "multi" without altering the named "webdav"
 // shape behavior.
@@ -68,15 +75,19 @@ func ValidateProtocolShape(p Protocol) *ValidationError {
 	if p.Name == "" {
 		return &ValidationError{Name: "protocol.name", Message: "REQUIRED"}
 	}
+
 	if p.Name != "multi" && p.Name != "webdav" {
 		return &ValidationError{Name: "protocol.name", Message: "UNSUPPORTED"}
 	}
+
 	if p.Name == "webdav" && p.WebDAV == nil {
 		return &ValidationError{Name: "protocol.webdav", Message: "REQUIRED"}
 	}
+
 	if p.Name == "multi" && p.WebDAV == nil && p.Webapp == nil {
 		return &ValidationError{Name: "protocol", Message: "REQUIRED"}
 	}
+
 	return nil
 }
 
@@ -89,12 +100,15 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 	if p == nil {
 		return errs
 	}
+
 	if p.URI == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.uri", Message: "REQUIRED"})
 	}
+
 	if p.SharedSecret == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.sharedSecret", Message: "REQUIRED"})
 	}
+
 	if len(p.Permissions) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: "REQUIRED"})
 	} else {
@@ -105,6 +119,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 			}
 		}
 	}
+
 	if len(p.AccessTypes) > 0 {
 		for _, accessType := range p.AccessTypes {
 			if !isSupportedWebDAVAccessType(accessType) {
@@ -113,12 +128,14 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 			}
 		}
 	}
+
 	for _, req := range p.Requirements {
 		if !isSupportedWebDAVRequirement(req) {
 			errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "UNSUPPORTED"})
 			break
 		}
 	}
+
 	return errs
 }
 
@@ -130,6 +147,7 @@ func ValidateWebDAVRequirementsAdmission(localRequires bool, reqs []string) []Va
 	if localRequires && len(reqs) == 0 {
 		return []ValidationError{{Name: "protocol.webdav.requirements", Message: "REQUIRED"}}
 	}
+
 	return nil
 }
 
@@ -139,8 +157,10 @@ func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
 	if p == nil {
 		return nil
 	}
+
 	errs := ValidateWebDAVProtocolWire(p)
 	errs = append(errs, ValidateWebDAVRequirementsAdmission(true, p.Requirements)...)
+
 	return errs
 }
 
@@ -150,6 +170,7 @@ func isSupportedWebDAVRequirement(req string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -159,6 +180,7 @@ func isSupportedWebDAVAccessType(accessType string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -168,26 +190,30 @@ func isSupportedWebDAVPermission(perm string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
 // ValidateWebappProtocolWire checks webapp wire fields: uri, targets,
 // permissions, and sharedSecret are required; permissions must be in
 // SupportedWebappPermissions; unknown requirements return UNSUPPORTED;
-// must-use-mfa is hard-rejected with a GAP note because MFA is not
-// implemented. must-exchange-token remains REQUIRED on the wire; the
+// must-use-mfa is hard-rejected at admit because MFA enforcement is not
+// supported. must-exchange-token remains REQUIRED on the wire; the
 // criteria-aware admission seam does not relax that check.
 func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 	var errs []ValidationError
 	if p == nil {
 		return errs
 	}
+
 	if p.URI == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.uri", Message: "REQUIRED"})
 	}
+
 	if len(p.Targets) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.targets", Message: "REQUIRED"})
 	}
+
 	if len(p.Permissions) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.permissions", Message: "REQUIRED"})
 	} else {
@@ -198,6 +224,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 			}
 		}
 	}
+
 	if len(p.Requirements) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "REQUIRED"})
 	} else {
@@ -205,22 +232,27 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 			if req == RequirementMustUseMFA {
 				errs = append(errs, ValidationError{
 					Name:    "protocol.webapp.requirements",
-					Message: "GAP: " + RequirementMustUseMFA + " rejected at admit; enforce-mfa is not implemented yet",
+					Message: RequirementMustUseMFA + " rejected at admit; MFA enforcement is not supported",
 				})
+
 				continue
 			}
+
 			if !isSupportedWebappRequirement(req) {
 				errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "UNSUPPORTED"})
 				break
 			}
 		}
+
 		if !p.HasRequirement(RequirementMustExchangeToken) {
 			errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "REQUIRED"})
 		}
 	}
+
 	if p.SharedSecret == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.sharedSecret", Message: "REQUIRED"})
 	}
+
 	return errs
 }
 
@@ -233,6 +265,7 @@ func ValidateWebappRequirementsAdmission(localRequires bool, reqs []string) []Va
 	if localRequires && len(reqs) == 0 {
 		return []ValidationError{{Name: "protocol.webapp.requirements", Message: "REQUIRED"}}
 	}
+
 	return nil
 }
 
@@ -244,13 +277,16 @@ func ValidateWebappProtocol(p *WebappProtocol) []ValidationError {
 	if p == nil {
 		return nil
 	}
+
 	errs := ValidateWebappProtocolWire(p)
 	for _, adm := range ValidateWebappRequirementsAdmission(true, p.Requirements) {
 		if hasExactValidationError(errs, adm) {
 			continue
 		}
+
 		errs = append(errs, adm)
 	}
+
 	return errs
 }
 
@@ -260,6 +296,7 @@ func hasExactValidationError(errs []ValidationError, want ValidationError) bool 
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -269,6 +306,7 @@ func isSupportedWebappPermission(perm string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -278,5 +316,6 @@ func isSupportedWebappRequirement(req string) bool {
 			return true
 		}
 	}
+
 	return false
 }

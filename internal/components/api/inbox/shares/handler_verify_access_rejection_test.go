@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package shares_test
 
 import (
@@ -7,24 +12,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 )
 
 func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-cross", "sender.example.com", "file.txt")
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	share := createAcceptedShareForUser(t, repo, "prov-va-cross", "sender.example.com", "file.txt")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for cross-user request")
-		return nil, nil
+		return nil, nil //nolint:nilnil // test: unreachable after t.Fatal; satisfies the mock accessor signature
 	}}
 	router := newTestRouterWithAccess(repo, ac, userB)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -34,17 +40,17 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-va-pending", "sender.example.com")
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	share := createShareForUser(t, repo, userAID, "prov-va-pending", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for non-accepted share")
-		return nil, nil
+		return nil, nil //nolint:nilnil // test: unreachable after t.Fatal; satisfies the mock accessor signature
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -53,24 +59,27 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
 	if resp.ReasonCode != "share_not_accepted" {
 		t.Errorf("expected reasonCode share_not_accepted, got %s", resp.ReasonCode)
 	}
 }
 
 func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	share := createAcceptedShareForUser(t, repo, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for unsafe path")
-		return nil, nil
+		return nil, nil //nolint:nilnil // test: unreachable after t.Fatal; satisfies the mock accessor signature
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -79,7 +88,10 @@ func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
 	if resp.ReasonCode != "unsafe_path" {
 		t.Errorf("expected reasonCode unsafe_path, got %s", resp.ReasonCode)
 	}

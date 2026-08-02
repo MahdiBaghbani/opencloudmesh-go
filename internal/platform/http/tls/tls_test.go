@@ -1,6 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package tls_test
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -20,6 +26,7 @@ func TestTLSManager_Off(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if tlsCfg != nil {
 		t.Error("expected nil TLS config for 'off' mode")
 	}
@@ -35,7 +42,7 @@ func TestTLSManager_Static_MissingFiles(t *testing.T) {
 	mgr := tlspkg.NewTLSManager(cfg, logger)
 
 	_, err := mgr.GetTLSConfig("localhost")
-	if err != tlspkg.ErrMissingCert {
+	if !errors.Is(err, tlspkg.ErrMissingCert) {
 		t.Errorf("expected ErrMissingCert, got %v", err)
 	}
 }
@@ -46,7 +53,11 @@ func TestTLSManager_SelfSigned_Generate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if rerr := os.RemoveAll(tempDir); rerr != nil {
+			t.Errorf("remove temp dir: %v", rerr)
+		}
+	}()
 
 	cfg := &config.TLSConfig{
 		Mode:          "selfsigned",
@@ -59,9 +70,11 @@ func TestTLSManager_SelfSigned_Generate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTLSConfig failed: %v", err)
 	}
+
 	if tlsCfg == nil {
 		t.Fatal("expected non-nil TLS config")
 	}
+
 	if len(tlsCfg.Certificates) == 0 {
 		t.Error("expected at least one certificate")
 	}
@@ -73,6 +86,7 @@ func TestTLSManager_SelfSigned_Generate(t *testing.T) {
 	if _, err := os.Stat(certFile); os.IsNotExist(err) {
 		t.Error("certificate file not created")
 	}
+
 	if _, err := os.Stat(keyFile); os.IsNotExist(err) {
 		t.Error("key file not created")
 	}
@@ -83,7 +97,11 @@ func TestTLSManager_SelfSigned_Reload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if rerr := os.RemoveAll(tempDir); rerr != nil {
+			t.Errorf("remove temp dir: %v", rerr)
+		}
+	}()
 
 	cfg := &config.TLSConfig{
 		Mode:          "selfsigned",
@@ -133,6 +151,7 @@ func TestTLSManager_SelfSigned_EmptyDir_Fails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when SelfSignedDir is empty")
 	}
+
 	if !strings.Contains(err.Error(), "self_signed_dir") {
 		t.Errorf("expected error to mention self_signed_dir, got %v", err)
 	}

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package sigalg_test
 
 import (
@@ -13,27 +18,33 @@ const testMsg = "msg"
 
 func mustEd25519KeyPair(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
 	t.Helper()
+
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return pub, priv
 }
 
 func mustECDSAKey(t *testing.T, curve elliptic.Curve) *ecdsa.PrivateKey {
 	t.Helper()
+
 	priv, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return priv
 }
 
 func mustRSAKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
+
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return priv
 }

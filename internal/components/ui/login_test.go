@@ -1,6 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ui_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,12 +18,13 @@ import (
 
 func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
-	handler, err := ui.NewHandler(id.ExternalBasePath, false, id.ProviderDomain)
+
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/login", nil)
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 
@@ -35,6 +42,7 @@ func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 			t.Errorf("expected login page to include %q for post-login redirect", want)
 		}
 	}
+
 	if !strings.Contains(body, "/ocm") {
 		t.Error("expected base path in login page")
 	}
@@ -42,13 +50,14 @@ func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 
 func TestLogin_AcceptsRedirectQueryForAcceptInvite(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "")
-	handler, err := ui.NewHandler(id.ExternalBasePath, true, id.ProviderDomain)
+
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
 	returnPath := "/ui/accept-invite?token=tok&providerDomain=alice.example.com"
-	req := httptest.NewRequest(http.MethodGet, "/login?redirect="+returnPath, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/login?redirect="+returnPath, nil)
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 

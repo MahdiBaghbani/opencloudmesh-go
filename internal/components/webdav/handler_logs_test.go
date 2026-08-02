@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package webdav_test
 
 import (
@@ -8,6 +13,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -35,16 +42,26 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := outgoing.NewMemoryOutgoingShareRepo()
+			repo := tsrepos.OpenMemory(t).OutgoingShares
+
 			tmpFile, err := os.CreateTemp("", "webdav-logs-*")
 			if err != nil {
 				t.Fatalf("create temp file: %v", err)
 			}
-			t.Cleanup(func() { _ = os.Remove(tmpFile.Name()) })
+
+			t.Cleanup(func() {
+				if err := os.Remove(tmpFile.Name()); err != nil {
+					t.Errorf("remove temp file: %v", err)
+				}
+			})
+
 			if _, err := tmpFile.WriteString("payload"); err != nil {
 				t.Fatalf("write temp file: %v", err)
 			}
-			_ = tmpFile.Close()
+
+			if err := tmpFile.Close(); err != nil {
+				t.Fatalf("close temp file: %v", err)
+			}
 
 			share := &outgoing.OutgoingShare{
 				ShareID:      "share-logs",
@@ -70,8 +87,9 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := webdav.NewHandler(repo, tokenStore, capture.Logger)
 
-			req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+share.WebDAVID, nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+share.WebDAVID, nil)
 			req.Header.Set("Authorization", "Bearer "+tt.bearerToken)
+
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 

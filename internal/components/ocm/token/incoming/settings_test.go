@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming
 
 import (
@@ -31,6 +36,7 @@ func TestTokenExchangeSettings_ApplyDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.settings.ApplyDefaults()
+
 			if tt.settings.Path != tt.wantPath {
 				t.Errorf("Path = %q, want %q", tt.settings.Path, tt.wantPath)
 			}
@@ -107,19 +113,19 @@ func TestTokenExchangeSettings_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &TokenExchangeSettings{Path: tt.path}
+
 			err := s.Validate()
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Validate() error = nil, want error containing %q", tt.errMsg)
 					return
 				}
+
 				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("Validate() error = %q, want error containing %q", err.Error(), tt.errMsg)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Validate() error = %v, want nil", err)
-				}
+			} else if err != nil {
+				t.Errorf("Validate() error = %v, want nil", err)
 			}
 		})
 	}
@@ -166,6 +172,7 @@ func TestTokenExchangeSettings_FullEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &TokenExchangeSettings{Path: tt.path}
+
 			got := s.FullEndpoint(tt.publicOrigin, tt.externalBasePath)
 			if got != tt.want {
 				t.Errorf("FullEndpoint() = %q, want %q", got, tt.want)
@@ -200,6 +207,7 @@ func TestTokenExchangeSettings_RoutePath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &TokenExchangeSettings{Path: tt.path}
+
 			got := s.RoutePath()
 			if got != tt.want {
 				t.Errorf("RoutePath() = %q, want %q", got, tt.want)

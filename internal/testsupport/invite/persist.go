@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package invite
 
 import (
@@ -11,15 +16,16 @@ import (
 
 // persistedOutgoingInvite mirrors store.OutgoingInvite JSON on disk.
 type persistedOutgoingInvite struct {
-	Token      string `json:"token"`
-	Status     string `json:"status"`
-	AcceptedBy string `json:"accepted_by,omitempty"`
+	Token                string `json:"token"`
+	Status               string `json:"status"`
+	AcceptedProviderFQDN string `json:"acceptedProviderFqdn,omitempty"`
 }
 
 // OutgoingStatus reads json persistence at dataDir/data/outgoing_invites.json and
 // returns the status for the invite matching token.
 func OutgoingStatus(dataDir, token string) (invites.InviteStatus, string, error) {
 	path := filepath.Join(dataDir, "data", "outgoing_invites.json")
+
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", "", fmt.Errorf("read outgoing invites: %w", err)
@@ -32,8 +38,9 @@ func OutgoingStatus(dataDir, token string) (invites.InviteStatus, string, error)
 
 	for _, inv := range invitesByID {
 		if inv.Token == token {
-			return invites.InviteStatus(inv.Status), inv.AcceptedBy, nil
+			return invites.InviteStatus(inv.Status), inv.AcceptedProviderFQDN, nil
 		}
 	}
+
 	return "", "", fmt.Errorf("outgoing invite token %q not found in %s", token, path)
 }

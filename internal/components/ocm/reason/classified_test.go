@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package reason
 
 import (
@@ -19,7 +24,6 @@ func TestClassifyError_SignatureBodiesAndKeyLookup(t *testing.T) {
 		{fmt.Errorf("verify: %w", sigalg.ErrVerifyFailed), ReasonSignatureInvalid},
 		{fmt.Errorf("sym: %w", sigalg.ErrSymmetricNotPermitted), ReasonSignatureInvalid},
 		{fmt.Errorf("mismatch: %w", sigalg.ErrAlgorithmMismatch), ReasonSignatureInvalid},
-		{fmt.Errorf("under: %w", sigalg.ErrAlgorithmUnderdetermined), ReasonSignatureInvalid},
 		{errors.New("signature verification failed"), ReasonSignatureInvalid},
 		{errors.New("content digest mismatch"), ReasonDigestMismatch},
 		{errors.New("digest mismatch"), ReasonDigestMismatch},

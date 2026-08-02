@@ -1,11 +1,19 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package json_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -19,7 +27,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 	}
 
 	driver := testutil.OpenDriver(t, cfg)
-	defer driver.Close()
+	defer tshttp.MustClose(t, driver)
 
 	inStore, ok := driver.(store.IncomingInviteStore)
 	if !ok {
@@ -31,7 +39,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		Token:           "invite-token-1",
 		InviteString:    "ocm://invite",
 		SenderFQDN:      "remote.example",
-		RecipientUserId: "alice",
+		RecipientUserID: "alice",
 		Status:          "pending",
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
@@ -41,60 +49,109 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		t.Fatalf("CreateIncomingInvite failed: %v", err)
 	}
 
-	got, err := inStore.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
+	got, err := inStore.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient failed: %v", err)
 	}
+
 	if got.ID != invite.ID {
 		t.Fatalf("expected invite %q, got %q", invite.ID, got.ID)
 	}
 
 	_, err = inStore.GetIncomingInviteForRecipient(ctx, invite.ID, "bob")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for wrong recipient lookup, got %v", err)
 	}
 
-	if err := inStore.UpdateIncomingInviteStatusForRecipient(
-		ctx, invite.ID, invite.RecipientUserId, "accepted",
-	); err != nil {
-		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", err)
+	// An accepted update without sender identity is rejected before any write.
+	if cerr := inStore.UpdateIncomingInviteStatusForRecipient(
+		ctx, invite.ID, invite.RecipientUserID, "accepted", "", "",
+	); !errors.Is(cerr, invites.ErrInvalidAcceptedIdentity) {
+		t.Fatalf("expected ErrInvalidAcceptedIdentity for accepted update without identity, got %v", cerr)
 	}
 
-	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted")
-	if err != store.ErrNotFound {
+	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for wrong recipient update, got %v", err)
 	}
 
 	err = inStore.DeleteIncomingInviteForRecipient(ctx, invite.ID, "bob")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for wrong recipient delete, got %v", err)
 	}
 
-	if err := inStore.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId); err != nil {
-		t.Fatalf("DeleteIncomingInviteForRecipient failed: %v", err)
+	if serr := inStore.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID); serr != nil {
+		t.Fatalf("DeleteIncomingInviteForRecipient failed: %v", serr)
 	}
 
-	_, err = inStore.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
-	if err != store.ErrNotFound {
+	_, err = inStore.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID)
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound after delete, got %v", err)
 	}
 }
 
-// TestJSONListIncomingInvitesRecipientScope ensures ListIncomingInvites always
-// uses exact recipient matching: empty or wrong recipientUserId yields no results.
-func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
-	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+// TestJSONIncomingInviteUpdateRecipientGateBeforeValidation pins the ordering
+// guarantee: a wrong-recipient accepted update reports ErrNotFound whether or
+// not identity validation would have passed, because the recipient scope gate
+// always runs first.
+func TestJSONIncomingInviteUpdateRecipientGateBeforeValidation(t *testing.T) {
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
 	ctx := context.Background()
 
-	inStore := driver.(store.IncomingInviteStore)
+	inStore := requireIncomingInviteStore(t, driver)
+
+	invite := &store.IncomingInvite{
+		ID:              "gate-order-invite",
+		Token:           "gate-order-token",
+		InviteString:    "ocm://invite",
+		SenderFQDN:      "remote.example",
+		RecipientUserID: "alice",
+		Status:          "pending",
+		ReceivedAt:      time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
+	}
+	if err := inStore.CreateIncomingInvite(ctx, invite); err != nil {
+		t.Fatalf("CreateIncomingInvite: %v", err)
+	}
+
+	// Wrong recipient plus an identity validation would reject: ErrNotFound.
+	err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for wrong recipient without identity, got %v", err)
+	}
+
+	// Seed a full sender identity through the correct recipient.
+	if cerr := inStore.UpdateIncomingInviteStatusForRecipient(
+		ctx, invite.ID, invite.RecipientUserID, "accepted", "sender-user", "remote.example",
+	); cerr != nil {
+		t.Fatalf("UpdateIncomingInviteStatusForRecipient with identity: %v", cerr)
+	}
+
+	// Wrong recipient where coalesced validation would pass: still ErrNotFound.
+	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for wrong recipient with stored identity, got %v", err)
+	}
+}
+
+// TestJSONListIncomingInvitesRecipientScope ensures ListIncomingInvites always
+// uses exact recipient matching: empty or wrong recipientUserID yields no results.
+func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
+	ctx := context.Background()
+
+	inStore := requireIncomingInviteStore(t, driver)
 
 	invite := &store.IncomingInvite{
 		ID:              "scope-test-invite",
 		Token:           "scope-token",
 		InviteString:    "ocm://invite",
 		SenderFQDN:      "remote.example",
-		RecipientUserId: "alice",
+		RecipientUserID: "alice",
 		Status:          "pending",
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
@@ -108,6 +165,7 @@ func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListIncomingInvites(alice): %v", err)
 	}
+
 	if len(got) != 1 {
 		t.Errorf("expected 1 invite for alice, got %d", len(got))
 	}
@@ -117,6 +175,7 @@ func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListIncomingInvites(bob): %v", err)
 	}
+
 	if len(got) != 0 {
 		t.Errorf("expected 0 invites for bob, got %d", len(got))
 	}
@@ -126,187 +185,215 @@ func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListIncomingInvites(empty): %v", err)
 	}
+
 	if len(got) != 0 {
-		t.Errorf("expected 0 invites for empty recipientUserId, got %d", len(got))
+		t.Errorf("expected 0 invites for empty recipientUserID, got %d", len(got))
 	}
 }
 
-// TestJSONOutgoingShareCreateConflictingShareId verifies that creating a second
-// outgoing share with a ShareId already owned by a different record returns
-// ErrAlreadyExists and leaves the original record intact.
-func TestJSONOutgoingShareCreateConflictingShareId(t *testing.T) {
-	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+// runCreateConflictingShareCase drives one outgoing-share unique-key conflict
+// case: configure sets up first and second to collide on one key, the second
+// create must fail with ErrAlreadyExists, and lookup must still return the
+// original record owned by provider-a.
+func runCreateConflictingShareCase(
+	t *testing.T,
+	fieldLabel string,
+	configure func(first, second *store.OutgoingShare),
+	lookup func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error),
+) {
+	t.Helper()
+
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	first := testutil.NewOutgoingShareFixture()
-	first.ProviderId = "provider-a"
-	first.ShareId = "shared-id"
-	first.WebDAVId = "webdav-a"
+	second := testutil.NewOutgoingShareFixture()
+	configure(first, second)
+
 	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
 		t.Fatalf("CreateOutgoingShare(first): %v", err)
 	}
 
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderId = "provider-b"
-	second.ShareId = "shared-id" // same ShareId, different owner
-	second.WebDAVId = "webdav-b"
 	err := outStore.CreateOutgoingShare(ctx, second)
-	if err != store.ErrAlreadyExists {
-		t.Fatalf("expected ErrAlreadyExists for conflicting ShareId, got %v", err)
+	if !errors.Is(err, store.ErrAlreadyExists) {
+		t.Fatalf("expected ErrAlreadyExists for conflicting %s, got %v", fieldLabel, err)
 	}
 
-	// Original must still be reachable.
-	got, err := outStore.GetOutgoingShareByID(ctx, "shared-id")
+	got, err := lookup(outStore, ctx)
 	if err != nil {
-		t.Fatalf("GetOutgoingShareByID after conflict: %v", err)
+		t.Fatalf("lookup after conflict: %v", err)
 	}
-	if got.ProviderId != "provider-a" {
-		t.Errorf("original owner overwritten: expected provider-a, got %q", got.ProviderId)
+
+	if got.ProviderID != "provider-a" {
+		t.Errorf("original owner overwritten: expected provider-a, got %q", got.ProviderID)
 	}
 }
 
-// TestJSONOutgoingShareUpdateConflictingShareId verifies that updating an
-// outgoing share to a ShareId already owned by a different record returns
-// ErrAlreadyExists and leaves both records intact.
-func TestJSONOutgoingShareUpdateConflictingShareId(t *testing.T) {
-	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+// TestJSONOutgoingShareCreateConflictingShareID verifies that creating a second
+// outgoing share with a ShareID already owned by a different record returns
+// ErrAlreadyExists and leaves the original record intact.
+func TestJSONOutgoingShareCreateConflictingShareID(t *testing.T) {
+	runCreateConflictingShareCase(
+		t,
+		"ShareID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-a"
+			first.ShareID = "shared-id"
+			first.WebDAVID = "webdav-a"
+
+			second.ProviderID = "provider-b"
+			second.ShareID = "shared-id" // same ShareID, different owner
+			second.WebDAVID = "webdav-b"
+		},
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByID(ctx, "shared-id")
+		},
+	)
+}
+
+// runUpdateConflictingShareCase drives one outgoing-share unique-key update
+// conflict case: configure sets up two non-conflicting records, steal mutates
+// second to collide with first on one key, the update must fail with
+// ErrAlreadyExists, and lookup must still return wantOwner's record.
+func runUpdateConflictingShareCase(
+	t *testing.T,
+	fieldLabel string,
+	configure func(first, second *store.OutgoingShare),
+	steal func(second *store.OutgoingShare),
+	lookup func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error),
+	wantOwner string,
+) {
+	t.Helper()
+
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	first := testutil.NewOutgoingShareFixture()
-	first.ProviderId = "provider-x"
-	first.ShareId = "share-x"
-	first.WebDAVId = "webdav-x"
-	first.SharedSecret = "secret-x"
+	second := testutil.NewOutgoingShareFixture()
+	configure(first, second)
+
 	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
 		t.Fatalf("CreateOutgoingShare(first): %v", err)
 	}
 
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderId = "provider-y"
-	second.ShareId = "share-y"
-	second.WebDAVId = "webdav-y"
-	second.SharedSecret = "secret-y"
 	if err := outStore.CreateOutgoingShare(ctx, second); err != nil {
 		t.Fatalf("CreateOutgoingShare(second): %v", err)
 	}
 
-	// Attempt to steal first's ShareId via update.
-	second.ShareId = "share-x"
+	steal(second)
+
 	err := outStore.UpdateOutgoingShare(ctx, second)
-	if err != store.ErrAlreadyExists {
-		t.Fatalf("expected ErrAlreadyExists for conflicting ShareId on update, got %v", err)
+	if !errors.Is(err, store.ErrAlreadyExists) {
+		t.Fatalf("expected ErrAlreadyExists for conflicting %s on update, got %v", fieldLabel, err)
 	}
 
 	// Original mapping must be untouched.
-	got, err := outStore.GetOutgoingShareByID(ctx, "share-x")
+	got, err := lookup(outStore, ctx)
 	if err != nil {
-		t.Fatalf("GetOutgoingShareByID after failed update: %v", err)
+		t.Fatalf("lookup after failed update: %v", err)
 	}
-	if got.ProviderId != "provider-x" {
-		t.Errorf("original owner overwritten: expected provider-x, got %q", got.ProviderId)
+
+	if got.ProviderID != wantOwner {
+		t.Errorf("original owner overwritten: expected %s, got %q", wantOwner, got.ProviderID)
 	}
 }
 
-// TestJSONOutgoingShareCreateConflictingWebDAVId verifies that creating a second
-// outgoing share with a WebDAVId already owned by a different record returns
-// ErrAlreadyExists and leaves the original record intact.
-func TestJSONOutgoingShareCreateConflictingWebDAVId(t *testing.T) {
-	driver, _ := newJSONDriver(t)
-	defer driver.Close()
-	ctx := context.Background()
-
-	outStore := driver.(store.OutgoingShareStore)
-
-	first := testutil.NewOutgoingShareFixture()
-	first.ProviderId = "provider-a"
-	first.ShareId = "share-a"
-	first.WebDAVId = "shared-webdav"
-	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
-		t.Fatalf("CreateOutgoingShare(first): %v", err)
-	}
-
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderId = "provider-b"
-	second.ShareId = "share-b"
-	second.WebDAVId = "shared-webdav" // same WebDAVId, different owner
-	err := outStore.CreateOutgoingShare(ctx, second)
-	if err != store.ErrAlreadyExists {
-		t.Fatalf("expected ErrAlreadyExists for conflicting WebDAVId, got %v", err)
-	}
-
-	// Original must still be reachable.
-	got, err := outStore.GetOutgoingShareByWebDAVId(ctx, "shared-webdav")
-	if err != nil {
-		t.Fatalf("GetOutgoingShareByWebDAVId after conflict: %v", err)
-	}
-	if got.ProviderId != "provider-a" {
-		t.Errorf("original owner overwritten: expected provider-a, got %q", got.ProviderId)
-	}
-}
-
-// TestJSONOutgoingShareUpdateConflictingWebDAVId verifies that updating an
-// outgoing share to a WebDAVId already owned by a different record returns
+// TestJSONOutgoingShareUpdateConflictingShareID verifies that updating an
+// outgoing share to a ShareID already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
-func TestJSONOutgoingShareUpdateConflictingWebDAVId(t *testing.T) {
-	driver, _ := newJSONDriver(t)
-	defer driver.Close()
-	ctx := context.Background()
+func TestJSONOutgoingShareUpdateConflictingShareID(t *testing.T) {
+	runUpdateConflictingShareCase(
+		t,
+		"ShareID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-x"
+			first.ShareID = "share-x"
+			first.WebDAVID = "webdav-x"
+			first.SharedSecret = "secret-x"
 
-	outStore := driver.(store.OutgoingShareStore)
+			second.ProviderID = "provider-y"
+			second.ShareID = "share-y"
+			second.WebDAVID = "webdav-y"
+			second.SharedSecret = "secret-y"
+		},
+		func(second *store.OutgoingShare) { second.ShareID = "share-x" },
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByID(ctx, "share-x")
+		},
+		"provider-x",
+	)
+}
 
-	first := testutil.NewOutgoingShareFixture()
-	first.ProviderId = "provider-m"
-	first.ShareId = "share-m"
-	first.WebDAVId = "webdav-m"
-	first.SharedSecret = "secret-m"
-	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
-		t.Fatalf("CreateOutgoingShare(first): %v", err)
-	}
+// TestJSONOutgoingShareCreateConflictingWebDAVID verifies that creating a second
+// outgoing share with a WebDAVID already owned by a different record returns
+// ErrAlreadyExists and leaves the original record intact.
+func TestJSONOutgoingShareCreateConflictingWebDAVID(t *testing.T) {
+	runCreateConflictingShareCase(
+		t,
+		"WebDAVID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-a"
+			first.ShareID = "share-a"
+			first.WebDAVID = "shared-webdav"
 
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderId = "provider-n"
-	second.ShareId = "share-n"
-	second.WebDAVId = "webdav-n"
-	second.SharedSecret = "secret-n"
-	if err := outStore.CreateOutgoingShare(ctx, second); err != nil {
-		t.Fatalf("CreateOutgoingShare(second): %v", err)
-	}
+			second.ProviderID = "provider-b"
+			second.ShareID = "share-b"
+			second.WebDAVID = "shared-webdav" // same WebDAVID, different owner
+		},
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByWebDAVID(ctx, "shared-webdav")
+		},
+	)
+}
 
-	// Attempt to steal first's WebDAVId via update.
-	second.WebDAVId = "webdav-m"
-	err := outStore.UpdateOutgoingShare(ctx, second)
-	if err != store.ErrAlreadyExists {
-		t.Fatalf("expected ErrAlreadyExists for conflicting WebDAVId on update, got %v", err)
-	}
+// TestJSONOutgoingShareUpdateConflictingWebDAVID verifies that updating an
+// outgoing share to a WebDAVID already owned by a different record returns
+// ErrAlreadyExists and leaves both records intact.
+func TestJSONOutgoingShareUpdateConflictingWebDAVID(t *testing.T) {
+	runUpdateConflictingShareCase(
+		t,
+		"WebDAVID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-m"
+			first.ShareID = "share-m"
+			first.WebDAVID = "webdav-m"
+			first.SharedSecret = "secret-m"
 
-	// Original mapping must be untouched.
-	got, err := outStore.GetOutgoingShareByWebDAVId(ctx, "webdav-m")
-	if err != nil {
-		t.Fatalf("GetOutgoingShareByWebDAVId after failed update: %v", err)
-	}
-	if got.ProviderId != "provider-m" {
-		t.Errorf("original owner overwritten: expected provider-m, got %q", got.ProviderId)
-	}
+			second.ProviderID = "provider-n"
+			second.ShareID = "share-n"
+			second.WebDAVID = "webdav-n"
+			second.SharedSecret = "secret-n"
+		},
+		func(second *store.OutgoingShare) { second.WebDAVID = "webdav-m" },
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByWebDAVID(ctx, "webdav-m")
+		},
+		"provider-m",
+	)
 }
 
 // TestJSONOutgoingInviteCreateConflictingToken verifies that creating a second
 // outgoing invite with a Token already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
-	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
 	ctx := context.Background()
 
-	outInvStore := driver.(store.OutgoingInviteStore)
+	outInvStore := requireOutgoingInviteStore(t, driver)
 
 	first := testutil.NewOutgoingInviteFixture()
 	first.ID = "invite-a"
+
 	first.Token = "shared-token"
 	if err := outInvStore.CreateOutgoingInvite(ctx, first); err != nil {
 		t.Fatalf("CreateOutgoingInvite(first): %v", err)
@@ -315,8 +402,9 @@ func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 	second := testutil.NewOutgoingInviteFixture()
 	second.ID = "invite-b"
 	second.Token = "shared-token" // same token, different invite ID
+
 	err := outInvStore.CreateOutgoingInvite(ctx, second)
-	if err != store.ErrAlreadyExists {
+	if !errors.Is(err, store.ErrAlreadyExists) {
 		t.Fatalf("expected ErrAlreadyExists for conflicting Token, got %v", err)
 	}
 
@@ -325,6 +413,7 @@ func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken after conflict: %v", err)
 	}
+
 	if got.ID != "invite-a" {
 		t.Errorf("original invite overwritten: expected invite-a, got %q", got.ID)
 	}
@@ -334,14 +423,16 @@ func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 // outgoing invite to a Token already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
-	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
 	ctx := context.Background()
 
-	outInvStore := driver.(store.OutgoingInviteStore)
+	outInvStore := requireOutgoingInviteStore(t, driver)
 
 	first := testutil.NewOutgoingInviteFixture()
 	first.ID = "invite-p"
+
 	first.Token = "token-p"
 	if err := outInvStore.CreateOutgoingInvite(ctx, first); err != nil {
 		t.Fatalf("CreateOutgoingInvite(first): %v", err)
@@ -349,6 +440,7 @@ func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
 
 	second := testutil.NewOutgoingInviteFixture()
 	second.ID = "invite-q"
+
 	second.Token = "token-q"
 	if err := outInvStore.CreateOutgoingInvite(ctx, second); err != nil {
 		t.Fatalf("CreateOutgoingInvite(second): %v", err)
@@ -356,8 +448,9 @@ func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
 
 	// Attempt to steal first's token via update.
 	second.Token = "token-p"
+
 	err := outInvStore.UpdateOutgoingInvite(ctx, second)
-	if err != store.ErrAlreadyExists {
+	if !errors.Is(err, store.ErrAlreadyExists) {
 		t.Fatalf("expected ErrAlreadyExists for conflicting Token on update, got %v", err)
 	}
 
@@ -366,6 +459,7 @@ func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken after failed update: %v", err)
 	}
+
 	if got.ID != "invite-p" {
 		t.Errorf("original invite overwritten: expected invite-p, got %q", got.ID)
 	}

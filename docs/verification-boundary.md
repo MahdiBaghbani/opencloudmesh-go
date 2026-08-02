@@ -1,3 +1,10 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 # Verification boundary
 
 This repo verifies a narrow strict contract. A green strict run does not
@@ -34,7 +41,8 @@ leaves broader interoperability to operator-managed validation.
 - Inbound verification rejects malformed HTTP-signature material. The
   verified behavior is strict rejection, not degraded acceptance.
 - Strict inbound mode does **not** mean Ed25519-only peers. Default
-  `signature.allowed_algorithms` accepts asymmetric RFC 9421 algorithms
+  `signature.allowed_algorithms` accepts asymmetric
+  [RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) algorithms
   `ed25519`, `ecdsa-p256-sha256`, `ecdsa-p384-sha384`, and
   `rsa-v1_5-sha256` / `rsa-v1_5-sha384` / `rsa-v1_5-sha512`. Symmetric
   algorithms remain forbidden.
@@ -42,9 +50,11 @@ leaves broader interoperability to operator-managed validation.
   algorithm must be listed in `signature.allowed_algorithms` or signing
   fails before the request is sent (default key remains Ed25519).
 - Signature-Input `alg` may be omitted when the peer JWKS determines the
-  algorithm (RFC 9421). If `alg` is present, it must agree with the
-  JWK-derived algorithm; disagreement is rejected. ECDSA P-256 verification
-  is covered by an RFC 9421 Appendix B.2.4 vector and by an end-to-end path
+  algorithm ([RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html)). If `alg`
+  is present, it must agree with the JWK-derived algorithm; disagreement is
+  rejected. ECDSA P-256 verification is covered by an
+  [RFC 9421 Appendix B.2.4](https://www.rfc-editor.org/rfc/rfc9421.html#section-B.2.4)
+  vector and by an end-to-end path
   through JWKS, peer discovery, and inbound middleware when `alg` is omitted.
 - Remote JWKS fetch rejects a nil HTTP client and responses larger than
   `DefaultMaxResponseBytes` (`ErrResponseTooLarge`; no silent truncate).
@@ -72,8 +82,16 @@ leaves broader interoperability to operator-managed validation.
 - Outbound proxy behavior is intentionally split:
   - `proxy_url` is an explicit operator choice and takes precedence over
     environment fallback.
-  - `proxy_env_fallback` reads `HTTP_PROXY`, `HTTPS_PROXY`, and
-    `NO_PROXY` only when `proxy_url` is not set.
+  - `use_env_fallback` is an explicit opt-in knob. In the strict preset it
+    defaults to false. Set `use_env_fallback = true` in TOML or
+    `OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK=true` to opt in. When
+    enabled and `proxy_url` is not set, outbound HTTP reads
+    `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`.
+  - `OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK` is currently the only
+    supported environment override; it overrides the `use_env_fallback`
+    TOML key, and the environment layer is the highest precedence (above
+    preset default, TOML, and CLI flags where they exist;
+    `use_env_fallback` has no CLI flag).
   - Under the strict lane, the proxy host is treated as an operator-trusted
     hop, so private and loopback proxy addresses are allowed.
 - Destination SSRF checks remain the hard boundary. Proxy routing and

@@ -1,3 +1,10 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 # Configuration
 
 How the server loads configuration, what presets mean, and where to find
@@ -62,6 +69,9 @@ TOML sections map to `internal/platform/config.Config`:
 | `[cache]` | Cache driver selection |
 | `[persistence]` | Store backend (memory, json, sqlite, mirror) |
 | `[http]` | Per-service HTTP limits |
+
+The strict preset defaults `[persistence]` to sqlite with data stored under
+`.ocm/data` (relative to the process working directory).
 
 ## Example configs
 

@@ -1,6 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package sessiongate
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +19,7 @@ import (
 func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	protected := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -29,7 +35,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 	r.Get("/ui/accept-invite", protected)
 
 	originalQuery := "token=invite-abc&providerDomain=alice.example.com"
-	req := httptest.NewRequest(http.MethodGet, "/ui/accept-invite?"+originalQuery, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/accept-invite?"+originalQuery, nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)
@@ -53,6 +59,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 	}
 
 	redirect := parsed.Query().Get("redirect")
+
 	wantRedirect := "/ui/accept-invite?" + originalQuery
 	if redirect != wantRedirect {
 		t.Fatalf("redirect = %q, want %q", redirect, wantRedirect)
@@ -62,7 +69,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 func TestAuthGate_AcceptInviteRedirectPreservesQueryWithBasePath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	protected := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -79,7 +86,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesQueryWithBasePath(t *testing.T) {
 	r.Get("/ocm/ui/accept-invite", protected)
 
 	originalQuery := "token=xyz&providerDomain=bob.example.com"
-	req := httptest.NewRequest(http.MethodGet, "/ocm/ui/accept-invite?"+originalQuery, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ocm/ui/accept-invite?"+originalQuery, nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)
@@ -98,6 +105,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesQueryWithBasePath(t *testing.T) {
 	}
 
 	redirect := parsed.Query().Get("redirect")
+
 	wantRedirect := "/ocm/ui/accept-invite?" + originalQuery
 	if redirect != wantRedirect {
 		t.Fatalf("redirect = %q, want %q", redirect, wantRedirect)

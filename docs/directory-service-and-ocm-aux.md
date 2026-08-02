@@ -1,13 +1,21 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 # Directory Service and OCM aux
 
-Two different surfaces often get conflated: the OCM-API Directory Service
-(Appendix C) and this server's local `/ocm-aux/*` helpers. They work
+Two different surfaces often get conflated: the OCM-API
+[Directory Service][ocm-ds] and this server's local `/ocm-aux/*` helpers. They work
 together in WAYF flows but serve different roles.
 
 ## Directory Service (spec)
 
 The [OCM-API Directory Service][ocm-ds] is an optional third-party HTTPS GET
-that returns a signed JWS (RFC 7515) listing federation members:
+that returns a signed JWS ([RFC 7515](https://www.rfc-editor.org/rfc/rfc7515.html))
+listing federation members:
 
 - `federation` - human-readable name
 - `servers[]` with `url` and `displayName`
@@ -15,7 +23,7 @@ that returns a signed JWS (RFC 7515) listing federation members:
 It is not OCM discovery, not JWKS, and not an OCM provider endpoint.
 Verification keys are provisioned out of band.
 
-[ocm-ds]: https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#appendix-c-directory-service
+[ocm-ds]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#appendix-c-directory-service
 
 This server consumes Directory Service listings through
 `internal/components/ocm/directoryservice` when configured under
@@ -94,7 +102,7 @@ Example integration fixture pattern:
 
 ## Verification
 
-### Hermetic Directory Service JWS (T7b)
+### Hermetic Directory Service JWS
 
 ```sh
 go test ./tests/integration/... -run TestDirectoryServiceJWSFeedsFederations
@@ -112,7 +120,7 @@ and `internal/components/ocmaux/handler_federations_test.go`.
 
 ## Related docs
 
-- [invite-wayf-and-accept.md](invite-wayf-and-accept.md) - WAYF and T7a/T7b
+- [invite-wayf-and-accept.md](invite-wayf-and-accept.md) - WAYF and invite
   verification split
 - [discovery.md](discovery.md) - OCM discovery fields
 - [routes-and-auth.md](routes-and-auth.md) - helper surface class

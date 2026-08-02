@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package reason owns the canonical internal peer/federation failure taxonomy
 // and explicit translation tables for every outward-facing wire surface.
 package reason
@@ -28,6 +33,15 @@ const (
 	NetworkError      = "network_error"
 )
 
+// OCM wire messages for inbound share admission failures. These are emitted
+// verbatim as the OCM error response message; the sender-not-trusted rejection
+// is a valid protocol rejection reason per
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1303-L1307
+const (
+	SenderNotTrusted = "SENDER_NOT_TRUSTED"
+	StorageError     = "STORAGE_ERROR"
+)
+
 // Error wraps an error with a canonical reason code for structured error propagation.
 type Error struct {
 	Reason  string
@@ -39,6 +53,7 @@ func (e *Error) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("%s: %s: %v", e.Reason, e.Message, e.Cause)
 	}
+
 	return fmt.Sprintf("%s: %s", e.Reason, e.Message)
 }
 
@@ -55,6 +70,7 @@ func Extract(err error) string {
 	if errors.As(err, &re) {
 		return re.Reason
 	}
+
 	return ""
 }
 
@@ -71,6 +87,10 @@ func OCMStatus(reason string) int {
 		return http.StatusNotImplemented // 501
 	case PeerUnreachable:
 		return http.StatusServiceUnavailable // 503
+	case SenderNotTrusted:
+		return http.StatusForbidden // 403
+	case StorageError:
+		return http.StatusInternalServerError // 500
 	default:
 		return http.StatusInternalServerError
 	}
@@ -153,5 +173,6 @@ func CanonicalFromError(err error) string {
 	if extracted := Extract(err); extracted != "" {
 		return extracted
 	}
+
 	return FromClassified(ClassifyError(err))
 }

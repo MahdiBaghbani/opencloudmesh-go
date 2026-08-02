@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package middleware provides always-on transport middleware for HTTP servers.
 package middleware
 
@@ -25,6 +30,7 @@ func RequestLoggerMiddleware(base *slog.Logger, trustedProxies *realip.TrustedPr
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			reqID := chimw.GetReqID(r.Context())
+
 			clientIP := "unknown"
 			if trustedProxies != nil {
 				clientIP = trustedProxies.GetClientIPString(r)

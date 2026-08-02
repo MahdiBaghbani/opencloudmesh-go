@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package shares_test
 
 import (
@@ -6,39 +11,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 func TestHandleAccept_Success(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-accept", "sender.example.com")
-
-	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, userA)
-
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	updated, _ := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
-	if updated.Status != sharesinbox.ShareStatusAccepted {
-		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusAccepted, updated.Status)
-	}
+	runShareStatusTransition(t, "accept", "prov-accept", shares.ShareStatusAccepted)
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-cross", "sender.example.com")
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	share := createShareForUser(t, repo, userAID, "prov-cross", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(repo, userB)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -48,11 +38,11 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/nonexistent-id/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/nonexistent-id/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -62,15 +52,17 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-idem", "sender.example.com")
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	share := createShareForUser(t, repo, userAID, "prov-idem", "sender.example.com")
 
-	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted)
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted); err != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -80,15 +72,17 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-declined", "sender.example.com")
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	share := createShareForUser(t, repo, userAID, "prov-declined", "sender.example.com")
 
-	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusDeclined)
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusDeclined); err != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -98,10 +92,10 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	router := newTestRouter(repo, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/some-id/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

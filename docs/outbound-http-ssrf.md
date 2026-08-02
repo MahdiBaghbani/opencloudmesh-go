@@ -1,3 +1,10 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 # Outbound HTTP and SSRF
 
 Outbound HTTP calls (peer discovery, Directory Service fetch, OCM protocol
@@ -16,10 +23,19 @@ protections before dial and revalidates on redirects.
 | `timeout_ms`, `connect_timeout_ms` | Client timeouts |
 | `max_redirects`, `max_response_bytes` | Safety limits |
 | `tls_root_ca_file`, `tls_root_ca_dir` | Outbound TLS trust |
-| `proxy_url`, `proxy_env_fallback` | Proxy routing |
+| `proxy_url`, `use_env_fallback` | Proxy routing |
 
 Strict preset uses `ssrf.mode=strict` with deny-by-default private
-destinations. Operator-declared route policies can allow narrow private
+destinations and defaults `use_env_fallback` to false (opt-in). Set
+`use_env_fallback = true` in TOML or
+`OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK=true` to opt in to
+`HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` when `proxy_url` is not set.
+`OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK` is currently the only
+supported environment override; it overrides the `use_env_fallback` TOML
+key, and the environment layer is the highest precedence (above preset
+default, TOML, and CLI flags where they exist; `use_env_fallback` has no
+CLI flag).
+Operator-declared route policies can allow narrow private
 host suffix / CIDR / port combinations for lab setups.
 
 Read [verification-boundary.md](verification-boundary.md) for what strict
@@ -71,8 +87,13 @@ All share the same HTTP client configuration from wiring.
 
 ## Proxy interaction
 
-When `proxy_url` is set it takes precedence over environment proxy variables.
-Under the strict lane, the proxy host is treated as operator-trusted
+When `proxy_url` is set it takes precedence over environment proxy
+variables. Under the strict preset, `use_env_fallback` defaults to
+false (opt-in). Set `use_env_fallback = true` in TOML or
+`OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK=true` to opt in to
+`HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` when `proxy_url` is not
+set. Under the strict lane, the proxy host is treated
+as operator-trusted
 (private/loopback proxy addresses allowed). Destination SSRF checks still
 apply to the final target.
 

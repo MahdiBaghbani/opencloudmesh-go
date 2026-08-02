@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package spec_test
 
 import (
@@ -46,9 +51,11 @@ func TestDiscoveryHelpersUseCapabilityConstants(t *testing.T) {
 	if !disc.IsHTTPSigCapable() {
 		t.Error("IsHTTPSigCapable() = false, want true")
 	}
+
 	if !disc.SupportsTokenExchange() {
 		t.Error("SupportsTokenExchange() = false, want true")
 	}
+
 	if disc.HasCapability(spec.CapabilityInvite) {
 		t.Error("HasCapability(CapabilityInvite) = true, want false")
 	}
@@ -61,6 +68,7 @@ var capabilityClosedPathFiles = []string{
 	"internal/components/ocm/discovery/builder.go",
 	"internal/components/ocm/discovery/validate.go",
 	"internal/components/ocm/access/remote.go",
+	"internal/components/ocm/policy/compiler.go",
 }
 
 var capabilityWireLiterals = []string{
@@ -78,6 +86,7 @@ func TestCapabilityClosedPathNoRawWireLiterals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+
 			content := string(data)
 			for _, lit := range capabilityWireLiterals {
 				if strings.Contains(content, lit) {

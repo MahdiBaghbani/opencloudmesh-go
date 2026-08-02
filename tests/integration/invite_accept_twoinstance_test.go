@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -29,48 +31,51 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 	aliceClient := alice.Client()
 	bobClient := bob.Client()
 
-	aliceToken, err := tsession.Login(aliceClient, alice.BaseURL, "admin", "")
+	aliceToken, err := tsession.Login(t.Context(), aliceClient, alice.BaseURL, "admin", "")
 	if err != nil {
 		alice.DumpLogs(t)
 		t.Fatalf("login alice: %v", err)
 	}
 
-	created, _, err := tsinvite.CreateOutgoing(aliceClient, alice.BaseURL, aliceToken)
+	created, _, err := tsinvite.CreateOutgoing(t.Context(), aliceClient, alice.BaseURL, aliceToken)
 	if err != nil {
 		alice.DumpLogs(t)
 		t.Fatalf("alice create outgoing invite: %v", err)
 	}
 
-	bobToken, err := tsession.Login(bobClient, bob.BaseURL, "admin", "")
+	bobToken, err := tsession.Login(t.Context(), bobClient, bob.BaseURL, "admin", "")
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("login bob: %v", err)
 	}
 
-	imported, _, err := tsinvite.Import(bobClient, bob.BaseURL, bobToken, created.InviteString)
+	imported, _, err := tsinvite.Import(t.Context(), bobClient, bob.BaseURL, bobToken, created.InviteString)
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("bob import invite: %v", err)
 	}
+
 	if imported.Status != invites.InviteStatusPending {
 		t.Fatalf("imported status = %q, want pending", imported.Status)
 	}
 
-	if _, _, err := tsinvite.Accept(bobClient, bob.BaseURL, bobToken, imported.ID); err != nil {
+	if _, _, aerr := tsinvite.Accept(t.Context(), bobClient, bob.BaseURL, bobToken, imported.ID); aerr != nil {
 		alice.DumpLogs(t)
 		bob.DumpLogs(t)
-		t.Fatalf("bob accept invite: %v", err)
+		t.Fatalf("bob accept invite: %v", aerr)
 	}
 
-	list, _, err := tsinvite.ListInbox(bobClient, bob.BaseURL, bobToken)
+	list, _, err := tsinvite.ListInbox(t.Context(), bobClient, bob.BaseURL, bobToken)
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("bob list inbox invites: %v", err)
 	}
+
 	bobInvite, err := tsinvite.FindInboxInvite(list, imported.ID)
 	if err != nil {
 		t.Fatalf("bob inbox missing accepted invite: %v", err)
 	}
+
 	if bobInvite.Status != invites.InviteStatusAccepted {
 		t.Fatalf("bob inbox status = %q, want accepted", bobInvite.Status)
 	}
@@ -80,12 +85,15 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 		alice.DumpLogs(t)
 		t.Fatalf("read alice outgoing invite status: %v", err)
 	}
+
 	if status != invites.InviteStatusAccepted {
 		t.Fatalf("alice outgoing status = %q, want accepted", status)
 	}
+
 	if acceptedBy == "" {
 		t.Fatal("alice outgoing invite missing accepted_by recipient provider")
 	}
+
 	if !strings.Contains(acceptedBy, "localhost") {
 		t.Fatalf("accepted_by = %q, expected bob localhost provider", acceptedBy)
 	}
@@ -108,10 +116,10 @@ func startStrictInvitePair(t *testing.T, enableWAYF bool) (*harness.SubprocessSe
 		Mode: "dev",
 		// Dev mode plus StrictInstanceExtraConfig keeps loopback-friendly
 		// transport while static TLS and SSRF-off extra config drive discovery.
-		DisableProxyEnvFallback: true,
-		TLSRootCAFile:           caCert,
-		BootstrapAdminPassword:  "testpassword123",
-		ExtraConfig:             extra,
+		DisableUseEnvFallback:  true,
+		TLSRootCAFile:          caCert,
+		BootstrapAdminPassword: "testpassword123",
+		ExtraConfig:            extra,
 	}
 
 	aliceCfg := cfg

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package architecture
 
 import (
@@ -19,22 +24,27 @@ func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 	}
 
 	root := modroot.ModuleRoot(t)
+
 	var violations []string
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			name := d.Name()
 			if name == ".git" || name == "vendor" {
 				return filepath.SkipDir
 			}
+
 			return nil
 		}
+
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
+
 		if strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
@@ -46,10 +56,11 @@ func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 			}
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
 			return err
 		}
+
 		content := string(data)
 		for _, token := range forbidden {
 			if strings.Contains(content, token) {
@@ -57,11 +68,13 @@ func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 				break
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("Found X-Forwarded-For/X-Real-IP references outside realip (see allowlist rules in this test):\n%s",
 			strings.Join(violations, "\n"))

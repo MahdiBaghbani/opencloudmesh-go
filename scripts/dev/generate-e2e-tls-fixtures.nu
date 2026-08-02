@@ -1,5 +1,10 @@
 #!/usr/bin/env nu
 
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 # Generate E2E TLS leaf certificate signed by the DockyPody CA.
 # RSA 2048, SHA-256, 36500-day validity, SAN: localhost + 127.0.0.1 + ::1.
 # Run from anywhere; paths are computed relative to the repo root.

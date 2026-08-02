@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package invites_test
 
 import (
@@ -9,10 +14,11 @@ import (
 	"os"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoinginvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
@@ -26,29 +32,30 @@ func testLocalProvider(t *testing.T) string {
 }
 
 func testCurrentUser(user *identity.User) func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return user, nil
 	}
 }
 
 func failCurrentUser() func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return nil, http.ErrNoCookie
 	}
 }
 
 func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) {
 	const originWithDefaultPort = "https://example.com:443"
+
 	wantProvider := tslocalid.MustTestIdentity(t, originWithDefaultPort, "").ProviderDomain
 	if wantProvider != "example.com" {
 		t.Fatalf("test setup: ProviderDomain = %q, want example.com", wantProvider)
 	}
 
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{ID: "creator-1", Username: "alice"}
 	handler := outgoinginvites.NewHandler(repo, wantProvider, testCurrentUser(user), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -61,17 +68,18 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.ProviderFQDN != wantProvider {
 		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, wantProvider)
 	}
 }
 
 func TestHandleCreateOutgoing_Success(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{ID: "creator-2", Username: "alice"}
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -84,12 +92,15 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.InviteString == "" {
 		t.Error("inviteString is empty")
 	}
+
 	if resp.Token == "" {
 		t.Error("token is empty")
 	}
+
 	wantProvider := testLocalProvider(t)
 	if resp.ProviderFQDN != wantProvider {
 		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, wantProvider)
@@ -99,20 +110,21 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to get stored invite: %v", err)
 	}
+
 	if stored.InviteString != resp.InviteString {
 		t.Errorf("stored inviteString mismatch")
 	}
 }
 
 func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{
 		ID:       "creator-uuid",
 		Username: "alice",
 	}
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -122,22 +134,25 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 	}
 
 	var resp invites.CreateOutgoingResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	stored, err := repo.GetByToken(context.Background(), resp.Token)
 	if err != nil {
 		t.Fatalf("failed to get stored invite: %v", err)
 	}
+
 	if stored.CreatedByUserID != "creator-uuid" {
 		t.Errorf("CreatedByUserID = %q, want %q", stored.CreatedByUserID, "creator-uuid")
 	}
 }
 
 func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -148,10 +163,10 @@ func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -162,10 +177,10 @@ func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed_Returns405(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)

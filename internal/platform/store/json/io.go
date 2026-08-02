@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package json
 
 import (
@@ -18,10 +23,12 @@ const (
 // loadFile loads a JSON file into the target map.
 func (d *Driver) loadFile(filename string, target interface{}) error {
 	path := filepath.Join(d.dataDir, filename)
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
+
 	return json.Unmarshal(data, target)
 }
 
@@ -42,26 +49,35 @@ func (d *Driver) saveFile(filename string, data interface{}) error {
 	}
 
 	if _, err := f.Write(jsonData); err != nil {
-		f.Close()
-		os.Remove(tempPath)
+		cleanupTempSave(f, tempPath)
+
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
 	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tempPath)
+		cleanupTempSave(f, tempPath)
+
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
 		os.Remove(tempPath)
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
 	if err := os.Rename(tempPath, path); err != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
 		os.Remove(tempPath)
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	return nil
+}
+
+func cleanupTempSave(f *os.File, tempPath string) {
+	//nolint:errcheck // best-effort cleanup; error is not actionable
+	f.Close()
+	//nolint:errcheck // best-effort cleanup; error is not actionable
+	os.Remove(tempPath)
 }

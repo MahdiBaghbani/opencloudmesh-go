@@ -1,5 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package spec defines OCM wire-format types (discovery, shares, invites, errors).
-// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#ocm-api-discovery
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1#ocm-api-discovery
 package spec
 
 import (
@@ -15,6 +20,7 @@ import (
 // APIVersionPin is the Layer 1 wire pin for OCM discovery apiVersion.
 const APIVersionPin = "1.4.0"
 
+// Discovery holds the OCM discovery document served by GET /ocm/.
 type Discovery struct {
 	Enabled            bool           `json:"enabled"`
 	APIVersion         string         `json:"apiVersion"`
@@ -24,31 +30,37 @@ type Discovery struct {
 	Capabilities       []string       `json:"capabilities,omitempty"`
 	Criteria           []string       `json:"criteria"`                     // Always present, serializes as [] when empty
 	TokenEndPoint      string         `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
+	JwksUri            string         `json:"jwksUri,omitempty"`            //nolint:revive // wire field name matches OCM spec jwksUri
 	InviteAcceptDialog string         `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
 	Warnings           []string       `json:"-"`
 }
 
+// ResourceType describes one entry in the discovery resourceTypes list.
 type ResourceType struct {
 	Name       string    `json:"name"`
 	ShareTypes []string  `json:"shareTypes"`
 	Protocols  Protocols `json:"protocols"`
 }
 
-func (d *Discovery) HasCapability(cap string) bool {
+// HasCapability reports whether the discovery advertises the given capability.
+func (d *Discovery) HasCapability(capability string) bool {
 	for _, c := range d.Capabilities {
-		if c == cap {
+		if c == capability {
 			return true
 		}
 	}
+
 	return false
 }
 
+// HasCriteria reports whether the discovery lists the given criterion.
 func (d *Discovery) HasCriteria(criterion string) bool {
 	for _, c := range d.Criteria {
 		if c == criterion {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -58,6 +70,7 @@ func (d *Discovery) RequiresHTTPSig() bool {
 	if d == nil {
 		return false
 	}
+
 	return d.HasCriteria(CriteriaMustUseHTTPSig)
 }
 
@@ -66,6 +79,7 @@ func (d *Discovery) IsHTTPSigCapable() bool {
 	if d == nil {
 		return false
 	}
+
 	return d.HasCapability(CapabilityHTTPSig)
 }
 
@@ -73,6 +87,7 @@ func (d *Discovery) IsHTTPSigCapable() bool {
 type DiscoveryPaths struct {
 	EndPoint           string
 	TokenEndPoint      string
+	JwksURI            string
 	WebDAVRoot         string
 	InviteAcceptDialog string
 }
@@ -92,7 +107,9 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 				break
 			}
 		}
+
 		paths.TokenEndPoint = discoveryPathFromField(inv, "tokenEndPoint", id.Origin)
+		paths.JwksURI = discoveryPathFromField(inv, "jwks", id.Origin)
 	}
 
 	if row, ok := rowByID(inv, service.RouteIDWebDAVOCMWildcard); ok {
@@ -114,6 +131,7 @@ func discoveryPathFromField(rows []service.RouteRow, field, origin string) strin
 			}
 		}
 	}
+
 	return ""
 }
 
@@ -123,6 +141,7 @@ func rowByID(rows []service.RouteRow, id string) (service.RouteRow, bool) {
 			return row, true
 		}
 	}
+
 	return service.RouteRow{}, false
 }
 
@@ -131,10 +150,12 @@ func absolutePathFromHostRoot(origin, hostRootPath string) string {
 	if trimmed == "" {
 		return origin
 	}
+
 	joined, err := url.JoinPath(origin, trimmed)
 	if err != nil {
 		return origin + hostRootPath
 	}
+
 	return joined
 }
 
@@ -143,9 +164,11 @@ func webdavRootFromWildcard(fullPath string) string {
 	if root == "" {
 		return "/"
 	}
+
 	if !strings.HasSuffix(root, "/") {
 		root += "/"
 	}
+
 	return root
 }
 
@@ -154,17 +177,21 @@ func ResolveInviteAcceptDialog(baseURL, dialog string) string {
 	if dialog == "" {
 		return ""
 	}
+
 	if strings.HasPrefix(dialog, "http://") || strings.HasPrefix(dialog, "https://") {
 		return dialog
 	}
+
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return dialog
 	}
+
 	ref, err := url.Parse(dialog)
 	if err != nil {
 		return dialog
 	}
+
 	return base.ResolveReference(ref).String()
 }
 
@@ -174,10 +201,11 @@ func (d *Discovery) SupportsTokenExchange() bool {
 	return d.HasCapability(CapabilityExchangeToken) && d.TokenEndPoint != ""
 }
 
-func (d *Discovery) GetEndpoint() string {
+func (d *Discovery) GetEndpoint() string { //nolint:revive // exported: trivial getter for the endPoint field
 	return d.EndPoint
 }
 
+// GetWebDAVPath returns the WebDAV protocol path for the "file" resource type, or empty if absent.
 func (d *Discovery) GetWebDAVPath() string {
 	for _, rt := range d.ResourceTypes {
 		if rt.Name == "file" {
@@ -186,6 +214,7 @@ func (d *Discovery) GetWebDAVPath() string {
 			}
 		}
 	}
+
 	return ""
 }
 
@@ -194,11 +223,13 @@ func (d *Discovery) WebDAVReceiveURIKind() WebDAVReceiveURIKind {
 	if d == nil {
 		return ""
 	}
+
 	for _, rt := range d.ResourceTypes {
 		if wr, ok := rt.Protocols.WebDAVReceive(); ok {
 			return wr.URI
 		}
 	}
+
 	return ""
 }
 

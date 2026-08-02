@@ -1,14 +1,20 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package json
 
 import (
 	"context"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 // CreateIncomingInvite creates a new incoming invite.
-func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
+func (d *Driver) CreateIncomingInvite(_ context.Context, invite *store.IncomingInvite) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -19,34 +25,42 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 	if _, exists := d.incomingInvites[invite.ID]; exists {
 		return store.ErrAlreadyExists
 	}
-	if invite.Token != "" && invite.RecipientUserId != "" {
-		key := tokenUserKey(invite.Token, invite.RecipientUserId)
+
+	if invite.Token != "" && invite.RecipientUserID != "" {
+		key := tokenUserKey(invite.Token, invite.RecipientUserID)
 		if existing, ok := d.incomingInviteTokenUserIndex[key]; ok && existing != invite.ID {
 			return store.ErrAlreadyExists
 		}
 	}
 
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
 	d.incomingInvites[invite.ID] = cloneIncomingInvite(invite)
-	if invite.Token != "" && invite.RecipientUserId != "" {
-		d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserId)] = invite.ID
+	if invite.Token != "" && invite.RecipientUserID != "" {
+		d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserID)] = invite.ID
 	}
 
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: remove the in-memory entry so state stays consistent with disk.
 		delete(d.incomingInvites, invite.ID)
-		if invite.Token != "" && invite.RecipientUserId != "" {
-			delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserId))
+
+		if invite.Token != "" && invite.RecipientUserID != "" {
+			delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserID))
 		}
+
 		return err
 	}
+
 	return nil
 }
 
 // GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
 func (d *Driver) GetIncomingInviteForRecipient(
-	ctx context.Context,
+	_ context.Context,
 	id string,
-	recipientUserId string,
+	recipientUserID string,
 ) (*store.IncomingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -56,14 +70,15 @@ func (d *Driver) GetIncomingInviteForRecipient(
 	}
 
 	invite, ok := d.incomingInvites[id]
-	if !ok || invite.RecipientUserId != recipientUserId {
+	if !ok || invite.RecipientUserID != recipientUserID {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneIncomingInvite(invite), nil
 }
 
 // GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
-func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
+func (d *Driver) GetIncomingInviteByToken(_ context.Context, token string, recipientUserID string) (*store.IncomingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -71,25 +86,33 @@ func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, rec
 		return nil, store.ErrClosed
 	}
 
-	id, ok := d.incomingInviteTokenUserIndex[tokenUserKey(token, recipientUserId)]
+	id, ok := d.incomingInviteTokenUserIndex[tokenUserKey(token, recipientUserID)]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	invite, ok := d.incomingInvites[id]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneIncomingInvite(invite), nil
 }
 
-// UpdateIncomingInviteStatusForRecipient updates only the status of an incoming invite scoped
-// to a recipient. Scope-defining fields (Token, RecipientUserId) are immutable after creation;
-// callers cannot reassign them through this path.
+// UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite scoped
+// to a recipient, persisting the remote sender identity on acceptance when provided.
+// Scope-defining fields (Token, RecipientUserID) are immutable after creation;
+// callers cannot reassign them through this path. The recipient scope gate runs
+// before identity validation so a wrong recipient stays ErrNotFound. Sender
+// identity coalesces with the stored row, and an accepted status without a
+// complete identity is rejected.
 func (d *Driver) UpdateIncomingInviteStatusForRecipient(
-	ctx context.Context,
+	_ context.Context,
 	id string,
-	recipientUserId string,
+	recipientUserID string,
 	status string,
+	senderUserID string,
+	senderFQDNNormalized string,
 ) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -99,29 +122,45 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 	}
 
 	existing, exists := d.incomingInvites[id]
-	if !exists || existing.RecipientUserId != recipientUserId {
+	if !exists || existing.RecipientUserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
+	if err := invites.ValidateUpdateAcceptedIdentity(status, senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
+	senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+		senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized)
+
 	oldStatus := existing.Status
 	oldUpdatedAt := existing.UpdatedAt
+	oldSenderUserID := existing.SenderUserID
+	oldSenderFQDNNormalized := existing.SenderFQDNNormalized
+
 	existing.Status = status
 	existing.UpdatedAt = time.Now().Unix()
+	existing.SenderUserID = senderUserID
+	existing.SenderFQDNNormalized = senderFQDNNormalized
 
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: restore the old field values on the in-place pointer.
 		existing.Status = oldStatus
 		existing.UpdatedAt = oldUpdatedAt
+		existing.SenderUserID = oldSenderUserID
+		existing.SenderFQDNNormalized = oldSenderFQDNNormalized
+
 		return err
 	}
+
 	return nil
 }
 
 // DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
 func (d *Driver) DeleteIncomingInviteForRecipient(
-	ctx context.Context,
+	_ context.Context,
 	id string,
-	recipientUserId string,
+	recipientUserID string,
 ) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -131,28 +170,31 @@ func (d *Driver) DeleteIncomingInviteForRecipient(
 	}
 
 	invite, exists := d.incomingInvites[id]
-	if !exists || invite.RecipientUserId != recipientUserId {
+	if !exists || invite.RecipientUserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
-	if invite.Token != "" && invite.RecipientUserId != "" {
-		delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserId))
+	if invite.Token != "" && invite.RecipientUserID != "" {
+		delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserID))
 	}
+
 	delete(d.incomingInvites, id)
 
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: restore deleted entry and its token-user index slot.
 		d.incomingInvites[id] = invite
-		if invite.Token != "" && invite.RecipientUserId != "" {
-			d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserId)] = id
+		if invite.Token != "" && invite.RecipientUserID != "" {
+			d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserID)] = id
 		}
+
 		return err
 	}
+
 	return nil
 }
 
 // ListIncomingInvites returns incoming invites for a recipient user.
-func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*store.IncomingInvite, error) {
+func (d *Driver) ListIncomingInvites(_ context.Context, recipientUserID string) ([]*store.IncomingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -161,10 +203,12 @@ func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string
 	}
 
 	invites := make([]*store.IncomingInvite, 0)
+
 	for _, invite := range d.incomingInvites {
-		if invite.RecipientUserId == recipientUserId {
+		if invite.RecipientUserID == recipientUserID {
 			invites = append(invites, cloneIncomingInvite(invite))
 		}
 	}
+
 	return invites, nil
 }

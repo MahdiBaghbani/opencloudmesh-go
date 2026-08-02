@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery
 
 import (
@@ -44,6 +49,7 @@ func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 	if c == nil {
 		c = cache.NewDefault()
 	}
+
 	return &Client{
 		httpClient: httpClient,
 		cache:      c,
@@ -56,6 +62,7 @@ func (c *Client) SetVersionPolicy(p *VersionPolicy) {
 	if c == nil {
 		return
 	}
+
 	c.versionPolicy = p
 }
 
@@ -64,6 +71,7 @@ func (c *Client) SetLogger(l *slog.Logger) {
 	if c == nil {
 		return
 	}
+
 	c.logger = l
 }
 
@@ -75,8 +83,21 @@ func (c *Client) IsNoopCache() bool {
 	if c == nil {
 		return false
 	}
+
 	_, ok := c.cache.(*cache.NoopCache)
+
 	return ok
+}
+
+// Cache returns the cache wired into this client.
+// Use in tests to verify discovery cache cardinality bounds without reaching
+// into unexported fields. Returns nil when the client itself is nil.
+func (c *Client) Cache() cache.Cache {
+	if c == nil {
+		return nil
+	}
+
+	return c.cache
 }
 
 // Discover fetches the discovery document for a remote OCM server. Uses cache when available.
@@ -84,34 +105,46 @@ func (c *Client) IsNoopCache() bool {
 // Raw response bytes are cached so normalization runs on every cache read.
 func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery, error) {
 	baseURL = strings.TrimSuffix(baseURL, "/")
+
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
 		disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(baseURL), false)
 		if err == nil {
 			return &disc, nil
 		}
-		_ = c.cache.Delete(ctx, cacheKey)
+
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		c.cache.Delete(ctx, cacheKey)
 	}
 
 	rawBytes, disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover OCM at %s: %w", baseURL, err)
 	}
-	c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL)
+
+	if setErr := c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL); setErr != nil && c.logger != nil {
+		c.logger.Warn("failed to cache discovery document", "base_url", baseURL, "error", setErr)
+	}
 
 	return disc, nil
 }
 
 func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *spec.Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
+	if resp != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}
+
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
 			return nil, nil, fmt.Errorf("discovery returned status %d: %w", resp.StatusCode, ErrDiscoveryNotFound)
 		}
+
 		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
@@ -138,6 +171,7 @@ func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string, freshFe
 		if resolveBase == "" {
 			resolveBase = discoveryOrigin
 		}
+
 		disc.InviteAcceptDialog = spec.ResolveInviteAcceptDialog(resolveBase, disc.InviteAcceptDialog)
 	}
 
@@ -146,14 +180,17 @@ func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string, freshFe
 		if policy == nil {
 			policy = NewVersionPolicy()
 		}
+
 		if err := validateDiscovery(&disc, discoveryOrigin, policy); err != nil {
 			return spec.Discovery{}, err
 		}
+
 		if freshFetch {
 			logger := c.logger
 			if logger == nil {
 				logger = slog.Default()
 			}
+
 			for _, w := range disc.Warnings {
 				logger.Warn("discovery warning", "warning", w)
 			}

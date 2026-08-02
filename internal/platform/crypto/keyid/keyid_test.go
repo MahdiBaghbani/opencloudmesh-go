@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package keyid_test
 
 import (
@@ -76,9 +81,11 @@ func TestParse_AllFormats(t *testing.T) {
 			if p.Scheme != tt.expectedScheme {
 				t.Errorf("Scheme: got %q, want %q", p.Scheme, tt.expectedScheme)
 			}
+
 			if p.Hostname != tt.expectedHostname {
 				t.Errorf("Hostname: got %q, want %q", p.Hostname, tt.expectedHostname)
 			}
+
 			if p.Port != tt.expectedPort {
 				t.Errorf("Port: got %q, want %q", p.Port, tt.expectedPort)
 			}
@@ -163,9 +170,11 @@ func TestParse_EdgeCases(t *testing.T) {
 			if p.Scheme != tt.expectedScheme {
 				t.Errorf("Scheme: got %q, want %q", p.Scheme, tt.expectedScheme)
 			}
+
 			if p.Hostname != tt.expectedHostname {
 				t.Errorf("Hostname: got %q, want %q", p.Hostname, tt.expectedHostname)
 			}
+
 			if p.Port != tt.expectedPort {
 				t.Errorf("Port: got %q, want %q", p.Port, tt.expectedPort)
 			}
@@ -293,7 +302,11 @@ func TestAuthorityForCompareFromKeyID(t *testing.T) {
 				t.Fatalf("Parse failed: %v", err)
 			}
 
-			got := keyid.AuthorityForCompareFromKeyID(p)
+			got, err := keyid.AuthorityForCompareFromKeyID(p)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			if got != tt.expected {
 				t.Errorf("AuthorityForCompareFromKeyID: got %q, want %q", got, tt.expected)
 			}
@@ -367,88 +380,52 @@ func TestAuthorityForCompareFromDeclaredPeer_Errors(t *testing.T) {
 // scheme-aware: example.com matches example.com:443 only for https,
 // and example.com matches example.com:80 only for http.
 func TestSchemeAwareEquivalence(t *testing.T) {
-	t.Run("https: bare host equals host:443", func(t *testing.T) {
-		p, err := keyid.Parse("https://example.com:443/ocm#key-1")
-		if err != nil {
-			t.Fatal(err)
-		}
+	tests := []struct {
+		name      string
+		keyID     string
+		peer      string
+		scheme    string
+		wantEqual bool
+	}{
+		{"https: bare host equals host:443", "https://example.com:443/ocm#key-1", "example.com", "https", true},
+		{"http: bare host equals host:80", "http://example.com:80/ocm#signature", "example.com", "http", true},
+		{"https: bare host does NOT equal host:80", "https://example.com:80/ocm#key-1", "example.com", "https", false},
+		{"http: bare host does NOT equal host:443", "http://example.com:443/ocm#signature", "example.com", "http", false},
+		{"both explicit 443 equal for https", "https://example.com:443/ocm#key-1", "example.com:443", "https", true},
+	}
 
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "https")
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertAuthorityEquivalence(t, tt.keyID, tt.peer, tt.scheme, tt.wantEqual)
+		})
+	}
+}
 
-		if fromKeyID != fromPeer {
-			t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
+// assertAuthorityEquivalence compares the authority derived from a keyId with
+// the authority derived from a declared peer, in the wanted direction.
+func assertAuthorityEquivalence(t *testing.T, rawKeyID, peer, scheme string, wantEqual bool) {
+	t.Helper()
 
-	t.Run("http: bare host equals host:80", func(t *testing.T) {
-		p, err := keyid.Parse("http://example.com:80/ocm#signature")
-		if err != nil {
-			t.Fatal(err)
-		}
+	p, err := keyid.Parse(rawKeyID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "http")
-		if err != nil {
-			t.Fatal(err)
-		}
+	fromKeyID, err := keyid.AuthorityForCompareFromKeyID(p)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		if fromKeyID != fromPeer {
-			t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
+	fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer(peer, scheme)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	t.Run("https: bare host does NOT equal host:80", func(t *testing.T) {
-		p, err := keyid.Parse("https://example.com:80/ocm#key-1")
-		if err != nil {
-			t.Fatal(err)
-		}
+	if wantEqual && fromKeyID != fromPeer {
+		t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
+	}
 
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "https")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if fromKeyID == fromPeer {
-			t.Errorf("should NOT be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
-
-	t.Run("http: bare host does NOT equal host:443", func(t *testing.T) {
-		p, err := keyid.Parse("http://example.com:443/ocm#signature")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "http")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if fromKeyID == fromPeer {
-			t.Errorf("should NOT be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
-
-	t.Run("both explicit 443 equal for https", func(t *testing.T) {
-		p, err := keyid.Parse("https://example.com:443/ocm#key-1")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com:443", "https")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if fromKeyID != fromPeer {
-			t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
+	if !wantEqual && fromKeyID == fromPeer {
+		t.Errorf("should NOT be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
+	}
 }

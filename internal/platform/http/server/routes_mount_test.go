@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package server
 
 import (
@@ -21,26 +26,35 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 
 	foundWellKnown := false
 	foundWellKnownSlash := false
-	foundJWKS := false
+	foundOCMSubtree := false
+
 	for _, rg := range groups {
 		if rg.PathPrefix == "/.well-known/ocm" && rg.AtHostRoot {
 			foundWellKnown = true
 		}
+
 		if rg.PathPrefix == "/.well-known/ocm/" && rg.AtHostRoot {
 			foundWellKnownSlash = true
 		}
-		if rg.PathPrefix == "/.well-known/jwks.json" && rg.AtHostRoot {
-			foundJWKS = true
+
+		// The local JWKS route (GET /ocm/jwks) is no longer host-root; it is
+		// served under the "ocm" prefixed subtree along with the rest of the
+		// OCM protocol routes.
+		if rg.PathPrefix == "/ocm" && !rg.AtHostRoot {
+			foundOCMSubtree = true
 		}
 	}
+
 	if !foundWellKnown {
 		t.Error("expected /.well-known/ocm host-root group")
 	}
+
 	if !foundWellKnownSlash {
 		t.Error("expected /.well-known/ocm/ host-root group")
 	}
-	if !foundJWKS {
-		t.Error("expected /.well-known/jwks.json host-root group")
+
+	if !foundOCMSubtree {
+		t.Error("expected /ocm prefixed subtree group covering the local JWKS route")
 	}
 }
 
@@ -51,6 +65,7 @@ func expectedMountOrder() []string {
 func expectedShutdownOrder() []string {
 	order := expectedMountOrder()
 	slices.Reverse(order)
+
 	return order
 }
 
@@ -75,6 +90,7 @@ func (t *orderTrackingService) Close() error {
 
 func TestRoutesMountOrder(t *testing.T) {
 	var mountOrder []string
+
 	srv := newOrderTrackingServer(t, &mountOrder, nil)
 
 	want := expectedMountOrder()
@@ -82,11 +98,14 @@ func TestRoutesMountOrder(t *testing.T) {
 		t.Fatalf("mount order = %v, want %v", mountOrder, want)
 	}
 
-	_ = srv.Shutdown(context.Background())
+	if err := srv.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown failed: %v", err)
+	}
 }
 
 func TestRoutesShutdownOrder(t *testing.T) {
 	var closeOrder []string
+
 	srv := newOrderTrackingServer(t, nil, &closeOrder)
 
 	if err := srv.Shutdown(context.Background()); err != nil {
@@ -101,6 +120,7 @@ func TestRoutesShutdownOrder(t *testing.T) {
 
 func newOrderTrackingServer(t *testing.T, mountOrder, closeOrder *[]string) *Server {
 	t.Helper()
+
 	_ = service.DefaultRouteOpts()
 
 	cfg := config.DevConfig()
@@ -110,12 +130,14 @@ func newOrderTrackingServer(t *testing.T, mountOrder, closeOrder *[]string) *Ser
 		empty := []string{}
 		mountOrder = &empty
 	}
+
 	if closeOrder == nil {
 		empty := []string{}
 		closeOrder = &empty
 	}
 
 	mountOrderNames := expectedMountOrder()
+
 	services := make(map[string]service.Service, len(mountOrderNames))
 	for _, name := range mountOrderNames {
 		prefix := servicePrefixForOrderTest(name)
@@ -131,6 +153,7 @@ func newOrderTrackingServer(t *testing.T, mountOrder, closeOrder *[]string) *Ser
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
+
 	return srv
 }
 
@@ -139,5 +162,6 @@ func servicePrefixForOrderTest(name string) string {
 	if !ok {
 		return name
 	}
+
 	return desc.Prefix
 }

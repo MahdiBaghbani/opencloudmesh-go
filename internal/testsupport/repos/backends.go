@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package repos provides shared persistence backend lists and test open helpers.
 package repos
 
@@ -23,12 +28,15 @@ func AllBackends() []string {
 // It is every AllBackends entry except in-memory storage.
 func DurableBackends() []string {
 	var out []string
+
 	for _, backend := range AllBackends() {
 		if backend == config.BackendMemory {
 			continue
 		}
+
 		out = append(out, backend)
 	}
+
 	return out
 }
 
@@ -41,10 +49,12 @@ type TestRepo struct {
 // OpenTestRepos returns every AllBackends entry with its test open helper.
 func OpenTestRepos() []TestRepo {
 	all := AllBackends()
+
 	repos := make([]TestRepo, 0, len(all))
 	for _, name := range all {
 		repos = append(repos, TestRepo{Name: name, Open: openForBackend(name)})
 	}
+
 	return repos
 }
 
@@ -56,11 +66,11 @@ func openForBackend(name string) func(*testing.T) *platformrepos.Repos {
 		return OpenJSON
 	case config.BackendSQLite:
 		return func(t *testing.T) *platformrepos.Repos {
-			return OpenDurable(t, config.BackendSQLite)
+			return OpenDurable(t, context.Background(), config.BackendSQLite)
 		}
 	case config.BackendMirror:
 		return func(t *testing.T) *platformrepos.Repos {
-			return OpenDurable(t, config.BackendMirror)
+			return OpenDurable(t, context.Background(), config.BackendMirror)
 		}
 	default:
 		panic("testsupport/repos: no Open helper for backend " + name)
@@ -70,18 +80,21 @@ func openForBackend(name string) func(*testing.T) *platformrepos.Repos {
 // OpenMemory opens an in-memory repos bundle for tests.
 func OpenMemory(t *testing.T) *platformrepos.Repos {
 	t.Helper()
+
 	r, err := platformrepos.New(context.Background(), config.PersistenceConfig{
 		Backend: config.BackendMemory,
 	})
 	if err != nil {
 		t.Fatalf("repos.New(memory): %v", err)
 	}
+
 	return r
 }
 
 // OpenJSON opens a JSON-backed repos bundle in a temp directory.
 func OpenJSON(t *testing.T) *platformrepos.Repos {
 	t.Helper()
+
 	r, err := platformrepos.New(context.Background(), config.PersistenceConfig{
 		Backend: config.BackendJSON,
 		DataDir: t.TempDir(),
@@ -89,18 +102,21 @@ func OpenJSON(t *testing.T) *platformrepos.Repos {
 	if err != nil {
 		t.Fatalf("repos.New(json): %v", err)
 	}
+
 	return r
 }
 
 // OpenDurable opens a durable repos bundle for the given backend in a temp dir.
-func OpenDurable(t *testing.T, backend string) *platformrepos.Repos {
+func OpenDurable(t *testing.T, ctx context.Context, backend string) *platformrepos.Repos {
 	t.Helper()
-	r, err := platformrepos.New(context.Background(), config.PersistenceConfig{
+
+	r, err := platformrepos.New(ctx, config.PersistenceConfig{
 		Backend: backend,
 		DataDir: t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("repos.New(%s): %v", backend, err)
 	}
+
 	return r
 }

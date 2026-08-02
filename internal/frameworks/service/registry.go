@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package service
 
 import (
@@ -17,6 +22,7 @@ func coreServiceNames() []string {
 	for i, d := range descriptors {
 		names[i] = d.Name
 	}
+
 	return names
 }
 
@@ -26,6 +32,7 @@ func rootServiceName() string {
 			return d.Name
 		}
 	}
+
 	return ""
 }
 
@@ -38,8 +45,10 @@ func AppServices() []string {
 		if d.MountAtRoot {
 			continue
 		}
+
 		names = append(names, d.Name)
 	}
+
 	return names
 }
 
@@ -51,15 +60,20 @@ func CheckServiceNames(names []string) (unknown, allowed []string) {
 	for _, n := range CoreServices {
 		allowedSet[n] = struct{}{}
 	}
+
 	for _, name := range names {
 		if _, ok := allowedSet[name]; !ok {
 			unknown = append(unknown, name)
 		}
 	}
+
 	if len(unknown) == 0 {
 		return nil, nil
 	}
+
 	sort.Strings(unknown)
+
 	allowed = append([]string(nil), CoreServices...)
+
 	return unknown, allowed
 }

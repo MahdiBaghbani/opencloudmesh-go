@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocm
 
 import (
@@ -7,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing/accepted"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
@@ -43,10 +48,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "ocm", "unused_keys", unused)
 	}
@@ -55,6 +62,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	if te, ok := m["token_exchange"].(map[string]any); ok {
 		rawTE = te
 	}
+
 	if _, set := rawTE["path"]; !set {
 		c.TokenExchange.Path = inputs.TokenExchangePath
 		if c.TokenExchange.Path == "" {
@@ -70,18 +78,19 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.IncomingShareRepo,
 		inputs.PartyRepo,
 		inputs.PolicyEngine,
+		inputs.IncomingInviteRepo,
+		inputs.OutgoingInviteRepo,
+		inputs.MustInviteEnforced,
 		inputs.LocalIdentity.ProviderDomainCompare,
 		inputs.LocalIdentity.Scheme,
 		inputs.PeerMappingResolver,
-		log,
 	)
-	invitesHandler := invitesincoming.NewHandler(
+	invitesHandler := accepted.NewHandler(
 		inputs.OutgoingInviteRepo,
 		inputs.PartyRepo,
 		inputs.PolicyEngine,
 		inputs.LocalIdentity.ProviderDomain,
 		inputs.LocalIdentity.Scheme,
-		log,
 	)
 	tokenHandler := tokenincoming.NewHandler(
 		inputs.OutgoingShareRepo,
@@ -89,7 +98,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		&c.TokenExchange,
 		inputs.CodeFlow,
 		inputs.LocalIdentity.Origin,
-		log,
 	)
 
 	peerResolver := peer.NewResolver()
@@ -106,6 +114,8 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}, peerResolver); err != nil {
 		return nil, err
 	}
+
+	mountJWKSRoute(r, inputs)
 
 	return &Service{
 		router: r,
@@ -125,14 +135,17 @@ func validateInputs(in Inputs) error {
 	}
 }
 
+// Handler returns the service HTTP handler; implements service.Service.
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
+// Prefix returns the service URL prefix; implements service.Service.
 func (s *Service) Prefix() string {
 	return "ocm"
 }
 
+// Close performs no cleanup for this service; implements service.Service.
 func (s *Service) Close() error {
 	return nil
 }

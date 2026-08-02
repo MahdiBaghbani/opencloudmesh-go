@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package http
 
 import (
@@ -27,14 +32,15 @@ func PostSignedJSON(
 		t.Fatalf("PostSignedJSON: marshal body: %v", err)
 	}
 
-	req, err := http.NewRequest(method, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(t.Context(), method, url, bytes.NewReader(payload))
 	if err != nil {
 		t.Fatalf("PostSignedJSON: build request: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := signer.Sign(req); err != nil {
-		t.Fatalf("PostSignedJSON: sign request: %v", err)
+	if signErr := signer.Sign(req); signErr != nil {
+		t.Fatalf("PostSignedJSON: sign request: %v", signErr)
 	}
 
 	resp, err := client.Do(req)
@@ -44,12 +50,15 @@ func PostSignedJSON(
 
 	respBody, readErr := io.ReadAll(resp.Body)
 	closeErr := resp.Body.Close()
+
 	if readErr != nil {
 		t.Fatalf("PostSignedJSON: read response body: %v", readErr)
 	}
+
 	if closeErr != nil {
 		t.Fatalf("PostSignedJSON: close response body: %v", closeErr)
 	}
+
 	resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
 	return resp, respBody
@@ -67,7 +76,10 @@ func PostSignedJSONStatusBody(
 	t.Helper()
 
 	resp, respBody := PostSignedJSON(t, client, signer, http.MethodPost, url, body)
-	defer resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("PostSignedJSONStatusBody: close response body: %v", err)
+	}
+
 	return resp.StatusCode, respBody
 }
 
@@ -90,5 +102,6 @@ func PostSignedJSONDecode(
 			t.Fatalf("PostSignedJSONDecode: unmarshal response: %v", err)
 		}
 	}
+
 	return status, respBody
 }

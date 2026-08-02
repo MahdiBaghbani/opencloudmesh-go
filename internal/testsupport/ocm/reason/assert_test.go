@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package reason_test
 
@@ -14,27 +16,32 @@ import (
 
 type captureTB struct {
 	testing.TB
+
 	fatal bool
 }
 
 func (c *captureTB) Helper() {}
 
-func (c *captureTB) Fatalf(format string, args ...any) {
+func (c *captureTB) Fatalf(_ string, _ ...any) {
 	c.fatal = true
+
 	panic("captureTB.Fatalf")
 }
 
 func expectFatal(t *testing.T, fn func(testing.TB)) {
 	t.Helper()
 	stub := &captureTB{TB: t}
+
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected Fatalf")
 		}
+
 		if !stub.fatal {
 			t.Fatal("expected Fatalf")
 		}
 	}()
+
 	fn(stub)
 }
 
@@ -63,6 +70,7 @@ func TestAssertClassifiedReason_notClassified(t *testing.T) {
 
 func TestAssertClassifiedReason_wrongReason(t *testing.T) {
 	err := ocmreason.NewClassifiedError(ocmreason.ReasonDigestMismatch, "digest mismatch", nil)
+
 	expectFatal(t, func(tb testing.TB) {
 		tsreason.AssertClassifiedReason(tb, err, ocmreason.ReasonSignatureInvalid)
 	})

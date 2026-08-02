@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocm
 
 import (
@@ -5,8 +10,12 @@ import (
 )
 
 const (
-	RouteShares         = "/shares"
+	// RouteShares is the OCM shares route path.
+	RouteShares = "/shares"
+	// RouteInviteAccepted is the OCM invite-accepted route path.
 	RouteInviteAccepted = "/invite-accepted"
+	// RouteJWKS is the OCM local JWKS route path.
+	RouteJWKS = "/jwks"
 )
 
 func init() {
@@ -18,11 +27,13 @@ func tokenRoutePattern(opts service.RouteOpts) string {
 	if path == "" {
 		path = "token"
 	}
+
 	return "/" + path
 }
 
 func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 	tokenPattern := tokenRoutePattern(opts)
+
 	return []service.RouteSpec{
 		{
 			ID:             "ocm-shares",
@@ -60,6 +71,17 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 			DiscoveryFields: []string{"tokenEndPoint"},
 			BodyLimitBytes:  service.OCMProtocolBodyLimitBytes,
 			PeerResolution:  service.PeerResolutionToken,
+		},
+		{
+			ID:              "ocm-jwks",
+			Service:         "ocm",
+			Method:          "GET",
+			Pattern:         RouteJWKS,
+			SessionPolicy:   service.SessionPublic,
+			HandlerAuth:     service.HandlerAuthNone,
+			SurfaceClass:    service.SurfaceDiscovery,
+			TrustClass:      service.TrustPeerNone,
+			DiscoveryFields: []string{"jwks"},
 		},
 	}
 }

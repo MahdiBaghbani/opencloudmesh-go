@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Shared context loader for action-pin helpers.
+
+def find-repo-root [] {
+  let script_pwd = ($env.FILE_PWD? | default null)
+  if $script_pwd != null {
+    let from_script = ($script_pwd | path dirname | path dirname)
+    if ($from_script | path join '.github' 'action-pins.yml' | path exists) {
+      return $from_script
+    }
+  }
+  let cwd = (pwd | path expand)
+  if ($cwd | path join '.github' 'action-pins.yml' | path exists) {
+    return $cwd
+  }
+  error make { msg: 'Could not find repo root (missing .github/action-pins.yml)' }
+}
+
+def list-workflow-paths [workflows_dir: string] {
+  let yml = (glob ($workflows_dir | path join '*.yml'))
+  let yaml = (glob ($workflows_dir | path join '*.yaml'))
+  $yml | append $yaml | uniq | sort
+}
+
+def list-action-paths [root: string] {
+  let yml = (glob ($root | path join '**' 'action.yml'))
+  let yaml = (glob ($root | path join '**' 'action.yaml'))
+  $yml | append $yaml | uniq | sort
+}
+
+# Load repo root, action-pins manifest, and sorted paths to scan for uses:
+# pins: workflow files (*.yml + *.yaml) plus composite action manifests
+# (**/action.yml + **/action.yaml). Fails non-zero when no workflow files match.
+export def load-action-pins-context [] {
+  let root = (find-repo-root)
+  let manifest_path = ($root | path join '.github' 'action-pins.yml')
+  let workflows_dir = ($root | path join '.github' 'workflows')
+  let manifest = (open $manifest_path)
+  let workflow_paths = (list-workflow-paths $workflows_dir)
+  if ($workflow_paths | is-empty) {
+    error make {
+      msg: 'No workflow files found under .github/workflows (*.yml, *.yaml)'
+    }
+  }
+  # Fold composite-action manifests into the scan set so existing consumers
+  # (verify / inventory) cover uses: pins inside action.yml / action.yaml too.
+  let scan_paths = (
+    $workflow_paths
+    | append (list-action-paths $root)
+    | uniq
+    | sort
+  )
+  {
+    root: $root
+    manifest_path: $manifest_path
+    manifest: $manifest
+    workflows_dir: $workflows_dir
+    workflow_paths: $scan_paths
+  }
+}

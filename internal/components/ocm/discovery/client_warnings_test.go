@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery_test
 
 import (
@@ -19,6 +24,7 @@ import (
 
 func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
@@ -26,11 +32,13 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"apiVersion": "1.2.2",
 		})
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	c := cache.NewDefault()
@@ -41,25 +49,31 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Discover failed: %v", err)
 	}
-	if !hasWarningSubstring(disc.Warnings, "differs from pin") {
+
+	if !hasDiffersFromPinWarning(disc.Warnings) {
 		t.Fatalf("expected differs-from-pin warning in result, got %v", disc.Warnings)
 	}
+
 	firstLog := buf.String()
 	if !strings.Contains(firstLog, "discovery warning") {
 		t.Fatalf("fresh fetch log missing discovery warning marker, got %q", firstLog)
 	}
+
 	if !strings.Contains(firstLog, "differs from pin") {
 		t.Fatalf("fresh fetch log missing warning text, got %q", firstLog)
 	}
 
 	buf.Reset()
+
 	disc2, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("second Discover failed: %v", err)
 	}
-	if !hasWarningSubstring(disc2.Warnings, "differs from pin") {
+
+	if !hasDiffersFromPinWarning(disc2.Warnings) {
 		t.Fatalf("cache hit missing warning in result, got %v", disc2.Warnings)
 	}
+
 	if buf.Len() != 0 {
 		t.Fatalf("cache hit logged warnings again: %q", buf.String())
 	}
@@ -67,7 +81,7 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 
 func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
 	httpCfg := tshttp.PermissiveConfig()
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"apiVersion": "1.3.0",
 			"resourceTypes": []any{
@@ -80,7 +94,7 @@ func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
 				},
 			},
 		})
-		json.NewEncoder(w).Encode(raw)
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	c := cache.NewDefault()
@@ -90,6 +104,7 @@ func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Discover failed: %v", err)
 	}
+
 	if len(disc1.Warnings) < 2 {
 		t.Fatalf("expected apiVersion and protocol warnings, got %v", disc1.Warnings)
 	}
@@ -98,6 +113,7 @@ func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
+
 	if strings.Contains(string(out), "Warnings") || strings.Contains(string(out), "differs from pin") {
 		t.Fatalf("marshaled discovery must omit Warnings, got %s", out)
 	}
@@ -106,6 +122,7 @@ func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second Discover failed: %v", err)
 	}
+
 	if len(disc2.Warnings) != len(disc1.Warnings) {
 		t.Fatalf("cache hit warnings len = %d, want %d (no duplicate accumulation)", len(disc2.Warnings), len(disc1.Warnings))
 	}

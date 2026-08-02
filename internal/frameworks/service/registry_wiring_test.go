@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package service_test
 
 import (
@@ -25,6 +30,7 @@ func TestCoreServiceNamesMatchesCoreServices(t *testing.T) {
 // has a wiring builder and that no orphan builders exist.
 func TestCoreServiceBuildersCoverDescriptors(t *testing.T) {
 	descs := service.Descriptors()
+
 	registered := make(map[service.BuildKey]struct{}, len(wiring.RegisteredBuildKeys()))
 	for _, k := range wiring.RegisteredBuildKeys() {
 		registered[k] = struct{}{}
@@ -36,9 +42,11 @@ func TestCoreServiceBuildersCoverDescriptors(t *testing.T) {
 			t.Errorf("descriptor %q has no build key", d.Name)
 			continue
 		}
+
 		if prev, ok := seen[d.Build]; ok {
 			t.Errorf("duplicate build key %q for services %q and %q", d.Build, prev, d.Name)
 		}
+
 		seen[d.Build] = d.Name
 		if _, ok := registered[d.Build]; !ok {
 			t.Errorf("descriptor %q build key %q has no wiring builder", d.Name, d.Build)

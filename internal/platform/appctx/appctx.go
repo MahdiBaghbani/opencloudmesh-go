@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package appctx provides context-based utilities for cross-cutting concerns.
 // Mimics Reva's "appctx logger from context" pattern, built on slog.
 package appctx
@@ -25,5 +30,6 @@ func GetLogger(ctx context.Context) *slog.Logger {
 	if l, ok := LoggerFromContext(ctx); ok {
 		return l
 	}
+
 	return slog.Default()
 }

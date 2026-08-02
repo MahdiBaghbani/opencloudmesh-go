@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 // Package api provides shared HTTP API handlers (auth, health) and standardized error responses.
 package api
@@ -51,11 +53,11 @@ type ErrorEnvelope struct {
 	Error ErrorDetail `json:"error"`
 }
 
-// ErrorDetail holds code, reason_code, and message for API errors.
+// ErrorDetail holds code, reasonCode, and message for API errors.
 type ErrorDetail struct {
-	Code       string `json:"code"`        // HTTP status text (e.g., "forbidden")
-	ReasonCode string `json:"reason_code"` // Deterministic reason code
-	Message    string `json:"message"`     // Human-readable message
+	Code       string `json:"code"`       // HTTP status text (e.g., "forbidden")
+	ReasonCode string `json:"reasonCode"` // Deterministic reason code
+	Message    string `json:"message"`    // Human-readable message
 }
 
 // WriteError sends a standardized JSON error envelope.
@@ -71,6 +73,7 @@ func WriteError(w http.ResponseWriter, statusCode int, reasonCode, message strin
 		},
 	}
 
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(envelope)
 }
 

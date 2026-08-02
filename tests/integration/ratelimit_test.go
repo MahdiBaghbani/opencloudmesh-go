@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2026 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -9,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -27,6 +30,7 @@ profile = "discover"
 `
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:        "ratelimit-ocmaux",
 		Mode:        "dev",
@@ -35,34 +39,54 @@ profile = "discover"
 	defer srv.Stop(t)
 
 	discoverURL := srv.BaseURL + "/ocm-aux/discover?base=" + srv.BaseURL
-	resp, err := http.Get(discoverURL)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
-	resp.Body.Close()
+
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		t.Errorf("close response body: %v", closeErr)
+	}
 
 	// Second request should be rate-limited (limit is 1).
-	resp, err = http.Get(discoverURL)
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err = http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusTooManyRequests {
 		srv.DumpLogs(t)
 		t.Fatalf("expected status 429, got %d", resp.StatusCode)
 	}
+
 	requireRetryAfterPositive(t, resp)
 
 	// Ensure other ocmaux endpoints are not rate limited.
-	resp, err = http.Get(srv.BaseURL + "/ocm-aux/federations")
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/ocm-aux/federations", nil)
+	if err != nil {
+		t.Fatalf("build federations request: %v", err)
+	}
+
+	resp, err = http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/federations: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)
@@ -85,6 +109,7 @@ profile = "login"
 `
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:        "ratelimit-api",
 		Mode:        "dev",
@@ -93,25 +118,34 @@ profile = "login"
 	defer srv.Stop(t)
 
 	loginURL := srv.BaseURL + "/api/auth/login"
-	resp := postLogin(t, loginURL)
-	resp.Body.Close()
+	firstResp := postLogin(t, loginURL)
 
-	resp = postLogin(t, loginURL)
-	defer resp.Body.Close()
+	if closeErr := firstResp.Body.Close(); closeErr != nil {
+		t.Errorf("close response body: %v", closeErr)
+	}
+
+	resp := postLogin(t, loginURL) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusTooManyRequests {
 		srv.DumpLogs(t)
 		t.Fatalf("expected status 429, got %d", resp.StatusCode)
 	}
+
 	requireRetryAfterPositive(t, resp)
 
 	// Ensure other API endpoints are not rate limited.
-	resp, err := http.Get(srv.BaseURL + "/api/healthz")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/healthz", nil)
+	if err != nil {
+		t.Fatalf("build healthz request: %v", err)
+	}
+
+	resp, err = http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /api/healthz: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)
@@ -123,10 +157,19 @@ func postLogin(t *testing.T, url string) *http.Response {
 	t.Helper()
 
 	body := bytes.NewBufferString(`{"username":"admin","password":"wrong"}`)
-	resp, err := http.Post(url, "application/json", body)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, body)
+	if err != nil {
+		t.Fatalf("failed to build POST /api/auth/login request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("failed to POST /api/auth/login: %v", err)
 	}
+
 	return resp
 }
 
@@ -137,10 +180,12 @@ func requireRetryAfterPositive(t *testing.T, resp *http.Response) {
 	if retryAfter == "" {
 		t.Fatalf("expected Retry-After header to be set")
 	}
+
 	seconds, err := strconv.Atoi(retryAfter)
 	if err != nil {
 		t.Fatalf("expected Retry-After to be integer seconds, got %q", retryAfter)
 	}
+
 	if seconds < 1 {
 		t.Fatalf("expected positive Retry-After, got %d", seconds)
 	}

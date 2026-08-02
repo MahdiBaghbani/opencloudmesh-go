@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery_test
 
 import (
@@ -21,6 +26,7 @@ func TestClientDiscover_DeserializesTypedReceiveRoles(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"resourceTypes": []any{
 				map[string]any{
@@ -33,23 +39,29 @@ func TestClientDiscover_DeserializesTypedReceiveRoles(t *testing.T) {
 				},
 			},
 		})
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
+
 	disc, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
+
 	if len(disc.ResourceTypes) != 1 {
 		t.Fatalf("resourceTypes len = %d", len(disc.ResourceTypes))
 	}
+
 	protocols := disc.ResourceTypes[0].Protocols
+
 	path, ok := protocols.StringRole("webdav")
 	if !ok || path != "/webdav/ocm/" {
 		t.Fatalf("webdav = %q, ok=%v", path, ok)
 	}
+
 	wr, ok := protocols.WebDAVReceive()
 	if !ok || wr.URI != "absolute" {
 		t.Fatalf("webdav-receive = %+v, ok=%v", wr, ok)
@@ -69,6 +81,7 @@ func inlineKeyDiscoveryPayload(serverURL, shape, apiVersion string) map[string]a
 		"criteria":      []any{},
 		"capabilities":  []string{"http-sig"},
 	}
+
 	switch shape {
 	case "singular":
 		raw["publicKey"] = map[string]string{
@@ -81,6 +94,7 @@ func inlineKeyDiscoveryPayload(serverURL, shape, apiVersion string) map[string]a
 			"publicKeyPem": "test-pem",
 		}}
 	}
+
 	return raw
 }
 
@@ -99,14 +113,17 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var server *httptest.Server
+
 			server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != "/.well-known/ocm" {
 					http.NotFound(w, r)
 					return
 				}
+
 				raw := inlineKeyDiscoveryPayload(server.URL, tt.shape, tt.apiVersion)
+
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(raw)
+				tshttp.MustEncodeJSON(t, w, raw)
 			}))
 			defer server.Close()
 
@@ -118,23 +135,28 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error")
 				}
+
 				if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
 					t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("Discover failed: %v", err)
 			}
 
 			if tt.apiVersion != spec.APIVersionPin {
 				found := false
+
 				for _, w := range disc.Warnings {
 					if strings.Contains(w, "differs from pin") {
 						found = true
 						break
 					}
 				}
+
 				if !found {
 					t.Fatalf("expected differs-from-pin warning for apiVersion %q, got %v", tt.apiVersion, disc.Warnings)
 				}
@@ -144,6 +166,7 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal discovery: %v", err)
 			}
+
 			if strings.Contains(string(out), "test-pem") {
 				t.Fatalf("expected no inline key material, got %s", out)
 			}

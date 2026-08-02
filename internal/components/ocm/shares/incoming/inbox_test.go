@@ -1,0 +1,147 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+package incoming_test
+
+import (
+	"context"
+	"testing"
+
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+)
+
+func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	ctx := context.Background()
+
+	share1 := &incoming.IncomingShare{
+		ProviderID:      "same-id",
+		SenderHost:      "sender1.example.com",
+		ShareWith:       "user@example.com",
+		RecipientUserID: "user-a",
+		Status:          shares.ShareStatusPending,
+	}
+	if err := repo.Create(ctx, share1); err != nil {
+		t.Fatalf("failed to create share1: %v", err)
+	}
+
+	share2 := &incoming.IncomingShare{
+		ProviderID:      "same-id",
+		SenderHost:      "sender2.example.com",
+		ShareWith:       "user@example.com",
+		RecipientUserID: "user-a",
+		Status:          shares.ShareStatusPending,
+	}
+	if err := repo.Create(ctx, share2); err != nil {
+		t.Fatalf("failed to create share2: %v", err)
+	}
+
+	share3 := &incoming.IncomingShare{
+		ProviderID:      "same-id",
+		SenderHost:      "sender1.example.com",
+		ShareWith:       "user@example.com",
+		RecipientUserID: "user-a",
+		Status:          shares.ShareStatusPending,
+	}
+	if err := repo.Create(ctx, share3); err == nil {
+		t.Error("expected error for duplicate providerID from same sender")
+	}
+
+	found, err := repo.GetByProviderID(ctx, "sender1.example.com", "same-id")
+	if err != nil {
+		t.Fatalf("failed to find share: %v", err)
+	}
+
+	if found.ShareID != share1.ShareID {
+		t.Error("wrong share returned for sender1")
+	}
+}
+
+func TestIncomingRepository_RecipientScoping(t *testing.T) {
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	ctx := context.Background()
+
+	shareA := &incoming.IncomingShare{
+		ProviderID:      "p1",
+		SenderHost:      "sender.com",
+		RecipientUserID: "user-a",
+		Status:          shares.ShareStatusPending,
+	}
+	if err := repo.Create(ctx, shareA); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	shareB := &incoming.IncomingShare{
+		ProviderID:      "p2",
+		SenderHost:      "sender.com",
+		RecipientUserID: "user-b",
+		Status:          shares.ShareStatusPending,
+	}
+	if err := repo.Create(ctx, shareB); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// User A should only see their share
+	listA, err := repo.ListByRecipientUserID(ctx, "user-a")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	if len(listA) != 1 {
+		t.Fatalf("user-a: expected 1 share, got %d", len(listA))
+	}
+
+	if listA[0].ShareID != shareA.ShareID {
+		t.Error("user-a: got wrong share")
+	}
+
+	// User B should only see their share
+	listB, err := repo.ListByRecipientUserID(ctx, "user-b")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	if len(listB) != 1 {
+		t.Fatalf("user-b: expected 1 share, got %d", len(listB))
+	}
+
+	// User A cannot get user B's share
+	_, err = repo.GetByIDForRecipientUserID(ctx, shareB.ShareID, "user-a")
+	if err == nil {
+		t.Error("expected error when user-a tries to access user-b's share")
+	}
+
+	// User A cannot update user B's share
+	err = repo.UpdateStatusForRecipientUserID(ctx, shareB.ShareID, "user-a", shares.ShareStatusAccepted)
+	if err == nil {
+		t.Error("expected error when user-a tries to update user-b's share")
+	}
+
+	// User A cannot delete user B's share
+	err = repo.DeleteForRecipientUserID(ctx, shareB.ShareID, "user-a")
+	if err == nil {
+		t.Error("expected error when user-a tries to delete user-b's share")
+	}
+}
+
+func TestWebDAVProtocol_HasRequirement(t *testing.T) {
+	p := &spec.WebDAVProtocol{
+		URI:          "abc123",
+		Permissions:  []string{"read"},
+		Requirements: []string{"must-exchange-token"},
+	}
+
+	if !p.HasRequirement("must-exchange-token") {
+		t.Error("expected true for must-exchange-token")
+	}
+
+	if p.HasRequirement("must-use-mfa") {
+		t.Error("expected false for must-use-mfa")
+	}
+}

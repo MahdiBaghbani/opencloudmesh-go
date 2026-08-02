@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package cfg provides config decoding for services (mapstructure, Setter for defaults).
 package cfg
 
@@ -25,6 +30,7 @@ func Decode(input map[string]any, c any) error {
 	if err != nil {
 		return err
 	}
+
 	if err := decoder.Decode(input); err != nil {
 		return err
 	}
@@ -40,6 +46,7 @@ func Decode(input map[string]any, c any) error {
 // DecodeWithUnused decodes input to c and returns unused keys (sorted).
 func DecodeWithUnused(input map[string]any, c any) ([]string, error) {
 	var md mapstructure.Metadata
+
 	config := &mapstructure.DecoderConfig{
 		Metadata: &md,
 		Result:   c,
@@ -50,6 +57,7 @@ func DecodeWithUnused(input map[string]any, c any) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if err := decoder.Decode(input); err != nil {
 		return nil, err
 	}
@@ -71,8 +79,10 @@ func MustDecodeStrict(input map[string]any, c any) error {
 	if err != nil {
 		return err
 	}
+
 	if len(unused) > 0 {
 		return fmt.Errorf("unused config keys: %v", unused)
 	}
+
 	return nil
 }

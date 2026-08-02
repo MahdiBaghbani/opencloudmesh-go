@@ -1,15 +1,22 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package shares_test
 
 import (
 	"context"
 	"net/http"
+	"testing"
 
 	"github.com/go-chi/chi/v5"
 
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 type mockAccessor struct {
@@ -21,7 +28,7 @@ func (m *mockAccessor) Access(ctx context.Context, opts access.AccessOptions) (*
 }
 
 func newTestRouterWithAccess(
-	repo sharesinbox.IncomingShareRepo,
+	repo sharesincoming.IncomingShareRepo,
 	ac access.RemoteAccessor,
 	user *identity.User,
 ) http.Handler {
@@ -34,19 +41,23 @@ func newTestRouterWithAccess(
 		r.Post("/{shareId}/decline", h.HandleDecline)
 		r.Post("/{shareId}/verify-access", h.HandleVerifyAccess)
 	})
+
 	return r
 }
 
 func createAcceptedShareForUser(
-	repo *sharesinbox.MemoryIncomingShareRepo,
-	recipientUserID, providerID, senderHost, name string,
-) *sharesinbox.IncomingShare {
-	share := &sharesinbox.IncomingShare{
+	t *testing.T,
+	repo sharesincoming.IncomingShareRepo,
+	providerID, senderHost, name string, //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
+) *sharesincoming.IncomingShare {
+	t.Helper()
+
+	share := &sharesincoming.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
-		ShareWith:       recipientUserID + "@example.com",
-		RecipientUserID: recipientUserID,
-		Status:          sharesinbox.ShareStatusAccepted,
+		ShareWith:       userAID + "@example.com",
+		RecipientUserID: userAID,
+		Status:          shares.ShareStatusAccepted,
 		ResourceType:    "file",
 		Name:            name,
 		Owner:           "owner@sender.example.com",
@@ -56,20 +67,26 @@ func createAcceptedShareForUser(
 		WebDAVID:        "webdav-id-" + providerID,
 		SharedSecret:    "secret-" + providerID,
 	}
-	repo.Create(context.Background(), share)
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
+
 	return share
 }
 
 func createAcceptedWebappShareForUser(
-	repo *sharesinbox.MemoryIncomingShareRepo,
+	t *testing.T,
+	repo sharesincoming.IncomingShareRepo,
 	recipientUserID, providerID, senderHost, name string,
-) *sharesinbox.IncomingShare {
-	share := &sharesinbox.IncomingShare{
+) *sharesincoming.IncomingShare {
+	t.Helper()
+
+	share := &sharesincoming.IncomingShare{
 		ProviderID:        providerID,
 		SenderHost:        senderHost,
 		ShareWith:         recipientUserID + "@example.com",
 		RecipientUserID:   recipientUserID,
-		Status:            sharesinbox.ShareStatusAccepted,
+		Status:            shares.ShareStatusAccepted,
 		ResourceType:      "file",
 		Name:              name,
 		Owner:             "owner@sender.example.com",
@@ -84,6 +101,9 @@ func createAcceptedWebappShareForUser(
 		WebappTargets:     []string{"blank", "_self"},
 		WebappPermissions: []string{"view", "share"},
 	}
-	repo.Create(context.Background(), share)
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
+
 	return share
 }

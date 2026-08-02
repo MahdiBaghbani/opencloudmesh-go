@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package client provides a safe outbound HTTP client with SSRF protections.
 // See client.go for the concrete implementation.
 //
@@ -27,7 +32,7 @@ import (
 // buildProxyFunc builds the request-aware proxy function and the set of trusted
 // proxy hosts from the outbound config.
 //
-// Precedence: explicit ProxyURL > env fallback > direct (nil proxy).
+// Precedence: explicit ProxyURL > use_env_fallback > direct (nil proxy).
 //
 // trustedProxyHosts is used at dial time to skip the SSRF check only for
 // dials that go to an operator-trusted proxy host. All other dials -
@@ -38,17 +43,19 @@ import (
 // case.
 func buildProxyFunc(cfg *config.OutboundHTTPConfig) (func(*http.Request) (*url.URL, error), map[string]struct{}) {
 	trustedHosts := map[string]struct{}{}
+
 	var proxyFunc func(*http.Request) (*url.URL, error)
 
 	switch {
 	case cfg.ProxyURL != "":
-		// Explicit proxy wins; env vars are ignored even if ProxyEnvFallback is set.
+		// Explicit proxy wins; env vars are ignored even if use_env_fallback is set.
 		if p, err := url.Parse(cfg.ProxyURL); err == nil {
 			proxyFunc = http.ProxyURL(p)
 			trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
 		}
-	case cfg.ProxyEnvFallback:
-		// Snapshot the proxy configuration from the environment at New() time.
+	case cfg.UseEnvFallback:
+		// use_env_fallback is enabled: snapshot the proxy configuration from
+		// the environment at New() time.
 		// Both routing and trusted-host extraction use the same snapshot so
 		// their behavior is consistent for the lifetime of this client.
 		// To pick up env changes (proxy or NO_PROXY), recreate the client.
@@ -57,6 +64,7 @@ func buildProxyFunc(cfg *config.OutboundHTTPConfig) (func(*http.Request) (*url.U
 		proxyFunc = func(req *http.Request) (*url.URL, error) {
 			return envProxyFn(req.URL)
 		}
+
 		for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
 			if raw := os.Getenv(key); raw != "" {
 				p, err := url.Parse(raw)
@@ -66,6 +74,7 @@ func buildProxyFunc(cfg *config.OutboundHTTPConfig) (func(*http.Request) (*url.U
 					// the fallback in httpproxy's own parseProxy.
 					p, err = url.Parse("http://" + raw)
 				}
+
 				if err == nil && p.Hostname() != "" {
 					trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
 				}
@@ -88,6 +97,7 @@ func (c *Client) newTransport(rootCAs *x509.CertPool, proxyFunc func(*http.Reque
 		Proxy:       proxyFunc,
 		DialContext: c.ssrfCheckedDial(dialer),
 		TLSClientConfig: &tls.Config{
+			//nolint:gosec // intentional config-gated dev escape hatch for self-signed certs; c.cfg.InsecureSkipVerify defaults false and is config-controlled
 			InsecureSkipVerify: c.cfg.InsecureSkipVerify,
 			RootCAs:            rootCAs,
 		},
@@ -109,16 +119,18 @@ func (c *Client) newTransport(rootCAs *x509.CertPool, proxyFunc func(*http.Reque
 func (c *Client) ssrfCheckedDial(dialer *net.Dialer) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if c.isStrictMode() {
-			host, _, _ := net.SplitHostPort(addr)
-			if host == "" {
+			host, _, splitErr := net.SplitHostPort(addr)
+			if splitErr != nil {
 				host = addr
 			}
+
 			if _, trusted := c.trustedProxyHosts[strings.ToLower(host)]; !trusted {
 				if err := c.checkSSRF(ctx, addr); err != nil {
 					return nil, err
 				}
 			}
 		}
+
 		return dialer.DialContext(ctx, network, addr)
 	}
 }

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package signature verifies inbound OCM HTTP request signatures.
 package signature
 
@@ -42,6 +47,7 @@ func GetPeerIdentity(ctx context.Context) *PeerIdentity {
 	if pi, ok := ctx.Value(PeerIdentityKey).(*PeerIdentity); ok {
 		return pi
 	}
+
 	return nil
 }
 
@@ -122,134 +128,193 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Read body for signature verification and peer resolution
 			body, err := crypto.ReadAndRestoreBody(r)
 			if err != nil {
 				m.logger.Error("failed to read request body", "error", err)
 				http.Error(w, "failed to read body", http.StatusBadRequest)
+
 				return
 			}
 
-			if requireDeclaredPeer && declaredPeerResolver == nil {
-				m.logger.Error("requireDeclaredPeer set without declared peer resolver")
-				http.Error(w, "declared peer required", http.StatusBadRequest)
+			declaredPeer, ok := m.resolveDeclaredPeer(w, r, body, declaredPeerResolver, requireDeclaredPeer)
+			if !ok {
 				return
 			}
 
-			// Extract declared peer from the request body when a resolver is set.
-			var declaredPeer string
-			if declaredPeerResolver != nil {
-				declaredPeer, err = declaredPeerResolver(r, body)
-				if err != nil {
-					m.logger.Warn("failed to resolve declared peer", "error", err)
-					http.Error(w, "invalid declared peer", http.StatusBadRequest)
-					return
-				}
-				if strings.TrimSpace(declaredPeer) == "" {
-					m.logger.Warn("missing declared peer")
-					http.Error(w, "declared peer required", http.StatusBadRequest)
-					return
-				}
-			}
-
-			// Only consider OCM signature attempts; foreign signatures are
-			// treated as unsigned.
-			hasOCMSignature := m.verifier.HasOCMSignatureAttempt(r)
-
-			// Get peer identity for context
-			peerIdentity := &PeerIdentity{}
-
-			if hasOCMSignature {
-				// Verify signature
-				result := m.verifier.VerifyRequest(r, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-					return m.peerDiscovery.ResolveVerificationKey(r.Context(), keyID)
-				})
-
-				if result.Verified {
-					parsedKid, err := keyid.ParseKid(result.KeyID)
-					if err != nil {
-						m.logger.Error("failed to parse keyId", "keyId", result.KeyID, "error", err)
-						http.Error(w, "invalid signature keyId", http.StatusUnauthorized)
-						return
-					}
-
-					compareScheme := parsedKid.Scheme
-					if compareScheme == "" {
-						compareScheme = m.localScheme
-					}
-					keyAuthorityForCompare, err := authorityForCompareFromKid(parsedKid, compareScheme)
-					if err != nil {
-						m.logger.Error("failed to normalize keyId authority",
-							"keyId", result.KeyID, "error", err)
-						http.Error(w, "invalid signature keyId", http.StatusUnauthorized)
-						return
-					}
-
-					if declaredPeer != "" {
-						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, compareScheme)
-						if err != nil {
-							m.logger.Warn("failed to normalize declared peer for comparison",
-								"declared_peer", declaredPeer, "error", err)
-							http.Error(w, "peer identity mismatch", http.StatusForbidden)
-							return
-						}
-						if normalizedDeclared != keyAuthorityForCompare {
-							m.logger.Warn("peer identity mismatch",
-								"declared", normalizedDeclared,
-								"key_id_authority", keyAuthorityForCompare)
-							http.Error(w, "peer identity mismatch", http.StatusForbidden)
-							return
-						}
-					}
-
-					peerIdentity = &PeerIdentity{
-						Authority:           parsedKid.Authority,
-						AuthorityForCompare: keyAuthorityForCompare,
-						Authenticated:       true,
-						KeyID:               result.KeyID,
-					}
-				} else if result.Reason == crypto.ReasonUnsigned {
-					m.serveUnsigned(w, r, body, optionalSignature, next)
-					return
-				} else {
-					bodyMsg := httpBodyForVerifyReason(result.Reason)
-					status := httpStatusForVerifyReason(result.Reason)
-					m.logger.Warn("signature verification failed",
-						"error", result.Error,
-						"keyId", result.KeyID,
-						"reason", result.Reason)
-					http.Error(w, bodyMsg, status)
-					return
-				}
-			} else {
-				m.serveUnsigned(w, r, body, optionalSignature, next)
+			peerIdentity, ok := m.verifySignatureAttempt(w, r, body, declaredPeer, optionalSignature, next) //nolint:contextcheck // middleware: verifier closure already uses r.Context() directly; no separate context to thread
+			if !ok {
 				return
 			}
 
-			// Verify Content-Digest if present
 			if err := crypto.VerifyContentDigest(r, body); err != nil {
 				m.logger.Warn("content digest verification failed", "error", err)
 				http.Error(w, "content digest mismatch", http.StatusBadRequest)
+
 				return
 			}
 
-			// Store peer identity in context
 			ctx := context.WithValue(r.Context(), PeerIdentityKey, peerIdentity)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
+func (m *SignatureMiddleware) resolveDeclaredPeer(
+	w http.ResponseWriter,
+	r *http.Request,
+	body []byte,
+	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
+	requireDeclaredPeer bool,
+) (string, bool) {
+	if requireDeclaredPeer && declaredPeerResolver == nil {
+		m.logger.Error("requireDeclaredPeer set without declared peer resolver")
+		http.Error(w, "declared peer required", http.StatusBadRequest)
+
+		return "", false
+	}
+
+	var declaredPeer string
+
+	if declaredPeerResolver != nil {
+		var err error
+
+		declaredPeer, err = declaredPeerResolver(r, body)
+		if err != nil {
+			m.logger.Warn("failed to resolve declared peer", "error", err)
+			http.Error(w, "invalid declared peer", http.StatusBadRequest)
+
+			return "", false
+		}
+
+		if strings.TrimSpace(declaredPeer) == "" {
+			m.logger.Warn("missing declared peer")
+			http.Error(w, "declared peer required", http.StatusBadRequest)
+
+			return "", false
+		}
+	}
+
+	return declaredPeer, true
+}
+
+func (m *SignatureMiddleware) verifySignatureAttempt(
+	w http.ResponseWriter,
+	r *http.Request,
+	body []byte,
+	declaredPeer string,
+	optionalSignature bool,
+	next http.Handler,
+) (*PeerIdentity, bool) {
+	hasOCMSignature := m.verifier.HasOCMSignatureAttempt(r)
+	if !hasOCMSignature {
+		m.serveUnsigned(w, r, body, optionalSignature, next)
+
+		return nil, false
+	}
+
+	result := m.verifier.VerifyRequest(r, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return m.peerDiscovery.ResolveVerificationKey(r.Context(), keyID)
+	})
+
+	if !result.Verified {
+		if result.Reason == crypto.ReasonUnsigned {
+			m.serveUnsigned(w, r, body, optionalSignature, next)
+
+			return nil, false
+		}
+
+		m.rejectForVerifyReason(w, result)
+
+		return nil, false
+	}
+
+	return m.buildVerifiedIdentity(w, result, declaredPeer)
+}
+
+func (m *SignatureMiddleware) buildVerifiedIdentity(
+	w http.ResponseWriter,
+	result *crypto.VerificationResult,
+	declaredPeer string,
+) (*PeerIdentity, bool) {
+	parsedKid, err := keyid.ParseKid(result.KeyID)
+	if err != nil {
+		m.logger.Error("failed to parse keyId", "keyId", result.KeyID, "error", err)
+		http.Error(w, "invalid signature keyId", http.StatusUnauthorized)
+
+		return nil, false
+	}
+
+	compareScheme := parsedKid.Scheme
+	if compareScheme == "" {
+		compareScheme = m.localScheme
+	}
+
+	keyAuthorityForCompare, err := authorityForCompareFromKid(parsedKid, compareScheme)
+	if err != nil {
+		m.logger.Error("failed to normalize keyId authority",
+			"keyId", result.KeyID, "error", err)
+		http.Error(w, "invalid signature keyId", http.StatusUnauthorized)
+
+		return nil, false
+	}
+
+	if declaredPeer != "" {
+		normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, compareScheme)
+		if err != nil {
+			m.logger.Warn("failed to normalize declared peer for comparison",
+				"declared_peer", declaredPeer, "error", err)
+			http.Error(w, "peer identity mismatch", http.StatusForbidden)
+
+			return nil, false
+		}
+
+		if normalizedDeclared != keyAuthorityForCompare {
+			m.logger.Warn("peer identity mismatch",
+				"declared", normalizedDeclared,
+				"key_id_authority", keyAuthorityForCompare)
+			http.Error(w, "peer identity mismatch", http.StatusForbidden)
+
+			return nil, false
+		}
+	}
+
+	return &PeerIdentity{
+		Authority:           parsedKid.Authority,
+		AuthorityForCompare: keyAuthorityForCompare,
+		Authenticated:       true,
+		KeyID:               result.KeyID,
+	}, true
+}
+
+func (m *SignatureMiddleware) rejectForVerifyReason(w http.ResponseWriter, result *crypto.VerificationResult) {
+	bodyMsg := httpBodyForVerifyReason(result.Reason)
+	status := httpStatusForVerifyReason(result.Reason)
+	m.logger.Warn("signature verification failed",
+		"error", result.Error,
+		"keyId", result.KeyID,
+		"reason", result.Reason)
+	http.Error(w, bodyMsg, status)
+}
+
 func (m *SignatureMiddleware) serveUnsigned(w http.ResponseWriter, r *http.Request, body []byte, optionalSignature bool, next http.Handler) {
+	// A server MAY accept unsigned requests from a peer not advertising
+	// must-use-http-sig; a server advertising must-use-http-sig MUST reject
+	// unsigned requests.
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L917-L922
 	if optionalSignature || !m.localRequiresHTTPSig() {
 		if err := crypto.VerifyContentDigest(r, body); err != nil {
 			m.logger.Warn("content digest verification failed", "error", err)
 			http.Error(w, "content digest mismatch", http.StatusBadRequest)
+
 			return
 		}
+
 		next.ServeHTTP(w, r)
+
 		return
 	}
+
 	m.logger.Warn("signature required", "reason", crypto.ReasonUnsigned)
 	http.Error(w, "signature required", http.StatusUnauthorized)
 }
@@ -258,10 +323,12 @@ func authorityForCompareFromKid(k keyid.Kid, scheme string) (string, error) {
 	if k.Scheme != "" {
 		scheme = k.Scheme
 	}
+
 	normalized, err := hostport.Normalize(k.Authority, scheme)
 	if err != nil {
 		return "", err
 	}
+
 	return normalized, nil
 }
 

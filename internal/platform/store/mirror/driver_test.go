@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package mirror_test
 
 import (
@@ -24,6 +29,7 @@ func TestMirrorDriver(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(tempDir, "ocm.db")); os.IsNotExist(err) {
 		t.Error("ocm.db not created")
 	}
+
 	if _, err := os.Stat(filepath.Join(tempDir, "mirror")); os.IsNotExist(err) {
 		t.Error("mirror directory not created")
 	}

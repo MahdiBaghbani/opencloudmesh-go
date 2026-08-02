@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package access
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,20 +33,23 @@ func newTestDiscoveryServer() *httptest.Server {
 					},
 				},
 			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc)
+
+			tshttp.WriteJSON(w, disc)
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 }
 
-func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextClient) {
+func newTestClients(_ string) (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
 	cfg.InsecureSkipVerify = true
 	rawClient := httpclient.New(cfg, nil)
 	discClient := discovery.NewClient(rawClient, nil)
 	ctxClient := httpclient.NewContextClient(rawClient)
+
 	return discClient, ctxClient
 }
 
@@ -56,8 +63,9 @@ func (accessMockSigner) Sign(req *http.Request) error {
 func newExchangeAccessClient(
 	t *testing.T,
 	srv *httptest.Server,
-) (*Client, *httpclient.ContextClient) {
+) *Client {
 	t.Helper()
+
 	discClient, ctxClient := newTestClients(srv.URL)
 	tokenClient := tokenoutgoing.NewClient(ctxClient, accessMockSigner{}, "local.example.com")
 	client := NewClient(
@@ -66,10 +74,13 @@ func newExchangeAccessClient(
 		tokenClient,
 		peerorigin.NewResolver(true),
 	)
-	return client, ctxClient
+
+	return client
 }
 
-func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToken string) bool {
+func exchangeDiscoveryHandler(t *testing.T, w http.ResponseWriter, r *http.Request, accessToken string) bool {
+	t.Helper()
+
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
@@ -80,7 +91,7 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 			Enabled:       true,
 			APIVersion:    "1.4.0",
 			EndPoint:      scheme + "://" + r.Host + "/ocm",
-			Capabilities:  []string{"exchange-token"},
+			Capabilities:  []string{"exchange-token", "http-sig"},
 			TokenEndPoint: scheme + "://" + r.Host + "/ocm/token",
 			ResourceTypes: []spec.ResourceType{
 				{
@@ -90,19 +101,29 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 				},
 			},
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(disc)
+		tshttp.WriteJSON(w, disc)
+
 		return true
 	}
+
 	if r.URL.Path == "/ocm/token" {
 		if r.Header.Get("Signature") == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return true
 		}
-		_ = r.ParseForm()
+
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return true
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"` + accessToken + `","token_type":"Bearer","expires_in":3600}`))
+		tshttp.MustWrite(t, w, []byte(`{"access_token":"`+accessToken+`","token_type":"Bearer","expires_in":3600}`))
+
 		return true
 	}
+
 	return false
 }

@@ -1,18 +1,23 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	tests := []struct {
@@ -75,10 +80,12 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
+
 			w := httptest.NewRecorder()
 			handler.CreateShare(w, req)
+
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 			}
@@ -87,8 +94,8 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -101,8 +108,9 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["an-unsupported-requirement"]}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -113,8 +121,8 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -127,8 +135,9 @@ func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["write"], "requirements": ["must-exchange-token"]}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -139,8 +148,8 @@ func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -153,8 +162,9 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "accessTypes": ["datatx"], "requirements": ["must-exchange-token"]}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -165,8 +175,8 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 }
 
 func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -179,38 +189,14 @@ func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav"}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing webdav arm, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestExtractSenderHost(t *testing.T) {
-	tests := []struct {
-		name     string
-		sender   string
-		expected string
-	}{
-		{"simple address", "user@example.com", "example.com"},
-		{"with port", "user@example.com:9200", "example.com:9200"},
-		{"uppercase host", "user@EXAMPLE.COM", "example.com"},
-		{"no @ separator", "invalid", ""},
-		{"empty string", "", ""},
-		{"email identifier (last-@)", "alice@university.edu@provider.net", "provider.net"},
-		{"email identifier with port (last-@)", "alice@uni.edu@provider.net:443", "provider.net:443"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := incoming.ExtractSenderHost(tt.sender)
-			if result != tt.expected {
-				t.Errorf("ExtractSenderHost(%q) = %q, want %q", tt.sender, result, tt.expected)
-			}
-		})
 	}
 }

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package middleware
 
 import (
@@ -42,6 +47,7 @@ func (r *accessLogRecorder) Handle(_ context.Context, rec slog.Record) error {
 	defer r.mu.Unlock()
 
 	attrs := make(map[string]any)
+
 	rec.Attrs(func(a slog.Attr) bool {
 		attrs[a.Key] = a.Value.Any()
 		return true
@@ -52,6 +58,7 @@ func (r *accessLogRecorder) Handle(_ context.Context, rec slog.Record) error {
 		level:   rec.Level,
 		attrs:   attrs,
 	})
+
 	return nil
 }
 
@@ -64,15 +71,17 @@ func (r *accessLogRecorder) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
-func (r *accessLogRecorder) WithGroup(name string) slog.Handler {
+func (r *accessLogRecorder) WithGroup(_ string) slog.Handler {
 	return r
 }
 
 func (r *accessLogRecorder) getRecords() []accessLogRecord {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	result := make([]accessLogRecord, len(r.records))
 	copy(result, r.records)
+
 	return result
 }
 
@@ -106,6 +115,7 @@ func (r *accessLogRecorderWithAttrs) Handle(_ context.Context, rec slog.Record) 
 		level:   rec.Level,
 		attrs:   attrs,
 	})
+
 	return nil
 }
 
@@ -113,13 +123,14 @@ func (r *accessLogRecorderWithAttrs) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newAttrs := make([]slog.Attr, len(r.parentAttrs)+len(attrs))
 	copy(newAttrs, r.parentAttrs)
 	copy(newAttrs[len(r.parentAttrs):], attrs)
+
 	return &accessLogRecorderWithAttrs{
 		parent:      r.parent,
 		parentAttrs: newAttrs,
 	}
 }
 
-func (r *accessLogRecorderWithAttrs) WithGroup(name string) slog.Handler {
+func (r *accessLogRecorderWithAttrs) WithGroup(_ string) slog.Handler {
 	return r
 }
 
@@ -129,9 +140,12 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a simple handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("hello"))
+
+		if _, err := w.Write([]byte("hello")); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 
 	// Build the middleware chain as in routes.go
@@ -142,7 +156,7 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	r.Use(chimw.Recoverer)
 	r.Get("/test", handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -155,6 +169,7 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 
 	// Find the "request" log entry
 	var accessLog *accessLogRecord
+
 	for i := range records {
 		if records[i].message == "request" {
 			accessLog = &records[i]
@@ -193,6 +208,7 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	if accessLog.attrs["method"] != "GET" {
 		t.Errorf("expected method 'GET', got %v", accessLog.attrs["method"])
 	}
+
 	if accessLog.attrs["path"] != "/test" {
 		t.Errorf("expected path '/test', got %v", accessLog.attrs["path"])
 	}
@@ -208,7 +224,7 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -220,7 +236,7 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	r.Use(chimw.Recoverer)
 	r.Get("/fallback-test", handler)
 
-	req := httptest.NewRequest("POST", "/fallback-test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/fallback-test", nil)
 	req.RemoteAddr = "127.0.0.1:54321"
 	rr := httptest.NewRecorder()
 
@@ -233,6 +249,7 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 
 	// Find the "request" log entry
 	var accessLog *accessLogRecord
+
 	for i := range records {
 		if records[i].message == "request" {
 			accessLog = &records[i]
@@ -256,6 +273,7 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	if accessLog.attrs["method"] != "POST" {
 		t.Errorf("fallback: expected method 'POST', got %v", accessLog.attrs["method"])
 	}
+
 	if accessLog.attrs["path"] != "/fallback-test" {
 		t.Errorf("fallback: expected path '/fallback-test', got %v", accessLog.attrs["path"])
 	}
@@ -267,7 +285,7 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a handler that panics
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("test panic")
 	})
 
@@ -280,7 +298,7 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 	r.Use(chimw.Recoverer)
 	r.Get("/panic-test", handler)
 
-	req := httptest.NewRequest("GET", "/panic-test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/panic-test", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -298,6 +316,7 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 
 	// Find the "request" log entry
 	var accessLog *accessLogRecord
+
 	for i := range records {
 		if records[i].message == "request" {
 			accessLog = &records[i]
@@ -314,6 +333,7 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 	if !ok {
 		t.Fatal("expected 'status' field in access log")
 	}
+
 	status, ok := statusVal.(int64)
 	if !ok || status != 500 {
 		t.Errorf("expected status 500 for panic, got %v (type %T)", statusVal, statusVal)
@@ -345,10 +365,12 @@ func TestLogLevelFiltering_DebugNotEmittedAtInfoLevel(t *testing.T) {
 
 	// Verify info and warn are present
 	var hasInfo, hasWarn bool
+
 	for _, rec := range records {
 		if rec.message == "info message" {
 			hasInfo = true
 		}
+
 		if rec.message == "warn message" {
 			hasWarn = true
 		}
@@ -357,6 +379,7 @@ func TestLogLevelFiltering_DebugNotEmittedAtInfoLevel(t *testing.T) {
 	if !hasInfo {
 		t.Error("expected info message to be logged")
 	}
+
 	if !hasWarn {
 		t.Error("expected warn message to be logged")
 	}
@@ -379,10 +402,12 @@ func TestLogLevelFiltering_DebugEmittedAtDebugLevel(t *testing.T) {
 	}
 
 	var hasDebug, hasInfo bool
+
 	for _, rec := range records {
 		if rec.message == "debug message" {
 			hasDebug = true
 		}
+
 		if rec.message == "info message" {
 			hasInfo = true
 		}
@@ -391,6 +416,7 @@ func TestLogLevelFiltering_DebugEmittedAtDebugLevel(t *testing.T) {
 	if !hasDebug {
 		t.Error("expected debug message to be logged at debug level")
 	}
+
 	if !hasInfo {
 		t.Error("expected info message to be logged at debug level")
 	}

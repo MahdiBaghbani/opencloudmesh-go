@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package config provides configuration loading and validation.
 package config
 
@@ -17,8 +22,9 @@ type Config struct {
 	PublicOrigin string `toml:"public_origin"`
 
 	// ExternalBasePath is the optional path prefix for app endpoints.
-	// Root-only well-known endpoints (/.well-known/ocm and /.well-known/jwks.json)
-	// are never under this path.
+	// The root-only well-known discovery endpoint (/.well-known/ocm) is
+	// never under this path; the local JWKS route (<endPoint>/jwks) is
+	// mounted under the OCM service and does move with this path.
 	// Example: "/ocm" or empty string
 	ExternalBasePath string `toml:"external_base_path"`
 
@@ -62,9 +68,35 @@ type Config struct {
 
 // OCMConfig holds OCM-specific settings.
 type OCMConfig struct {
+	// CompatibilityScope selects global vs scoped peer-compat leniency.
+	// Default: global. This is ocmgo-internal policy, not an OCM spec field.
+	CompatibilityScope CompatibilityScope `toml:"compatibility_scope"`
+
 	Discovery   DiscoveryConfig   `toml:"discovery"`
 	CodeFlow    CodeFlowConfig    `toml:"code_flow"`
 	PeerMapping PeerMappingConfig `toml:"peer_compat"`
+	Invite      *InviteConfig     `toml:"invite"`
+}
+
+// InviteConfig holds invite-exchange enforcement settings under [ocm.invite].
+// This is independent of peer_trust.enabled: must-invite gates inbound share
+// creation on an exchanged invite, not on peer-trust membership.
+type InviteConfig struct {
+	// EnforceMustInvite requires an exchanged invite before accepting a share
+	// creation notification (IETF-OCM:
+	// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L763-L765).
+	// Nil means enabled (the default); explicit false is the legacy opt-out.
+	EnforceMustInvite *bool `toml:"enforce_must_invite"`
+}
+
+// MustInviteEnforced reports whether inbound shares require an exchanged
+// invite. Unset configuration evaluates to enabled.
+func (c OCMConfig) MustInviteEnforced() bool {
+	if c.Invite == nil || c.Invite.EnforceMustInvite == nil {
+		return true
+	}
+
+	return *c.Invite.EnforceMustInvite
 }
 
 // DiscoveryConfig holds inbound peer discovery validation settings.
@@ -87,7 +119,7 @@ type CodeFlowConfig struct {
 // PersistenceConfig holds persistence backend settings.
 type PersistenceConfig struct {
 	// Backend selects the persistence backend: memory, json, sqlite, mirror.
-	// Default: memory.
+	// Preset default: strict uses sqlite; dev uses memory (see presets.go).
 	Backend string `toml:"backend"`
 
 	// DataDir is the data directory for durable backends (json, sqlite, mirror).
@@ -138,7 +170,7 @@ type PeerTrustConfig struct {
 	// Enabled enables peer trust features. Default: false.
 	Enabled bool `toml:"enabled"`
 
-	// ConfigPaths is a list of paths to K2 JSON trust group config files.
+	// ConfigPaths is a list of paths to JSON trust group config files.
 	// Required when enabled.
 	ConfigPaths []string `toml:"config_paths"`
 
@@ -209,6 +241,11 @@ type SignatureConfig struct {
 	// (default Ed25519) still performs signing; this list must include that
 	// key's algorithm or SignRequest fails before the request is sent.
 	AllowedAlgorithms []string `toml:"allowed_algorithms"`
+
+	// JwksURI optionally overrides the local JWKS URL advertised in
+	// discovery. Empty derives it from the route inventory as
+	// <endPoint>/jwks.
+	JwksURI string `toml:"jwks_uri"`
 }
 
 // TLSConfig holds TLS-related settings.
@@ -316,23 +353,25 @@ type OutboundHTTPConfig struct {
 	// Must be an absolute http or https URL with no userinfo.
 	// When set, the proxy host is operator-trusted; private and loopback
 	// addresses are permitted.
-	// When set, proxy_url takes precedence over proxy_env_fallback; the
+	// When set, proxy_url takes precedence over use_env_fallback; the
 	// explicit URL is used and environment variables are not consulted.
 	ProxyURL string `toml:"proxy_url"`
 
-	// ProxyEnvFallback enables reading HTTP_PROXY/HTTPS_PROXY/NO_PROXY from
-	// the environment when proxy_url is not set.
-	// Default: true for strict preset, false for dev preset.
-	// Set to false to disable environment-based proxy discovery entirely.
-	ProxyEnvFallback bool `toml:"proxy_env_fallback"`
+	// UseEnvFallback (config key use_env_fallback) enables reading
+	// HTTP_PROXY/HTTPS_PROXY/NO_PROXY from the environment when proxy_url is
+	// not set. Default: false in all presets. Set to true to opt in to
+	// ambient proxy discovery, or set the
+	// OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK environment variable.
+	UseEnvFallback bool `toml:"use_env_fallback"`
 }
 
 // OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
-// ProxyEnvFallback is false so programmatic callers do not inherit ambient env
-// proxy settings unless explicitly configured.
+// UseEnvFallback (use_env_fallback) is false so programmatic callers do not
+// inherit ambient env proxy settings unless explicitly configured.
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	cfg := DefaultOutboundHTTP()
-	cfg.ProxyEnvFallback = false
+	cfg.UseEnvFallback = false
+
 	return cfg
 }
 
@@ -342,6 +381,7 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	if c.HTTP.Services == nil {
 		return nil
 	}
+
 	svcCfg, ok := c.HTTP.Services[serviceName]
 	if !ok {
 		return nil
@@ -351,93 +391,114 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	for k, v := range svcCfg {
 		result[k] = v
 	}
+
 	return result
 }
 
 // Redacted returns a string representation of the config with secrets redacted.
 func (c *Config) Redacted() string {
 	var sb strings.Builder
-	sb.WriteString("Config{\n")
-	sb.WriteString(fmt.Sprintf("  Mode: %q,\n", c.Mode))
-	sb.WriteString(fmt.Sprintf("  PublicOrigin: %q,\n", c.PublicOrigin))
-	sb.WriteString(fmt.Sprintf("  ExternalBasePath: %q,\n", c.ExternalBasePath))
-	sb.WriteString(fmt.Sprintf("  ListenAddr: %q,\n", c.ListenAddr))
-	sb.WriteString("  Server: {\n")
-	sb.WriteString(fmt.Sprintf("    TrustedProxies: %v,\n", c.Server.TrustedProxies))
-	sb.WriteString("    BootstrapAdmin: {\n")
-	sb.WriteString(fmt.Sprintf("      Username: %q,\n", c.Server.BootstrapAdmin.Username))
-	sb.WriteString("      Password: [REDACTED],\n")
-	sb.WriteString("    },\n")
-	sb.WriteString("  },\n")
-	sb.WriteString("  TLS: {\n")
-	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.TLS.Mode))
-	sb.WriteString(fmt.Sprintf("    CertFile: %q,\n", c.TLS.CertFile))
-	sb.WriteString(fmt.Sprintf("    KeyFile: %q,\n", c.TLS.KeyFile))
-	sb.WriteString(fmt.Sprintf("    HTTPPort: %d,\n", c.TLS.HTTPPort))
-	sb.WriteString(fmt.Sprintf("    HTTPSPort: %d,\n", c.TLS.HTTPSPort))
-	sb.WriteString(fmt.Sprintf("    SelfSignedDir: %q,\n", c.TLS.SelfSignedDir))
-	sb.WriteString(fmt.Sprintf("    TLSDir: %q,\n", c.TLS.TLSDir))
-	sb.WriteString("  },\n")
-	sb.WriteString("  OutboundHTTP: {\n")
-	sb.WriteString("    SSRF: {\n")
-	sb.WriteString(fmt.Sprintf("      Mode: %q,\n", c.OutboundHTTP.SSRF.Mode))
+	redactedWriteString(&sb, "Config{\n")
+	redactedFprintf(&sb, "  Mode: %q,\n", c.Mode)
+	redactedFprintf(&sb, "  PublicOrigin: %q,\n", c.PublicOrigin)
+	redactedFprintf(&sb, "  ExternalBasePath: %q,\n", c.ExternalBasePath)
+	redactedFprintf(&sb, "  ListenAddr: %q,\n", c.ListenAddr)
+	redactedWriteString(&sb, "  Server: {\n")
+	redactedFprintf(&sb, "    TrustedProxies: %v,\n", c.Server.TrustedProxies)
+	redactedWriteString(&sb, "    BootstrapAdmin: {\n")
+	redactedFprintf(&sb, "      Username: %q,\n", c.Server.BootstrapAdmin.Username)
+	redactedWriteString(&sb, "      Password: [REDACTED],\n")
+	redactedWriteString(&sb, "    },\n")
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  TLS: {\n")
+	redactedFprintf(&sb, "    Mode: %q,\n", c.TLS.Mode)
+	redactedFprintf(&sb, "    CertFile: %q,\n", c.TLS.CertFile)
+	redactedFprintf(&sb, "    KeyFile: %q,\n", c.TLS.KeyFile)
+	redactedFprintf(&sb, "    HTTPPort: %d,\n", c.TLS.HTTPPort)
+	redactedFprintf(&sb, "    HTTPSPort: %d,\n", c.TLS.HTTPSPort)
+	redactedFprintf(&sb, "    SelfSignedDir: %q,\n", c.TLS.SelfSignedDir)
+	redactedFprintf(&sb, "    TLSDir: %q,\n", c.TLS.TLSDir)
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  OutboundHTTP: {\n")
+	redactedWriteString(&sb, "    SSRF: {\n")
+	redactedFprintf(&sb, "      Mode: %q,\n", c.OutboundHTTP.SSRF.Mode)
+
 	if c.OutboundHTTP.SSRF.RoutePolicy != "" {
-		sb.WriteString(fmt.Sprintf("      RoutePolicy: %q,\n", c.OutboundHTTP.SSRF.RoutePolicy))
+		redactedFprintf(&sb, "      RoutePolicy: %q,\n", c.OutboundHTTP.SSRF.RoutePolicy)
 	}
-	sb.WriteString(fmt.Sprintf("      RoutePoliciesCount: %d,\n", len(c.OutboundHTTP.SSRF.RoutePolicies)))
-	sb.WriteString("    },\n")
-	sb.WriteString(fmt.Sprintf("    TLSRootCAFile: %q,\n", c.OutboundHTTP.TLSRootCAFile))
-	sb.WriteString(fmt.Sprintf("    TLSRootCADir: %q,\n", c.OutboundHTTP.TLSRootCADir))
-	sb.WriteString(fmt.Sprintf("    TimeoutMS: %d,\n", c.OutboundHTTP.TimeoutMS))
-	sb.WriteString(fmt.Sprintf("    MaxRedirects: %d,\n", c.OutboundHTTP.MaxRedirects))
-	sb.WriteString(fmt.Sprintf("    MaxResponseBytes: %d,\n", c.OutboundHTTP.MaxResponseBytes))
-	sb.WriteString(fmt.Sprintf("    InsecureSkipVerify: %v,\n", c.OutboundHTTP.InsecureSkipVerify))
-	sb.WriteString(fmt.Sprintf("    ProxyURL: %q,\n", c.OutboundHTTP.ProxyURL))
-	sb.WriteString(fmt.Sprintf("    ProxyEnvFallback: %v,\n", c.OutboundHTTP.ProxyEnvFallback))
-	sb.WriteString("  },\n")
-	sb.WriteString("  Signature: {\n")
-	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
-	sb.WriteString(fmt.Sprintf("    Label: %q,\n", c.Signature.Label))
-	sb.WriteString(fmt.Sprintf("    KidFragment: %q,\n", c.Signature.KidFragment))
-	sb.WriteString(fmt.Sprintf("    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds))
-	sb.WriteString(fmt.Sprintf("    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds))
-	sb.WriteString(fmt.Sprintf("    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms))
-	sb.WriteString("  },\n")
-	sb.WriteString("  Logging: {\n")
-	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
-	sb.WriteString("  },\n")
-	sb.WriteString("  TokenExchange: {\n")
-	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
-	sb.WriteString("  },\n")
-	sb.WriteString("  HTTP: {\n")
-	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
+
+	redactedFprintf(&sb, "      RoutePoliciesCount: %d,\n", len(c.OutboundHTTP.SSRF.RoutePolicies))
+	redactedWriteString(&sb, "    },\n")
+	redactedFprintf(&sb, "    TLSRootCAFile: %q,\n", c.OutboundHTTP.TLSRootCAFile)
+	redactedFprintf(&sb, "    TLSRootCADir: %q,\n", c.OutboundHTTP.TLSRootCADir)
+	redactedFprintf(&sb, "    TimeoutMS: %d,\n", c.OutboundHTTP.TimeoutMS)
+	redactedFprintf(&sb, "    MaxRedirects: %d,\n", c.OutboundHTTP.MaxRedirects)
+	redactedFprintf(&sb, "    MaxResponseBytes: %d,\n", c.OutboundHTTP.MaxResponseBytes)
+	redactedFprintf(&sb, "    InsecureSkipVerify: %v,\n", c.OutboundHTTP.InsecureSkipVerify)
+	redactedFprintf(&sb, "    ProxyURL: %q,\n", c.OutboundHTTP.ProxyURL)
+	redactedFprintf(&sb, "    UseEnvFallback: %v,\n", c.OutboundHTTP.UseEnvFallback)
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  Signature: {\n")
+	redactedFprintf(&sb, "    KeyPath: %q,\n", c.Signature.KeyPath)
+	redactedFprintf(&sb, "    Label: %q,\n", c.Signature.Label)
+	redactedFprintf(&sb, "    KidFragment: %q,\n", c.Signature.KidFragment)
+	redactedFprintf(&sb, "    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds)
+	redactedFprintf(&sb, "    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds)
+	redactedFprintf(&sb, "    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms)
+	redactedFprintf(&sb, "    JwksURI: %q,\n", c.Signature.JwksURI)
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  Logging: {\n")
+	redactedFprintf(&sb, "    Level: %q,\n", c.Logging.Level)
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  TokenExchange: {\n")
+	redactedFprintf(&sb, "    Path: %q,\n", c.TokenExchange.Path)
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  HTTP: {\n")
+	redactedFprintf(&sb, "    ServicesCount: %d,\n", len(c.HTTP.Services))
+
 	if len(c.HTTP.Services) > 0 {
-		sb.WriteString("    Services: [")
+		redactedWriteString(&sb, "    Services: [")
+
 		first := true
 		for name := range c.HTTP.Services {
 			if !first {
-				sb.WriteString(", ")
+				redactedWriteString(&sb, ", ")
 			}
-			sb.WriteString(fmt.Sprintf("%q", name))
+
+			redactedFprintf(&sb, "%q", name)
+
 			first = false
 		}
-		sb.WriteString("],\n")
+
+		redactedWriteString(&sb, "],\n")
 	}
-	sb.WriteString("  },\n")
-	sb.WriteString("  PeerTrust: {\n")
-	sb.WriteString(fmt.Sprintf("    Enabled: %v,\n", c.PeerTrust.Enabled))
-	sb.WriteString(fmt.Sprintf("    ConfigPathsCount: %d,\n", len(c.PeerTrust.ConfigPaths)))
-	sb.WriteString(fmt.Sprintf("    Policy.AllowListCount: %d,\n", len(c.PeerTrust.Policy.AllowList)))
-	sb.WriteString(fmt.Sprintf("    Policy.DenyListCount: %d,\n", len(c.PeerTrust.Policy.DenyList)))
-	sb.WriteString(fmt.Sprintf("    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds))
-	sb.WriteString(fmt.Sprintf("    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds))
-	sb.WriteString("  },\n")
-	sb.WriteString("  Persistence: {\n")
-	sb.WriteString(fmt.Sprintf("    Backend: %q,\n", c.Persistence.Backend))
-	sb.WriteString(fmt.Sprintf("    DataDir: %q,\n", c.Persistence.DataDir))
-	sb.WriteString("  },\n")
-	sb.WriteString("}")
+
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  PeerTrust: {\n")
+	redactedFprintf(&sb, "    Enabled: %v,\n", c.PeerTrust.Enabled)
+	redactedFprintf(&sb, "    ConfigPathsCount: %d,\n", len(c.PeerTrust.ConfigPaths))
+	redactedFprintf(&sb, "    Policy.AllowListCount: %d,\n", len(c.PeerTrust.Policy.AllowList))
+	redactedFprintf(&sb, "    Policy.DenyListCount: %d,\n", len(c.PeerTrust.Policy.DenyList))
+	redactedFprintf(&sb, "    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds)
+	redactedFprintf(&sb, "    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds)
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "  Persistence: {\n")
+	redactedFprintf(&sb, "    Backend: %q,\n", c.Persistence.Backend)
+	redactedFprintf(&sb, "    DataDir: %q,\n", c.Persistence.DataDir)
+	redactedWriteString(&sb, "  },\n")
+	redactedWriteString(&sb, "}")
+
 	return sb.String()
+}
+
+func redactedWriteString(sb *strings.Builder, s string) {
+	//nolint:errcheck // strings.Builder writes cannot fail
+	sb.WriteString(s)
+}
+
+func redactedFprintf(sb *strings.Builder, format string, args ...any) {
+	//nolint:errcheck // strings.Builder writes cannot fail
+	fmt.Fprintf(sb, format, args...)
 }
 
 // PublicScheme returns "http" or "https" from PublicOrigin.
@@ -455,6 +516,7 @@ func PublicSchemeFromOrigin(publicOrigin string) string {
 	if scheme := SchemeFromOrigin(publicOrigin); scheme != "" {
 		return scheme
 	}
+
 	return "https"
 }
 
@@ -467,9 +529,11 @@ func SchemeFromOrigin(publicOrigin string) string {
 	if publicOrigin == "" {
 		return ""
 	}
+
 	u, err := url.Parse(publicOrigin)
 	if err != nil || u.Scheme == "" {
 		return ""
 	}
+
 	return strings.ToLower(u.Scheme)
 }

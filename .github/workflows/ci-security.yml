@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: CI Security
+
+on:
+  workflow_call:
+    inputs:
+      job:
+        description: Which security job to run (security)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GOLANGCI_LINT_VERSION: v2.12.2
+
+jobs:
+  validate-job:
+    name: validate job input
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject unknown job input
+        env:
+          JOB: ${{ inputs.job }}
+        run: |
+          set -euo pipefail
+          case "$JOB" in
+            security) ;;
+            *)
+              echo "Invalid inputs.job: ${JOB}" >&2
+              echo "Allowed: security" >&2
+              exit 1
+              ;;
+          esac
+
+  security:
+    name: security
+    if: inputs.job == 'security'
+    needs: validate-job
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Report-only until toolchain pin, module bumps, and govulncheck reach zero.
+      - name: govulncheck
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f
+        with:
+          go-version-file: go.mod
+        continue-on-error: true
+      - name: Install golangci-lint for SARIF
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
+      # Blocking gosec gate: baseline is clean, so findings fail CI.
+      - name: gosec SARIF (golangci-lint)
+        run: |
+          golangci-lint run --enable-only=gosec \
+            --output.sarif.path=gosec.sarif ./...
+      - name: Upload gosec SARIF
+        if: >-
+          always() &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38
+        with:
+          sarif_file: gosec.sarif
+          category: gosec

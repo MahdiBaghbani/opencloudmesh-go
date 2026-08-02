@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package api provides the /api/* endpoints.
 package api
 
@@ -18,6 +23,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -45,7 +51,6 @@ func (c *Config) ApplyDefaults() {}
 type Service struct {
 	router          chi.Router
 	conf            *Config
-	log             *slog.Logger
 	outgoingHandler *outgoingshares.Handler
 }
 
@@ -58,10 +63,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "api", "unused_keys", unused)
 	}
@@ -73,6 +80,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		if u == nil {
 			return nil, fmt.Errorf("no authenticated user in context")
 		}
+
 		return u, nil
 	}
 
@@ -107,20 +115,24 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalTokenEndpoint,
 	)
 	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
+
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}
 
 	inboxInvitesHandler := inboxinvites.NewHandler(
 		inputs.IncomingInviteRepo,
-		inputs.HTTPClient,
-		inputs.DiscoveryClient,
-		inputs.Signer,
+		NewInviteAcceptedPoster(outbound.NewPoster(
+			inputs.HTTPClient,
+			inputs.DiscoveryClient,
+			inputs.Signer,
+			inputs.PeerOrigin,
+		)),
 		inputs.LocalIdentity.ProviderDomain,
+		inputs.LocalIdentity.Scheme,
 		currentUser,
 		log,
 	)
-	inboxInvitesHandler.SetPeerOrigin(inputs.PeerOrigin)
 
 	outgoingInvitesHandler := outgoinginvites.NewHandler(
 		inputs.OutgoingInviteRepo,
@@ -130,11 +142,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	)
 
 	var loginMiddleware func(http.Handler) http.Handler
+
 	if c.Ratelimit.Profile != "" {
 		profileConfig, err := interceptors.GetProfileConfig(inputs.InterceptorProfiles, "ratelimit", c.Ratelimit.Profile)
 		if err != nil {
 			return nil, fmt.Errorf("api: %w", err)
 		}
+
 		loginMiddleware, err = ratelimit.New(inputs.Ratelimit, profileConfig, log)
 		if err != nil {
 			return nil, fmt.Errorf("api: failed to create ratelimit interceptor: %w", err)
@@ -146,7 +160,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	s := &Service{
 		router:          r,
 		conf:            &c,
-		log:             log,
 		outgoingHandler: outgoingHandler,
 	}
 
@@ -157,6 +170,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	} else {
 		r.Post(RouteAuthLogin, authHandler.Login)
 	}
+
 	r.Post(RouteAuthLogout, authHandler.Logout)
 	r.Get(RouteAuthMe, authHandler.GetCurrentUser)
 
@@ -193,14 +207,17 @@ func validateInputs(in Inputs) error {
 	}
 }
 
+// Handler returns the service HTTP handler; implements service.Service.
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
+// Prefix returns the service URL prefix; implements service.Service.
 func (s *Service) Prefix() string {
 	return "api"
 }
 
+// Close performs no cleanup for this service; implements service.Service.
 func (s *Service) Close() error {
 	return nil
 }

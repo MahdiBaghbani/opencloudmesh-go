@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package server
 
 import (
@@ -24,7 +29,7 @@ func TestIsAuthRequired_FromRoutePolicyAggregate(t *testing.T) {
 		want bool
 	}{
 		{name: "well-known-ocm is public", path: "/.well-known/ocm", want: false},
-		{name: "well-known-jwks is public", path: "/.well-known/jwks.json", want: false},
+		{name: "ocm-jwks is public", path: "/ocm/jwks", want: false},
 		{name: "healthz is public", path: "/api/healthz", want: false},
 		{name: "auth/login is public", path: "/api/auth/login", want: false},
 		{name: "ui/login is public", path: "/ui/login", want: false},
@@ -81,6 +86,7 @@ func TestIsAuthRequired_WayfEnabled(t *testing.T) {
 	if IsAuthRequired("/ui/wayf", opts) {
 		t.Error("expected /ui/wayf public when WAYF enabled")
 	}
+
 	if !IsAuthRequired("/ui/accept-invite", opts) {
 		t.Error("expected /ui/accept-invite protected when invite accept enabled")
 	}
@@ -96,6 +102,7 @@ func TestIsAuthRequired_AcceptInviteWithExternalBasePath(t *testing.T) {
 	if IsAuthRequired("/ocm/ui/wayf", opts) {
 		t.Error("expected /ocm/ui/wayf public when WAYF enabled")
 	}
+
 	if !IsAuthRequired("/ocm/ui/accept-invite", opts) {
 		t.Error("expected /ocm/ui/accept-invite protected")
 	}
@@ -120,17 +127,18 @@ func TestSessionGate_AcceptInviteProtectedAtServer(t *testing.T) {
 		SessionRepo: sessionRepo,
 		PartyRepo:   partyRepo,
 	}))
-	r.Get("/ui/accept-invite", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/ui/accept-invite", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/accept-invite?token=t&providerDomain=p", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ui/accept-invite?token=t&providerDomain=p", nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusFound {
 		t.Fatalf("expected 302 for unauthenticated accept-invite, got %d", rr.Code)
 	}
+
 	if !strings.HasSuffix(rr.Header().Get("Location"), "/ui/login") &&
 		!strings.Contains(rr.Header().Get("Location"), "/ui/login?") {
 		t.Fatalf("expected redirect to login, got %q", rr.Header().Get("Location"))

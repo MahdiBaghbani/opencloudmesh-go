@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package identity_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"testing"
@@ -33,6 +39,7 @@ func TestBootstrap_Run(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bootstrap.Run failed: %v", err)
 	}
+
 	if count != 3 {
 		t.Errorf("expected 3 users created, got %d", count)
 	}
@@ -42,6 +49,7 @@ func TestBootstrap_Run(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admin not found: %v", err)
 	}
+
 	if user.Role != "admin" {
 		t.Errorf("expected role 'admin', got %q", user.Role)
 	}
@@ -51,6 +59,7 @@ func TestBootstrap_Run(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bootstrap.Run (second) failed: %v", err)
 	}
+
 	if count != 0 {
 		t.Errorf("expected 0 users created on second run, got %d", count)
 	}
@@ -72,12 +81,15 @@ func TestBootstrap_CreateProbeUser(t *testing.T) {
 	if !user.IsProbe() {
 		t.Error("user should be a probe")
 	}
+
 	if user.Realm != "test-realm" {
 		t.Errorf("expected realm 'test-realm', got %q", user.Realm)
 	}
+
 	if user.StorageRoot != "/data/probe1" {
 		t.Errorf("expected storage root '/data/probe1', got %q", user.StorageRoot)
 	}
+
 	if user.ExpiresAt == nil {
 		t.Error("probe user should have expiration")
 	}
@@ -87,6 +99,7 @@ func TestBootstrap_CreateProbeUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProbeUser (second) failed: %v", err)
 	}
+
 	if user2.ID != user.ID {
 		t.Error("should return existing user")
 	}
@@ -110,6 +123,7 @@ func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("super admin not found: %v", err)
 	}
+
 	if !user.IsSuperAdmin() {
 		t.Errorf("expected role 'super_admin', got %q", user.Role)
 	}
@@ -121,14 +135,14 @@ func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 	}
 
 	// Original super admin should still exist
-	user, err = repo.GetByUsername(ctx, "superadmin")
+	_, err = repo.GetByUsername(ctx, "superadmin")
 	if err != nil {
 		t.Fatalf("super admin not found after second call: %v", err)
 	}
 
 	// "different" user should not exist (only one super admin)
 	_, err = repo.GetByUsername(ctx, "different")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Error("expected no 'different' user to be created")
 	}
 }
@@ -151,6 +165,7 @@ func TestBootstrap_EnsureSuperAdmin_AutoGenPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("super admin not found: %v", err)
 	}
+
 	if !user.IsSuperAdmin() {
 		t.Errorf("expected role 'super_admin', got %q", user.Role)
 	}
@@ -181,7 +196,7 @@ func TestSuperAdmin_CannotBeDeleted(t *testing.T) {
 
 	// Try to delete - should fail
 	err = repo.Delete(ctx, user.ID)
-	if err != identity.ErrSuperAdminProtected {
+	if !errors.Is(err, identity.ErrSuperAdminProtected) {
 		t.Errorf("expected ErrSuperAdminProtected, got %v", err)
 	}
 }
@@ -207,15 +222,17 @@ func TestSuperAdmin_CannotBeDemoted(t *testing.T) {
 
 	// Try to demote to admin - should fail
 	user.Role = identity.RoleAdmin
+
 	err = repo.Update(ctx, user)
-	if err != identity.ErrSuperAdminRoleChange {
+	if !errors.Is(err, identity.ErrSuperAdminRoleChange) {
 		t.Errorf("expected ErrSuperAdminRoleChange, got %v", err)
 	}
 
 	// Try to demote to user - should fail
 	user.Role = identity.RoleUser
+
 	err = repo.Update(ctx, user)
-	if err != identity.ErrSuperAdminRoleChange {
+	if !errors.Is(err, identity.ErrSuperAdminRoleChange) {
 		t.Errorf("expected ErrSuperAdminRoleChange, got %v", err)
 	}
 }
@@ -238,10 +255,12 @@ func TestSuperAdmin_UsernameCanBeRenamed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("super admin not found: %v", err)
 	}
+
 	originalID := user.ID
 
 	// Rename username - should succeed
 	user.Username = "root"
+
 	err = repo.Update(ctx, user)
 	if err != nil {
 		t.Fatalf("renaming super admin failed: %v", err)
@@ -249,7 +268,7 @@ func TestSuperAdmin_UsernameCanBeRenamed(t *testing.T) {
 
 	// Old username should not exist
 	_, err = repo.GetByUsername(ctx, "superadmin")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Error("old username should not exist")
 	}
 
@@ -258,9 +277,11 @@ func TestSuperAdmin_UsernameCanBeRenamed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new username not found: %v", err)
 	}
+
 	if user.ID != originalID {
 		t.Error("user ID should remain the same after rename")
 	}
+
 	if !user.IsSuperAdmin() {
 		t.Error("user should still be super admin after rename")
 	}

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package json
 
 import (
@@ -7,7 +12,7 @@ import (
 )
 
 // CreateOutgoingShare creates a new outgoing share.
-func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
+func (d *Driver) CreateOutgoingShare(_ context.Context, share *store.OutgoingShare) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -15,55 +20,80 @@ func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingS
 		return store.ErrClosed
 	}
 
-	if _, exists := d.outgoingShares[share.ProviderId]; exists {
+	if _, exists := d.outgoingShares[share.ProviderID]; exists {
 		return store.ErrAlreadyExists
 	}
-	if share.ShareId != "" {
-		if existing, ok := d.shareIdIndex[share.ShareId]; ok && existing != share.ProviderId {
-			return store.ErrAlreadyExists
-		}
-	}
-	if share.WebDAVId != "" {
-		if existing, ok := d.webdavIndex[share.WebDAVId]; ok && existing != share.ProviderId {
-			return store.ErrAlreadyExists
-		}
-	}
-	if share.SharedSecret != "" {
-		if existing, ok := d.secretIndex[share.SharedSecret]; ok && existing != share.ProviderId {
-			return store.ErrAlreadyExists
-		}
+
+	if err := d.checkOutgoingShareIndexUnique(share); err != nil {
+		return err
 	}
 
-	d.outgoingShares[share.ProviderId] = cloneOutgoingShare(share)
-	if share.WebDAVId != "" {
-		d.webdavIndex[share.WebDAVId] = share.ProviderId
-	}
-	if share.ShareId != "" {
-		d.shareIdIndex[share.ShareId] = share.ProviderId
-	}
-	if share.SharedSecret != "" {
-		d.secretIndex[share.SharedSecret] = share.ProviderId
-	}
+	d.outgoingShares[share.ProviderID] = cloneOutgoingShare(share)
+	d.setOutgoingShareIndexes(share)
 
 	if err := d.saveFile(fileOutgoingShares, d.outgoingShares); err != nil {
 		// Rollback: remove the in-memory entries so state stays consistent with disk.
-		delete(d.outgoingShares, share.ProviderId)
-		if share.WebDAVId != "" {
-			delete(d.webdavIndex, share.WebDAVId)
-		}
-		if share.ShareId != "" {
-			delete(d.shareIdIndex, share.ShareId)
-		}
-		if share.SharedSecret != "" {
-			delete(d.secretIndex, share.SharedSecret)
-		}
+		delete(d.outgoingShares, share.ProviderID)
+		d.clearOutgoingShareIndexes(share)
+
 		return err
 	}
+
 	return nil
 }
 
+func (d *Driver) checkOutgoingShareIndexUnique(share *store.OutgoingShare) error {
+	if share.ShareID != "" {
+		if existing, ok := d.shareIDIndex[share.ShareID]; ok && existing != share.ProviderID {
+			return store.ErrAlreadyExists
+		}
+	}
+
+	if share.WebDAVID != "" {
+		if existing, ok := d.webdavIndex[share.WebDAVID]; ok && existing != share.ProviderID {
+			return store.ErrAlreadyExists
+		}
+	}
+
+	if share.SharedSecret != "" {
+		if existing, ok := d.secretIndex[share.SharedSecret]; ok && existing != share.ProviderID {
+			return store.ErrAlreadyExists
+		}
+	}
+
+	return nil
+}
+
+func (d *Driver) setOutgoingShareIndexes(share *store.OutgoingShare) {
+	if share.WebDAVID != "" {
+		d.webdavIndex[share.WebDAVID] = share.ProviderID
+	}
+
+	if share.ShareID != "" {
+		d.shareIDIndex[share.ShareID] = share.ProviderID
+	}
+
+	if share.SharedSecret != "" {
+		d.secretIndex[share.SharedSecret] = share.ProviderID
+	}
+}
+
+func (d *Driver) clearOutgoingShareIndexes(share *store.OutgoingShare) {
+	if share.WebDAVID != "" {
+		delete(d.webdavIndex, share.WebDAVID)
+	}
+
+	if share.ShareID != "" {
+		delete(d.shareIDIndex, share.ShareID)
+	}
+
+	if share.SharedSecret != "" {
+		delete(d.secretIndex, share.SharedSecret)
+	}
+}
+
 // GetOutgoingShareByID retrieves an outgoing share by its local share id.
-func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareId string) (*store.OutgoingShare, error) {
+func (d *Driver) GetOutgoingShareByID(_ context.Context, shareID string) (*store.OutgoingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -71,19 +101,21 @@ func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareId string) (*sto
 		return nil, store.ErrClosed
 	}
 
-	providerId, ok := d.shareIdIndex[shareId]
+	providerID, ok := d.shareIDIndex[shareID]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
-	share, ok := d.outgoingShares[providerId]
+
+	share, ok := d.outgoingShares[providerID]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneOutgoingShare(share), nil
 }
 
-// GetOutgoingShare retrieves an outgoing share by providerId.
-func (d *Driver) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
+// GetOutgoingShare retrieves an outgoing share by providerID.
+func (d *Driver) GetOutgoingShare(_ context.Context, providerID string) (*store.OutgoingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -91,15 +123,16 @@ func (d *Driver) GetOutgoingShare(ctx context.Context, providerId string) (*stor
 		return nil, store.ErrClosed
 	}
 
-	share, ok := d.outgoingShares[providerId]
+	share, ok := d.outgoingShares[providerID]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneOutgoingShare(share), nil
 }
 
-// GetOutgoingShareByWebDAVId retrieves an outgoing share by webdavId.
-func (d *Driver) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
+// GetOutgoingShareByWebDAVID retrieves an outgoing share by webdavID.
+func (d *Driver) GetOutgoingShareByWebDAVID(_ context.Context, webdavID string) (*store.OutgoingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -107,20 +140,21 @@ func (d *Driver) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string
 		return nil, store.ErrClosed
 	}
 
-	providerId, ok := d.webdavIndex[webdavId]
+	providerID, ok := d.webdavIndex[webdavID]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
 
-	share, ok := d.outgoingShares[providerId]
+	share, ok := d.outgoingShares[providerID]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneOutgoingShare(share), nil
 }
 
 // GetOutgoingShareBySharedSecret retrieves an outgoing share by shared secret.
-func (d *Driver) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret string) (*store.OutgoingShare, error) {
+func (d *Driver) GetOutgoingShareBySharedSecret(_ context.Context, sharedSecret string) (*store.OutgoingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -128,20 +162,21 @@ func (d *Driver) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecre
 		return nil, store.ErrClosed
 	}
 
-	providerId, ok := d.secretIndex[sharedSecret]
+	providerID, ok := d.secretIndex[sharedSecret]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
 
-	share, ok := d.outgoingShares[providerId]
+	share, ok := d.outgoingShares[providerID]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneOutgoingShare(share), nil
 }
 
 // UpdateOutgoingShare updates an existing outgoing share.
-func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
+func (d *Driver) UpdateOutgoingShare(_ context.Context, share *store.OutgoingShare) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -149,86 +184,74 @@ func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingS
 		return store.ErrClosed
 	}
 
-	if _, exists := d.outgoingShares[share.ProviderId]; !exists {
+	if _, exists := d.outgoingShares[share.ProviderID]; !exists {
 		return store.ErrNotFound
 	}
-	if share.ShareId != "" {
-		if existing, ok := d.shareIdIndex[share.ShareId]; ok && existing != share.ProviderId {
-			return store.ErrAlreadyExists
-		}
-	}
-	if share.WebDAVId != "" {
-		if existing, ok := d.webdavIndex[share.WebDAVId]; ok && existing != share.ProviderId {
-			return store.ErrAlreadyExists
-		}
-	}
-	if share.SharedSecret != "" {
-		if existing, ok := d.secretIndex[share.SharedSecret]; ok && existing != share.ProviderId {
-			return store.ErrAlreadyExists
-		}
+
+	if err := d.checkOutgoingShareIndexUnique(share); err != nil {
+		return err
 	}
 
 	// Capture old state for rollback, then clear stale index entries.
-	oldShare := d.outgoingShares[share.ProviderId]
-	var oldWebDAVId, oldShareId, oldSecret string
-	for webdavId, pid := range d.webdavIndex {
-		if pid == share.ProviderId {
-			oldWebDAVId = webdavId
-			delete(d.webdavIndex, webdavId)
+	oldShare := d.outgoingShares[share.ProviderID]
+	oldWebDAVID, oldShareID, oldSecret := d.clearOutgoingProviderIndexes(share.ProviderID)
+
+	d.outgoingShares[share.ProviderID] = cloneOutgoingShare(share)
+	d.setOutgoingShareIndexes(share)
+
+	if err := d.saveFile(fileOutgoingShares, d.outgoingShares); err != nil {
+		// Rollback: restore old share and old index entries.
+		d.outgoingShares[share.ProviderID] = oldShare
+		d.clearOutgoingShareIndexes(share)
+		d.restoreOutgoingProviderIndexes(share.ProviderID, oldWebDAVID, oldShareID, oldSecret)
+
+		return err
+	}
+
+	return nil
+}
+
+func (d *Driver) clearOutgoingProviderIndexes(providerID string) (oldWebDAVID, oldShareID, oldSecret string) {
+	for webdavID, pid := range d.webdavIndex {
+		if pid == providerID {
+			oldWebDAVID = webdavID
+			delete(d.webdavIndex, webdavID)
 		}
 	}
-	for sId, pid := range d.shareIdIndex {
-		if pid == share.ProviderId {
-			oldShareId = sId
-			delete(d.shareIdIndex, sId)
+
+	for sID, pid := range d.shareIDIndex {
+		if pid == providerID {
+			oldShareID = sID
+			delete(d.shareIDIndex, sID)
 		}
 	}
+
 	for secret, pid := range d.secretIndex {
-		if pid == share.ProviderId {
+		if pid == providerID {
 			oldSecret = secret
 			delete(d.secretIndex, secret)
 		}
 	}
 
-	d.outgoingShares[share.ProviderId] = cloneOutgoingShare(share)
-	if share.WebDAVId != "" {
-		d.webdavIndex[share.WebDAVId] = share.ProviderId
-	}
-	if share.ShareId != "" {
-		d.shareIdIndex[share.ShareId] = share.ProviderId
-	}
-	if share.SharedSecret != "" {
-		d.secretIndex[share.SharedSecret] = share.ProviderId
+	return oldWebDAVID, oldShareID, oldSecret
+}
+
+func (d *Driver) restoreOutgoingProviderIndexes(providerID, oldWebDAVID, oldShareID, oldSecret string) {
+	if oldWebDAVID != "" {
+		d.webdavIndex[oldWebDAVID] = providerID
 	}
 
-	if err := d.saveFile(fileOutgoingShares, d.outgoingShares); err != nil {
-		// Rollback: restore old share and old index entries.
-		d.outgoingShares[share.ProviderId] = oldShare
-		if share.WebDAVId != "" {
-			delete(d.webdavIndex, share.WebDAVId)
-		}
-		if share.ShareId != "" {
-			delete(d.shareIdIndex, share.ShareId)
-		}
-		if share.SharedSecret != "" {
-			delete(d.secretIndex, share.SharedSecret)
-		}
-		if oldWebDAVId != "" {
-			d.webdavIndex[oldWebDAVId] = share.ProviderId
-		}
-		if oldShareId != "" {
-			d.shareIdIndex[oldShareId] = share.ProviderId
-		}
-		if oldSecret != "" {
-			d.secretIndex[oldSecret] = share.ProviderId
-		}
-		return err
+	if oldShareID != "" {
+		d.shareIDIndex[oldShareID] = providerID
 	}
-	return nil
+
+	if oldSecret != "" {
+		d.secretIndex[oldSecret] = providerID
+	}
 }
 
 // DeleteOutgoingShare deletes an outgoing share.
-func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) error {
+func (d *Driver) DeleteOutgoingShare(_ context.Context, providerID string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -236,41 +259,48 @@ func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) err
 		return store.ErrClosed
 	}
 
-	share, exists := d.outgoingShares[providerId]
+	share, exists := d.outgoingShares[providerID]
 	if !exists {
 		return store.ErrNotFound
 	}
 
-	if share.WebDAVId != "" {
-		delete(d.webdavIndex, share.WebDAVId)
+	if share.WebDAVID != "" {
+		delete(d.webdavIndex, share.WebDAVID)
 	}
-	if share.ShareId != "" {
-		delete(d.shareIdIndex, share.ShareId)
+
+	if share.ShareID != "" {
+		delete(d.shareIDIndex, share.ShareID)
 	}
+
 	if share.SharedSecret != "" {
 		delete(d.secretIndex, share.SharedSecret)
 	}
-	delete(d.outgoingShares, providerId)
+
+	delete(d.outgoingShares, providerID)
 
 	if err := d.saveFile(fileOutgoingShares, d.outgoingShares); err != nil {
 		// Rollback: restore deleted entry and its index slots.
-		d.outgoingShares[providerId] = share
-		if share.WebDAVId != "" {
-			d.webdavIndex[share.WebDAVId] = providerId
+		d.outgoingShares[providerID] = share
+		if share.WebDAVID != "" {
+			d.webdavIndex[share.WebDAVID] = providerID
 		}
-		if share.ShareId != "" {
-			d.shareIdIndex[share.ShareId] = providerId
+
+		if share.ShareID != "" {
+			d.shareIDIndex[share.ShareID] = providerID
 		}
+
 		if share.SharedSecret != "" {
-			d.secretIndex[share.SharedSecret] = providerId
+			d.secretIndex[share.SharedSecret] = providerID
 		}
+
 		return err
 	}
+
 	return nil
 }
 
 // ListOutgoingShares returns all outgoing shares.
-func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, error) {
+func (d *Driver) ListOutgoingShares(_ context.Context) ([]*store.OutgoingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -282,5 +312,6 @@ func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare
 	for _, share := range d.outgoingShares {
 		shares = append(shares, cloneOutgoingShare(share))
 	}
+
 	return shares, nil
 }

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package ratelimit provides a rate limiting interceptor using the cache subsystem.
 package ratelimit
 
@@ -26,6 +31,7 @@ func (c *Config) ApplyDefaults() {
 	if c.RequestsPerWindow == 0 {
 		c.RequestsPerWindow = 100
 	}
+
 	if c.WindowSeconds == 0 {
 		c.WindowSeconds = int(cache.TTLRateLimit / time.Second)
 	}
@@ -41,7 +47,9 @@ type Limiter struct {
 }
 
 var (
-	ErrMissingCache   = errors.New("ratelimit: cache not provided")
+	// ErrMissingCache reports a missing rate-limit cache dependency.
+	ErrMissingCache = errors.New("ratelimit: cache not provided")
+	// ErrMissingKeyFunc reports a missing rate-limit key function.
 	ErrMissingKeyFunc = errors.New("ratelimit: key function not provided")
 )
 
@@ -52,6 +60,7 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 	if inputs.Cache == nil {
 		return nil, ErrMissingCache
 	}
+
 	if inputs.KeyFunc == nil {
 		return nil, ErrMissingKeyFunc
 	}
@@ -60,6 +69,7 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 	if err := svccfg.Decode(conf, &c); err != nil {
 		return nil, err
 	}
+
 	c.ApplyDefaults()
 
 	limiter := &Limiter{
@@ -77,10 +87,14 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 func (l *Limiter) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := l.keyFunc(r)
+
+		// The counter cache must stay TTL-only with no LRU bound: evicting a
+		// live window would reset its count and bypass the limit.
 		count, resetAt, err := l.cache.Increment(r.Context(), "ratelimit:"+key, 1, l.window)
 		if err != nil {
 			l.log.Warn("rate limit check failed", "error", err)
 			next.ServeHTTP(w, r)
+
 			return
 		}
 
@@ -89,8 +103,10 @@ func (l *Limiter) Wrap(next http.Handler) http.Handler {
 			if retryAfter < 1 {
 				retryAfter = 1
 			}
+
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			api.WriteTooManyRequests(w, "too many requests")
+
 			return
 		}
 

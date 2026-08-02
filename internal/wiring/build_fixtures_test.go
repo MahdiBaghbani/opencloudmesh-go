@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wiring_test
 
 import (
@@ -16,6 +21,7 @@ import (
 
 func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
 	got := harness.IntegrationBuildOpts()
+
 	want := toBuildOpts(tswiring.HarnessWireOptions)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("IntegrationBuildOpts() = %+v, want %+v", got, want)
@@ -24,10 +30,12 @@ func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
 
 func TestFixtures_IETFWireOptionsMatchIntegrationHarness(t *testing.T) {
 	got := harness.IETFIntegrationBuildOpts()
+
 	want := toBuildOpts(tswiring.IETFWireOptions)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)
 	}
+
 	if got.SkipCrypto {
 		t.Fatal("IETF wire options must enable crypto")
 	}
@@ -39,6 +47,7 @@ func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
 		!fixture.SkipDiscoveryCache {
 		t.Fatalf("harness fixture must enable crypto and keep transport skips, got %+v", fixture)
 	}
+
 	if fixture.OutboundOverride == nil {
 		t.Fatal("harness fixture must include OutboundOverride")
 	}
@@ -51,6 +60,7 @@ func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build with zero opts failed: %v", err)
 	}
+
 	if result.Deps == nil {
 		t.Fatal("Build must return explicit Deps in BuildResult")
 	}

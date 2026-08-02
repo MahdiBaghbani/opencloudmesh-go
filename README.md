@@ -1,10 +1,19 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 # OpenCloudMesh Go
 
 > A runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered
 > subset of the protocol.
 
+[![Go version](https://img.shields.io/github/go-mod/go-version/MahdiBaghbani/opencloudmesh-go)](https://github.com/MahdiBaghbani/opencloudmesh-go/blob/master/go.mod)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+[![FOSSA license scan status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go?ref=badge_shield)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE.md)
 
 OpenCloudMesh Go is a Go server for Open Cloud Mesh (OCM). It focuses on a
 pinned, practical slice of the protocol: discovery, user shares, invite flows,
@@ -229,7 +238,7 @@ runnable Go server for a focused OCM slice, and downstream container and
 interoperability setups use it alongside the wider OCM image and test tooling.
 
 Protocol behavior is pinned to the OCM-API snapshot at
-[`f9a704f63477134701c0b58b29bb6b98949361dc`](https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md),
+[`6a0586183cbef10ecae9dedc42561806447eb2f5`](https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md),
 with the vendored pin recorded in `internal/components/ocm/spec/vendor/pin.json`.
 
 ## Acknowledgements
@@ -260,4 +269,4 @@ something in the docs is unclear or wrong, that is worth an issue too.
 ## License
 
 Licensed under the GNU Affero General Public License v3.0 or later
-(AGPL-3.0-or-later). See [LICENSE.md](LICENSE.md).
+(AGPL-3.0-or-later). See [LICENSE](LICENSE).

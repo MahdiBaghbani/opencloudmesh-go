@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package shares_test
 
 import (
@@ -7,11 +12,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -35,14 +41,14 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv, postCount := makeReceiverTLSServer(
+			srv, postCount := makeReceiverTLSServer(t,
 				[]string{"exchange-token"},
 				[]string{"must-exchange-token"},
 			)
 			t.Cleanup(srv.Close)
 
 			user := &identity.User{ID: "user-uuid", Username: "alice"}
-			repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+			repo := tsrepos.OpenMemory(t).OutgoingShares
 			discClient, ctxClient := makeTLSClients()
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := outgoingshares.NewHandler(
@@ -62,7 +68,8 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 			tmpFile := createTempShareFile(t, "outgoing-logs-*")
 			receiverHost := srv.Listener.Addr().String()
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(
+				t.Context(),
 				http.MethodPost,
 				"/api/shares/outgoing",
 				bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)),
@@ -70,22 +77,27 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+tt.authorization)
 			req.Header.Set("Signature", tt.signature)
+
 			w := httptest.NewRecorder()
 			handler.HandleCreate(w, req)
 
 			if w.Code != http.StatusCreated {
 				t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 			}
+
 			if postCount.Load() == 0 {
 				t.Fatal("expected outbound share POST")
 			}
+
 			createdShares, err := repo.List(t.Context())
 			if err != nil {
 				t.Fatalf("list created shares: %v", err)
 			}
+
 			if len(createdShares) != 1 {
 				t.Fatalf("created share count = %d, want 1", len(createdShares))
 			}
+
 			if capture.ContainsAny(
 				tt.authorization,
 				tt.signature,

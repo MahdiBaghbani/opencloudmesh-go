@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# REUSE compliance manifest. Inline SPDX headers stay the source of truth
+# for commentable files; this manifest covers files that cannot carry
+# comments or are generated. Per the REUSE specification this file must
+# live in the project root; a REUSE.toml only covers its own directory
+# or deeper, and .reuse/ is reserved for tool-internal files.
+version = 1
+SPDX-PackageName = "opencloudmesh-go"
+SPDX-PackageSupplier = "Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>"
+SPDX-PackageDownloadLocation = "https://github.com/MahdiBaghbani/opencloudmesh-go"
+
+[[annotations]]
+path = [
+  "**.crt",
+  "**.key",
+  "go.mod",
+  "go.sum",
+  "**.lock",
+  "**/.gitkeep",
+  ".gitignore",
+  "**/.gitignore",
+  ".dockerignore",
+  "**/.dockerignore",
+  ".python-version",
+  "**.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Vendored OCM-API OpenAPI snapshot (see vendor/pin.json): verbatim
+# third-party IETF draft artifact; upstream declares no LICENSE file.
+[[annotations]]
+path = "internal/components/ocm/spec/vendor/spec.yaml"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "IETF Trust and the persons identified as the document authors"
+SPDX-License-Identifier = "LicenseRef-IETF-Trust"
+
+# Sovereign Tech funder logos: external trademarks included only for
+# funding acknowledgment. NOT AGPL and NOT project copyright.
+[[annotations]]
+path = "assets/logos/funders/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Sovereign Tech Agency"
+SPDX-License-Identifier = "LicenseRef-SovereignTech-Brand"

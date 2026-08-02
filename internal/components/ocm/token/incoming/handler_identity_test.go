@@ -1,15 +1,20 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
+
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
@@ -18,8 +23,7 @@ import (
 )
 
 func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 
 	tests := []struct {
@@ -75,24 +79,27 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin, logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin)
 
 			share := &sharesoutgoing.OutgoingShare{
-				ProviderID:   "provider-port-test",
-				WebDAVID:     "webdav-port-test",
+				ProviderID:   "provider-port-test-" + tt.name,
+				WebDAVID:     "webdav-port-test-" + tt.name,
 				SharedSecret: "port-test-secret-" + tt.name,
 				ReceiverHost: tt.receiverHost,
 				LocalPath:    "/tmp/test.txt",
 			}
-			shareRepo.Create(context.Background(), share)
+			if err := shareRepo.Create(context.Background(), share); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
 
 			form := url.Values{}
 			form.Set("grant_type", "authorization_code")
 			form.Set("client_id", tt.clientID)
 			form.Set("code", "port-test-secret-"+tt.name)
 
-			req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 			w := httptest.NewRecorder()
 
 			handler.HandleToken(w, req)
@@ -117,10 +124,9 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 // receiver host and the exchange succeeds. An empty scheme would preserve :443
 // and cause an invalid_client mismatch.
 func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "")
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-empty-origin",
@@ -129,15 +135,18 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com:443")
 	form.Set("code", "empty-origin-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -148,21 +157,21 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 }
 
 func TestHandler_NilCodeFlowReturns501(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 
 	nilCodeFlowSettings := &tokenincoming.TokenExchangeSettings{}
 	nilCodeFlowSettings.ApplyDefaults()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, nilCodeFlowSettings, nil, "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, nilCodeFlowSettings, nil, "https://local.example.com")
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -182,10 +191,9 @@ func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-match",
@@ -194,14 +202,16 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-match-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		AuthorityForCompare: "receiver.example.com",
@@ -218,10 +228,9 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-mismatch",
@@ -230,14 +239,16 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-mismatch-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		AuthorityForCompare: "other.example.com",
@@ -256,6 +267,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.Error != token.ErrorInvalidClient {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
 	}

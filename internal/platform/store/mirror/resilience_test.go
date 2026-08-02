@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package mirror_test
 
 import (
@@ -8,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -30,16 +36,19 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	}
 
 	driver := testutil.OpenDriver(t, cfg)
-	defer driver.Close()
+	defer tshttp.MustClose(t, driver)
 
 	// Make the mirror dir read-only so all subsequent JSON export attempts fail.
 	mirrorDir := filepath.Join(tempDir, "mirror")
-	if err := os.Chmod(mirrorDir, 0500); err != nil {
+	if err := os.Chmod(mirrorDir, 0500); err != nil { //nolint:gosec // test fixture: restrictive 0500 removes write permission on the temp dir to force store failures
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chmod(mirrorDir, 0700) })
 
-	outStore := driver.(store.OutgoingShareStore)
+	t.Cleanup(func() {
+		restoreDirPerms(t, mirrorDir)
+	})
+
+	outStore := requireOutgoingShareStore(t, driver)
 	share := testutil.NewOutgoingShareFixture()
 
 	// The mutator must return nil even though the export step fails.
@@ -48,18 +57,20 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	}
 
 	// SQLite must still have the record.
-	got, err := outStore.GetOutgoingShare(ctx, share.ProviderId)
+	got, err := outStore.GetOutgoingShare(ctx, share.ProviderID)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare: %v", err)
 	}
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("unexpected ProviderId: got %q, want %q", got.ProviderId, share.ProviderId)
+
+	if got.ProviderID != share.ProviderID {
+		t.Errorf("unexpected ProviderID: got %q, want %q", got.ProviderID, share.ProviderID)
 	}
 
 	// Restore write permission and verify a second write (update) also succeeds.
-	if err := os.Chmod(mirrorDir, 0700); err != nil {
+	if err := os.Chmod(mirrorDir, 0700); err != nil { //nolint:gosec // test fixture: restrictive 0700 restores write permission for the update-path check
 		t.Fatal(err)
 	}
+
 	share.Name = "updated-name"
 	if err := outStore.UpdateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("UpdateOutgoingShare returned unexpected error: %v", err)
@@ -77,14 +88,15 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 
 	driver := testutil.OpenDriver(t, cfg)
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	// Create a share
 	share := testutil.NewOutgoingShareFixture()
 	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatal(err)
 	}
-	driver.Close()
+
+	tshttp.MustClose(t, driver)
 
 	// Corrupt the JSON file
 	jsonPath := filepath.Join(tempDir, "mirror", "outgoing_shares.json")
@@ -94,14 +106,16 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 
 	// Reload driver - should still work because it reads from SQLite, not JSON
 	driver2 := testutil.OpenDriver(t, cfg)
-	defer driver2.Close()
+	defer tshttp.MustClose(t, driver2)
 
-	outStore2 := driver2.(store.OutgoingShareStore)
-	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
+	outStore2 := requireOutgoingShareStore(t, driver2)
+
+	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderID)
 	if err != nil {
 		t.Fatalf("mirror driver read from JSON instead of SQLite: %v", err)
 	}
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("data corruption: expected %q, got %q", share.ProviderId, got.ProviderId)
+
+	if got.ProviderID != share.ProviderID {
+		t.Errorf("data corruption: expected %q, got %q", share.ProviderID, got.ProviderID)
 	}
 }

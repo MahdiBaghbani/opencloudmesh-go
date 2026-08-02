@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package architecture
 
 import (
@@ -26,19 +31,26 @@ func TestOCMPackagesDoNotImportAPI(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			return nil
 		}
+
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
 			return err
 		}
+
 		content := string(data)
-		fileRel, _ := filepath.Rel(root, path)
+
+		fileRel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
 
 		for i, line := range strings.Split(content, "\n") {
 			trimmed := strings.TrimSpace(line)
@@ -53,6 +65,7 @@ func TestOCMPackagesDoNotImportAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("OCM packages must not import API packages (dependency flows api -> ocm, not reverse):\n%s",
 			strings.Join(violations, "\n"))
@@ -61,6 +74,7 @@ func TestOCMPackagesDoNotImportAPI(t *testing.T) {
 
 func TestServicesDoNotImportDepsPackage(t *testing.T) {
 	root := modroot.ModuleRoot(t)
+
 	violations := findProductionImportSuffix(t, root, []string{"internal/services"}, "/platform/deps")
 	if len(violations) > 0 {
 		t.Fatalf("services must not import platform/deps; violations: %s", strings.Join(violations, ", "))
@@ -69,6 +83,7 @@ func TestServicesDoNotImportDepsPackage(t *testing.T) {
 
 func TestInterceptorsDoNotImportDepsPackage(t *testing.T) {
 	root := modroot.ModuleRoot(t)
+
 	violations := findProductionImportSuffix(t, root, []string{"internal/interceptors"}, "/platform/deps")
 	if len(violations) > 0 {
 		t.Fatalf("interceptors must not import platform/deps; violations: %s", strings.Join(violations, ", "))
@@ -77,6 +92,7 @@ func TestInterceptorsDoNotImportDepsPackage(t *testing.T) {
 
 func TestServicesDoNotImportWiringPackage(t *testing.T) {
 	root := modroot.ModuleRoot(t)
+
 	violations := findProductionImportSuffix(t, root, []string{"internal/services"}, "/internal/wiring")
 	if len(violations) > 0 {
 		t.Fatalf("services must not import internal/wiring; violations: %s", strings.Join(violations, ", "))
@@ -85,6 +101,7 @@ func TestServicesDoNotImportWiringPackage(t *testing.T) {
 
 func TestInterceptorsDoNotImportWiringPackage(t *testing.T) {
 	root := modroot.ModuleRoot(t)
+
 	violations := findProductionImportSuffix(t, root, []string{"internal/interceptors"}, "/internal/wiring")
 	if len(violations) > 0 {
 		t.Fatalf("interceptors must not import internal/wiring; violations: %s", strings.Join(violations, ", "))

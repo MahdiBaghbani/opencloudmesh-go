@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package token
 
 import (
@@ -30,6 +35,7 @@ func TestMemoryTokenStore_CleanExpired(t *testing.T) {
 	if err := store.Store(ctx, expired); err != nil {
 		t.Fatalf("Store(expired): %v", err)
 	}
+
 	if err := store.Store(ctx, live); err != nil {
 		t.Fatalf("Store(live): %v", err)
 	}
@@ -47,6 +53,7 @@ func TestMemoryTokenStore_CleanExpired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(live): %v", err)
 	}
+
 	if got.ShareID != live.ShareID {
 		t.Errorf("Get(live).ShareID = %q, want %q", got.ShareID, live.ShareID)
 	}

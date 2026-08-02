@@ -1,0 +1,18 @@
+SPDX-FileCopyrightText: Sovereign Tech Agency
+SPDX-License-Identifier: LicenseRef-SovereignTech-Brand
+
+The Sovereign Tech Agency and Sovereign Tech Fund logos and word marks
+(collectively, the "Sovereign Tech" marks) are trademarks and branding
+assets of their owners.
+
+These SVG assets are included in this repository solely to acknowledge
+funding from the Sovereign Tech Agency (see
+https://www.sovereign.tech/tech/open-cloud-mesh). All rights in the marks
+are reserved by their owners; no copyright or trademark ownership is
+claimed by this repository or its authors.
+
+This file is a custom license reference provided for REUSE compliance
+only. It is not an open-source license and grants no rights beyond the
+limited inclusion for funding acknowledgment. Any use of the Sovereign
+Tech marks is subject to the brand guidelines published at
+https://www.sovereign.tech/.

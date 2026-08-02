@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package discovery_test
 
@@ -46,6 +48,7 @@ func TestNewTestClient_WithCache(t *testing.T) {
 
 func TestNewTestClient_WithHTTPClient(t *testing.T) {
 	const pem = "-----BEGIN PUBLIC KEY-----\ntest-body\n-----END PUBLIC KEY-----"
+
 	doc := tsdiscovery.InlineKeyDiscoveryDoc(t, pem)
 	srv, _ := tsdiscovery.NewDiscoveryTestServer(t, doc)
 	baseURL := strings.TrimSuffix(srv.URL, "/")
@@ -60,10 +63,12 @@ func TestNewTestClient_WithHTTPClient(t *testing.T) {
 	t.Run("strict client blocks httptest host", func(t *testing.T) {
 		strictClient := httpclient.New(tshttp.StrictNoneOutboundConfig(), nil)
 		client := tsdiscovery.NewTestClient(t, tsdiscovery.WithHTTPClient(strictClient))
+
 		_, err := client.Discover(context.Background(), baseURL)
 		if err == nil {
 			t.Fatal("Discover() error = nil, want SSRF or outbound failure")
 		}
+
 		if !errors.Is(err, httpclient.ErrSSRFBlocked) {
 			t.Fatalf("Discover() error = %v, want ErrSSRFBlocked", err)
 		}
@@ -71,13 +76,17 @@ func TestNewTestClient_WithHTTPClient(t *testing.T) {
 }
 
 func TestInlineKeyDiscoveryDoc_singularPublicKeyPEM(t *testing.T) {
-	const pem = "-----BEGIN PUBLIC KEY-----\ntest-body\n-----END PUBLIC KEY-----"
-	const wantKeyID = "https://peer.example.com/ocm#test-key"
+	const (
+		pem       = "-----BEGIN PUBLIC KEY-----\ntest-body\n-----END PUBLIC KEY-----"
+		wantKeyID = "https://peer.example.com/ocm#test-key"
+	)
+
 	doc := tsdiscovery.InlineKeyDiscoveryDoc(t, pem)
 
 	if got, ok := doc["enabled"].(bool); !ok || !got {
 		t.Fatalf("enabled = %v, want true", doc["enabled"])
 	}
+
 	if got := doc["apiVersion"]; got != spec.APIVersionPin {
 		t.Fatalf("apiVersion = %v, want %q", got, spec.APIVersionPin)
 	}
@@ -86,9 +95,11 @@ func TestInlineKeyDiscoveryDoc_singularPublicKeyPEM(t *testing.T) {
 	if !ok {
 		t.Fatalf("publicKey type = %T, want map[string]string", doc["publicKey"])
 	}
+
 	if got := pk["keyId"]; got != wantKeyID {
 		t.Fatalf("keyId = %q, want %q", got, wantKeyID)
 	}
+
 	if got := pk["publicKeyPem"]; got != pem {
 		t.Fatalf("publicKeyPem = %q, want %q", got, pem)
 	}
@@ -97,6 +108,7 @@ func TestInlineKeyDiscoveryDoc_singularPublicKeyPEM(t *testing.T) {
 	if !ok {
 		t.Fatalf("capabilities type = %T, want []string", doc["capabilities"])
 	}
+
 	if len(caps) != 1 || caps[0] != "http-sig" {
 		t.Fatalf("capabilities = %v, want [http-sig]", caps)
 	}
@@ -104,14 +116,36 @@ func TestInlineKeyDiscoveryDoc_singularPublicKeyPEM(t *testing.T) {
 
 func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 	const pem = "-----BEGIN PUBLIC KEY-----\ntest-body\n-----END PUBLIC KEY-----"
+
 	doc := tsdiscovery.InlineKeyDiscoveryDoc(t, pem)
 	srv, _ := tsdiscovery.NewDiscoveryTestServer(t, doc)
 
-	resp, err := http.Get(srv.URL + "/.well-known/ocm")
+	served := getDiscoveryDoc(t, srv.URL)
+	wantEndpoint := strings.TrimSuffix(srv.URL, "/") + "/ocm"
+
+	assertServedCoreFields(t, served, wantEndpoint)
+	assertServedPublicKey(t, served, pem)
+
+	if got := doc["endPoint"]; got == wantEndpoint {
+		t.Fatalf("InlineKeyDiscoveryDoc map was mutated: endPoint = %q", got)
+	}
+}
+
+// getDiscoveryDoc fetches /.well-known/ocm from the server and decodes the
+// JSON body.
+func getDiscoveryDoc(t *testing.T, baseURL string) map[string]any {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("build discovery request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("GET discovery: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
@@ -127,7 +161,13 @@ func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 		t.Fatalf("unmarshal served doc: %v", err)
 	}
 
-	wantEndpoint := strings.TrimSuffix(srv.URL, "/") + "/ocm"
+	return served
+}
+
+// assertServedCoreFields checks endPoint, enabled, apiVersion, and capabilities.
+func assertServedCoreFields(t *testing.T, served map[string]any, wantEndpoint string) {
+	t.Helper()
+
 	if got := served["endPoint"]; got != wantEndpoint {
 		t.Fatalf("endPoint = %q, want %q", got, wantEndpoint)
 	}
@@ -135,33 +175,39 @@ func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 	if got, ok := served["enabled"].(bool); !ok || !got {
 		t.Fatalf("enabled = %v, want true", served["enabled"])
 	}
+
 	if got := served["apiVersion"]; got != spec.APIVersionPin {
 		t.Fatalf("apiVersion = %v, want %q", got, spec.APIVersionPin)
-	}
-
-	pk, ok := served["publicKey"].(map[string]any)
-	if !ok {
-		t.Fatalf("publicKey type = %T, want map[string]any", served["publicKey"])
-	}
-	if got := pk["keyId"]; got != "https://peer.example.com/ocm#test-key" {
-		t.Fatalf("keyId = %v, want %q", got, "https://peer.example.com/ocm#test-key")
-	}
-	if got := pk["publicKeyPem"]; got != pem {
-		t.Fatalf("publicKeyPem = %v, want %q", got, pem)
 	}
 
 	caps, ok := served["capabilities"].([]any)
 	if !ok {
 		t.Fatalf("capabilities type = %T, want []any", served["capabilities"])
 	}
+
 	if len(caps) != 1 {
 		t.Fatalf("capabilities len = %d, want 1", len(caps))
 	}
+
 	if got, ok := caps[0].(string); !ok || got != "http-sig" {
 		t.Fatalf("capabilities[0] = %v, want %q", caps[0], "http-sig")
 	}
+}
 
-	if got := doc["endPoint"]; got == wantEndpoint {
-		t.Fatalf("InlineKeyDiscoveryDoc map was mutated: endPoint = %q", got)
+// assertServedPublicKey checks the served publicKey block.
+func assertServedPublicKey(t *testing.T, served map[string]any, pem string) {
+	t.Helper()
+
+	pk, ok := served["publicKey"].(map[string]any)
+	if !ok {
+		t.Fatalf("publicKey type = %T, want map[string]any", served["publicKey"])
+	}
+
+	if got := pk["keyId"]; got != "https://peer.example.com/ocm#test-key" {
+		t.Fatalf("keyId = %v, want %q", got, "https://peer.example.com/ocm#test-key")
+	}
+
+	if got := pk["publicKeyPem"]; got != pem {
+		t.Fatalf("publicKeyPem = %v, want %q", got, pem)
 	}
 }

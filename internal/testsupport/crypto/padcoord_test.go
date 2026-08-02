@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package crypto_test
 
 import (
@@ -21,6 +26,7 @@ func TestPadCoord(t *testing.T) {
 	}
 
 	want := []byte{0x00, 0x00, 0x01, 0x02, 0x03}
+
 	got = crypto.PadCoord(b, 5)
 	if !bytes.Equal(got, want) {
 		t.Fatalf("PadCoord(%v, 5) = %v, want %v", b, got, want)

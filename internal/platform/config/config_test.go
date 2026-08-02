@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package config
 
 import (
@@ -62,6 +67,7 @@ func TestConfigPublicScheme(t *testing.T) {
 	if got := (&Config{}).PublicScheme(); got != "https" {
 		t.Errorf("(&Config{}).PublicScheme() = %q, want %q", got, "https")
 	}
+
 	if got := (&Config{PublicOrigin: "http://example.com"}).PublicScheme(); got != "http" {
 		t.Errorf("PublicScheme() = %q, want %q", got, "http")
 	}
@@ -70,6 +76,8 @@ func TestConfigPublicScheme(t *testing.T) {
 // TestLoader_RejectsUnknownKeys locks the strict-decoder contract: a config
 // file with an unknown top-level key fails to load.
 func TestLoader_RejectsUnknownKeys(t *testing.T) {
+	// Clear ambient env override so the unknown-key rejection path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -87,6 +95,7 @@ some_key = "value"
 	if err == nil {
 		t.Fatal("expected Load to reject an unknown top-level key")
 	}
+
 	if !strings.Contains(err.Error(), "unsupported keys") {
 		t.Errorf("error = %v, want an unsupported-keys message", err)
 	}

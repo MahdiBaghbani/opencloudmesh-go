@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package store
 
 import (
@@ -13,11 +18,18 @@ import (
 // os.MkdirTemp semantics (a trailing "*" is replaced by a random suffix).
 func TempDataDir(t *testing.T, pattern string) string {
 	t.Helper()
+
 	dir, err := os.MkdirTemp("", pattern)
 	if err != nil {
 		t.Fatalf("create temp data dir: %v", err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("cleanup temp data dir: %v", err)
+		}
+	})
+
 	return dir
 }
 
@@ -28,13 +40,19 @@ func TempDataDir(t *testing.T, pattern string) string {
 // explicitly (open, close, reopen from the same cfg).
 func OpenDriver(t *testing.T, cfg *store.DriverConfig) store.Driver {
 	t.Helper()
+
 	d, err := store.New(cfg)
 	if err != nil {
 		t.Fatalf("create %s driver: %v", cfg.Driver, err)
 	}
+
 	if err := d.Init(context.Background()); err != nil {
-		d.Close()
+		if closeErr := d.Close(); closeErr != nil {
+			t.Fatalf("init %s driver: %v (close after init failure: %v)", cfg.Driver, err, closeErr)
+		}
+
 		t.Fatalf("init %s driver: %v", cfg.Driver, err)
 	}
+
 	return d
 }

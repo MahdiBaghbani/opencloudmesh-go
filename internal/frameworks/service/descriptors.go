@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package service
 
 // BuildKey identifies the wiring builder for a core service. Keys live in the
@@ -5,12 +10,18 @@ package service
 type BuildKey string
 
 const (
+	// BuildWellknown is the well-known service build key.
 	BuildWellknown BuildKey = "wellknown"
-	BuildOCM       BuildKey = "ocm"
-	BuildOCMAux    BuildKey = "ocmaux"
-	BuildAPI       BuildKey = "api"
-	BuildUI        BuildKey = "ui"
-	BuildWebDAV    BuildKey = "webdav"
+	// BuildOCM is the OCM service build key.
+	BuildOCM BuildKey = "ocm"
+	// BuildOCMAux is the OCM auxiliary service build key.
+	BuildOCMAux BuildKey = "ocmaux"
+	// BuildAPI is the API service build key.
+	BuildAPI BuildKey = "api"
+	// BuildUI is the UI service build key.
+	BuildUI BuildKey = "ui"
+	// BuildWebDAV is the WebDAV service build key.
+	BuildWebDAV BuildKey = "webdav"
 )
 
 // Descriptor is the canonical registration entry for one core HTTP service.
@@ -74,5 +85,6 @@ func DescriptorByName(name string) (Descriptor, bool) {
 			return d, true
 		}
 	}
+
 	return Descriptor{}, false
 }

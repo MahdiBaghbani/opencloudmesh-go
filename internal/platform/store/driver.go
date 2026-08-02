@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package store provides persistence primitives and driver abstractions.
 package store
 
@@ -22,7 +27,7 @@ type Driver interface {
 	// Close releases resources held by the driver.
 	Close() error
 
-	// Name returns the driver name (json, sqlite, mirror).
+	// Name returns the driver name (memory, json, sqlite, mirror).
 	Name() string
 }
 
@@ -30,24 +35,24 @@ type Driver interface {
 // Lookup is available by local share id, provider id, webdav id, and shared secret.
 type OutgoingShareStore interface {
 	CreateOutgoingShare(ctx context.Context, share *OutgoingShare) error
-	GetOutgoingShareByID(ctx context.Context, shareId string) (*OutgoingShare, error)
-	GetOutgoingShare(ctx context.Context, providerId string) (*OutgoingShare, error)
-	GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*OutgoingShare, error)
+	GetOutgoingShareByID(ctx context.Context, shareID string) (*OutgoingShare, error)
+	GetOutgoingShare(ctx context.Context, providerID string) (*OutgoingShare, error)
+	GetOutgoingShareByWebDAVID(ctx context.Context, webdavID string) (*OutgoingShare, error)
 	GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret string) (*OutgoingShare, error)
 	UpdateOutgoingShare(ctx context.Context, share *OutgoingShare) error
-	DeleteOutgoingShare(ctx context.Context, providerId string) error
+	DeleteOutgoingShare(ctx context.Context, providerID string) error
 	ListOutgoingShares(ctx context.Context) ([]*OutgoingShare, error)
 }
 
 // IncomingShareStore manages incoming share persistence (receiver-side).
-// All mutating operations are scoped by recipientUserId to prevent cross-user access.
+// All mutating operations are scoped by recipientUserID to prevent cross-user access.
 type IncomingShareStore interface {
 	CreateIncomingShare(ctx context.Context, share *IncomingShare) error
-	GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*IncomingShare, error)
-	GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*IncomingShare, error)
-	ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*IncomingShare, error)
-	UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error
-	DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error
+	GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error)
+	GetIncomingShareByProviderKey(ctx context.Context, senderHost, providerID string) (*IncomingShare, error)
+	ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*IncomingShare, error)
+	UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, status string) error
+	DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error
 }
 
 // OutgoingInviteStore manages outgoing invite persistence (initiator-side).
@@ -57,109 +62,121 @@ type OutgoingInviteStore interface {
 	GetOutgoingInviteByToken(ctx context.Context, token string) (*OutgoingInvite, error)
 	UpdateOutgoingInvite(ctx context.Context, invite *OutgoingInvite) error
 	DeleteOutgoingInvite(ctx context.Context, id string) error
-	ListOutgoingInvites(ctx context.Context, userId string) ([]*OutgoingInvite, error)
+	ListOutgoingInvites(ctx context.Context, userID string) ([]*OutgoingInvite, error)
 }
 
 // IncomingInviteStore manages incoming invite persistence (acceptor-side).
-// All mutating operations are scoped by recipientUserId to prevent cross-user access.
-// Update is intentionally status-only: scope-defining fields (Token, RecipientUserId)
-// cannot be reassigned after creation.
+// All mutating operations are scoped by recipientUserID to prevent cross-user access.
+// Update is intentionally status-plus-sender-identity: scope-defining fields
+// (Token, RecipientUserID) cannot be reassigned after creation.
 type IncomingInviteStore interface {
 	CreateIncomingInvite(ctx context.Context, invite *IncomingInvite) error
-	GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*IncomingInvite, error)
-	GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*IncomingInvite, error)
-	UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserId string, status string) error
-	DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) error
-	ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*IncomingInvite, error)
+	GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) (*IncomingInvite, error)
+	GetIncomingInviteByToken(ctx context.Context, token string, recipientUserID string) (*IncomingInvite, error)
+	UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error
+	DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) error
+	ListIncomingInvites(ctx context.Context, recipientUserID string) ([]*IncomingInvite, error)
 }
 
 // OutgoingShare represents a share created by this instance (sender-side).
 type OutgoingShare struct {
-	ShareId    string `json:"share_id" gorm:"uniqueIndex"`   // sender-local identity (UUIDv7)
-	ProviderId string `json:"provider_id" gorm:"primaryKey"` // provider-assigned share id
-	WebDAVId   string `json:"webdav_id" gorm:"uniqueIndex"`
+	ShareID    string `gorm:"uniqueIndex" json:"shareId"`    // sender-local identity (UUIDv7)
+	ProviderID string `gorm:"primaryKey"  json:"providerId"` // provider-assigned share id
+	WebDAVID   string `gorm:"uniqueIndex" json:"webdavId"`
 	// omitempty for redaction; partial unique index enforces non-empty secret
 	// uniqueness in SQL backends (empty shared secrets are allowed on many rows).
-	SharedSecret     string `json:"shared_secret,omitempty" gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''"`
-	LocalPath        string `json:"local_path"`
-	Owner            string `json:"owner"`
-	Sender           string `json:"sender"`
-	ShareWith        string `json:"share_with"`
-	ReceiverHost     string `json:"receiver_host"`
-	ReceiverEndPoint string `json:"receiver_end_point"`
-	Name             string `json:"name"`
-	ResourceType     string `json:"resource_type"`
-	ShareType        string `json:"share_type"`
-	Permissions      string `json:"permissions"`
-	State            string `json:"state"` // sent, accepted, declined
-	Error            string `json:"error,omitempty"`
-	CreatedAt        int64  `json:"created_at"`
-	UpdatedAt        int64  `json:"updated_at"`
+	SharedSecret     string   `gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''" json:"sharedSecret,omitempty"`
+	LocalPath        string   `json:"localPath"`
+	Owner            string   `json:"owner"`
+	Sender           string   `json:"sender"`
+	ShareWith        string   `json:"shareWith"`
+	ReceiverHost     string   `json:"receiverHost"`
+	ReceiverEndPoint string   `json:"receiverEndPoint"`
+	Name             string   `json:"name"`
+	ResourceType     string   `json:"resourceType"`
+	ShareType        string   `json:"shareType"`
+	Permissions      string   `json:"permissions"`
+	Status           string   `gorm:"column:status"                                                    json:"status"` // sent, accepted, declined
+	Error            string   `json:"error,omitempty"`
+	Requirements     []string `gorm:"serializer:json"                                                  json:"requirements,omitempty"`
+	CreatedAt        int64    `json:"createdAt"`
+	UpdatedAt        int64    `json:"updatedAt"`
 }
 
 // IncomingShare represents a share received by this instance (receiver-side).
-// The composite unique index on (sending_server, provider_id) enforces that one
+// The composite unique index on (senderHost, providerID) enforces that one
 // provider-key pair can be stored at most once, matching GetIncomingShareByProviderKey
 // singular semantics.
 type IncomingShare struct {
-	ShareId           string `json:"share_id" gorm:"primaryKey"`                                         // receiver-local id (UUIDv7)
-	SendingServer     string `json:"sending_server" gorm:"uniqueIndex:idx_incoming_shares_provider_key"` // sender's host
-	ProviderId        string `json:"provider_id" gorm:"uniqueIndex:idx_incoming_shares_provider_key"`    // sender's share id
-	WebDAVId          string `json:"webdav_id,omitempty"`                                                // relative or absolute webdav URI
-	SharedSecret      string `json:"shared_secret,omitempty"`                                            // omitempty for redaction
+	ShareID           string `gorm:"primaryKey"                                                      json:"shareId"`    // receiver-local id (UUIDv7)
+	SenderHost        string `gorm:"column:sender_host;uniqueIndex:idx_incoming_shares_provider_key" json:"senderHost"` // sender's host
+	ProviderID        string `gorm:"uniqueIndex:idx_incoming_shares_provider_key"                    json:"providerId"` // sender's share id
+	WebDAVID          string `json:"webdavId,omitempty"`                                                                // relative or absolute webdav URI
+	SharedSecret      string `json:"sharedSecret,omitempty"`                                                            // omitempty for redaction
 	Owner             string `json:"owner"`
 	Sender            string `json:"sender"`
-	ShareWith         string `json:"share_with"`
+	ShareWith         string `json:"shareWith"`
 	Name              string `json:"name"`
 	Description       string `json:"description,omitempty"`
-	ResourceType      string `json:"resource_type"`
-	ShareType         string `json:"share_type"`
-	OwnerDisplayName  string `json:"owner_display_name,omitempty"`
-	SenderDisplayName string `json:"sender_display_name,omitempty"`
+	ResourceType      string `json:"resourceType"`
+	ShareType         string `json:"shareType"`
+	OwnerDisplayName  string `json:"ownerDisplayName,omitempty"`
+	SenderDisplayName string `json:"senderDisplayName,omitempty"`
 	Permissions       string `json:"permissions"`
 	// Webapp arm columns. WebappPermissions mirrors the comma-joined
 	// Permissions pattern; WebappTargets uses the json serializer like
 	// Requirements. Legacy rows leave these empty.
-	WebappPermissions string   `json:"webapp_permissions,omitempty"`
-	WebappURI         string   `json:"webapp_uri,omitempty"`
-	WebappTargets     []string `json:"webapp_targets,omitempty" gorm:"serializer:json"`
-	ProtocolName      string   `json:"protocol_name,omitempty"`
-	State             string   `json:"state"` // pending, accepted, declined
-	UserId            string   `json:"user_id" gorm:"index"`
-	OwnerHost         string   `json:"owner_host"`
-	Requirements      []string `json:"requirements,omitempty" gorm:"serializer:json"`
+	WebappPermissions string   `json:"webappPermissions,omitempty"`
+	WebappURI         string   `json:"webappUri,omitempty"`
+	WebappTargets     []string `gorm:"serializer:json"                json:"webappTargets,omitempty"`
+	ProtocolName      string   `json:"protocolName,omitempty"`
+	Status            string   `gorm:"column:status"                  json:"status"` // pending, accepted, declined
+	RecipientUserID   string   `gorm:"column:recipient_user_id;index" json:"recipientUserId"`
+	OwnerHost         string   `json:"ownerHost"`
+	Requirements      []string `gorm:"serializer:json"                json:"requirements,omitempty"`
 	// Expiration is a Unix epoch; 0 means no expiration.
 	Expiration int64 `json:"expiration,omitempty"`
-	CreatedAt  int64 `json:"created_at"`
-	UpdatedAt  int64 `json:"updated_at"`
+	CreatedAt  int64 `json:"createdAt"`
+	UpdatedAt  int64 `json:"updatedAt"`
 }
 
 // OutgoingInvite is the persistence model for outgoing invites (initiator-side).
 type OutgoingInvite struct {
-	ID              string `json:"id" gorm:"primaryKey"`
-	Token           string `json:"token" gorm:"uniqueIndex"`
-	ProviderFQDN    string `json:"provider_fqdn"`
-	InviteString    string `json:"invite_string"`
-	RecipientEmail  string `json:"recipient_email,omitempty"`
-	CreatedByUserId string `json:"created_by_user_id" gorm:"index"`
-	Status          string `json:"status"` // pending, accepted, declined, expired
-	AcceptedBy      string `json:"accepted_by,omitempty"`
-	ExpiresAt       int64  `json:"expires_at"`
-	CreatedAt       int64  `json:"created_at"`
-	UpdatedAt       int64  `json:"updated_at"`
-	AcceptedAt      int64  `json:"accepted_at,omitempty"` // unix epoch; 0 = not yet accepted
+	ID              string `gorm:"primaryKey"               json:"id"`
+	Token           string `gorm:"uniqueIndex"              json:"token"`
+	ProviderFQDN    string `gorm:"column:provider_fqdn"     json:"providerFqdn"`
+	InviteString    string `json:"inviteString"`
+	RecipientEmail  string `json:"recipientEmail,omitempty"`
+	CreatedByUserID string `gorm:"index"                    json:"createdByUserId"`
+	Status          string `json:"status"` // pending, accepted
+	// AcceptedProviderFQDN is the raw remote provider host from the
+	// invite-accepted request. AcceptedUserID is the canonical remote accepter
+	// user identity (userID). AcceptedProviderFQDNNormalized is the accepting
+	// provider in host compare form; the latter two feed the must-invite gate.
+	AcceptedProviderFQDN           string `gorm:"column:accepted_provider_fqdn"            json:"acceptedProviderFqdn,omitempty"`
+	AcceptedUserID                 string `gorm:"column:accepted_user_id"                  json:"acceptedUserId,omitempty"`
+	AcceptedProviderFQDNNormalized string `gorm:"column:accepted_provider_fqdn_normalized" json:"acceptedProviderFqdnNormalized,omitempty"`
+	ExpiresAt                      int64  `json:"expiresAt"`
+	CreatedAt                      int64  `json:"createdAt"`
+	UpdatedAt                      int64  `json:"updatedAt"`
+	AcceptedAt                     int64  `json:"acceptedAt,omitempty"` // unix epoch; 0 = not yet accepted
 }
 
 // IncomingInvite is the persistence model for incoming invites (acceptor-side).
-// The composite unique index on (token, recipient_user_id) enforces that one
+// The composite unique index on (token, recipientUserID) enforces that one
 // recipient can accept any given token at most once.
 type IncomingInvite struct {
-	ID              string `json:"id" gorm:"primaryKey"`
-	Token           string `json:"token" gorm:"uniqueIndex:idx_incoming_invites_token_recipient"`
-	InviteString    string `json:"invite_string"`
-	SenderFQDN      string `json:"sender_fqdn"`
-	RecipientUserId string `json:"recipient_user_id" gorm:"uniqueIndex:idx_incoming_invites_token_recipient"`
+	ID              string `gorm:"primaryKey"                                       json:"id"`
+	Token           string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"token"`
+	InviteString    string `json:"inviteString"`
+	SenderFQDN      string `gorm:"column:sender_fqdn"                               json:"senderFqdn"`
+	RecipientUserID string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"recipientUserId"`
 	Status          string `json:"status"` // pending, accepted
-	ReceivedAt      int64  `json:"received_at"`
-	UpdatedAt       int64  `json:"updated_at"`
+	// SenderUserID is the canonical remote sender user identity from the
+	// invite-accepted response. SenderFQDNNormalized is the sender host in
+	// compare form; both feed the must-invite gate.
+	SenderUserID         string `json:"senderUserId,omitempty"`
+	SenderFQDNNormalized string `gorm:"column:sender_fqdn_normalized" json:"senderFqdnNormalized,omitempty"`
+	ReceivedAt           int64  `json:"receivedAt"`
+	UpdatedAt            int64  `json:"updatedAt"`
 }

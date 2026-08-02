@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery
 
 import (
@@ -14,6 +19,11 @@ type APIVersionMode uint8
 
 const (
 	// APIVersionAcceptAny accepts any non-empty reported apiVersion (default).
+	// This is an ocmgo posture choice, not a spec requirement: apiVersion is a
+	// REQUIRED discovery field in OCM, but the spec does not mandate
+	// version-matching or rejection behavior, so strict-by-default rejection
+	// is not required. The accept-any default is intentional and spec-aligned.
+	// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L630-L631
 	APIVersionAcceptAny APIVersionMode = iota
 	// APIVersionExact accepts only apiVersion equal to APIVersionPin.
 	// Non-triple strings (for example "1.4" or "1.0-proposal1") are rejected
@@ -39,19 +49,26 @@ const (
 )
 
 // VersionPolicy controls inbound peer apiVersion accept/reject and warnings.
-// The pin is always APIVersionPin; there is no per-policy Pin field.
+// This is an ocmgo policy axis: apiVersion is a REQUIRED discovery field, but
+// the spec does not mandate version-matching or rejection, so the default
+// accept-any posture is spec-aligned (see the citation on APIVersionAcceptAny
+// above). The pin is always APIVersionPin; there is no per-policy Pin field.
 type VersionPolicy struct {
 	Mode APIVersionMode
 	Warn WarnMode
 }
 
 // NewVersionPolicy returns the default policy: accept-any with WarnAnyDiff.
+// Accept-any is intentional ocmgo posture: apiVersion is REQUIRED, but the
+// spec does not mandate matching or rejection (see APIVersionAcceptAny).
 func NewVersionPolicy() *VersionPolicy {
 	return &VersionPolicy{Mode: APIVersionAcceptAny, Warn: WarnAnyDiff}
 }
 
 // VersionPolicyFromConfig builds a VersionPolicy from loaded config values.
 // Caller must ensure cfg values passed enum validation during config load.
+// Defaults are ocmgo posture: accept-any is spec-aligned because the spec does
+// not mandate version matching or rejection (see APIVersionAcceptAny).
 func VersionPolicyFromConfig(cfg config.DiscoveryConfig) *VersionPolicy {
 	p := NewVersionPolicy()
 
@@ -81,6 +98,7 @@ func (p *VersionPolicy) Accept(reported string) (bool, string) {
 	if reported == "" {
 		return false, ""
 	}
+
 	if p == nil {
 		p = NewVersionPolicy()
 	}
@@ -90,11 +108,13 @@ func (p *VersionPolicy) Accept(reported string) (bool, string) {
 		if reported != spec.APIVersionPin {
 			return false, ""
 		}
+
 		return true, p.warn(reported)
 	case APIVersionAtLeast14:
 		if !atLeast14(reported) {
 			return false, ""
 		}
+
 		return true, p.warn(reported)
 	case APIVersionAcceptAny:
 		return true, p.warn(reported)
@@ -114,6 +134,7 @@ func (p *VersionPolicy) warn(reported string) string {
 				reported, spec.APIVersionPin,
 			)
 		}
+
 		return ""
 	case WarnAnyDiff:
 		if reported != spec.APIVersionPin {
@@ -122,6 +143,7 @@ func (p *VersionPolicy) warn(reported string) string {
 				reported, spec.APIVersionPin,
 			)
 		}
+
 		return ""
 	default:
 		return ""
@@ -135,28 +157,36 @@ func compareDotTriple(a, b string) (int, bool) {
 	if !okA {
 		return 0, false
 	}
+
 	mb, miB, pb, okB := parseDotTriple(b)
 	if !okB {
 		return 0, false
 	}
+
 	if ma != mb {
 		if ma < mb {
 			return -1, true
 		}
+
 		return 1, true
 	}
+
 	if mi != miB {
 		if mi < miB {
 			return -1, true
 		}
+
 		return 1, true
 	}
+
 	if pa != pb {
 		if pa < pb {
 			return -1, true
 		}
+
 		return 1, true
 	}
+
 	return 0, true
 }
 
@@ -171,28 +201,35 @@ func parseDotTriple(s string) (major, minor, patch int, ok bool) {
 	if len(parts) != 3 {
 		return 0, 0, 0, false
 	}
+
 	for _, part := range parts {
 		if part == "" {
 			return 0, 0, 0, false
 		}
+
 		for _, c := range part {
 			if c < '0' || c > '9' {
 				return 0, 0, 0, false
 			}
 		}
 	}
+
 	var err error
+
 	major, err = strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, 0, 0, false
 	}
+
 	minor, err = strconv.Atoi(parts[1])
 	if err != nil {
 		return 0, 0, 0, false
 	}
+
 	patch, err = strconv.Atoi(parts[2])
 	if err != nil {
 		return 0, 0, 0, false
 	}
+
 	return major, minor, patch, true
 }

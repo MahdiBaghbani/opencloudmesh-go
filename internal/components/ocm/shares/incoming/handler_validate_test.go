@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
@@ -41,6 +46,7 @@ func TestValidateRequiredFields_AllPresent(t *testing.T) {
 		ResourceType: "file",
 		Protocol:     spec.Protocol{Name: "webdav", WebDAV: &spec.WebDAVProtocol{URI: "x"}},
 	}
+
 	errs := spec.ValidateRequiredFields(req)
 	if len(errs) != 0 {
 		t.Errorf("expected no validation errors, got %d", len(errs))
@@ -59,6 +65,7 @@ func TestValidateRequiredFields_ProtocolWithOnlyWebDAV(t *testing.T) {
 		ResourceType: "file",
 		Protocol:     spec.Protocol{WebDAV: &spec.WebDAVProtocol{URI: "x"}},
 	}
+
 	errs := spec.ValidateRequiredFields(req)
 	if len(errs) != 0 {
 		t.Errorf("expected no validation errors for protocol with webdav, got %d: %v", len(errs), errs)

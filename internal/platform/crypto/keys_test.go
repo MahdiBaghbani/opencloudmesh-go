@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package crypto_test
 
 import (
@@ -23,6 +28,7 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 	if key == nil {
 		t.Fatal("expected signing key to be set")
 	}
+
 	if key.Algorithm != "ed25519" {
 		t.Errorf("expected algorithm ed25519, got %s", key.Algorithm)
 	}
@@ -36,8 +42,9 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 		t.Fatalf("LoadOrGenerate (reload) failed: %v", err)
 	}
 
-	pem1 := km.GetPublicKeyPEM()
-	pem2 := km2.GetPublicKeyPEM()
+	pem1 := getPublicKeyPEM(km)
+
+	pem2 := getPublicKeyPEM(km2)
 	if pem1 != pem2 {
 		t.Error("public keys should match after reload")
 	}
@@ -72,7 +79,9 @@ func TestKeyManager_KeyIDUsesProviderDomain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	want := id.ProviderDomain + "#key1"
+
 	km := crypto.NewKeyManager("", id.Origin)
 	if km.GetKeyID() != want {
 		t.Errorf("keyId = %q, want %q", km.GetKeyID(), want)
@@ -89,6 +98,7 @@ func TestKeyManager_JWKS(t *testing.T) {
 	if len(set.Keys) != 1 {
 		t.Fatalf("keys = %d, want 1", len(set.Keys))
 	}
+
 	if set.Keys[0].Kid != km.GetKeyID() {
 		t.Fatalf("kid = %q, want %q", set.Keys[0].Kid, km.GetKeyID())
 	}
@@ -101,6 +111,7 @@ func TestKeyManager_Sign(t *testing.T) {
 	}
 
 	message := []byte("test message")
+
 	sig, err := km.Sign(message)
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)
@@ -117,12 +128,12 @@ func TestParsePublicKeyPEM(t *testing.T) {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
 	}
 
-	pem := km.GetPublicKeyPEM()
+	pem := getPublicKeyPEM(km)
 	if pem == "" {
 		t.Fatal("expected non-empty PEM")
 	}
 
-	pub, err := crypto.ParsePublicKeyPEM(pem)
+	pub, err := parsePublicKeyPEM(pem)
 	if err != nil {
 		t.Fatalf("ParsePublicKeyPEM failed: %v", err)
 	}

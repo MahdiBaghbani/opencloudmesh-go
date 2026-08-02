@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package architecture
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -21,26 +27,36 @@ import (
 
 // peerMappingAllowlist lists intentional PeerMapping* successor file paths.
 var peerMappingAllowlist = []string{
+	"internal/components/ocm/discovery/resolve/inputs.go",
+	"internal/components/ocm/discovery/resolve/resolve.go",
+	"internal/components/ocm/discovery/resolve/resolve_routes_test.go",
+	"internal/components/ocm/discovery/resolve/resolve_test.go",
+	"internal/components/ocm/policy/compiler.go",
+	"internal/components/ocm/policy/compiler_test.go",
 	"internal/components/ocm/policy/peer_mapping.go",
 	"internal/components/ocm/policy/peer_mapping_test.go",
 	"internal/components/ocm/shares/incoming/handler.go",
+	"internal/components/ocm/shares/incoming/handler_fixtures_test.go",
 	"internal/components/ocm/shares/incoming/handler_logs_test.go",
-	"internal/components/ocm/shares/incoming/handler_test.go",
+	"internal/components/ocm/shares/incoming/handler_peer_admission_test.go",
 	"internal/platform/config/config.go",
 	"internal/platform/config/loader.go",
+	"internal/platform/config/loader_compatibility_scope_test.go",
 	"internal/platform/config/overlay.go",
 	"internal/platform/config/peer_mapping.go",
 	"internal/platform/config/peer_mapping_test.go",
 	"internal/services/ocm/inputs.go",
 	"internal/services/ocm/ocm.go",
+	"internal/wiring/resolve_inputs.go",
 	"internal/wiring/services.go",
 }
 
-// bannedTokens are residue identifiers that must not return.
+// bannedTokens are legacy identifiers that must not return in the tree.
 var bannedTokens = []string{
+	// PeerCompat was the old PascalCase type/name; TOML key peer_compat remains.
 	"PeerCompat",
+	// PeerProfile was a proposed rename for ResolveFacts; keep the retired name out of the tree.
 	"PeerProfile",
-	"compatibility_scope",
 	"RuntimePolicy",
 	"OpenCloudMeshPolicy",
 	"/ocm-provider",
@@ -54,101 +70,156 @@ var peerMappingIdent = regexp.MustCompile(`PeerMapping\w*`)
 
 func TestResolvedFindings_BanList(t *testing.T) {
 	root := modroot.ModuleRoot(t)
+
+	violations, err := scanBannedIdentifiers(root)
+	if err != nil {
+		t.Fatalf("walk failed: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("Retired identifier regressions:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+// scanBannedIdentifiers walks root and collects retired-identifier violations
+// from Go files.
+func scanBannedIdentifiers(root string) ([]string, error) {
 	var violations []string
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
-			name := d.Name()
-			if name == ".git" || name == "vendor" || name == "node_modules" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
+			return skipHeavyDir(d)
 		}
 
-		rel, err := filepath.Rel(root, path)
+		fileViolations, err := scanFileForBannedIdentifiers(root, path)
 		if err != nil {
 			return err
 		}
-		rel = filepath.ToSlash(rel)
-		if rel == "internal/architecture/resolved_findings_test.go" {
-			return nil
-		}
 
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		content := string(data)
-
-		for _, token := range bannedTokens {
-			if strings.Contains(content, token) {
-				violations = append(violations, rel+": banned residue "+token)
-			}
-		}
-
-		for _, match := range peerMappingIdent.FindAllString(content, -1) {
-			if peerMappingAllowed(match, rel) {
-				continue
-			}
-			violations = append(violations, rel+": banned PeerMapping identifier "+match)
-		}
+		violations = append(violations, fileViolations...)
 
 		return nil
 	})
+
+	return violations, err
+}
+
+// skipHeavyDir prunes directories that never carry first-party Go sources.
+func skipHeavyDir(d fs.DirEntry) error {
+	name := d.Name()
+	if name == ".git" || name == "vendor" || name == "node_modules" {
+		return filepath.SkipDir
+	}
+
+	return nil
+}
+
+// scanFileForBannedIdentifiers reports retired identifiers in one Go file.
+func scanFileForBannedIdentifiers(root, path string) ([]string, error) {
+	if !strings.HasSuffix(path, ".go") {
+		return nil, nil
+	}
+
+	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		t.Fatalf("walk failed: %v", err)
+		return nil, err
 	}
-	if len(violations) > 0 {
-		t.Fatalf("Ban-list regressions:\n%s", strings.Join(violations, "\n"))
+
+	rel = filepath.ToSlash(rel)
+	if rel == "internal/architecture/resolved_findings_test.go" {
+		return nil, nil
 	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return bannedIdentifierViolations(string(data), rel), nil
+}
+
+// bannedIdentifierViolations matches the ban list and the PeerMapping guard
+// against one file's content.
+func bannedIdentifierViolations(content, rel string) []string {
+	var violations []string
+
+	for _, token := range bannedTokens {
+		if strings.Contains(content, token) {
+			violations = append(violations, rel+": retired identifier "+token)
+		}
+	}
+
+	for _, match := range peerMappingIdent.FindAllString(content, -1) {
+		if peerMappingAllowed(match, rel) {
+			continue
+		}
+
+		violations = append(violations, rel+": banned PeerMapping identifier "+match)
+	}
+
+	return violations
 }
 
 func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 	want := []string{
+		"internal/components/ocm/discovery/resolve/inputs.go",
+		"internal/components/ocm/discovery/resolve/resolve.go",
+		"internal/components/ocm/discovery/resolve/resolve_routes_test.go",
+		"internal/components/ocm/discovery/resolve/resolve_test.go",
+		"internal/components/ocm/policy/compiler.go",
+		"internal/components/ocm/policy/compiler_test.go",
 		"internal/components/ocm/policy/peer_mapping.go",
 		"internal/components/ocm/policy/peer_mapping_test.go",
 		"internal/components/ocm/shares/incoming/handler.go",
+		"internal/components/ocm/shares/incoming/handler_fixtures_test.go",
 		"internal/components/ocm/shares/incoming/handler_logs_test.go",
-		"internal/components/ocm/shares/incoming/handler_test.go",
+		"internal/components/ocm/shares/incoming/handler_peer_admission_test.go",
 		"internal/platform/config/config.go",
 		"internal/platform/config/loader.go",
+		"internal/platform/config/loader_compatibility_scope_test.go",
 		"internal/platform/config/overlay.go",
 		"internal/platform/config/peer_mapping.go",
 		"internal/platform/config/peer_mapping_test.go",
 		"internal/services/ocm/inputs.go",
 		"internal/services/ocm/ocm.go",
+		"internal/wiring/resolve_inputs.go",
 		"internal/wiring/services.go",
 	}
+
 	if len(peerMappingAllowlist) == 0 {
 		t.Fatal("PeerMapping allowlist must be non-empty")
 	}
+
 	if len(peerMappingAllowlist) != len(want) {
 		t.Fatalf("PeerMapping allowlist length = %d, want %d; got %v",
 			len(peerMappingAllowlist), len(want), peerMappingAllowlist)
 	}
+
 	got := make(map[string]struct{}, len(peerMappingAllowlist))
 	for _, path := range peerMappingAllowlist {
 		got[path] = struct{}{}
 	}
+
 	for _, path := range want {
 		if _, ok := got[path]; !ok {
 			t.Errorf("PeerMapping allowlist missing %q", path)
 		}
 	}
+
 	for path := range got {
 		found := false
+
 		for _, w := range want {
 			if path == w {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			t.Errorf("PeerMapping allowlist has unexpected %q", path)
 		}
@@ -161,6 +232,7 @@ func peerMappingAllowed(ident, rel string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -195,10 +267,12 @@ func assertTagBasedIdentification(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -208,8 +282,8 @@ func assertTagBasedIdentification(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
+			KeyID: keyID, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})
 	if !result.Verified {
@@ -233,10 +307,12 @@ func assertLabelFreeIdentification(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(verifyOpts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, body); err != nil {
@@ -249,8 +325,8 @@ func assertLabelFreeIdentification(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
+			KeyID: keyID, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})
 	if !result.Verified {
@@ -261,7 +337,7 @@ func assertLabelFreeIdentification(t *testing.T) {
 func assertReasonUnsigned(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", `sig1=("@method" "@target-uri" "date");created=1730815200;keyid="example.com#key1";alg="ed25519"`)
 	req.Header.Set("Signature", "sig1=:AAAA:")
@@ -272,6 +348,7 @@ func assertReasonUnsigned(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected verification failure")
 	}
+
 	if result.Reason != crypto.ReasonUnsigned {
 		t.Fatalf("Reason = %q, want %q", result.Reason, crypto.ReasonUnsigned)
 	}
@@ -289,10 +366,12 @@ func assertTagIntegrity(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -304,8 +383,8 @@ func assertTagIntegrity(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
+			KeyID: keyID, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})
 	if result.Verified {
@@ -324,10 +403,12 @@ func assertGoldenOutput(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -336,8 +417,9 @@ func assertGoldenOutput(t *testing.T) {
 	}
 
 	sigInput := req.Header.Get("Signature-Input")
+
 	goldenRe := regexp.MustCompile(
-		`^ocm=\("@method" "@target-uri" "content-digest" "content-length" "date"\);created=1730815200;keyid="[^"]+";alg="ed25519";tag="ocm"$`,
+		`^ocm=\("@method" "@target-uri" "content-digest" "content-length"\);created=1730815200;keyid="[^"]+";alg="ed25519";tag="ocm"$`,
 	)
 	if !goldenRe.MatchString(sigInput) {
 		t.Fatalf("Signature-Input = %q, does not match golden default pattern", sigInput)

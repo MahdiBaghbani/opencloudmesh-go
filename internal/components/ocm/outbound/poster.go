@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 // Package outbound centralizes the shared OCM outbound POST flow: resolve the
 // peer origin, discover the peer endpoint, sign when configured, and send the
@@ -96,28 +98,41 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	if err := p.applySigning(httpReq, req); err != nil {
-		return nil, err
+	if signErr := p.applySigning(httpReq, req, peer.Discovery); signErr != nil {
+		return nil, signErr
 	}
 
 	resp, err := p.httpClient.Do(ctx, httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
+
 	return resp, nil
 }
 
-func (p *Poster) applySigning(httpReq *http.Request, req Request) error {
+func (p *Poster) applySigning(httpReq *http.Request, req Request, disc *spec.Discovery) error {
 	switch req.Kind {
-	case EndpointShares, EndpointInvites, EndpointTokenExchange:
+	case EndpointShares, EndpointInvites:
+		// Only sign when the peer advertises the http-sig capability.
+		// A server implementing http-sig MUST use it when interacting with a
+		// peer advertising http-sig, and MAY interact unsigned with a peer not
+		// advertising http-sig.
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
+		if !disc.IsHTTPSigCapable() {
+			return nil
+		}
+
 		if p.signer == nil {
 			return fmt.Errorf("outbound signing requires a configured signer")
 		}
+
 		if err := p.signer.SignRequest(httpReq, req.Body); err != nil {
 			return fmt.Errorf("failed to sign request: %w", err)
 		}
 	}
+
 	return nil
 }

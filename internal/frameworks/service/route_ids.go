@@ -1,11 +1,21 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package service
 
 const (
-	RouteIDOCMToken          = "ocm-token"
+	// RouteIDOCMToken is the OCM token route identifier.
+	RouteIDOCMToken = "ocm-token"
+	// RouteIDWebDAVOCMWildcard is the WebDAV OCM wildcard route identifier.
 	RouteIDWebDAVOCMWildcard = "webdav-ocm-wildcard"
-	RouteIDUIAcceptInvite    = "ui-accept-invite"
-	RouteIDUIWAYF            = "ui-wayf"
-	RouteIDAPIHealthz        = "api-healthz"
+	// RouteIDUIAcceptInvite is the UI accept-invite route identifier.
+	RouteIDUIAcceptInvite = "ui-accept-invite"
+	// RouteIDUIWAYF is the UI WAYF route identifier.
+	RouteIDUIWAYF = "ui-wayf"
+	// RouteIDAPIHealthz is the API health check route identifier.
+	RouteIDAPIHealthz = "api-healthz"
 )
 
 const subtreeDefaultIDSuffix = "-subtree-default"

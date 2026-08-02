@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocmaux
 
 import "testing"
@@ -28,11 +33,14 @@ func TestNormalizeToOrigin(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error for %q", tt.input)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("normalizeToOrigin(%q) error: %v", tt.input, err)
 			}
+
 			if got != tt.want {
 				t.Fatalf("normalizeToOrigin(%q) = %q, want %q", tt.input, got, tt.want)
 			}

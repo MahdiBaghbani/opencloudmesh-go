@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package keyid
 
 import (
@@ -24,6 +29,7 @@ func BuildKid(authority, fragment string) string {
 	if fragment == "" {
 		fragment = DefaultFragment
 	}
+
 	return authority + "#" + fragment
 }
 
@@ -45,10 +51,12 @@ func ParseKid(kid string) (Kid, error) {
 	}
 
 	authority := strings.ToLower(kid[:hash])
+
 	fragment := kid[hash+1:]
 	if authority == "" || fragment == "" {
 		return Kid{}, fmt.Errorf("keyid: malformed kid %q: expected host#fragment", kid)
 	}
+
 	if strings.Contains(authority, "/") {
 		return Kid{}, fmt.Errorf("keyid: host#fragment kid %q must not contain a path", kid)
 	}
@@ -65,20 +73,25 @@ func CanonicalJWKSAuthority(k Kid) (scheme, authority string, err error) {
 	if scheme == "" {
 		scheme = "https"
 	}
+
 	if scheme != "http" && scheme != "https" {
 		return "", "", fmt.Errorf("keyid: unsupported scheme %q", k.Scheme)
 	}
+
 	authority = strings.TrimSpace(k.Authority)
 	if authority == "" {
 		return "", "", errors.New("keyid: empty authority")
 	}
+
 	if strings.Contains(authority, "/") {
 		return "", "", fmt.Errorf("keyid: authority %q must not contain a path", authority)
 	}
+
 	normalized, err := hostport.Normalize(authority, scheme)
 	if err != nil {
 		return "", "", fmt.Errorf("keyid: normalize JWKS authority: %w", err)
 	}
+
 	return scheme, normalized, nil
 }
 
@@ -92,13 +105,19 @@ func parseKidFromURI(keyID string) (Kid, error) {
 	if idx := strings.LastIndex(keyID, "#"); idx >= 0 && idx < len(keyID)-1 {
 		fragment = keyID[idx+1:]
 	}
+
 	if fragment == "" {
 		return Kid{}, fmt.Errorf("keyid: URI keyId %q has no fragment", keyID)
 	}
 
+	compareAuthority, err := AuthorityForCompareFromKeyID(u)
+	if err != nil {
+		return Kid{}, err
+	}
+
 	return Kid{
 		Scheme:    u.Scheme,
-		Authority: strings.ToLower(AuthorityForCompareFromKeyID(u)),
+		Authority: strings.ToLower(compareAuthority),
 		Fragment:  fragment,
 	}, nil
 }
@@ -134,25 +153,14 @@ func KidFromPublicOrigin(publicOrigin, fragment string) (string, error) {
 	return BuildKid(authority, fragment), nil
 }
 
-// KidMatches reports whether a signature keyid parameter matches a JWKS kid.
-// Authorities are compared after CanonicalJWKSAuthority so default ports and
-// case differences do not break lookup (e.g. example.com:443#key1 vs example.com#key1).
-func KidMatches(keyidParam, jwksKid string) bool {
-	parsed, err := ParseKid(keyidParam)
-	if err != nil {
-		return false
-	}
-	jwks, err := ParseKid(jwksKid)
-	if err != nil {
-		return false
-	}
-	_, authA, err := CanonicalJWKSAuthority(parsed)
-	if err != nil {
-		return false
-	}
-	_, authB, err := CanonicalJWKSAuthority(jwks)
-	if err != nil {
-		return false
-	}
-	return authA == authB && parsed.Fragment == jwks.Fragment
+// KidEqualsExact reports whether a signature keyid parameter is byte-for-byte
+// equal to a JWKS kid. The OCM IETF contract requires the keyid value to
+// equal the kid of the corresponding key in the signer's JWK Set, and
+// verifiers must reject when no set kid equals keyid, so the exact resolver
+// applies string equality only: no authority normalization, case folding, or
+// prefix/substring matching.
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L846-L848
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L928-L933
+func KidEqualsExact(keyidParam, jwksKid string) bool {
+	return keyidParam == jwksKid
 }

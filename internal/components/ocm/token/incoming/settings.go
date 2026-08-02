@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming
 
 import (
@@ -22,15 +27,19 @@ func (s *TokenExchangeSettings) Validate() error {
 	if strings.TrimSpace(s.Path) == "" {
 		return errors.New("token_exchange.path must not be empty")
 	}
+
 	if strings.Contains(s.Path, "..") {
 		return errors.New("token_exchange.path must not contain '..'")
 	}
+
 	if strings.HasPrefix(s.Path, "/") {
 		return errors.New("token_exchange.path must be relative (no leading slash)")
 	}
+
 	if strings.Contains(s.Path, "://") {
 		return errors.New("token_exchange.path must not contain a scheme")
 	}
+
 	return nil
 }
 

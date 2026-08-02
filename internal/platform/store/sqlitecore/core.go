@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package sqlitecore is the private shared SQLite/GORM persistence engine used
 // by the sqlite and mirror drivers. It owns DB lifecycle (open/migrate/close)
 // and the full four-surface CRUD layer. Driver-specific behaviour (JSON export,
@@ -9,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -16,6 +22,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
@@ -29,9 +36,25 @@ type Core struct {
 // persistence models, and returns a ready Core. The caller owns the Core and
 // must call Close when done.
 func Open(dataDir string) (*Core, error) {
+	// Create the data dir up front so a fresh-CWD first boot works; matches
+	// the JSON driver's Init behavior.
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return nil, fmt.Errorf("failed to create data dir: %w", err)
+	}
+
 	dbPath := filepath.Join(dataDir, "ocm.db")
 
-	db, err := gorm.Open(gormsqlite.Open(dbPath), &gorm.Config{
+	// The busy timeout lets concurrent writers wait (up to 5s) instead of
+	// failing immediately with SQLITE_BUSY. Combined with wrapping the
+	// read-then-write update paths in a single transaction, this makes the
+	// pre-read + validate + coalesce + write atomic: SQLite's transaction
+	// isolation prevents another writer from committing a change between the
+	// pre-read and the write within the same transaction (the SHARED lock
+	// held by the pre-read blocks the other writer's COMMIT until our
+	// transaction finishes).
+	dsn := fmt.Sprintf("%s?_busy_timeout=5000", dbPath)
+
+	db, err := gorm.Open(gormsqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
@@ -51,6 +74,7 @@ func Open(dataDir string) (*Core, error) {
 		} else if closeErr := sqlDB.Close(); closeErr != nil {
 			return nil, errors.Join(migrErr, closeErr)
 		}
+
 		return nil, migrErr
 	}
 
@@ -62,10 +86,12 @@ func (c *Core) Close() error {
 	if c == nil || c.db == nil {
 		return nil
 	}
+
 	sqlDB, err := c.db.DB()
 	if err != nil {
 		return err
 	}
+
 	return sqlDB.Close()
 }
 
@@ -75,6 +101,7 @@ func normNotFound(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return store.ErrNotFound
 	}
+
 	return err
 }
 
@@ -84,6 +111,7 @@ func normWrite(err error) error {
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return store.ErrAlreadyExists
 	}
+
 	return err
 }
 
@@ -96,36 +124,43 @@ func (c *Core) CreateOutgoingShare(ctx context.Context, share *store.OutgoingSha
 	if err := c.db.WithContext(ctx).Create(share).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
 // GetOutgoingShareByID retrieves an outgoing share by its local share id.
-func (c *Core) GetOutgoingShareByID(ctx context.Context, shareId string) (*store.OutgoingShare, error) {
+func (c *Core) GetOutgoingShareByID(ctx context.Context, shareID string) (*store.OutgoingShare, error) {
 	var share store.OutgoingShare
-	result := c.db.WithContext(ctx).First(&share, "share_id = ?", shareId)
+
+	result := c.db.WithContext(ctx).First(&share, "share_id = ?", shareID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
-// GetOutgoingShare retrieves an outgoing share by providerId.
-func (c *Core) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
+// GetOutgoingShare retrieves an outgoing share by providerID.
+func (c *Core) GetOutgoingShare(ctx context.Context, providerID string) (*store.OutgoingShare, error) {
 	var share store.OutgoingShare
-	result := c.db.WithContext(ctx).First(&share, "provider_id = ?", providerId)
+
+	result := c.db.WithContext(ctx).First(&share, "provider_id = ?", providerID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
-// GetOutgoingShareByWebDAVId retrieves an outgoing share by webdavId.
-func (c *Core) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
+// GetOutgoingShareByWebDAVID retrieves an outgoing share by webdavID.
+func (c *Core) GetOutgoingShareByWebDAVID(ctx context.Context, webdavID string) (*store.OutgoingShare, error) {
 	var share store.OutgoingShare
-	result := c.db.WithContext(ctx).First(&share, "web_dav_id = ?", webdavId)
+
+	result := c.db.WithContext(ctx).First(&share, "web_dav_id = ?", webdavID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
@@ -137,42 +172,49 @@ func (c *Core) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret 
 	if sharedSecret == "" {
 		return nil, store.ErrNotFound
 	}
+
 	var share store.OutgoingShare
+
 	result := c.db.WithContext(ctx).First(&share, "shared_secret = ?", sharedSecret)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
 // UpdateOutgoingShare updates an existing outgoing share.
-// Returns ErrNotFound when no row matches the ProviderId (prevents silent upsert).
+// Returns ErrNotFound when no row matches the ProviderID (prevents silent upsert).
 // Uses a single UPDATE statement so there is no TOCTOU race between existence
 // check and write.
 func (c *Core) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
-	result := c.db.WithContext(ctx).
-		Model(&store.OutgoingShare{}).
-		Where("provider_id = ?", share.ProviderId).
-		Select("*").
-		Updates(share)
+	result := c.db.WithContext(ctx). //nolint:unqueryvet // intentional: select all columns for this GORM Updates chain; column list is intentionally open
+						Model(&store.OutgoingShare{}).
+						Where("provider_id = ?", share.ProviderID).
+						Select("*").
+						Updates(share)
 	if result.Error != nil {
 		return normWrite(result.Error)
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
-// DeleteOutgoingShare deletes an outgoing share by providerId.
-func (c *Core) DeleteOutgoingShare(ctx context.Context, providerId string) error {
-	result := c.db.WithContext(ctx).Delete(&store.OutgoingShare{}, "provider_id = ?", providerId)
+// DeleteOutgoingShare deletes an outgoing share by providerID.
+func (c *Core) DeleteOutgoingShare(ctx context.Context, providerID string) error {
+	result := c.db.WithContext(ctx).Delete(&store.OutgoingShare{}, "provider_id = ?", providerID)
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -182,6 +224,7 @@ func (c *Core) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, 
 	if err := c.db.WithContext(ctx).Find(&shares).Error; err != nil {
 		return nil, err
 	}
+
 	return shares, nil
 }
 
@@ -194,68 +237,78 @@ func (c *Core) CreateIncomingShare(ctx context.Context, share *store.IncomingSha
 	if err := c.db.WithContext(ctx).Create(share).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
-// GetIncomingShareByIDForRecipient retrieves an incoming share by shareId scoped to a recipient.
-func (c *Core) GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*store.IncomingShare, error) {
+// GetIncomingShareByIDForRecipient retrieves an incoming share by shareID scoped to a recipient.
+func (c *Core) GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*store.IncomingShare, error) {
 	var share store.IncomingShare
-	result := c.db.WithContext(ctx).First(&share, "share_id = ? AND user_id = ?", shareId, recipientUserId)
+
+	result := c.db.WithContext(ctx).First(&share, "share_id = ? AND recipient_user_id = ?", shareID, recipientUserID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
-// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerId.
-func (c *Core) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
+// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerID.
+func (c *Core) GetIncomingShareByProviderKey(ctx context.Context, senderHost, providerID string) (*store.IncomingShare, error) {
 	var share store.IncomingShare
-	result := c.db.WithContext(ctx).First(&share, "sending_server = ? AND provider_id = ?", sendingServer, providerId)
+
+	result := c.db.WithContext(ctx).First(&share, "sender_host = ? AND provider_id = ?", senderHost, providerID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
 // ListIncomingSharesByRecipient returns incoming shares for the given recipient user.
-func (c *Core) ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*store.IncomingShare, error) {
+func (c *Core) ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*store.IncomingShare, error) {
 	var shares []*store.IncomingShare
-	if err := c.db.WithContext(ctx).Where("user_id = ?", recipientUserId).Find(&shares).Error; err != nil {
+	if err := c.db.WithContext(ctx).Where("recipient_user_id = ?", recipientUserID).Find(&shares).Error; err != nil {
 		return nil, err
 	}
+
 	return shares, nil
 }
 
-// UpdateIncomingShareStatusForRecipient updates the state of an incoming share scoped to a
-// recipient. Only state and updated_at are written; other fields are not changed here.
-func (c *Core) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error {
+// UpdateIncomingShareStatusForRecipient updates the status of an incoming share scoped to a
+// recipient. Only status and updated_at are written; other fields are not changed here.
+func (c *Core) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, status string) error {
 	result := c.db.WithContext(ctx).
 		Model(&store.IncomingShare{}).
-		Where("share_id = ? AND user_id = ?", shareId, recipientUserId).
+		Where("share_id = ? AND recipient_user_id = ?", shareID, recipientUserID).
 		Updates(map[string]interface{}{
-			"state":      state,
+			"status":     status,
 			"updated_at": time.Now().Unix(),
 		})
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
 // DeleteIncomingShareForRecipient deletes an incoming share scoped to a recipient.
-func (c *Core) DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error {
+func (c *Core) DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error {
 	result := c.db.WithContext(ctx).
-		Where("share_id = ? AND user_id = ?", shareId, recipientUserId).
+		Where("share_id = ? AND recipient_user_id = ?", shareID, recipientUserID).
 		Delete(&store.IncomingShare{})
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -265,49 +318,87 @@ func (c *Core) DeleteIncomingShareForRecipient(ctx context.Context, shareId stri
 
 // CreateOutgoingInvite creates a new outgoing invite.
 func (c *Core) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
+		return err
+	}
+
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
 // GetOutgoingInvite retrieves an outgoing invite by id.
 func (c *Core) GetOutgoingInvite(ctx context.Context, id string) (*store.OutgoingInvite, error) {
 	var invite store.OutgoingInvite
+
 	result := c.db.WithContext(ctx).First(&invite, "id = ?", id)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
 // GetOutgoingInviteByToken retrieves an outgoing invite by token.
 func (c *Core) GetOutgoingInviteByToken(ctx context.Context, token string) (*store.OutgoingInvite, error) {
 	var invite store.OutgoingInvite
+
 	result := c.db.WithContext(ctx).First(&invite, "token = ?", token)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
 // UpdateOutgoingInvite updates an existing outgoing invite.
 // Returns ErrNotFound when no row matches the ID (prevents silent upsert).
-// Uses a single UPDATE statement so there is no TOCTOU race between existence
-// check and write.
+// The accepted identity (user id plus normalized host) coalesces with the
+// stored row so a status-only write cannot erase it, and an accepted status
+// without a complete identity is rejected. The raw accepted provider FQDN
+// keeps replace semantics.
+//
+// The pre-read, validation, coalesce, and write run inside one serializable
+// transaction so a concurrent writer cannot modify the row between the read
+// and the write (TOCTOU). The Option B write-back is preserved exactly:
+// only the coalesced AcceptedUserID and AcceptedProviderFQDNNormalized are
+// written back before the update; the raw FQDN follows replace semantics
+// and is not coalesced here.
 func (c *Core) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
-	result := c.db.WithContext(ctx).
-		Model(&store.OutgoingInvite{}).
-		Where("id = ?", invite.ID).
-		Select("*").
-		Updates(invite)
-	if result.Error != nil {
-		return normWrite(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
-	return nil
+	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing store.OutgoingInvite
+
+		if err := tx.First(&existing, "id = ?", invite.ID).Error; err != nil {
+			return normNotFound(err)
+		}
+
+		if err := invites.ValidateUpdateAcceptedIdentity(invite.Status,
+			invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+			existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
+			return err
+		}
+
+		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+			invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+			existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized)
+
+		result := tx. //nolint:unqueryvet // intentional: select all columns for this GORM Updates chain; column list is intentionally open
+				Model(&store.OutgoingInvite{}).
+				Where("id = ?", invite.ID).
+				Select("*").
+				Updates(invite)
+		if result.Error != nil {
+			return normWrite(result.Error)
+		}
+
+		if result.RowsAffected == 0 {
+			return store.ErrNotFound
+		}
+
+		return nil
+	})
 }
 
 // DeleteOutgoingInvite deletes an outgoing invite by id.
@@ -316,22 +407,27 @@ func (c *Core) DeleteOutgoingInvite(ctx context.Context, id string) error {
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
-// ListOutgoingInvites returns outgoing invites, optionally filtered by creator userId.
-func (c *Core) ListOutgoingInvites(ctx context.Context, userId string) ([]*store.OutgoingInvite, error) {
+// ListOutgoingInvites returns outgoing invites, optionally filtered by creator userID.
+func (c *Core) ListOutgoingInvites(ctx context.Context, userID string) ([]*store.OutgoingInvite, error) {
 	var invites []*store.OutgoingInvite
+
 	query := c.db.WithContext(ctx)
-	if userId != "" {
-		query = query.Where("created_by_user_id = ?", userId)
+	if userID != "" {
+		query = query.Where("created_by_user_id = ?", userID)
 	}
+
 	if err := query.Find(&invites).Error; err != nil {
 		return nil, err
 	}
+
 	return invites, nil
 }
 
@@ -341,72 +437,120 @@ func (c *Core) ListOutgoingInvites(ctx context.Context, userId string) ([]*store
 
 // CreateIncomingInvite creates a new incoming invite.
 func (c *Core) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
 // GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
-func (c *Core) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*store.IncomingInvite, error) {
+func (c *Core) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) (*store.IncomingInvite, error) {
 	var invite store.IncomingInvite
-	result := c.db.WithContext(ctx).First(&invite, "id = ? AND recipient_user_id = ?", id, recipientUserId)
+
+	result := c.db.WithContext(ctx).First(&invite, "id = ? AND recipient_user_id = ?", id, recipientUserID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
 // GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
-func (c *Core) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
+func (c *Core) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserID string) (*store.IncomingInvite, error) {
 	var invite store.IncomingInvite
-	result := c.db.WithContext(ctx).First(&invite, "token = ? AND recipient_user_id = ?", token, recipientUserId)
+
+	result := c.db.WithContext(ctx).First(&invite, "token = ? AND recipient_user_id = ?", token, recipientUserID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
-// UpdateIncomingInviteStatusForRecipient updates only the status of an incoming invite
-// scoped to a recipient. Scope-defining fields (Token, RecipientUserId) are immutable
-// after creation; only Status and UpdatedAt are changed.
-func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserId string, status string) error {
-	result := c.db.WithContext(ctx).
-		Model(&store.IncomingInvite{}).
-		Where("id = ? AND recipient_user_id = ?", id, recipientUserId).
-		Updates(map[string]interface{}{
+// UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite
+// scoped to a recipient, persisting the remote sender identity on acceptance when
+// provided. Scope-defining fields (Token, RecipientUserID) are immutable after
+// creation; sender identity coalesces with the stored row, and an accepted
+// status without a complete identity is rejected. The recipient scope gate
+// runs before identity validation so a wrong recipient stays ErrNotFound.
+//
+// The pre-read, validation, coalesce, and write run inside one serializable
+// transaction so a concurrent writer cannot modify the row between the read
+// and the write (TOCTOU). The Option B write-back is preserved exactly:
+// only the coalesced SenderUserID and SenderFQDNNormalized are written back;
+// no payload write occurs on partial-write paths.
+func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error {
+	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing store.IncomingInvite
+
+		if err := tx.First(&existing, "id = ? AND recipient_user_id = ?", id, recipientUserID).Error; err != nil {
+			return normNotFound(err)
+		}
+
+		if err := invites.ValidateUpdateAcceptedIdentity(status, senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
+			return err
+		}
+
+		senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+			senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized)
+
+		updates := map[string]interface{}{
 			"status":     status,
 			"updated_at": time.Now().Unix(),
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
-	return nil
+		}
+
+		if senderUserID != "" {
+			updates["sender_user_id"] = senderUserID
+		}
+
+		if senderFQDNNormalized != "" {
+			updates["sender_fqdn_normalized"] = senderFQDNNormalized
+		}
+
+		result := tx.
+			Model(&store.IncomingInvite{}).
+			Where("id = ? AND recipient_user_id = ?", id, recipientUserID).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+
+		if result.RowsAffected == 0 {
+			return store.ErrNotFound
+		}
+
+		return nil
+	})
 }
 
 // DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
-func (c *Core) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) error {
+func (c *Core) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) error {
 	result := c.db.WithContext(ctx).
-		Where("id = ? AND recipient_user_id = ?", id, recipientUserId).
+		Where("id = ? AND recipient_user_id = ?", id, recipientUserID).
 		Delete(&store.IncomingInvite{})
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
 // ListIncomingInvites returns incoming invites for a recipient user.
-func (c *Core) ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*store.IncomingInvite, error) {
+func (c *Core) ListIncomingInvites(ctx context.Context, recipientUserID string) ([]*store.IncomingInvite, error) {
 	var invites []*store.IncomingInvite
-	if err := c.db.WithContext(ctx).Where("recipient_user_id = ?", recipientUserId).Find(&invites).Error; err != nil {
+	if err := c.db.WithContext(ctx).Where("recipient_user_id = ?", recipientUserID).Find(&invites).Error; err != nil {
 		return nil, err
 	}
+
 	return invites, nil
 }
 
@@ -416,6 +560,7 @@ func (c *Core) ListAllIncomingShares(ctx context.Context) ([]*store.IncomingShar
 	if err := c.db.WithContext(ctx).Find(&shares).Error; err != nil {
 		return nil, err
 	}
+
 	return shares, nil
 }
 
@@ -425,5 +570,6 @@ func (c *Core) ListAllIncomingInvites(ctx context.Context) ([]*store.IncomingInv
 	if err := c.db.WithContext(ctx).Find(&invites).Error; err != nil {
 		return nil, err
 	}
+
 	return invites, nil
 }

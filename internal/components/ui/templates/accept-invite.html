@@ -1,4 +1,12 @@
 <!DOCTYPE html>
+
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -266,7 +274,7 @@
 
             if (!importResp.ok) {
               const errObj = importData.error || importData;
-              const reason = errObj.reason_code || "";
+              const reason = errObj.reasonCode || "";
               const msg = errObj.message || "Import failed.";
               errorEl.textContent = msg;
               if (reason) {

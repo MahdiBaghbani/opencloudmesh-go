@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -8,24 +10,25 @@ import (
 	"net/http"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
 // TestFederationsEndpoint verifies /ocm-aux/federations returns a valid JSON array
 // when the server is configured with peer trust enabled (but no directory services).
 // With no directory services configured, the response is an empty array.
-// Detailed response shape testing is in internal/components/ocmaux/handler_test.go.
+// Detailed response shape testing is in internal/components/ocmaux/handler_federations_test.go.
 func TestFederationsEndpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// K2 JSON config: trust group enabled but no directory services to fetch from
+	// Trust group config: enabled but no directory services to fetch from
 	trustGroupJSON := `{
-		"trust_group_id": "test-federation-001",
+		"trustGroupId": "test-federation-001",
 		"enabled": true,
-		"enforce_membership": false,
-		"directory_services": [],
+		"enforceMembership": false,
+		"directoryServices": [],
 		"keys": []
 	}`
 
@@ -40,6 +43,7 @@ max_stale_seconds = 600
 `
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "federation-test",
 		Mode: "dev",
@@ -51,12 +55,17 @@ max_stale_seconds = 600
 	defer srv.Stop(t)
 
 	// GET /ocm-aux/federations
-	resp, err := http.Get(srv.BaseURL + "/ocm-aux/federations")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/ocm-aux/federations", nil)
+	if err != nil {
+		t.Fatalf("build federations request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get /ocm-aux/federations: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)
@@ -81,18 +90,24 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "no-federation-test",
 		Mode: "dev",
 	})
 	defer srv.Stop(t)
 
-	resp, err := http.Get(srv.BaseURL + "/ocm-aux/federations")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/ocm-aux/federations", nil)
+	if err != nil {
+		t.Fatalf("build federations request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get /ocm-aux/federations: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package cfg
 
 import (
@@ -31,9 +36,11 @@ func TestDecode_Basic(t *testing.T) {
 	if c.Name != "test-service" {
 		t.Errorf("Name = %q, want %q", c.Name, "test-service")
 	}
+
 	if c.Port != 9000 {
 		t.Errorf("Port = %d, want %d", c.Port, 9000)
 	}
+
 	if !c.Enabled {
 		t.Error("Enabled = false, want true")
 	}
@@ -63,6 +70,7 @@ func TestDecodeWithUnused_ReportsUnusedKeys(t *testing.T) {
 	}
 
 	var c testConfig
+
 	unused, err := DecodeWithUnused(input, &c)
 	if err != nil {
 		t.Fatalf("DecodeWithUnused failed: %v", err)
@@ -76,6 +84,7 @@ func TestDecodeWithUnused_ReportsUnusedKeys(t *testing.T) {
 	if unused[0] != "another_bad" {
 		t.Errorf("unused[0] = %q, want %q", unused[0], "another_bad")
 	}
+
 	if unused[1] != "unknown_key" {
 		t.Errorf("unused[1] = %q, want %q", unused[1], "unknown_key")
 	}
@@ -93,6 +102,7 @@ func TestDecodeWithUnused_NoUnusedKeys(t *testing.T) {
 	}
 
 	var c testConfig
+
 	unused, err := DecodeWithUnused(input, &c)
 	if err != nil {
 		t.Fatalf("DecodeWithUnused failed: %v", err)
@@ -109,6 +119,7 @@ func TestDecodeWithUnused_ApplyDefaults(t *testing.T) {
 	}
 
 	var c testConfig
+
 	_, err := DecodeWithUnused(input, &c)
 	if err != nil {
 		t.Fatalf("DecodeWithUnused failed: %v", err)
@@ -126,6 +137,7 @@ func TestMustDecodeStrict_FailsOnUnusedKeys(t *testing.T) {
 	}
 
 	var c testConfig
+
 	err := MustDecodeStrict(input, &c)
 	if err == nil {
 		t.Fatal("MustDecodeStrict should have failed on unused keys")
@@ -145,6 +157,7 @@ func TestMustDecodeStrict_PassesWithNoUnusedKeys(t *testing.T) {
 	}
 
 	var c testConfig
+
 	err := MustDecodeStrict(input, &c)
 	if err != nil {
 		t.Fatalf("MustDecodeStrict should have passed: %v", err)
@@ -161,6 +174,7 @@ func TestMustDecodeStrict_ApplyDefaults(t *testing.T) {
 	}
 
 	var c testConfig
+
 	err := MustDecodeStrict(input, &c)
 	if err != nil {
 		t.Fatalf("MustDecodeStrict failed: %v", err)

@@ -1,3 +1,17 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+// OCM conformance is measured against IETF-OCM.md (the prose Internet-Draft),
+// not the vendored OpenAPI snapshot. Normative SSOT:
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md
+//
+// spec.yaml is a derived snapshot pinned for schema stability and may lag the
+// prose spec, including http-sig applicability for /request-share and
+// /invite-accepted. Tests here assert vendored snapshot integrity (pin.json
+// and spec.yaml exist and agree with spec.APIVersionPin), not normative
+// behavior.
 package architecture
 
 import (
@@ -6,9 +20,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
-	"gopkg.in/yaml.v3"
 )
 
 func TestSpecPinPresent(t *testing.T) {
@@ -20,6 +35,7 @@ func TestSpecPinPresent(t *testing.T) {
 	if _, err := os.Stat(pinPath); err != nil {
 		t.Fatalf("vendored pin.json not found: %v", err)
 	}
+
 	if _, err := os.Stat(specPath); err != nil {
 		t.Fatalf("vendored spec.yaml not found: %v", err)
 	}
@@ -35,13 +51,14 @@ func TestSpecPinPresent(t *testing.T) {
 		Version string `json:"version"`
 		File    string `json:"file"`
 	}
-	if err := json.Unmarshal(data, &pin); err != nil {
-		t.Fatalf("failed to parse pin.json: %v", err)
+	if uerr := json.Unmarshal(data, &pin); uerr != nil {
+		t.Fatalf("failed to parse pin.json: %v", uerr)
 	}
 
-	if pin.Commit != "f9a704f63477134701c0b58b29bb6b98949361dc" {
-		t.Errorf("pin.json commit = %q, want f9a704f63477134701c0b58b29bb6b98949361dc", pin.Commit)
+	if pin.Commit != "6a0586183cbef10ecae9dedc42561806447eb2f5" {
+		t.Errorf("pin.json commit = %q, want 6a0586183cbef10ecae9dedc42561806447eb2f5", pin.Commit)
 	}
+
 	if pin.Version != "v1.4.0" {
 		t.Errorf("pin.json version = %q, want v1.4.0", pin.Version)
 	}
@@ -59,6 +76,7 @@ func TestSpecPinPresent(t *testing.T) {
 	if err := yaml.Unmarshal(specData, &spec); err != nil {
 		t.Fatalf("failed to parse spec.yaml: %v", err)
 	}
+
 	if spec.Info.Version != "1.4.0" {
 		t.Errorf("spec.yaml info.version = %q, want 1.4.0", spec.Info.Version)
 	}

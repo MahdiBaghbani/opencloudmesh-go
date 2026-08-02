@@ -1,8 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package server
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
@@ -18,6 +21,7 @@ type RouteGroup struct {
 	AtHostRoot   bool
 }
 
+// GetMountSpecs returns the route groups derived from the default route options.
 func GetMountSpecs() []RouteGroup {
 	opts := service.DefaultRouteOpts()
 	return mountSpecsFromDerived(opts)
@@ -25,6 +29,7 @@ func GetMountSpecs() []RouteGroup {
 
 func mountSpecsFromDerived(opts service.RouteOpts) []RouteGroup {
 	specs := service.DerivedMountSpecs(opts)
+
 	groups := make([]RouteGroup, len(specs))
 	for i, spec := range specs {
 		groups[i] = RouteGroup{
@@ -34,6 +39,7 @@ func mountSpecsFromDerived(opts service.RouteOpts) []RouteGroup {
 			AtHostRoot:   spec.AtHostRoot,
 		}
 	}
+
 	return groups
 }
 
@@ -47,7 +53,8 @@ func (s *Server) mountService(r chi.Router, svc service.Service, atRoot bool) {
 		return
 	}
 
-	var handler http.Handler = svc.Handler()
+	var handler = svc.Handler()
+
 	prefix := svc.Prefix()
 
 	if atRoot || prefix == "" {

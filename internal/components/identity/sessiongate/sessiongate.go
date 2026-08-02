@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package sessiongate provides session authentication middleware for HTTP servers.
 package sessiongate
 
@@ -103,6 +108,7 @@ func handleUnauthorized(w http.ResponseWriter, r *http.Request, basePath, reason
 		redirectToLogin(w, r, basePath)
 		return
 	}
+
 	api.WriteUnauthorized(w, reason, message)
 }
 
@@ -110,9 +116,11 @@ func normalizeBasePath(basePath string) string {
 	if basePath == "" {
 		return ""
 	}
+
 	if !strings.HasPrefix(basePath, "/") {
 		basePath = "/" + basePath
 	}
+
 	return strings.TrimSuffix(basePath, "/")
 }
 
@@ -120,6 +128,7 @@ func uiPrefix(basePath string) string {
 	if basePath == "" {
 		return "/ui"
 	}
+
 	return basePath + "/ui"
 }
 
@@ -127,6 +136,7 @@ func shouldRedirectToLogin(r *http.Request, basePath string) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}
+
 	return isUIPath(r.URL.Path, basePath)
 }
 
@@ -135,6 +145,7 @@ func isUIPath(path, basePath string) bool {
 	if path == prefix {
 		return true
 	}
+
 	return strings.HasPrefix(path, prefix+"/")
 }
 
@@ -143,6 +154,7 @@ func redirectToLogin(w http.ResponseWriter, r *http.Request, basePath string) {
 	if r.URL.RawQuery != "" {
 		original += "?" + r.URL.RawQuery
 	}
+
 	loginPath := uiPrefix(basePath) + "/login"
 	loginURL := loginPath + "?redirect=" + url.QueryEscape(original)
 	http.Redirect(w, r, loginURL, http.StatusFound)
@@ -167,12 +179,20 @@ func extractSessionToken(r *http.Request) string {
 
 // GetSessionFromContext returns the session from request context.
 func GetSessionFromContext(ctx context.Context) *identity.Session {
-	session, _ := ctx.Value(sessionContextKey).(*identity.Session)
+	session, ok := ctx.Value(sessionContextKey).(*identity.Session)
+	if !ok {
+		return nil
+	}
+
 	return session
 }
 
 // GetUserFromContext returns the user from request context.
 func GetUserFromContext(ctx context.Context) *identity.User {
-	user, _ := ctx.Value(userContextKey).(*identity.User)
+	user, ok := ctx.Value(userContextKey).(*identity.User)
+	if !ok {
+		return nil
+	}
+
 	return user
 }

@@ -1,10 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package policy
 
 // Facts are the OCM code-flow facts for this implementation. A non-nil
 // *CodeFlow evaluates knobs with strict defaults; a nil *CodeFlow returns
 // all-false Facts (strict-off).
 type Facts struct {
-	TokenExchangeCapable             bool
 	RequiresTokenExchange            bool
 	IncludesTokenExchangeRequirement bool
 	RequiresHTTPRequestSignatures    bool
@@ -30,8 +34,8 @@ func (c *CodeFlow) Evaluate() Facts {
 	if c == nil {
 		return Facts{}
 	}
+
 	return Facts{
-		TokenExchangeCapable:             true,
 		RequiresTokenExchange:            boolOrDefaultTrue(c.RequiresTokenExchangeRequirement),
 		IncludesTokenExchangeRequirement: boolOrDefaultTrue(c.IncludesTokenExchangeRequirement),
 		RequiresHTTPRequestSignatures:    boolOrDefaultTrue(c.RequiresHTTPRequestSignatures),
@@ -42,5 +46,6 @@ func boolOrDefaultTrue(v *bool) bool {
 	if v == nil {
 		return true
 	}
+
 	return *v
 }

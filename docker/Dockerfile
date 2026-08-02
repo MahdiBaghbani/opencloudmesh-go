@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1.7
 
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# opencloudmesh-go Docker image (standalone)
-# Copyright (C) 2025 Mahdi Baghbani <mahdi-baghbani@azadehafzar.io>
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-ARG BASE_BUILD_IMAGE="golang:1.25-trixie"
+ARG BASE_BUILD_IMAGE="golang:1.26.5-trixie"
 ARG BASE_RUNTIME_IMAGE="debian:trixie-slim"
+ARG OCM_IMAGE_VERSION="dev"
+ARG OCM_IMAGE_REVISION="unknown"
 
 ##############################
 ### Build opencloudmesh-go ###
@@ -76,6 +79,17 @@ RUN cp /tls/certificate-authority/dockypody.crt /usr/local/share/ca-certificates
 ### Runtime image          ###
 ##############################
 FROM ${BASE_RUNTIME_IMAGE}
+
+ARG OCM_IMAGE_VERSION="dev"
+ARG OCM_IMAGE_REVISION="unknown"
+ARG BASE_RUNTIME_IMAGE="debian:trixie-slim"
+ARG BASE_BUILD_IMAGE
+
+LABEL org.opencontainers.image.title="opencloudmesh-go" \
+    org.opencontainers.image.version="${OCM_IMAGE_VERSION}" \
+    org.opencontainers.image.revision="${OCM_IMAGE_REVISION}" \
+    org.opencontainers.image.base.name="${BASE_RUNTIME_IMAGE}" \
+    io.opencloudmesh.go.version="${BASE_BUILD_IMAGE}"
 
 RUN --mount=type=cache,id=opencloudmesh-go-final-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=opencloudmesh-go-final-apt-lists,target=/var/lib/apt/lists,sharing=locked \

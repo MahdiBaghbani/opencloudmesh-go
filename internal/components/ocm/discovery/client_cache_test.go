@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package discovery_test
 
 import (
@@ -18,7 +23,7 @@ import (
 )
 
 func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginBase(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected HTTP request on cache hit: %s", r.URL.Path)
 	}))
 	defer server.Close()
@@ -27,22 +32,26 @@ func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginB
 	raw := validDiscoveryPayload(server.URL, map[string]any{
 		"inviteAcceptDialog": "apps/ocm/invite-accept",
 	})
+
 	rawBytes, err := json.Marshal(raw)
 	if err != nil {
 		t.Fatalf("marshal discovery: %v", err)
 	}
 
 	c := cache.NewDefault()
+
 	cacheKey := "discovery:" + baseURL
-	if err := c.Set(context.Background(), cacheKey, rawBytes, cache.TTLDiscovery); err != nil {
-		t.Fatalf("seed cache: %v", err)
+	if cerr := c.Set(context.Background(), cacheKey, rawBytes, cache.TTLDiscovery); cerr != nil {
+		t.Fatalf("seed cache: %v", cerr)
 	}
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), c)
+
 	disc, err := client.Discover(context.Background(), baseURL)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
+
 	want := server.URL + "/apps/ocm/invite-accept"
 	if disc.InviteAcceptDialog != want {
 		t.Errorf("InviteAcceptDialog = %q, want %q", disc.InviteAcceptDialog, want)
@@ -51,50 +60,61 @@ func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginB
 
 func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 	var fetchCount int
+
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
 			return
 		}
+
 		fetchCount++
 		raw := validDiscoveryPayload(serverURL, nil)
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	c := cache.NewDefault()
 	cacheKey := "discovery:" + server.URL
+
 	invalidRaw, err := json.Marshal(validDiscoveryPayload(server.URL, map[string]any{
 		"endPoint": "/ocm",
 	}))
 	if err != nil {
 		t.Fatalf("marshal invalid discovery: %v", err)
 	}
-	if err := c.Set(context.Background(), cacheKey, invalidRaw, cache.TTLDiscovery); err != nil {
-		t.Fatalf("seed cache: %v", err)
+
+	if cerr := c.Set(context.Background(), cacheKey, invalidRaw, cache.TTLDiscovery); cerr != nil {
+		t.Fatalf("seed cache: %v", cerr)
 	}
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), c)
+
 	disc, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
+
 	if fetchCount != 1 {
 		t.Fatalf("fetchCount = %d, want 1 after evicting stale cache entry", fetchCount)
 	}
+
 	wantEndpoint := strings.TrimSuffix(server.URL, "/") + "/ocm"
 	if disc.EndPoint != wantEndpoint {
 		t.Errorf("EndPoint = %q, want %q", disc.EndPoint, wantEndpoint)
 	}
 
 	fetchCount = 0
+
 	disc2, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("second Discover failed: %v", err)
 	}
+
 	if fetchCount != 0 {
 		t.Fatalf("fetchCount = %d, want 0 on validated cache hit", fetchCount)
 	}
+
 	if disc2.EndPoint != wantEndpoint {
 		t.Errorf("cached EndPoint = %q, want %q", disc2.EndPoint, wantEndpoint)
 	}
@@ -102,6 +122,7 @@ func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 
 func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	var server *httptest.Server
+
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := spec.Discovery{
@@ -111,10 +132,13 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 				ResourceTypes: []spec.ResourceType{},
 				Criteria:      []string{},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc)
+			tshttp.MustEncodeJSON(t, w, disc)
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer server.Close()
@@ -127,6 +151,7 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
+
 	if !disc.Enabled {
 		t.Error("expected discovery to be enabled")
 	}
@@ -134,12 +159,15 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 
 func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	callCount := 0
+
 	var server *httptest.Server
+
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
 			return
 		}
+
 		callCount++
 		raw := map[string]any{
 			"enabled":       true,
@@ -149,8 +177,9 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 			"criteria":      []any{},
 			"capabilities":  []string{"http-sig"},
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		tshttp.MustEncodeJSON(t, w, raw)
 	}))
 	defer server.Close()
 
@@ -160,6 +189,7 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	if _, err := client.Discover(context.Background(), server.URL); err != nil {
 		t.Fatalf("first Discover failed: %v", err)
 	}
+
 	if callCount != 1 {
 		t.Fatalf("expected exactly 1 HTTP call, got %d", callCount)
 	}
@@ -167,6 +197,7 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	if _, err := client.Discover(context.Background(), server.URL); err != nil {
 		t.Fatalf("second Discover failed: %v", err)
 	}
+
 	if callCount != 1 {
 		t.Fatalf("expected cache hit to avoid a second HTTP call, call count %d", callCount)
 	}

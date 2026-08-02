@@ -1,15 +1,20 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package incoming_test
 
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
+
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -17,10 +22,9 @@ import (
 )
 
 func TestHandler_FormEncoded_Success(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -30,7 +34,9 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	// Make token request using the canonical authorization_code grant.
 	form := url.Values{}
@@ -38,8 +44,9 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code-789")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -47,12 +54,15 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if got := w.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control = %q, want %q", got, "no-store")
 	}
+
 	if got := w.Header().Get("Pragma"); got != "no-cache" {
 		t.Errorf("Pragma = %q, want %q", got, "no-cache")
 	}
+
 	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want prefix %q", ct, "application/json")
 	}
@@ -65,9 +75,11 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	if resp.AccessToken == "" {
 		t.Error("access_token is empty")
 	}
+
 	if resp.TokenType != "Bearer" {
 		t.Errorf("token_type = %q, want %q", resp.TokenType, "Bearer")
 	}
+
 	if resp.ExpiresIn <= 0 {
 		t.Errorf("expires_in = %d, want > 0", resp.ExpiresIn)
 	}
@@ -77,16 +89,16 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to get stored token: %v", err)
 	}
+
 	if stored.ShareID != share.ShareID {
-		t.Errorf("stored shareId mismatch")
+		t.Errorf("stored shareID mismatch")
 	}
 }
 
 func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-ac",
@@ -95,15 +107,18 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "ac-secret-code")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -116,9 +131,11 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.AccessToken == "" {
 		t.Error("access_token is empty")
 	}
+
 	if resp.TokenType != "Bearer" {
 		t.Errorf("token_type = %q, want %q", resp.TokenType, "Bearer")
 	}

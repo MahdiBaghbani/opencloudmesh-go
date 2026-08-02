@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package crypto provides cryptographic primitives for OCM signatures.
 package crypto
 
@@ -26,11 +31,10 @@ type SigningKey struct {
 
 // KeyManager manages signing keys for an OCM instance.
 type KeyManager struct {
-	mu          sync.RWMutex
-	signingKey  *SigningKey
-	keyPath     string
-	keyID       string
-	kidFragment string
+	mu         sync.RWMutex
+	signingKey *SigningKey
+	keyPath    string
+	keyID      string
 }
 
 // NewKeyManager creates a key manager with the default kid fragment.
@@ -44,13 +48,10 @@ func NewKeyManagerWithFragment(keyPath, publicOrigin, kidFragment string) *KeyMa
 	if err != nil {
 		keyID = keyid.BuildKid(publicOrigin, kidFragment)
 	}
-	if kidFragment == "" {
-		kidFragment = keyid.DefaultFragment
-	}
+
 	return &KeyManager{
-		keyPath:     keyPath,
-		keyID:       keyID,
-		kidFragment: kidFragment,
+		keyPath: keyPath,
+		keyID:   keyID,
 	}
 }
 
@@ -70,6 +71,7 @@ func (km *KeyManager) LoadOrGenerate() error {
 	if err != nil {
 		return fmt.Errorf("failed to generate signing key: %w", err)
 	}
+
 	km.signingKey = key
 
 	if km.keyPath != "" {
@@ -116,9 +118,14 @@ func (km *KeyManager) loadKey() (*SigningKey, error) {
 		return nil, errors.New("not an Ed25519 private key")
 	}
 
+	publicKey, ok := edPriv.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil, errors.New("Ed25519 public key type assertion failed")
+	}
+
 	return &SigningKey{
 		PrivateKey: edPriv,
-		PublicKey:  edPriv.Public().(ed25519.PublicKey),
+		PublicKey:  publicKey,
 		KeyID:      km.keyID,
 		Algorithm:  sigalg.Ed25519,
 	}, nil
@@ -140,6 +147,7 @@ func (km *KeyManager) saveKey() error {
 	}
 
 	data := pem.EncodeToMemory(block)
+
 	return os.WriteFile(km.keyPath, data, 0600)
 }
 
@@ -148,6 +156,7 @@ func (km *KeyManager) saveKey() error {
 func (km *KeyManager) SetWireKeyID(keyID string) {
 	km.mu.Lock()
 	defer km.mu.Unlock()
+
 	if km.signingKey != nil {
 		km.signingKey.KeyID = keyID
 	}
@@ -157,39 +166,20 @@ func (km *KeyManager) SetWireKeyID(keyID string) {
 func (km *KeyManager) GetSigningKey() *SigningKey {
 	km.mu.RLock()
 	defer km.mu.RUnlock()
+
 	return km.signingKey
 }
 
-// JWKS returns the local public key set for /.well-known/jwks.json.
+// JWKS returns the local public key set served at the OCM root /jwks route.
 func (km *KeyManager) JWKS() jwks.Set {
 	km.mu.RLock()
 	defer km.mu.RUnlock()
+
 	if km.signingKey == nil {
 		return jwks.Set{Keys: []jwks.Key{}}
 	}
+
 	return jwks.SetFromEd25519PublicKey(km.signingKey.KeyID, km.signingKey.PublicKey)
-}
-
-// GetPublicKeyPEM returns the public key in PEM format.
-func (km *KeyManager) GetPublicKeyPEM() string {
-	km.mu.RLock()
-	defer km.mu.RUnlock()
-
-	if km.signingKey == nil {
-		return ""
-	}
-
-	pkix, err := x509.MarshalPKIXPublicKey(km.signingKey.PublicKey)
-	if err != nil {
-		return ""
-	}
-
-	block := &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: pkix,
-	}
-
-	return string(pem.EncodeToMemory(block))
 }
 
 // GetKeyID returns the stable host#fragment kid.
@@ -207,24 +197,4 @@ func (km *KeyManager) Sign(message []byte) ([]byte, error) {
 	}
 
 	return sigalg.Sign(km.signingKey.Algorithm, km.signingKey.PrivateKey, message)
-}
-
-// ParsePublicKeyPEM parses a PEM-encoded public key.
-func ParsePublicKeyPEM(pemData string) (ed25519.PublicKey, error) {
-	block, _ := pem.Decode([]byte(pemData))
-	if block == nil {
-		return nil, errors.New("no PEM block found")
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key: %w", err)
-	}
-
-	edPub, ok := pub.(ed25519.PublicKey)
-	if !ok {
-		return nil, errors.New("not an Ed25519 public key")
-	}
-
-	return edPub, nil
 }

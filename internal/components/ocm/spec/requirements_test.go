@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package spec_test
 
 import (
@@ -35,6 +40,7 @@ func TestWebDAVHasRequirementUsesConstant(t *testing.T) {
 	if !p.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Error("HasRequirement(RequirementMustExchangeToken) = false, want true")
 	}
+
 	if p.HasRequirement(spec.RequirementMustUseMFA) {
 		t.Error("HasRequirement(RequirementMustUseMFA) = true, want false")
 	}
@@ -47,6 +53,7 @@ func TestWebappHasRequirementUsesConstant(t *testing.T) {
 	if !p.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Error("HasRequirement(RequirementMustExchangeToken) = false, want true")
 	}
+
 	if p.HasRequirement(spec.RequirementMustUseMFA) {
 		t.Error("HasRequirement(RequirementMustUseMFA) = true, want false")
 	}
@@ -59,6 +66,7 @@ var requirementClosedPathFiles = []string{
 	"internal/components/ocm/spec/protocol_admission.go",
 	"internal/components/ocm/access/remote.go",
 	"internal/components/ocm/shares/incoming/handler.go",
+	"internal/components/ocm/policy/compiler.go",
 }
 
 var requirementWireLiterals = []string{
@@ -74,6 +82,7 @@ func TestRequirementClosedPathNoRawWireLiterals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+
 			content := string(data)
 			for _, lit := range requirementWireLiterals {
 				if strings.Contains(content, lit) {

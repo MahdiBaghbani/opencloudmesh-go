@@ -1,30 +1,39 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package crypto_test
 
 import (
 	"bytes"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 
 	if verifier.HasSignatureHeaders(req) {
 		t.Error("should not have signature headers")
 	}
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{}, nil
 	})
 
 	if result.Verified {
 		t.Error("should not verify without signature headers")
 	}
+
 	if result.Error == nil {
 		t.Error("should return error for missing headers")
 	}
@@ -33,8 +42,14 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	km1 := crypto.NewKeyManager("", "https://example.com")
 	km2 := crypto.NewKeyManager("", "https://attacker.com")
-	km1.LoadOrGenerate()
-	km2.LoadOrGenerate()
+
+	if err := km1.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate km1: %v", err)
+	}
+
+	if err := km2.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate km2: %v", err)
+	}
 
 	opts := httpsigFixedOptions()
 
@@ -42,21 +57,75 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test": "data"}`)
-	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
-	signer.SignRequest(req, body)
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
 
 	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km2.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
+			KeyID: keyID, PublicKey: km2.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})
 
 	if result.Verified {
 		t.Error("verification should fail with wrong key")
+	}
+}
+
+func TestRFC9421_VerifyTamperedKeyIDRejected(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test": "data"}`)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/json")
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+
+	// An in-transit keyid swap resolves nothing: no set kid equals the
+	// tampered keyid, so verification fails at key resolution with the
+	// distinct key_not_found reason rather than a generic error.
+	tampered := strings.Replace(
+		req.Header.Get("Signature-Input"),
+		fmt.Sprintf(`keyid=%q`, km.GetKeyID()),
+		`keyid="example.com#key2"`,
+		1,
+	)
+	if tampered == req.Header.Get("Signature-Input") {
+		t.Fatal("keyid replacement did not apply")
+	}
+
+	req.Header.Set("Signature-Input", tampered)
+
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return km.JWKS().ResolveExactKeyID(keyID)
+	})
+	if result.Verified {
+		t.Fatal("expected tampered keyid rejection")
+	}
+
+	if result.Reason != crypto.ReasonKeyNotFound {
+		t.Fatalf("Reason = %q, want %q (err=%v)", result.Reason, crypto.ReasonKeyNotFound, result.Error)
 	}
 }
 
@@ -76,7 +145,7 @@ func TestHasSignatureHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}

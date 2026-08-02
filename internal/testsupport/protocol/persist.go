@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package protocol
 
 import (
@@ -15,22 +20,22 @@ const (
 
 // RedactedOutgoingShare is a persistence-safe view of one outgoing share row.
 type RedactedOutgoingShare struct {
-	ProviderID      string `json:"provider_id"`
-	ShareID         string `json:"share_id,omitempty"`
-	WebDAVID        string `json:"webdav_id,omitempty"`
-	State           string `json:"state"`
-	ReceiverHost    string `json:"receiver_host,omitempty"`
-	HasSharedSecret bool   `json:"has_shared_secret"`
+	ProviderID      string `json:"providerId"`
+	ShareID         string `json:"shareId,omitempty"`
+	WebDAVID        string `json:"webdavId,omitempty"`
+	Status          string `json:"status"`
+	ReceiverHost    string `json:"receiverHost,omitempty"`
+	HasSharedSecret bool   `json:"hasSharedSecret"`
 }
 
 // RedactedIncomingShare is a persistence-safe view of one incoming share row.
 type RedactedIncomingShare struct {
-	ShareID         string `json:"share_id"`
-	ProviderID      string `json:"provider_id"`
-	SendingServer   string `json:"sending_server,omitempty"`
-	State           string `json:"state"`
-	UserID          string `json:"user_id,omitempty"`
-	HasSharedSecret bool   `json:"has_shared_secret"`
+	ShareID         string `json:"shareId"`
+	ProviderID      string `json:"providerId"`
+	SenderHost      string `json:"senderHost,omitempty"`
+	Status          string `json:"status"`
+	RecipientUserID string `json:"recipientUserId,omitempty"`
+	HasSharedSecret bool   `json:"hasSharedSecret"`
 }
 
 // SharePersistenceSnapshot captures redacted share JSON persistence for stable
@@ -41,9 +46,9 @@ type SharePersistenceSnapshot struct {
 }
 
 // TokenPersistenceSnapshot captures redacted token-exchange code presence derived
-// from outgoing share shared_secret fields (there is no separate token JSON file).
+// from outgoing share sharedSecret fields (there is no separate token JSON file).
 type TokenPersistenceSnapshot struct {
-	OutgoingCodes map[string]bool `json:"outgoing_codes"`
+	OutgoingCodes map[string]bool `json:"outgoingCodes"`
 }
 
 // PersistenceSnapshot combines share and derived token-exchange fingerprints.
@@ -53,21 +58,21 @@ type PersistenceSnapshot struct {
 }
 
 type rawOutgoingShare struct {
-	ShareID      string `json:"share_id"`
-	ProviderID   string `json:"provider_id"`
-	WebDAVID     string `json:"webdav_id"`
-	SharedSecret string `json:"shared_secret"`
-	ReceiverHost string `json:"receiver_host"`
-	State        string `json:"state"`
+	ShareID      string `json:"shareId"`
+	ProviderID   string `json:"providerId"`
+	WebDAVID     string `json:"webdavId"`
+	SharedSecret string `json:"sharedSecret"`
+	ReceiverHost string `json:"receiverHost"`
+	Status       string `json:"status"`
 }
 
 type rawIncomingShare struct {
-	ShareID       string `json:"share_id"`
-	ProviderID    string `json:"provider_id"`
-	SendingServer string `json:"sending_server"`
-	SharedSecret  string `json:"shared_secret"`
-	State         string `json:"state"`
-	UserID        string `json:"user_id"`
+	ShareID         string `json:"shareId"`
+	ProviderID      string `json:"providerId"`
+	SenderHost      string `json:"senderHost"`
+	SharedSecret    string `json:"sharedSecret"`
+	Status          string `json:"status"`
+	RecipientUserID string `json:"recipientUserId"`
 }
 
 // SnapshotPersistence reads dataDir/data share JSON files and returns redacted
@@ -77,6 +82,7 @@ func SnapshotPersistence(dataDir string) (PersistenceSnapshot, error) {
 	if err != nil {
 		return PersistenceSnapshot{}, err
 	}
+
 	return PersistenceSnapshot{
 		Shares: shares,
 		Tokens: tokenSnapshotFromShares(shares.Outgoing),
@@ -94,10 +100,12 @@ func SnapshotEqual(a, b PersistenceSnapshot) bool {
 	if err != nil {
 		return false
 	}
+
 	bb, err := canonicalSnapshotBytes(b)
 	if err != nil {
 		return false
 	}
+
 	return bytes.Equal(ab, bb)
 }
 
@@ -111,29 +119,44 @@ func snapshotShares(dataDir string) (SharePersistenceSnapshot, error) {
 	if err != nil {
 		return SharePersistenceSnapshot{}, err
 	}
+
 	incoming, err := readIncomingShares(dataDir)
 	if err != nil {
 		return SharePersistenceSnapshot{}, err
 	}
+
 	return SharePersistenceSnapshot{
 		Outgoing: outgoing,
 		Incoming: incoming,
 	}, nil
 }
 
-func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error) {
-	path := filepath.Join(dataDir, "data", fileOutgoingShares)
+// readShareRows reads one share JSON file from dataDir/data and decodes its
+// rows. A missing file yields an empty map.
+func readShareRows[Raw any](dataDir, filename, label string) (map[string]Raw, error) {
+	path := filepath.Join(dataDir, "data", filename)
+
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return map[string]RedactedOutgoingShare{}, nil
+			return map[string]Raw{}, nil
 		}
-		return nil, fmt.Errorf("read outgoing shares: %w", err)
+
+		return nil, fmt.Errorf("read %s shares: %w", label, err)
 	}
 
-	var byProvider map[string]rawOutgoingShare
-	if err := json.Unmarshal(raw, &byProvider); err != nil {
-		return nil, fmt.Errorf("decode outgoing shares: %w", err)
+	var rows map[string]Raw
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("decode %s shares: %w", label, err)
+	}
+
+	return rows, nil
+}
+
+func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error) {
+	byProvider, err := readShareRows[rawOutgoingShare](dataDir, fileOutgoingShares, "outgoing")
+	if err != nil {
+		return nil, err
 	}
 
 	out := make(map[string]RedactedOutgoingShare, len(byProvider))
@@ -142,31 +165,24 @@ func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error
 		if key == "" {
 			key = share.ProviderID
 		}
+
 		out[key] = RedactedOutgoingShare{
 			ProviderID:      share.ProviderID,
 			ShareID:         share.ShareID,
 			WebDAVID:        share.WebDAVID,
-			State:           share.State,
+			Status:          share.Status,
 			ReceiverHost:    share.ReceiverHost,
 			HasSharedSecret: share.SharedSecret != "",
 		}
 	}
+
 	return out, nil
 }
 
 func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error) {
-	path := filepath.Join(dataDir, "data", fileIncomingShares)
-	raw, err := os.ReadFile(path)
+	byShareID, err := readShareRows[rawIncomingShare](dataDir, fileIncomingShares, "incoming")
 	if err != nil {
-		if os.IsNotExist(err) {
-			return map[string]RedactedIncomingShare{}, nil
-		}
-		return nil, fmt.Errorf("read incoming shares: %w", err)
-	}
-
-	var byShareID map[string]rawIncomingShare
-	if err := json.Unmarshal(raw, &byShareID); err != nil {
-		return nil, fmt.Errorf("decode incoming shares: %w", err)
+		return nil, err
 	}
 
 	out := make(map[string]RedactedIncomingShare, len(byShareID))
@@ -175,15 +191,17 @@ func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error
 		if key == "" {
 			key = share.ShareID
 		}
+
 		out[key] = RedactedIncomingShare{
 			ShareID:         share.ShareID,
 			ProviderID:      share.ProviderID,
-			SendingServer:   share.SendingServer,
-			State:           share.State,
-			UserID:          share.UserID,
+			SenderHost:      share.SenderHost,
+			Status:          share.Status,
+			RecipientUserID: share.RecipientUserID,
 			HasSharedSecret: share.SharedSecret != "",
 		}
 	}
+
 	return out, nil
 }
 
@@ -192,6 +210,7 @@ func tokenSnapshotFromShares(outgoing map[string]RedactedOutgoingShare) TokenPer
 	for providerID, share := range outgoing {
 		codes[providerID] = share.HasSharedSecret
 	}
+
 	return TokenPersistenceSnapshot{OutgoingCodes: codes}
 }
 

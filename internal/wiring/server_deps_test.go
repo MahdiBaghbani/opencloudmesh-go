@@ -1,6 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wiring
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -22,6 +28,7 @@ func TestBuildServerDeps_FailsWithoutSharedDeps(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when shared deps are nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingServerDeps) {
 		t.Fatalf("expected ErrMissingServerDeps, got: %v", err)
 	}
@@ -39,6 +46,7 @@ func TestBuildServerDeps_FailsWithoutRealIP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when RealIP is nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingRealIP) {
 		t.Fatalf("expected ErrMissingRealIP, got: %v", err)
 	}
@@ -55,6 +63,7 @@ func TestBuildServerDeps_FailsWithoutAuthRepos(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when auth repos are nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingAuthRepos) {
 		t.Fatalf("expected ErrMissingAuthRepos, got: %v", err)
 	}
@@ -73,9 +82,11 @@ func TestBuildServerDeps_SucceedsWithSharedDeps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
+
 	if sd.AuthGate == nil {
 		t.Fatal("expected injected auth gate")
 	}
+
 	if sd.RealIP == nil {
 		t.Fatal("expected injected RealIP")
 	}
@@ -96,11 +107,11 @@ func TestBuildServerDeps_AuthGateDoesNotPanicOnProtectedRoute(t *testing.T) {
 	}
 
 	requireAuth := func(path string) bool { return path == "/protected" }
-	handler := sd.AuthGate(requireAuth)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := sd.AuthGate(requireAuth)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

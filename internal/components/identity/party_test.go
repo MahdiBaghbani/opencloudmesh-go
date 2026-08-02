@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package identity_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -26,6 +32,7 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
+
 	if user.ID == "" {
 		t.Error("ID should be assigned on create")
 	}
@@ -35,6 +42,7 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
+
 	if got.Username != "alice" {
 		t.Errorf("expected username 'alice', got %q", got.Username)
 	}
@@ -44,16 +52,22 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByUsername failed: %v", err)
 	}
+
 	if got.ID != user.ID {
 		t.Errorf("ID mismatch")
 	}
 
 	// Update
 	user.DisplayName = "Alice Updated"
-	if err := repo.Update(ctx, user); err != nil {
-		t.Fatalf("Update failed: %v", err)
+	if serr := repo.Update(ctx, user); serr != nil {
+		t.Fatalf("Update failed: %v", serr)
 	}
-	got, _ = repo.Get(ctx, user.ID)
+
+	got, err = repo.Get(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
 	if got.DisplayName != "Alice Updated" {
 		t.Errorf("expected updated display name")
 	}
@@ -63,16 +77,18 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List failed: %v", err)
 	}
+
 	if len(users) != 1 {
 		t.Errorf("expected 1 user, got %d", len(users))
 	}
 
 	// Delete
-	if err := repo.Delete(ctx, user.ID); err != nil {
-		t.Fatalf("Delete failed: %v", err)
+	if serr := repo.Delete(ctx, user.ID); serr != nil {
+		t.Fatalf("Delete failed: %v", serr)
 	}
+
 	_, err = repo.Get(ctx, user.ID)
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound after delete")
 	}
 }
@@ -89,7 +105,7 @@ func TestMemoryPartyRepo_DuplicateUsername(t *testing.T) {
 	}
 
 	err := repo.Create(ctx, user2)
-	if err != identity.ErrUserExists {
+	if !errors.Is(err, identity.ErrUserExists) {
 		t.Errorf("expected ErrUserExists, got %v", err)
 	}
 }
@@ -100,6 +116,7 @@ func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
 
 	// Create a user that is already expired
 	past := time.Now().Add(-time.Hour)
+
 	user := &identity.User{
 		Username:  "probe1",
 		Role:      "probe",
@@ -111,6 +128,7 @@ func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
 
 	// Create a non-expired user
 	future := time.Now().Add(time.Hour)
+
 	user2 := &identity.User{
 		Username:  "probe2",
 		Role:      "probe",
@@ -125,15 +143,21 @@ func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteExpired failed: %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("expected 1 expired user deleted, got %d", count)
 	}
 
 	// Verify only non-expired remains
-	users, _ := repo.List(ctx, "")
+	users, err := repo.List(ctx, "")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if len(users) != 1 {
 		t.Errorf("expected 1 user remaining, got %d", len(users))
 	}
+
 	if users[0].Username != "probe2" {
 		t.Errorf("wrong user remained")
 	}
@@ -157,6 +181,7 @@ func TestMemoryPartyRepo_GetByEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByEmail exact failed: %v", err)
 	}
+
 	if got.ID != user.ID {
 		t.Errorf("ID mismatch: got %q, want %q", got.ID, user.ID)
 	}
@@ -166,19 +191,20 @@ func TestMemoryPartyRepo_GetByEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByEmail normalized failed: %v", err)
 	}
+
 	if got.ID != user.ID {
 		t.Error("expected same user from case-insensitive email lookup")
 	}
 
 	// Unknown email returns ErrUserNotFound
 	_, err = repo.GetByEmail(ctx, "bob@example.com")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound, got %v", err)
 	}
 
 	// Empty email returns ErrUserNotFound (not indexed)
 	_, err = repo.GetByEmail(ctx, "")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound for empty email, got %v", err)
 	}
 }
@@ -195,7 +221,7 @@ func TestMemoryPartyRepo_DuplicateEmail(t *testing.T) {
 	}
 
 	err := repo.Create(ctx, user2)
-	if err != identity.ErrEmailExists {
+	if !errors.Is(err, identity.ErrEmailExists) {
 		t.Errorf("expected ErrEmailExists for duplicate email, got %v", err)
 	}
 }
@@ -211,6 +237,7 @@ func TestMemoryPartyRepo_EmptyEmailNotIndexed(t *testing.T) {
 	if err := repo.Create(ctx, user1); err != nil {
 		t.Fatalf("Create user1 failed: %v", err)
 	}
+
 	if err := repo.Create(ctx, user2); err != nil {
 		t.Fatalf("Create user2 failed: %v", err)
 	}
@@ -243,7 +270,7 @@ func TestMemoryPartyRepo_UpdateMaintainsEmailIndex(t *testing.T) {
 
 	// Old email should not resolve
 	_, err := repo.GetByEmail(ctx, "alice@example.com")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound for old email, got %v", err)
 	}
 
@@ -252,17 +279,19 @@ func TestMemoryPartyRepo_UpdateMaintainsEmailIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByEmail for new email failed: %v", err)
 	}
+
 	if got.ID != user.ID {
 		t.Error("ID mismatch after email update")
 	}
 
 	// Update to empty email removes from index
 	user.Email = ""
-	if err := repo.Update(ctx, user); err != nil {
-		t.Fatalf("Update to empty email failed: %v", err)
+	if serr := repo.Update(ctx, user); serr != nil {
+		t.Fatalf("Update to empty email failed: %v", serr)
 	}
+
 	_, err = repo.GetByEmail(ctx, "newalice@example.com")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound after clearing email, got %v", err)
 	}
 }
@@ -277,14 +306,16 @@ func TestMemoryPartyRepo_UpdateEmailUniqueness(t *testing.T) {
 	if err := repo.Create(ctx, user1); err != nil {
 		t.Fatalf("Create user1 failed: %v", err)
 	}
+
 	if err := repo.Create(ctx, user2); err != nil {
 		t.Fatalf("Create user2 failed: %v", err)
 	}
 
 	// Bob tries to take Alice's email
 	user2.Email = "alice@example.com"
+
 	err := repo.Update(ctx, user2)
-	if err != identity.ErrEmailExists {
+	if !errors.Is(err, identity.ErrEmailExists) {
 		t.Errorf("expected ErrEmailExists, got %v", err)
 	}
 }
@@ -305,7 +336,7 @@ func TestMemoryPartyRepo_DeleteRemovesEmailIndex(t *testing.T) {
 
 	// Email lookup returns ErrUserNotFound after deletion.
 	_, err := repo.GetByEmail(ctx, "alice@example.com")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound after delete, got %v", err)
 	}
 
@@ -317,8 +348,15 @@ func TestMemoryPartyRepo_DeleteRemovesEmailIndex(t *testing.T) {
 }
 
 func TestUUIDv7(t *testing.T) {
-	id1 := identity.UUIDv7()
-	id2 := identity.UUIDv7()
+	id1, err := identity.UUIDv7()
+	if err != nil {
+		t.Fatalf("UUIDv7 failed: %v", err)
+	}
+
+	id2, err := identity.UUIDv7()
+	if err != nil {
+		t.Fatalf("UUIDv7 failed: %v", err)
+	}
 
 	if id1 == id2 {
 		t.Error("UUIDs should be unique")
@@ -328,6 +366,7 @@ func TestUUIDv7(t *testing.T) {
 	if len(id1) != 36 {
 		t.Errorf("expected length 36, got %d", len(id1))
 	}
+
 	if id1[8] != '-' || id1[13] != '-' || id1[18] != '-' || id1[23] != '-' {
 		t.Error("invalid UUID format")
 	}

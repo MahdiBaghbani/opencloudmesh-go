@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package config
 
 import (
@@ -20,6 +25,8 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 }
 
 func TestLoad_TokenExchangeConfig_FromTOML(t *testing.T) {
+	// Clear ambient env override so the token exchange load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -44,6 +51,8 @@ path = "token/v2"
 }
 
 func TestLoad_TokenExchangeConfig_FlagOverridesTOMLPath(t *testing.T) {
+	// Clear ambient env override so the flag-over-TOML precedence is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -58,6 +67,7 @@ path = "token/v2"
 	}
 
 	path := "exchange"
+
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
@@ -85,6 +95,8 @@ func TestLoad_TokenExchangeConfig_InvalidPath_FailsFast(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clear ambient env override so the invalid-path validation is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
 
@@ -102,6 +114,7 @@ path = "` + tt.path + `"
 			if err == nil {
 				t.Fatalf("expected error for invalid token_exchange.path %q", tt.path)
 			}
+
 			if !strings.Contains(err.Error(), "token_exchange.path") {
 				t.Errorf("expected error to mention token_exchange.path, got: %v", err)
 			}
@@ -110,6 +123,9 @@ path = "` + tt.path + `"
 }
 
 func TestLoad_TokenExchangeConfig_DefaultPathWhenSectionMissing(t *testing.T) {
+	// Clear ambient env override so the default path load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)

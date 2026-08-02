@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -13,10 +15,10 @@ import (
 // strictProtocolTrustGroupFixtureJSON is the empty-directory-services trust-group
 // fixture for VariantPeerTrustStaleMembership integration tests.
 const strictProtocolTrustGroupFixtureJSON = `{
-	"trust_group_id": "strict-protocol-pair",
+	"trustGroupId": "strict-protocol-pair",
 	"enabled": true,
-	"enforce_membership": false,
-	"directory_services": [],
+	"enforceMembership": false,
+	"directoryServices": [],
 	"keys": []
 }`
 
@@ -32,6 +34,7 @@ func startStrictProtocolPairWithExtraAllowedPorts(
 	t.Helper()
 
 	moduleRoot := harness.FindProjectRoot(t)
+
 	opts := harness.StrictProtocolPairStartOptions{
 		ExtraAllowedPorts: extraAllowedPorts,
 		TLSRootCAFile:     tsprotocol.StrictProtocolTLSRootCA(moduleRoot),

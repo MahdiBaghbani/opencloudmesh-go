@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package directoryservice
 
 import (
@@ -15,12 +20,13 @@ import (
 func newTestHTTPClient() *httpclient.Client {
 	cfg := tshttp.PermissiveConfig()
 	cfg.MaxRedirects = 0
+
 	return httpclient.New(cfg, nil)
 }
 
 func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -32,12 +38,13 @@ func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
 func TestFetchListing_CompactJWS_RS256(t *testing.T) {
 	kp := generateRSA(t)
-	body := signCompact(t, jose.RS256, kp.priv, testPayload())
+	body := signCompact(t, jose.RS256, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -49,12 +56,13 @@ func TestFetchListing_CompactJWS_RS256(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
 func TestFetchListing_CompactJWS_ES256(t *testing.T) {
 	kp := generateECDSA(t)
-	body := signCompact(t, jose.ES256, kp.priv, testPayload())
+	body := signCompact(t, jose.ES256, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -66,12 +74,13 @@ func TestFetchListing_CompactJWS_ES256(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
 func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signFullSerialize(t, jose.EdDSA, kp.priv, testPayload())
+	body := signFullSerialize(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -83,6 +92,7 @@ func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
@@ -98,10 +108,11 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 		t.Fatalf("create multi-signer: %v", err)
 	}
 
-	jws, err := ms.Sign(testPayload())
+	jws, err := ms.Sign(testPayload(t))
 	if err != nil {
 		t.Fatalf("sign payload: %v", err)
 	}
+
 	body := []byte(jws.FullSerialize())
 
 	ts := serveJWS(t, body)
@@ -117,12 +128,13 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
 func TestFetchListing_InvalidSignature(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	bodyStr := string(body)
 	bodyStr = bodyStr[:len(bodyStr)-4] + "XXXX"
@@ -142,7 +154,7 @@ func TestFetchListing_InvalidSignature(t *testing.T) {
 func TestFetchListing_WrongKey(t *testing.T) {
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, signing.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -158,7 +170,7 @@ func TestFetchListing_WrongKey(t *testing.T) {
 
 func TestFetchListing_InactiveKey(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -174,9 +186,14 @@ func TestFetchListing_InactiveKey(t *testing.T) {
 
 func TestFetchListing_MissingFederationField(t *testing.T) {
 	kp := generateEd25519(t)
-	payload, _ := json.Marshal(map[string]any{
+
+	payload, err := json.Marshal(map[string]any{
 		"servers": []map[string]string{{"url": "https://a.example.com", "displayName": "A"}},
 	})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
 	body := signCompact(t, jose.EdDSA, kp.priv, payload)
 
 	ts := serveJWS(t, body)
@@ -185,14 +202,14 @@ func TestFetchListing_MissingFederationField(t *testing.T) {
 	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	_, err = client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for missing federation field, got nil")
 	}
 }
 
 func TestFetchListing_UnsignedPayload(t *testing.T) {
-	ts := serveJWS(t, testPayload())
+	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "required", nil)
@@ -207,7 +224,7 @@ func TestFetchListing_UnsignedPayload(t *testing.T) {
 
 func TestFetchListing_NoActiveKeys(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -224,7 +241,7 @@ func TestFetchListing_NoActiveKeys(t *testing.T) {
 func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, signing.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -239,12 +256,13 @@ func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
 func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -256,11 +274,12 @@ func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
 func TestFetchListing_HTTPError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer ts.Close()

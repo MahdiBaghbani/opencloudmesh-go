@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 // Package access provides remote file access for incoming OCM shares.
 package access
@@ -8,9 +10,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
@@ -18,7 +20,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
 // Share status constants; duplicated here to avoid import cycles.
@@ -26,8 +27,8 @@ const (
 	ShareStatusAccepted = "accepted"
 )
 
-// Protocol selectors for the access plane. The caller must choose one;
-// there is no implicit webapp-or-webdav fallback.
+// Protocol labels for shares. Only WebDAV is supported for remote access;
+// ProtocolWebapp may appear on stored shares but the access plane rejects it.
 const (
 	ProtocolWebDAV = "webdav"
 	ProtocolWebapp = "webapp"
@@ -35,18 +36,23 @@ const (
 
 // Access authorization modes returned by DecideAccessAuth.
 const (
-	AccessModeTokenExchange  = "token-exchange"
-	AccessModeSharedSecret   = "shared-secret"
-	AccessModeWebappCodeFlow = "webapp-code-flow"
-	AccessModeFailClosed     = "fail-closed"
+	AccessModeTokenExchange        = "token-exchange"
+	AccessModeSharedSecret         = "shared-secret"
+	AccessModeFailClosed           = "fail-closed"
+	AccessModeExchangeThenFallback = "exchange-then-fallback"
 )
 
 var (
+	// ErrTokenExchangeRequired reports a required token exchange that was not performed.
 	ErrTokenExchangeRequired = errors.New("token exchange required but not performed")
-	ErrTokenExchangeFailed   = errors.New("token exchange failed")
-	ErrRemoteAccessFailed    = errors.New("remote access failed")
-	ErrShareNotAccepted      = errors.New("share not accepted")
-	ErrProtocolRequired      = errors.New("access protocol must be set to webdav or webapp")
+	// ErrTokenExchangeFailed reports a failed token exchange.
+	ErrTokenExchangeFailed = errors.New("token exchange failed")
+	// ErrRemoteAccessFailed reports a failed remote file access attempt.
+	ErrRemoteAccessFailed = errors.New("remote access failed")
+	// ErrShareNotAccepted reports access to a share that is not accepted.
+	ErrShareNotAccepted = errors.New("share not accepted")
+	// ErrProtocolRequired reports a non-WebDAV access protocol request.
+	ErrProtocolRequired = errors.New("access protocol must be webdav")
 )
 
 // ShareInfo holds the minimal share fields needed for remote access (avoids import cycles).
@@ -70,13 +76,10 @@ type RemoteAccessor interface {
 
 // Client accesses files from remote OCM shares via exchanged Bearer tokens.
 type Client struct {
-	httpClient           *httpclient.ContextClient
-	discoveryClient      *discovery.Client
-	tokenClient          *tokenoutgoing.Client
-	peerOrigin           *peerorigin.Resolver
-	localIdentity        localidentity.Identity
-	webappReceiveTargets []string
-	webappRedirectPath   string
+	httpClient      *httpclient.ContextClient
+	discoveryClient *discovery.Client
+	tokenClient     *tokenoutgoing.Client
+	peerOrigin      *peerorigin.Resolver
 }
 
 // NewClient returns a Client; panics if discoveryClient is nil. A nil peer
@@ -90,6 +93,7 @@ func NewClient(
 	if discoveryClient == nil {
 		panic("access.NewClient: discoveryClient must not be nil")
 	}
+
 	return &Client{
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
@@ -98,31 +102,15 @@ func NewClient(
 	}
 }
 
-// SetLocalIdentity configures the local identity used to build receiver-side
-// webapp URLs such as expired_session_redirect_uri.
-func (c *Client) SetLocalIdentity(id localidentity.Identity) {
-	c.localIdentity = id
-}
-
-// SetWebappReceiveTargets configures the local webapp-receive targets used for
-// the target-intersection check during webapp access.
-func (c *Client) SetWebappReceiveTargets(targets []string) {
-	c.webappReceiveTargets = targets
-}
-
-// SetWebappRedirectPath configures the path appended to the local endpoint base
-// when building expired_session_redirect_uri. Defaults to /ocm/webapp when empty.
-func (c *Client) SetWebappRedirectPath(path string) {
-	c.webappRedirectPath = path
-}
-
+// AccessOptions holds the parameters for a remote access request.
 type AccessOptions struct {
 	Share    *ShareInfo
-	Protocol string // "webdav" or "webapp"; must be set explicitly
+	Protocol string // "webdav"; must be set explicitly
 	Method   string // GET, PROPFIND, etc.
 	SubPath  string
 }
 
+// AccessResult holds the HTTP response and access token from a remote access request.
 type AccessResult struct {
 	Response    *http.Response
 	AccessToken string
@@ -139,6 +127,7 @@ func accessHostForDiscovery(share *ShareInfo) string {
 	if share.OwnerHost != "" {
 		return share.OwnerHost
 	}
+
 	return share.SenderHost
 }
 
@@ -152,13 +141,15 @@ func (c *Client) DecideAccessAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 			nil,
 		)
 	}
-	if opts.Protocol != ProtocolWebDAV && opts.Protocol != ProtocolWebapp {
+
+	if opts.Protocol != ProtocolWebDAV {
 		return failClosedAccessDecision(
 			reason.ReasonProtocolMismatch,
-			"access protocol must be webdav or webapp",
+			"access protocol must be webdav",
 			ErrProtocolRequired,
 		)
 	}
+
 	if disc == nil {
 		return failClosedAccessDecision(
 			reason.ReasonDiscoveryFailed,
@@ -167,12 +158,7 @@ func (c *Client) DecideAccessAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 		)
 	}
 
-	switch opts.Protocol {
-	case ProtocolWebapp:
-		return c.decideWebappAuth(opts, disc)
-	default:
-		return c.decideWebDAVAuth(opts, disc)
-	}
+	return c.decideWebDAVAuth(opts, disc)
 }
 
 func failClosedAccessDecision(reasonCode, message string, cause error) (AccessAuthDecision, error) {
@@ -194,6 +180,7 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 				nil,
 			)
 		}
+
 		if err := c.checkSignaturePolicy(disc); err != nil {
 			return failClosedAccessDecision(
 				reason.ReasonSignatureRequired,
@@ -201,50 +188,19 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 				err,
 			)
 		}
+
 		return AccessAuthDecision{Mode: AccessModeTokenExchange, HTTPStatus: http.StatusOK}, nil
 	}
 
-	return AccessAuthDecision{Mode: AccessModeSharedSecret, HTTPStatus: http.StatusOK}, nil
-}
+	// When must-exchange-token is omitted but the peer advertises token
+	// exchange, the receiver MAY attempt exchange first and MUST fall back to
+	// legacy shared-secret access if exchange fails.
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1594-L1597
+	if capable {
+		return AccessAuthDecision{Mode: AccessModeExchangeThenFallback, HTTPStatus: http.StatusOK}, nil
+	}
 
-func (c *Client) decideWebappAuth(opts AccessOptions, disc *spec.Discovery) (AccessAuthDecision, error) {
-	share := opts.Share
-	if share.WebappURI == "" || len(share.WebappTargets) == 0 || share.SharedSecret == "" {
-		return failClosedAccessDecision(
-			reason.ReasonProtocolMismatch,
-			"webapp share missing required fields",
-			nil,
-		)
-	}
-	if !hasRequirement(share.Requirements, spec.RequirementMustExchangeToken) {
-		return failClosedAccessDecision(
-			reason.ReasonProtocolMismatch,
-			"webapp access requires "+spec.RequirementMustExchangeToken,
-			nil,
-		)
-	}
-	if !disc.SupportsTokenExchange() {
-		return failClosedAccessDecision(
-			reason.ReasonPeerCapabilityMissing,
-			"peer does not support token exchange",
-			nil,
-		)
-	}
-	if err := c.checkSignaturePolicy(disc); err != nil {
-		return failClosedAccessDecision(
-			reason.ReasonSignatureRequired,
-			err.Error(),
-			err,
-		)
-	}
-	if len(c.webappReceiveTargets) == 0 || len(intersectTargets(share.WebappTargets, c.webappReceiveTargets)) == 0 {
-		return failClosedAccessDecision(
-			reason.ReasonProtocolMismatch,
-			"no supported webapp target intersection",
-			nil,
-		)
-	}
-	return AccessAuthDecision{Mode: AccessModeWebappCodeFlow, HTTPStatus: http.StatusOK}, nil
+	return AccessAuthDecision{Mode: AccessModeSharedSecret, HTTPStatus: http.StatusOK}, nil
 }
 
 func hasRequirement(reqs []string, target string) bool {
@@ -253,6 +209,7 @@ func hasRequirement(reqs []string, target string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -267,21 +224,23 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 			nil,
 		)
 	}
+
 	share := opts.Share
 	if share.Status != ShareStatusAccepted {
 		return nil, ErrShareNotAccepted
 	}
 
-	if opts.Protocol != ProtocolWebDAV && opts.Protocol != ProtocolWebapp {
+	if opts.Protocol != ProtocolWebDAV {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonProtocolMismatch,
-			"access protocol must be webdav or webapp",
+			"access protocol must be webdav",
 			ErrProtocolRequired,
 		)
 	}
 
 	discoveryHost := accessHostForDiscovery(share)
 	origin := c.resolvePeerOrigin(discoveryHost)
+
 	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
 		return nil, reason.NewClassifiedError(
@@ -301,8 +260,23 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		return c.accessTokenExchange(ctx, share, opts, disc)
 	case AccessModeSharedSecret:
 		return c.accessSharedSecret(ctx, share, opts, disc)
-	case AccessModeWebappCodeFlow:
-		return c.accessWebappCodeFlow(ctx, share, opts, disc)
+	case AccessModeExchangeThenFallback:
+		// Attempt token exchange first; on any failure fall back to the
+		// legacy shared-secret bearer. Legacy shared secrets are retained for
+		// backwards compatibility; implementers SHOULD prefer short-lived
+		// tokens when available.
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1594-L1597
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1998-L2002
+		result, err := c.accessTokenExchange(ctx, share, opts, disc)
+		if err == nil {
+			return result, nil
+		}
+		// On exchange failure the exchange error is discarded, not wrapped or
+		// retained in the returned error chain. Only a safe fixed warning is
+		// logged; fallback then proceeds with a fresh shared-secret access result.
+		slog.WarnContext(ctx, "optional token exchange failed; falling back to legacy shared-secret access")
+
+		return c.accessSharedSecret(ctx, share, opts, disc)
 	default:
 		return nil, reason.NewClassifiedError(
 			reason.ReasonPeerCapabilityMissing,
@@ -324,13 +298,14 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 	exchangeResult, err := c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: disc.TokenEndPoint,
 		SharedSecret:  share.SharedSecret,
-	})
+	}, disc)
 	if err != nil {
 		return nil, err
 	}
+
 	accessToken := exchangeResult.AccessToken
 
-	webdavURL, err := c.buildWebDAVURL(ctx, share, opts.SubPath, disc)
+	webdavURL, err := c.buildWebDAVURL(share, opts.SubPath, disc)
 	if err != nil {
 		return nil, err
 	}
@@ -339,10 +314,16 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
+		if resp != nil {
+			//nolint:errcheck // best-effort cleanup; error is not actionable
+			resp.Body.Close()
+		}
+
 		return nil, reason.NewClassifiedError(
 			reason.ReasonNetworkError,
 			"WebDAV request failed",
@@ -357,7 +338,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 }
 
 func (c *Client) accessSharedSecret(ctx context.Context, share *ShareInfo, opts AccessOptions, disc *spec.Discovery) (*AccessResult, error) {
-	webdavURL, err := c.buildWebDAVURL(ctx, share, opts.SubPath, disc)
+	webdavURL, err := c.buildWebDAVURL(share, opts.SubPath, disc)
 	if err != nil {
 		return nil, err
 	}
@@ -366,10 +347,16 @@ func (c *Client) accessSharedSecret(ctx context.Context, share *ShareInfo, opts 
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
 
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
+		if resp != nil {
+			//nolint:errcheck // best-effort cleanup; error is not actionable
+			resp.Body.Close()
+		}
+
 		return nil, reason.NewClassifiedError(
 			reason.ReasonNetworkError,
 			"WebDAV request failed",
@@ -383,22 +370,6 @@ func (c *Client) accessSharedSecret(ctx context.Context, share *ShareInfo, opts 
 	}, nil
 }
 
-func (c *Client) accessWebappCodeFlow(ctx context.Context, share *ShareInfo, opts AccessOptions, disc *spec.Discovery) (*AccessResult, error) {
-	if c.tokenClient == nil {
-		return nil, ErrTokenExchangeRequired
-	}
-
-	exchangeResult, err := c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: disc.TokenEndPoint,
-		SharedSecret:  share.SharedSecret,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return c.doWebappFormPost(ctx, share, exchangeResult.AccessToken)
-}
-
 func (c *Client) checkSignaturePolicy(disc *spec.Discovery) error {
 	if disc.RequiresHTTPSig() && !disc.IsHTTPSigCapable() {
 		return reason.NewClassifiedError(
@@ -407,73 +378,11 @@ func (c *Client) checkSignaturePolicy(disc *spec.Discovery) error {
 			nil,
 		)
 	}
+
 	return nil
 }
 
-func (c *Client) doWebappFormPost(ctx context.Context, share *ShareInfo, accessToken string) (*AccessResult, error) {
-	redirectURI, err := c.buildExpiredSessionRedirectURI()
-	if err != nil {
-		return nil, err
-	}
-
-	form := url.Values{}
-	form.Set("access_token", accessToken)
-	form.Set("expired_session_redirect_uri", redirectURI)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, share.WebappURI, strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		return nil, reason.NewClassifiedError(
-			reason.ReasonNetworkError,
-			"webapp form POST failed",
-			err,
-		)
-	}
-
-	return &AccessResult{
-		Response:    resp,
-		AccessToken: accessToken,
-	}, nil
-}
-
-func (c *Client) buildExpiredSessionRedirectURI() (string, error) {
-	if c.localIdentity.Origin == "" {
-		return "", reason.NewClassifiedError(
-			reason.ReasonProtocolMismatch,
-			"local identity origin required for webapp redirect URI",
-			nil,
-		)
-	}
-	path := c.webappRedirectPath
-	if path == "" {
-		path = "/ocm/webapp"
-	}
-	base := c.localIdentity.Origin
-	if c.localIdentity.ExternalBasePath != "" {
-		base = c.localIdentity.EndpointBase
-	}
-	return base + path, nil
-}
-
-func intersectTargets(a, b []string) []string {
-	set := make(map[string]struct{}, len(b))
-	for _, t := range b {
-		set[t] = struct{}{}
-	}
-	result := make([]string, 0, len(a))
-	for _, t := range a {
-		if _, ok := set[t]; ok {
-			result = append(result, t)
-		}
-	}
-	return result
-}
-
+// FetchFile fetches a shared file's body via WebDAV GET, returning the response reader.
 func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser, error) {
 	result, err := c.Access(ctx, AccessOptions{
 		Share:    share,
@@ -485,7 +394,9 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 	}
 
 	if result.Response.StatusCode != http.StatusOK {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
 		result.Response.Body.Close()
+
 		return nil, reason.NewClassifiedError(
 			reason.ReasonRemoteError,
 			"remote server returned error",
@@ -497,7 +408,7 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 }
 
 // buildWebDAVURL returns the WebDAV URL; validates absolute URI host against owner to prevent SSRF.
-func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath string, disc *spec.Discovery) (string, error) {
+func (c *Client) buildWebDAVURL(share *ShareInfo, subPath string, disc *spec.Discovery) (string, error) {
 	host := accessHostForDiscovery(share)
 	if isAbsoluteWebDAVURI(share.WebDAVID) {
 		if c.isAbsoluteURIHostValid(share.WebDAVID, host) {
@@ -505,6 +416,7 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 			if subPath != "" {
 				u += "/" + subPath
 			}
+
 			return u, nil
 		}
 	}
@@ -530,6 +442,7 @@ func isAbsoluteWebDAVURI(uri string) bool {
 	if err != nil {
 		return false
 	}
+
 	return u.IsAbs()
 }
 
@@ -544,6 +457,7 @@ type resolvedPeerOrigin struct {
 
 func (c *Client) resolvePeerOrigin(host string) resolvedPeerOrigin {
 	decision := c.peerOrigin.Resolve(host)
+
 	return resolvedPeerOrigin{
 		baseURL: decision.BaseURL,
 	}

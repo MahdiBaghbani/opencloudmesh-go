@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -14,37 +16,52 @@ import (
 	"testing"
 	"time"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
+// disableMustInvite opts a test server out of must-invite enforcement. Tests
+// that exercise inbound-share identity handling without seeding an invite use
+// this to keep the legacy acceptance path.
+func disableMustInvite(cfg *config.Config) {
+	off := false
+	cfg.OCM.Invite = &config.InviteConfig{EnforceMustInvite: &off}
+}
+
 func postSignedJSON(t *testing.T, targetURL string, body []byte, signer *crypto.RFC9421Signer) *http.Response {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodPost, targetURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("failed to build signed request: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
-	if err := signer.Sign(req); err != nil {
-		t.Fatalf("failed to sign request: %v", err)
+
+	if serr := signer.Sign(req); serr != nil {
+		t.Fatalf("failed to sign request: %v", serr)
 	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("signed POST failed: %v", err)
 	}
+
 	return resp
 }
 
 // TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID verifies that the
 // /ocm/invite-accepted endpoint returns userID as a Reva-style federated
-// opaque ID (base64url-padded encoding of userID@idp), not the old format
-// (base64std(userID)@provider).
+// opaque ID (unpadded base64url encoding of userID@idp per RFC 4648
+// Section 5), not the old format (base64std(userID)@provider).
 func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -90,16 +107,26 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 		Email:             "remote@example.com",
 		Name:              "Remote User",
 	}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		t.Fatalf("failed to marshal request: %v", err)
-	}
 
-	resp := postSignedJSON(t, ts.BaseURL+"/ocm/invite-accepted", body, peer.signer)
-	defer resp.Body.Close()
+	response := postInviteAccepted(t, ts.BaseURL, peer, reqBody)
+	assertFederatedOpaqueUserID(t, response.UserID, localUser.ID, localProvider)
+}
+
+// postInviteAccepted posts the invite-accepted request and decodes the OK response.
+func postInviteAccepted(t *testing.T, baseURL string, peer *strictCodeFlowReceiver, reqBody spec.InviteAcceptedRequest) spec.InviteAcceptedResponse {
+	t.Helper()
+
+	body := tshttp.MustMarshalJSON(t, reqBody)
+
+	resp := postSignedJSON(t, baseURL+"/ocm/invite-accepted", body, peer.signer) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -108,49 +135,65 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	// --- Assertion 1: userID must match EncodeFederatedOpaqueID output ---
-	expectedUserID := address.EncodeFederatedOpaqueID(localUser.ID, localProvider)
-	if response.UserID != expectedUserID {
-		t.Errorf("userID = %q, want %q", response.UserID, expectedUserID)
+	return response
+}
+
+// assertFederatedOpaqueUserID checks the response userID is the Reva-style
+// federated opaque ID for the local user.
+func assertFederatedOpaqueUserID(t *testing.T, responseUserID, localUserID, localProvider string) {
+	t.Helper()
+
+	// userID must match EncodeFederatedOpaqueID output
+	expectedUserID := address.EncodeFederatedOpaqueID(localUserID, localProvider)
+	if responseUserID != expectedUserID {
+		t.Errorf("userID = %q, want %q", responseUserID, expectedUserID)
 	}
 
-	// --- Assertion 2: userID must be valid padded base64url ---
-	decoded, err := base64.URLEncoding.DecodeString(response.UserID)
-	if err != nil {
-		t.Fatalf("userID %q is not valid padded base64url: %v", response.UserID, err)
+	decodedUserID, decodedIDP := decodeFederatedOpaqueUserID(t, responseUserID)
+
+	if decodedUserID != localUserID {
+		t.Errorf("decoded userID = %q, want %q", decodedUserID, localUserID)
 	}
 
-	// --- Assertion 3: decoded payload must be userID@idp ---
-	payload := string(decoded)
-	idx := strings.LastIndex(payload, "@")
-	if idx < 1 || idx == len(payload)-1 {
-		t.Fatalf("decoded payload %q does not have valid userID@idp structure", payload)
-	}
-	decodedUserID := payload[:idx]
-	decodedIDP := payload[idx+1:]
-
-	if decodedUserID != localUser.ID {
-		t.Errorf("decoded userID = %q, want %q", decodedUserID, localUser.ID)
-	}
 	if decodedIDP != localProvider {
 		t.Errorf("decoded idp = %q, want %q", decodedIDP, localProvider)
 	}
 
-	// --- Assertion 4: userID must NOT be in the old format (base64std(uid)@provider) ---
+	// userID must NOT be in the old format (base64std(uid)@provider)
 	oldFormatSuffix := "@" + localProvider
-	if strings.HasSuffix(response.UserID, oldFormatSuffix) {
+	if strings.HasSuffix(responseUserID, oldFormatSuffix) {
 		t.Errorf("userID %q appears to use old OCM address format (base64std(uid)@provider); "+
-			"invite userID should be an opaque ID without @provider suffix", response.UserID)
+			"invite userID should be an opaque ID without @provider suffix", responseUserID)
 	}
 
-	// --- Assertion 5: userID must NOT contain standard base64 chars that differ from base64url ---
 	// base64url uses '-' and '_' instead of '+' and '/'. If the encoded string contains
 	// '+' or '/', it was encoded with standard base64, not base64url.
-	if strings.ContainsAny(response.UserID, "+/") {
-		t.Errorf("userID %q contains standard base64 characters (+/); expected base64url encoding", response.UserID)
+	if strings.ContainsAny(responseUserID, "+/") {
+		t.Errorf("userID %q contains standard base64 characters (+/); expected base64url encoding", responseUserID)
 	}
 
-	t.Logf("invite-accepted identity verified: userID=%q (decoded: %s@%s)", response.UserID, decodedUserID, decodedIDP)
+	t.Logf("invite-accepted identity verified: userID=%q (decoded: %s@%s)", responseUserID, decodedUserID, decodedIDP)
+}
+
+// decodeFederatedOpaqueUserID decodes the base64url userID and checks the
+// payload has userID@idp structure.
+func decodeFederatedOpaqueUserID(t *testing.T, responseUserID string) (string, string) {
+	t.Helper()
+
+	// userID must be valid base64url (padding omitted per RFC 4648 Sec 5)
+	decoded, err := base64.RawURLEncoding.DecodeString(responseUserID)
+	if err != nil {
+		t.Fatalf("userID %q is not valid base64url: %v", responseUserID, err)
+	}
+
+	payload := string(decoded)
+
+	idx := strings.LastIndex(payload, "@")
+	if idx < 1 || idx == len(payload)-1 {
+		t.Fatalf("decoded payload %q does not have valid userID@idp structure", payload)
+	}
+
+	return payload[:idx], payload[idx+1:]
 }
 
 // --- Share creation identity tests ---
@@ -178,7 +221,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	// policy. The receiver requires token exchange, so the request carries
 	// the must-exchange-token requirement and the peer is a discoverable,
 	// token-exchange-capable receiver.
-	ts := harness.StartTestServer(t)
+	ts := harness.StartTestServerWithConfig(t, disableMustInvite)
 	defer ts.Stop(t)
 
 	peer := startStrictCodeFlowReceiver(t)
@@ -227,16 +270,18 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 			},
 		},
 	}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		t.Fatalf("failed to marshal request: %v", err)
-	}
 
-	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
-	defer resp.Body.Close()
+	body := tshttp.MustMarshalJSON(t, reqBody)
+
+	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -250,21 +295,24 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 		t.Errorf("recipientDisplayName = %q, want %q", shareResp.RecipientDisplayName, shareUser.DisplayName)
 	}
 
-	// Verify the shareWith identifier is valid padded base64url
-	decoded, err := base64.URLEncoding.DecodeString(encodedID)
+	// Verify the shareWith identifier is valid base64url (padding omitted per RFC 4648 Sec 5)
+	decoded, err := base64.RawURLEncoding.DecodeString(encodedID)
 	if err != nil {
-		t.Errorf("encoded identifier %q is not valid padded base64url: %v", encodedID, err)
+		t.Errorf("encoded identifier %q is not valid base64url: %v", encodedID, err)
 	}
 
 	// Verify the decoded payload has userID@idp structure
 	payload := string(decoded)
+
 	idx := strings.LastIndex(payload, "@")
 	if idx < 1 || idx == len(payload)-1 {
 		t.Fatalf("decoded payload %q does not have valid userID@idp structure", payload)
 	}
+
 	if payload[:idx] != shareUser.ID {
 		t.Errorf("decoded userID = %q, want %q", payload[:idx], shareUser.ID)
 	}
+
 	if payload[idx+1:] != localProvider {
 		t.Errorf("decoded idp = %q, want %q", payload[idx+1:], localProvider)
 	}
@@ -324,16 +372,18 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 			},
 		},
 	}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		t.Fatalf("failed to marshal request: %v", err)
-	}
 
-	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
-	defer resp.Body.Close()
+	body := tshttp.MustMarshalJSON(t, reqBody)
+
+	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusBadRequest {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 400 for IDP mismatch, got %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -360,7 +410,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	// policy. The receiver requires token exchange, so the request carries
 	// the must-exchange-token requirement and the peer is a discoverable,
 	// token-exchange-capable receiver.
-	ts := harness.StartTestServer(t)
+	ts := harness.StartTestServerWithConfig(t, disableMustInvite)
 	defer ts.Stop(t)
 
 	peer := startStrictCodeFlowReceiver(t)
@@ -408,16 +458,18 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 			},
 		},
 	}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		t.Fatalf("failed to marshal request: %v", err)
-	}
 
-	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
-	defer resp.Body.Close()
+	body := tshttp.MustMarshalJSON(t, reqBody)
+
+	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -435,11 +487,13 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse owner address: %v", err)
 	}
+
 	if ownerProvider != remoteProvider {
 		t.Errorf("owner provider = %q, want %q", ownerProvider, remoteProvider)
 	}
-	if _, err := base64.URLEncoding.DecodeString(ownerIdent); err != nil {
-		t.Errorf("owner identifier %q is not valid padded base64url: %v", ownerIdent, err)
+
+	if _, err := base64.RawURLEncoding.DecodeString(ownerIdent); err != nil {
+		t.Errorf("owner identifier %q is not valid base64url: %v", ownerIdent, err)
 	}
 
 	t.Logf("reva-style owner/sender accepted: owner=%q", owner)

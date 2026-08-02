@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wiring
 
 import (
@@ -42,45 +47,56 @@ func RegisteredBuildKeys() []service.BuildKey {
 	for k := range coreServiceBuilders {
 		keys = append(keys, k)
 	}
+
 	return keys
 }
 
+// CoreServiceNames returns the names of all registered service descriptors.
 func CoreServiceNames() []string {
 	names := make([]string, len(service.Descriptors()))
 	for i, d := range service.Descriptors() {
 		names[i] = d.Name
 	}
+
 	return names
 }
 
+// BuildCoreServices constructs the core services from config, logger, and dependencies.
 func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[string]service.Service, error) {
 	if d == nil {
 		return nil, server.ErrMissingServerDeps
 	}
+
 	if d.RealIP == nil {
 		return nil, server.ErrMissingRealIP
 	}
 
 	descs := service.Descriptors()
+
 	services := make(map[string]service.Service, len(descs))
 	for _, desc := range descs {
 		if desc.Build == "" {
 			return nil, fmt.Errorf("descriptor %q has no build key", desc.Name)
 		}
+
 		build, ok := coreServiceBuilders[desc.Build]
 		if !ok {
 			return nil, fmt.Errorf("no builder registered for service %q (build key %q)", desc.Name, desc.Build)
 		}
+
 		svcCfg := cfg.BuildServiceConfig(desc.Name)
 		if svcCfg == nil {
 			svcCfg = make(map[string]any)
 		}
+
 		svc, err := build(cfg, svcCfg, logger, d)
 		if err != nil {
 			return nil, fmt.Errorf("create service %q: %w", desc.Name, err)
 		}
+
 		services[desc.Name] = svc
 	}
+
 	return services, nil
 }
 
@@ -94,7 +110,6 @@ func ratelimitInputs(d *Deps) ratelimit.Inputs {
 func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return wellknown.New(wellknown.Inputs{
 		Resolve:             resolveInputs(cfg, d),
-		KeyManager:          d.KeyManager,
 		SignatureMiddleware: d.SignatureMiddleware,
 	}, svcCfg, log)
 }
@@ -104,10 +119,13 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	if tokenPath == "" {
 		tokenPath = "token"
 	}
-	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping)
+
+	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping, cfg.OCM.CompatibilityScope)
+
 	return ocm.New(ocm.Inputs{
 		IncomingShareRepo:   d.IncomingShareRepo,
 		OutgoingShareRepo:   d.OutgoingShareRepo,
+		IncomingInviteRepo:  d.IncomingInviteRepo,
 		OutgoingInviteRepo:  d.OutgoingInviteRepo,
 		PartyRepo:           d.PartyRepo,
 		PolicyEngine:        d.PolicyEngine,
@@ -117,6 +135,8 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		TokenStore:          d.TokenStore,
 		SignatureMiddleware: d.SignatureMiddleware,
 		TokenExchangePath:   tokenPath,
+		KeyManager:          d.KeyManager,
+		MustInviteEnforced:  cfg.OCM.MustInviteEnforced(),
 	}, svcCfg, log)
 }
 
@@ -125,6 +145,7 @@ func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Log
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
 	}
+
 	return ocmaux.New(ocmaux.Inputs{
 		TrustGroupMgr:       d.TrustGroupMgr,
 		DiscoveryClient:     d.DiscoveryClient,
@@ -139,23 +160,26 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		profiles = cfg.HTTP.Interceptors
 	}
 
-	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping)
+	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping, cfg.OCM.CompatibilityScope)
 
 	// Use the same production provider config that wellknown.New resolves for
 	// discovery, so the API service token endpoint stays in lock-step with the
 	// published discovery document.
 	var rawOCMProvider map[string]any
+
 	if wellknownSvcCfg := cfg.BuildServiceConfig("wellknown"); wellknownSvcCfg != nil {
 		if om, ok := wellknownSvcCfg["ocmprovider"].(map[string]any); ok {
 			rawOCMProvider = om
 		}
 	}
+
 	var providerCfg resolve.ProviderConfig
 	if rawOCMProvider != nil {
 		if err := svccfg.Decode(rawOCMProvider, &providerCfg); err != nil {
 			return nil, fmt.Errorf("api: decode ocm provider config: %w", err)
 		}
 	}
+
 	resolved := resolve.Resolve(&providerCfg, rawOCMProvider, resolveInputs(cfg, d))
 	localTokenEndpoint := resolved.Params.TokenEndPoint
 
@@ -179,13 +203,13 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	}, svcCfg, log)
 }
 
-func buildUIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
+func buildUIService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return ui.New(ui.Inputs{
 		LocalIdentity: d.LocalIdentity,
 	}, svcCfg, log)
 }
 
-func buildWebDAVService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
+func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return webdav.New(webdav.Inputs{
 		OutgoingShareRepo: d.OutgoingShareRepo,
 		TokenStore:        d.TokenStore,

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package service_test
 
 import (
@@ -18,11 +23,13 @@ func TestRoutes_IsCanonicalAggregate(t *testing.T) {
 	rows := service.Routes(opts)
 
 	productCount := 0
+
 	for _, row := range rows {
 		if !row.Synthetic {
 			productCount++
 		}
 	}
+
 	if productCount != len(inventory) {
 		t.Fatalf("Routes product count = %d, inventory = %d", productCount, len(inventory))
 	}
@@ -34,12 +41,15 @@ func TestRoutes_ProductRowsHavePolicyMetadata(t *testing.T) {
 		if row.Synthetic {
 			continue
 		}
+
 		if row.SurfaceClass == "" {
 			t.Errorf("product route %q missing SurfaceClass", row.ID)
 		}
+
 		if row.HandlerAuth == "" {
 			t.Errorf("product route %q missing HandlerAuth", row.ID)
 		}
+
 		if row.TrustClass == "" {
 			t.Errorf("product route %q missing TrustClass", row.ID)
 		}
@@ -52,6 +62,7 @@ func TestRoutes_SyntheticRowsHaveSurfaceClass(t *testing.T) {
 		if !row.Synthetic {
 			continue
 		}
+
 		if row.SurfaceClass == "" {
 			t.Errorf("synthetic row %q missing SurfaceClass", row.ID)
 		}
@@ -64,6 +75,7 @@ func TestRoutes_ProtocolRowsUseHTTPSigHandlerAuth(t *testing.T) {
 		if row.Synthetic || row.SurfaceClass != service.SurfaceProtocol {
 			continue
 		}
+
 		if row.HandlerAuth != service.HandlerAuthRequiredHTTPSig {
 			t.Errorf("protocol route %q HandlerAuth = %q, want required HTTP signature", row.ID, row.HandlerAuth)
 		}
@@ -77,15 +89,19 @@ func TestRoutes_APIOutboundKindsDeclaredOnAPIRows(t *testing.T) {
 		service.OutboundInvites: false,
 		service.OutboundAccess:  false,
 	}
+
 	for _, row := range service.Routes(opts) {
 		if row.Synthetic || row.SurfaceClass != service.SurfaceAPI {
 			continue
 		}
+
 		if row.OutboundProtocolKind == service.OutboundNone {
 			continue
 		}
+
 		found[row.OutboundProtocolKind] = true
 	}
+
 	for kind, ok := range found {
 		if !ok {
 			t.Errorf("Routes(opts) missing api row with outbound kind %q", kind)

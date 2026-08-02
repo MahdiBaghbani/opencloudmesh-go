@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package ocmaux provides /ocm-aux HTTP handlers (federations, discover).
 package ocmaux
 
@@ -28,6 +33,7 @@ type AuxHandler struct {
 // NewAuxHandler builds an auxiliary handler.
 func NewAuxHandler(trustGroupMgr *peertrust.TrustGroupManager, discClient *discovery.Client, logger *slog.Logger) *AuxHandler {
 	logger = logutil.NoopIfNil(logger)
+
 	return &AuxHandler{
 		trustGroupMgr:   trustGroupMgr,
 		discoveryClient: discClient,
@@ -72,7 +78,9 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 		listings := h.trustGroupMgr.GetDirectoryListings(ctx)
 
 		merged := make(map[string]*federationEntry)
+
 		var order []string
+
 		for _, listing := range listings {
 			entry, exists := merged[listing.Federation]
 			if !exists {
@@ -80,6 +88,7 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 				merged[listing.Federation] = entry
 				order = append(order, listing.Federation)
 			}
+
 			for _, srv := range listing.Servers {
 				se := serverEntry{
 					DisplayName: srv.DisplayName,
@@ -93,6 +102,7 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 						if reasonCode == "" {
 							reasonCode = reason.PeerDiscoveryFailed
 						}
+
 						se.Status = &serverEnrichmentStatus{
 							Discovery:  discoveryEnrichmentFailed,
 							ReasonCode: reasonCode,
@@ -117,12 +127,16 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 			if entry.Servers == nil {
 				entry.Servers = []serverEntry{}
 			}
+
 			result = append(result, *entry)
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		h.logger.Error("failed to encode federations", "error", err)
+	}
 }
 
 // resolveInviteDialog resolves relative inviteAcceptDialog against server URL.
@@ -130,17 +144,21 @@ func resolveInviteDialog(serverURL, dialog string) string {
 	if dialog == "" {
 		return ""
 	}
+
 	if strings.HasPrefix(dialog, "http://") || strings.HasPrefix(dialog, "https://") {
 		return dialog
 	}
+
 	base, err := url.Parse(serverURL)
 	if err != nil {
 		return dialog
 	}
+
 	ref, err := url.Parse(dialog)
 	if err != nil {
 		return dialog
 	}
+
 	return base.ResolveReference(ref).String()
 }
 
@@ -201,6 +219,7 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status, reasonCode, userMsg := classifyDiscoverError(err)
 		h.sendDiscoverError(w, status, userMsg, reasonCode, err)
+
 		return
 	}
 
@@ -216,7 +235,10 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error("failed to encode discover response", "error", err)
+	}
 }
 
 // sendDiscoverError returns a JSON error for the discover endpoint.
@@ -227,8 +249,10 @@ func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, messag
 			"error", debugErr,
 		)
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+
 	resp := DiscoverResponse{
 		Success: false,
 		Error:   message,
@@ -236,7 +260,10 @@ func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, messag
 	if reasonCode != "" {
 		resp.ReasonCode = reasonCode
 	}
-	json.NewEncoder(w).Encode(resp)
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error("failed to encode discover error", "error", err)
+	}
 }
 
 // normalizeToOrigin normalizes user-entered provider input to scheme://host[:port].
@@ -268,6 +295,7 @@ func normalizeToOrigin(rawURL string) (string, error) {
 			host = parsed.Path
 		}
 	}
+
 	if host == "" {
 		return "", errMissingHost
 	}
@@ -283,9 +311,11 @@ func classifyDiscoverError(err error) (status int, reasonCode, userMsg string) {
 	if httpclient.IsSSRFError(err) {
 		return http.StatusForbidden, reason.SSRFBlocked, discoverMsgSSRFBlocked
 	}
+
 	if httpclient.IsHostUnresolvable(err) {
 		return http.StatusBadGateway, discoverReasonDNSUnresolvable, discoverMsgDNSFailed
 	}
+
 	if errors.Is(err, httpclient.ErrInvalidURL) {
 		return http.StatusBadRequest, discoverReasonInvalidURL, discoverMsgInvalidURL
 	}

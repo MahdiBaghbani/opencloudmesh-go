@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package config
 
 import (
@@ -9,9 +14,34 @@ import (
 type Mode string
 
 const (
+	// ModeStrict is the strict server operating mode.
 	ModeStrict Mode = "strict"
-	ModeDev    Mode = "dev"
+	// ModeDev is the development server operating mode.
+	ModeDev Mode = "dev"
 )
+
+// CompatibilityScope selects how peer-compat leniency is applied.
+// This is an ocmgo-internal policy axis, not an OCM specification concept.
+type CompatibilityScope string
+
+const (
+	// CompatibilityScopeGlobal applies peer_compat relaxations globally (current behavior).
+	CompatibilityScopeGlobal CompatibilityScope = "global"
+	// CompatibilityScopeScoped limits leniency to explicitly mapped peers only.
+	CompatibilityScopeScoped CompatibilityScope = "scoped"
+)
+
+// ParseCompatibilityScope parses a compatibility_scope string.
+func ParseCompatibilityScope(s string) (CompatibilityScope, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "global", "":
+		return CompatibilityScopeGlobal, nil
+	case "scoped":
+		return CompatibilityScopeScoped, nil
+	default:
+		return "", fmt.Errorf("invalid ocm.compatibility_scope %q: must be one of global, scoped", s)
+	}
+}
 
 // ParseMode parses a mode string, returning an error for invalid values.
 func ParseMode(s string) (Mode, error) {
@@ -27,6 +57,7 @@ func ParseMode(s string) (Mode, error) {
 
 // presetForMode returns the base config for a given mode.
 func presetForMode(mode Mode) *Config {
+	//nolint:exhaustive // ModeStrict intentionally folds into the default strict preset
 	switch mode {
 	case ModeDev:
 		return DevConfig()
@@ -70,9 +101,17 @@ func StrictConfig() *Config {
 			Path: "token",
 		},
 		Persistence: PersistenceConfig{
-			Backend: BackendMemory,
+			Backend: BackendSQLite,
+			DataDir: DefaultPersistenceDataDir,
 		},
 		OCM: OCMConfig{
+			CompatibilityScope: CompatibilityScopeGlobal,
+			// Discovery defaults accept any peer apiVersion with a warning on
+			// differences. This is intentional ocmgo posture, not a spec
+			// requirement: apiVersion is a REQUIRED discovery field in OCM, but the
+			// spec does not mandate version-matching or rejection behavior, so
+			// strict-by-default rejection is not required.
+			// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L630-L631
 			Discovery: DefaultDiscoveryConfig(),
 		},
 	}
@@ -80,6 +119,7 @@ func StrictConfig() *Config {
 		// Built-in defaults must already be canonical.
 		panic("config.StrictConfig: " + err.Error())
 	}
+
 	return cfg
 }
 
@@ -87,7 +127,9 @@ func StrictConfig() *Config {
 // so the strict preset stays the single source of shared defaults.
 //
 // DevConfig relaxes dev-only transport and operational settings (TLS off, SSRF
-// off, insecure skip verify, ACME staging, debug logging).
+// off, insecure skip verify, ACME staging, debug logging) and overrides
+// persistence to the ephemeral memory backend so dev runs never touch the
+// strict data dir.
 func DevConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeDev)
@@ -97,7 +139,10 @@ func DevConfig() *Config {
 	cfg.OutboundHTTP.SSRF.Mode = "off"
 	cfg.OutboundHTTP.MaxRedirects = 3
 	cfg.OutboundHTTP.InsecureSkipVerify = true
-	cfg.OutboundHTTP.ProxyEnvFallback = false
+	cfg.OutboundHTTP.UseEnvFallback = false
 	cfg.Logging.Level = "debug"
+	cfg.Persistence.Backend = BackendMemory
+	cfg.Persistence.DataDir = ""
+
 	return cfg
 }

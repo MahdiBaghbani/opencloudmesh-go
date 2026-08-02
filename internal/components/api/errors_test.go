@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package api_test
 
@@ -33,9 +35,11 @@ func TestWriteError_EnvelopeShape(t *testing.T) {
 	if envelope.Error.Code != "Forbidden" {
 		t.Errorf("expected code 'Forbidden', got %q", envelope.Error.Code)
 	}
+
 	if envelope.Error.ReasonCode != api.ReasonSSRFBlocked {
-		t.Errorf("expected reason_code %q, got %q", api.ReasonSSRFBlocked, envelope.Error.ReasonCode)
+		t.Errorf("expected reasonCode %q, got %q", api.ReasonSSRFBlocked, envelope.Error.ReasonCode)
 	}
+
 	if envelope.Error.Message != "connection to private IP blocked" {
 		t.Errorf("unexpected message: %q", envelope.Error.Message)
 	}
@@ -69,9 +73,12 @@ func TestWriteUnauthorized(t *testing.T) {
 	}
 
 	var envelope api.ErrorEnvelope
-	json.NewDecoder(w.Body).Decode(&envelope)
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
 	if envelope.Error.ReasonCode != api.ReasonSessionExpired {
-		t.Errorf("expected reason_code %q, got %q", api.ReasonSessionExpired, envelope.Error.ReasonCode)
+		t.Errorf("expected reasonCode %q, got %q", api.ReasonSessionExpired, envelope.Error.ReasonCode)
 	}
 }
 
@@ -93,8 +100,11 @@ func TestWriteTooManyRequests(t *testing.T) {
 	}
 
 	var envelope api.ErrorEnvelope
-	json.NewDecoder(w.Body).Decode(&envelope)
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
 	if envelope.Error.ReasonCode != api.ReasonRateLimited {
-		t.Errorf("expected reason_code %q, got %q", api.ReasonRateLimited, envelope.Error.ReasonCode)
+		t.Errorf("expected reasonCode %q, got %q", api.ReasonRateLimited, envelope.Error.ReasonCode)
 	}
 }

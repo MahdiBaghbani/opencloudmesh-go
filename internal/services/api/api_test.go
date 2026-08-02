@@ -1,6 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -23,11 +29,10 @@ func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
 }
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -38,11 +43,10 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,11 +57,10 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -68,11 +71,10 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -83,16 +85,15 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestService_HealthzEndpoint(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -113,17 +114,17 @@ func TestService_HealthzEndpoint(t *testing.T) {
 }
 
 func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/auth/login", nil)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -135,16 +136,15 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 }
 
 func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/inbox/shares", nil)
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -157,16 +157,15 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/invites", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/inbox/invites", nil)
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -179,15 +178,15 @@ func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-
 	var logBuf testLogBuffer
+
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	m := map[string]any{
 		"unknown_key": "value",
 	}
 
-	_, err := New(testAPIInputs(), m, log)
+	_, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Wire-format DTOs for POST /ocm/shares.
-// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 package spec
 
+// NewShareRequest carries the wire body for POST /ocm/shares.
 type NewShareRequest struct {
 	ShareWith         string   `json:"shareWith"`
 	Name              string   `json:"name"`
@@ -17,12 +23,14 @@ type NewShareRequest struct {
 	Protocol          Protocol `json:"protocol"`
 }
 
+// Protocol carries the named protocol arm of a share request (webdav or webapp).
 type Protocol struct {
 	Name   string          `json:"name,omitempty"`
 	WebDAV *WebDAVProtocol `json:"webdav,omitempty"`
 	Webapp *WebappProtocol `json:"webapp,omitempty"`
 }
 
+// WebDAVProtocol carries the WebDAV protocol fields of a share request.
 type WebDAVProtocol struct {
 	AccessTypes  []string `json:"accessTypes,omitempty"`
 	URI          string   `json:"uri"`
@@ -35,7 +43,7 @@ type WebDAVProtocol struct {
 // from WebDAV permissions (see SupportedWebappPermissions) and must not be
 // merged into a shared permissions list. sharedSecret is IETF REQUIRED at
 // admit time, so it has no omitempty here; the redacted outbound-view
-// exception belongs to the P4 wire/admission split and is out of scope.
+// exception is handled at the outbound redaction layer and is out of scope here.
 type WebappProtocol struct {
 	URI          string   `json:"uri"`
 	Targets      []string `json:"targets"`
@@ -44,12 +52,14 @@ type WebappProtocol struct {
 	SharedSecret string   `json:"sharedSecret"`
 }
 
+// HasRequirement reports whether the WebDAV arm advertises req.
 func (p *WebDAVProtocol) HasRequirement(req string) bool {
 	for _, r := range p.Requirements {
 		if r == req {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -58,14 +68,17 @@ func (p *WebappProtocol) HasRequirement(req string) bool {
 	if p == nil {
 		return false
 	}
+
 	for _, r := range p.Requirements {
 		if r == req {
 			return true
 		}
 	}
+
 	return false
 }
 
+// CreateShareResponse carries the wire body returned after creating a share.
 type CreateShareResponse struct {
 	RecipientDisplayName string `json:"recipientDisplayName"`
 }

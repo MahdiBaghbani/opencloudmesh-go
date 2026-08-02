@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package reason
 
@@ -63,6 +65,7 @@ func (e *ClassifiedError) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("%s: %s: %v", e.ReasonCode, e.Message, e.Cause)
 	}
+
 	return fmt.Sprintf("%s: %s", e.ReasonCode, e.Message)
 }
 
@@ -101,7 +104,6 @@ func ClassifyError(err error) string {
 	case errors.Is(err, sigalg.ErrSymmetricNotPermitted),
 		errors.Is(err, sigalg.ErrAlgorithmNotAllowed),
 		errors.Is(err, sigalg.ErrAlgorithmMismatch),
-		errors.Is(err, sigalg.ErrAlgorithmUnderdetermined),
 		errors.Is(err, sigalg.ErrNotImplemented),
 		errors.Is(err, sigalg.ErrVerifyFailed),
 		errors.Is(err, sigalg.ErrInvalidSignatureEncoding),
@@ -110,70 +112,123 @@ func ClassifyError(err error) string {
 		return ReasonSignatureInvalid
 	}
 
-	errStr := err.Error()
+	if reasonCode := classifyByMessage(err.Error()); reasonCode != "" {
+		return reasonCode
+	}
 
-	// Signature-related
+	return ReasonUnknown
+}
+
+func classifyByMessage(errStr string) string {
+	if reasonCode := classifySignatureMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyTokenMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyDiscoveryMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyNetworkMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyProtocolMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	return ""
+}
+
+func classifySignatureMessage(errStr string) string {
 	if containsAny(errStr, "signature required", "missing signature") {
 		return ReasonSignatureRequired
 	}
+
 	if containsAny(errStr, "signature invalid", "signature verification failed", "invalid signature") {
 		return ReasonSignatureInvalid
 	}
+
 	if containsAny(errStr, "signature mismatch", "signer mismatch") {
 		return ReasonSignatureMismatch
 	}
+
 	if containsAny(errStr, "digest mismatch", "content digest mismatch") {
 		return ReasonDigestMismatch
 	}
+
 	if containsAny(errStr, "keyid mismatch", "key id mismatch") {
 		return ReasonKeyIDMismatch
 	}
 
-	// Token exchange
+	return ""
+}
+
+func classifyTokenMessage(errStr string) string {
 	if containsAny(errStr, "token exchange failed") {
 		return ReasonTokenExchangeFailed
 	}
+
 	if containsAny(errStr, "token invalid", "invalid token format") {
 		return ReasonTokenInvalidFormat
 	}
+
 	if containsAny(errStr, "token expired") {
 		return ReasonTokenExpired
 	}
 
-	// Discovery
+	return ""
+}
+
+func classifyDiscoveryMessage(errStr string) string {
 	if containsAny(errStr, "discovery failed", "discovery error") {
 		return ReasonDiscoveryFailed
 	}
+
 	if containsAny(errStr, "discovery timeout") {
 		return ReasonDiscoveryTimeout
 	}
+
 	if containsAny(errStr, "capability not found", "capability missing") {
 		return ReasonPeerCapabilityMissing
 	}
 
-	// Network
+	return ""
+}
+
+func classifyNetworkMessage(errStr string) string {
 	if containsAny(errStr, "connection refused", "no such host", "network unreachable") {
 		return ReasonNetworkError
 	}
+
 	if containsAny(errStr, "peer unreachable", "host unreachable") {
 		return ReasonPeerUnreachable
 	}
+
 	if containsAny(errStr, "ssrf", "private ip", "loopback") {
 		return ReasonSSRFBlocked
 	}
+
 	if containsAny(errStr, "tls", "certificate") {
 		return ReasonTLSError
 	}
 
-	// Protocol
+	return ""
+}
+
+func classifyProtocolMessage(errStr string) string {
 	if containsAny(errStr, "protocol mismatch", "unsupported protocol") {
 		return ReasonProtocolMismatch
 	}
+
 	if containsAny(errStr, "unsupported version", "version mismatch") {
 		return ReasonUnsupportedVersion
 	}
 
-	return ReasonUnknown
+	return ""
 }
 
 func containsAny(s string, patterns ...string) bool {
@@ -183,5 +238,6 @@ func containsAny(s string, patterns ...string) bool {
 			return true
 		}
 	}
+
 	return false
 }

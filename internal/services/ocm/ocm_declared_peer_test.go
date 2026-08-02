@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocm
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -49,8 +55,9 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
 			req.Header.Set("Content-Type", tc.contentType)
+
 			w := httptest.NewRecorder()
 			svc.Handler().ServeHTTP(w, req)
 
@@ -58,6 +65,7 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 				t.Fatalf("expected 400 declared-peer fail-closed on %s (AndPeer wiring), got %d: %s",
 					tc.name, w.Code, w.Body.String())
 			}
+
 			body := w.Body.String()
 			if !strings.Contains(body, "declared peer") && !strings.Contains(body, "invalid declared peer") {
 				t.Fatalf("%s body = %q, want declared-peer error", tc.name, body)

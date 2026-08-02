@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wiring
 
 import (
@@ -19,6 +24,7 @@ func TestBuildCoreServices_FailsWithoutSharedDeps(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when shared deps are nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingServerDeps) {
 		t.Fatalf("expected ErrMissingServerDeps, got: %v", err)
 	}
@@ -36,6 +42,7 @@ func TestBuildCoreServices_FailsWithoutRealIP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when RealIP is nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingRealIP) {
 		t.Fatalf("expected ErrMissingRealIP before ratelimit wiring, got: %v", err)
 	}

@@ -1,24 +1,43 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package invites_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
+// failingDeleteRepo wraps the memory repo and fails DeleteForRecipientUserID
+// to exercise the decline persistence-failure path.
+type failingDeleteRepo struct {
+	invitesincoming.IncomingInviteRepo
+}
+
+func (r *failingDeleteRepo) DeleteForRecipientUserID(_ context.Context, _ string, _ string) error {
+	return errors.New("simulated delete failure")
+}
+
 func TestHandleDecline_Success(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(repo, userAID, "decline-token", "sender.example.com")
+	repo := tsrepos.OpenMemory(t).IncomingInvites
+	invite := createInviteForUser(t, repo, userAID, "decline-token", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -33,13 +52,13 @@ func TestHandleDecline_Success(t *testing.T) {
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(repo, userAID, "decline-cross-token", "sender.example.com")
+	repo := tsrepos.OpenMemory(t).IncomingInvites
+	invite := createInviteForUser(t, repo, userAID, "decline-cross-token", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(t, repo, userB)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -49,14 +68,42 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_Unauthenticated(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/some-id/decline", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/some-id/decline", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+// TestHandleDecline_PersistFailureReturns5xx verifies a local delete failure
+// surfaces as 5xx instead of a silent 200.
+func TestHandleDecline_PersistFailureReturns5xx(t *testing.T) {
+	mem := tsrepos.OpenMemory(t).IncomingInvites
+	invite := createInviteForUser(t, mem, userAID, "decline-fail-token", "sender.example.com")
+
+	repo := &failingDeleteRepo{mem}
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	router := newTestRouter(t, repo, userA)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on delete failure, got %d: %s", w.Code, w.Body.String())
+	}
+
+	stored, err := mem.GetByIDForRecipientUserID(context.Background(), invite.ID, userAID)
+	if err != nil {
+		t.Fatalf("expected invite to remain after failed decline: %v", err)
+	}
+
+	if stored.Status != invites.InviteStatusPending {
+		t.Errorf("expected invite to remain pending, got %s", stored.Status)
 	}
 }

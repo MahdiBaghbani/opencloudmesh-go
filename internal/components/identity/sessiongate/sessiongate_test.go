@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package sessiongate
 
 import (
@@ -16,6 +21,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	httpmw "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/middleware"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // recordingHandler captures slog records for testing without JSON parsing.
@@ -49,9 +55,11 @@ func (h *recordingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	for k, v := range h.attrs {
 		nh.attrs[k] = v
 	}
+
 	for _, a := range attrs {
 		nh.attrs[a.Key] = a.Value.Any()
 	}
+
 	return nh
 }
 
@@ -64,6 +72,7 @@ func (h *recordingHandler) WithGroup(name string) slog.Handler {
 	for k, v := range h.attrs {
 		nh.attrs[k] = v
 	}
+
 	return nh
 }
 
@@ -85,6 +94,7 @@ func (r *testSessionRepo) Get(_ context.Context, token string) (*identity.Sessio
 	if r.session != nil && r.session.Token == token {
 		return r.session, nil
 	}
+
 	return nil, identity.ErrSessionNotFound
 }
 
@@ -120,6 +130,7 @@ func (r *testPartyRepo) Get(_ context.Context, id string) (*identity.User, error
 	if u, ok := r.users[id]; ok {
 		return u, nil
 	}
+
 	return nil, identity.ErrUserNotFound
 }
 
@@ -129,6 +140,7 @@ func (r *testPartyRepo) GetByUsername(_ context.Context, username string) (*iden
 			return u, nil
 		}
 	}
+
 	return nil, identity.ErrUserNotFound
 }
 
@@ -147,10 +159,11 @@ func (r *testPartyRepo) Delete(_ context.Context, id string) error {
 }
 
 func (r *testPartyRepo) List(_ context.Context, _ string) ([]*identity.User, error) {
-	var result []*identity.User
+	result := make([]*identity.User, 0, len(r.users))
 	for _, u := range r.users {
 		result = append(result, u)
 	}
+
 	return result, nil
 }
 
@@ -188,8 +201,10 @@ func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 	}
 
 	// Track the captured user_id from the handler's logger
-	var capturedUserID string
-	var capturedHandler *recordingHandler
+	var (
+		capturedUserID  string
+		capturedHandler *recordingHandler
+	)
 
 	// Create a handler that captures the enriched logger
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -197,9 +212,15 @@ func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 		if rh, ok := handlerLogger.Handler().(*recordingHandler); ok {
 			capturedHandler = rh
 			if uid, exists := rh.getAttr("user_id"); exists {
-				capturedUserID = uid.(string)
+				userID, ok := uid.(string)
+				if !ok {
+					t.Fatal("expected user_id string attribute")
+				}
+
+				capturedUserID = userID
 			}
 		}
+
 		handlerLogger.Info("handler executed")
 		w.WriteHeader(http.StatusOK)
 	})
@@ -219,8 +240,8 @@ func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 	r.Get("/api/protected", testHandler)
 
 	// Make request with valid session
-	req := httptest.NewRequest("GET", "/api/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: testSessionToken})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/protected", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: testSessionToken}) //nolint:gosec // test fixture: fixed session cookie token on a local test request, not a real credential
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -253,6 +274,7 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 		if rh, ok := handlerLogger.Handler().(*recordingHandler); ok {
 			_, hasUserID = rh.getAttr("user_id")
 		}
+
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -260,7 +282,7 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 	r.Use(chimw.RequestID)
 	r.Use(httpmw.RequestLoggerMiddleware(logger, tp))
 	r.Use(NewAuthGate(AuthGateConfig{
-		RequireAuth: func(path string) bool {
+		RequireAuth: func(_ string) bool {
 			return false // all paths are public for this test
 		},
 		Log:         logger,
@@ -269,7 +291,7 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 	}))
 	r.Get("/.well-known/ocm", testHandler) // Public endpoint
 
-	req := httptest.NewRequest("GET", "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -288,14 +310,14 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		tshttp.MustWrite(t, w, []byte("ok"))
 	})
 
 	r := chi.NewRouter()
 	r.Use(NewAuthGate(AuthGateConfig{
-		RequireAuth: func(path string) bool {
+		RequireAuth: func(_ string) bool {
 			return false // all paths are public
 		},
 		Log:         logger,
@@ -304,7 +326,7 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 	}))
 	r.Get("/public", testHandler)
 
-	req := httptest.NewRequest("GET", "/public", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/public", nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)
@@ -317,13 +339,13 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
 	r := chi.NewRouter()
 	r.Use(NewAuthGate(AuthGateConfig{
-		RequireAuth: func(path string) bool {
+		RequireAuth: func(_ string) bool {
 			return true
 		},
 		Log:         logger,
@@ -333,7 +355,7 @@ func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
 	}))
 	r.Get("/ocm/ui/inbox", testHandler)
 
-	req := httptest.NewRequest("GET", "/ocm/ui/inbox?foo=bar", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ocm/ui/inbox?foo=bar", nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)

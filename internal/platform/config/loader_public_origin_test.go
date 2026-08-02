@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package config
 
 import (
@@ -100,10 +105,12 @@ func TestValidatePublicOrigin_InvalidValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{PublicOrigin: tt.origin}
+
 			err := validatePublicOrigin(cfg)
 			if err == nil {
 				t.Fatalf("validatePublicOrigin(%q) expected error, got nil", tt.origin)
 			}
+
 			if !strings.Contains(err.Error(), tt.wantInErr) {
 				t.Errorf("validatePublicOrigin(%q) error = %q, want substring %q", tt.origin, err.Error(), tt.wantInErr)
 			}
@@ -112,6 +119,8 @@ func TestValidatePublicOrigin_InvalidValues(t *testing.T) {
 }
 
 func TestLoad_PublicOrigin_InvalidViaConfigFile_FailsFast(t *testing.T) {
+	// Clear ambient env override so the validation error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -127,13 +136,18 @@ public_origin = "https://example.com/app"
 	if err == nil {
 		t.Fatal("expected error for public_origin with a path")
 	}
+
 	if !strings.Contains(err.Error(), "public_origin") {
 		t.Errorf("expected error to mention public_origin, got: %v", err)
 	}
 }
 
 func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
+	// Clear ambient env override so the flag validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	origin := "ftp://example.com"
+
 	_, err := Load(LoaderOptions{
 		FlagOverrides: FlagOverrides{
 			PublicOrigin: &origin,
@@ -142,12 +156,15 @@ func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for ftp scheme in public_origin")
 	}
+
 	if !strings.Contains(err.Error(), "scheme must be http or https") {
 		t.Errorf("expected scheme error, got: %v", err)
 	}
 }
 
 func TestLoad_PublicOrigin_ValidViaConfigFile_Succeeds(t *testing.T) {
+	// Clear ambient env override so the public_origin load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 

@@ -1,5 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package directoryservice fetches and verifies OCM directory service listings.
-// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#appendix-c-directory-service
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1#appendix-c-directory-service
 package directoryservice
 
 import (
@@ -10,6 +15,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 
 	"github.com/go-jose/go-jose/v4"
@@ -27,13 +33,15 @@ type EndpointConfig struct {
 
 // VerificationKey is a public key for JWS verification.
 type VerificationKey struct {
-	KeyID        string `json:"key_id"`
-	PublicKeyPEM string `json:"public_key_pem"`
+	KeyID        string `json:"keyId"`
+	PublicKeyPEM string `json:"publicKeyPem"`
 	Algorithm    string `json:"algorithm"` // RS256, ES256, Ed25519
 	Active       bool   `json:"active"`
 }
 
-// Listing is a directory service response (Appendix C format). Verified is true when JWS verified.
+// Listing is a directory service response (OCM Appendix C:
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#appendix-c-directory-service).
+// Verified is true when JWS verified.
 type Listing struct {
 	Federation string   `json:"federation"`
 	Servers    []Server `json:"servers"`
@@ -56,6 +64,7 @@ type Client struct {
 // NewClient creates a directory service client. defaultVerificationPolicy is used when per-call policy is empty.
 func NewClient(httpClient *httpclient.Client, defaultVerificationPolicy string, logger *slog.Logger) *Client {
 	logger = logutil.NoopIfNil(logger)
+
 	return &Client{
 		httpClient:                httpClient,
 		defaultVerificationPolicy: defaultVerificationPolicy,
@@ -65,20 +74,27 @@ func NewClient(httpClient *httpclient.Client, defaultVerificationPolicy string, 
 
 // FetchListing fetches and parses the listing. Policies: required (verify or fail), optional
 // (verify if possible, accept unsigned, reject bad sigs), off (no verification). Verified
-// listings have invalid server URLs filtered per Appendix C.
+// listings have invalid server URLs filtered per OCM Appendix C
+// (https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#appendix-c-directory-service).
 func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, keys []VerificationKey, verificationPolicy string) (*Listing, error) {
 	body, resp, err := c.httpClient.GetJSON(ctx, directoryServiceURL)
+	if resp != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch directory service: %w", err)
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("directory service returned status %d", resp.StatusCode)
 	}
 
 	policy := c.effectivePolicy(verificationPolicy)
 
 	var listing *Listing
+
 	switch policy {
 	case "off":
 		listing, err = c.parseUnverified(body)
@@ -87,6 +103,7 @@ func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, k
 	default: // "required" and any unrecognized value
 		listing, err = c.parseWithRequiredVerification(body, keys)
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +119,11 @@ func (c *Client) effectivePolicy(override string) string {
 	if override != "" {
 		return override
 	}
+
 	if c.defaultVerificationPolicy != "" {
 		return c.defaultVerificationPolicy
 	}
+
 	return "required"
 }
 
@@ -113,7 +132,9 @@ func (c *Client) parseUnverified(body []byte) (*Listing, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	listing.Verified = false
+
 	return listing, nil
 }
 
@@ -122,7 +143,9 @@ func (c *Client) parseWithRequiredVerification(body []byte, keys []VerificationK
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify directory service response: %w", err)
 	}
+
 	listing.Verified = true
+
 	return listing, nil
 }
 
@@ -137,11 +160,14 @@ func (c *Client) parseWithOptionalVerification(body []byte, keys []VerificationK
 	if err != nil {
 		return c.parseUnverified(body)
 	}
+
 	listing, err := c.verifyJWS(jws, keys)
 	if err != nil {
 		return nil, fmt.Errorf("directory service response has JWS wrapper but verification failed: %w", err)
 	}
+
 	listing.Verified = true
+
 	return listing, nil
 }
 
@@ -179,6 +205,7 @@ func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (
 		} else {
 			payload, err = jws.Verify(pubKey)
 		}
+
 		if err != nil {
 			continue
 		}
@@ -186,10 +213,12 @@ func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (
 		return parseListing(payload)
 	}
 
-	return nil, fmt.Errorf("JWS signature verification failed (F2)")
+	return nil, fmt.Errorf("JWS signature verification failed")
 }
 
-// filterValidServerURLs drops invalid server URLs from verified listings (Appendix C: http(s), no path/query/fragment).
+// filterValidServerURLs drops invalid server URLs from verified listings (OCM Appendix C:
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#appendix-c-directory-service;
+// http(s) only, no path/query/fragment).
 func (c *Client) filterValidServerURLs(servers []Server) []Server {
 	valid := make([]Server, 0, len(servers))
 	for _, s := range servers {
@@ -200,6 +229,7 @@ func (c *Client) filterValidServerURLs(servers []Server) []Server {
 				"url", s.URL, "display_name", s.DisplayName)
 		}
 	}
+
 	return valid
 }
 
@@ -208,26 +238,33 @@ func isValidServerURL(rawURL string) bool {
 	if err != nil {
 		return false
 	}
+
 	if !u.IsAbs() || u.Host == "" {
 		return false
 	}
+
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
+
 	if u.User != nil {
 		return false
 	}
+
 	if u.RawQuery != "" || u.Fragment != "" {
 		return false
 	}
+
 	if u.Path != "" && u.Path != "/" {
 		return false
 	}
+
 	return true
 }
 
 func collectAlgorithms(keys []VerificationKey) []jose.SignatureAlgorithm {
 	seen := make(map[jose.SignatureAlgorithm]bool)
+
 	var result []jose.SignatureAlgorithm
 
 	for _, key := range keys {

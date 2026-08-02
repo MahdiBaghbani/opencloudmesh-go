@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package shares_test
 
 import (
@@ -10,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -17,7 +24,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -30,7 +36,7 @@ var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Le
 const testProvider = "example.com"
 
 func testCurrentUser(user *identity.User) func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return user, nil
 	}
 }
@@ -40,15 +46,20 @@ func makeDummyDiscoveryClient() *discovery.Client {
 	return discovery.NewClient(hc, nil)
 }
 
-func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *atomic.Int32) {
+func makeReceiverTLSServer(t *testing.T, capabilities, criteria []string) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+
 	postCount := &atomic.Int32{}
+
 	var srv *httptest.Server
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
-			if hasCapability(capabilities, "exchange-token") {
+			if hasExchangeTokenCapability(capabilities) {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
+
 			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -57,31 +68,44 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 				Criteria:      criteria,
 				TokenEndPoint: tokenEndPoint,
 			}
+
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			tshttp.WriteJSON(w, disc)
+
 			return
 		}
+
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
+			tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
+
 	return srv, postCount
 }
 
-func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *atomic.Int32, *spec.NewShareRequest) {
+func makeCapturingReceiverTLSServer(t *testing.T, capabilities, criteria []string) (*httptest.Server, *atomic.Int32, *spec.NewShareRequest) {
+	t.Helper()
+
 	postCount := &atomic.Int32{}
-	var captured spec.NewShareRequest
-	var srv *httptest.Server
+
+	var (
+		captured spec.NewShareRequest
+		srv      *httptest.Server
+	)
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
-			if hasCapability(capabilities, "exchange-token") {
+			if hasExchangeTokenCapability(capabilities) {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
+
 			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -90,28 +114,42 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 				Criteria:      criteria,
 				TokenEndPoint: tokenEndPoint,
 			}
+
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			tshttp.WriteJSON(w, disc)
+
 			return
 		}
+
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
-			_ = json.NewDecoder(r.Body).Decode(&captured)
+
+			if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+				t.Errorf("decode share request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+
+				return
+			}
+
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
+			tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
+
 	return srv, postCount, &captured
 }
 
-func hasCapability(capabilities []string, capability string) bool {
+func hasExchangeTokenCapability(capabilities []string) bool {
 	for _, c := range capabilities {
-		if c == capability {
+		if c == "exchange-token" {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -119,42 +157,47 @@ func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
 	cfg.InsecureSkipVerify = true
 	raw := httpclient.New(cfg, nil)
-	return discovery.NewClient(raw, nil), httpclient.NewContextClient(raw)
-}
 
-// makeNoCacheTLSClients wires a discovery client with caching disabled so that
-// any discovery call reaches the network, letting tests count discovery hits.
-func makeNoCacheTLSClients() (*discovery.Client, *httpclient.ContextClient) {
-	cfg := tshttp.PermissiveConfig()
-	cfg.InsecureSkipVerify = true
-	raw := httpclient.New(cfg, nil)
-	return discovery.NewClient(raw, cache.NewNoopCache()), httpclient.NewContextClient(raw)
+	return discovery.NewClient(raw, nil), httpclient.NewContextClient(raw)
 }
 
 func createTempShareFile(t *testing.T, pattern string) string {
 	t.Helper()
+
 	tmpFile, err := os.CreateTemp("/tmp", pattern)
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
+
 	path := tmpFile.Name()
-	_ = tmpFile.Close()
-	t.Cleanup(func() { _ = os.Remove(path) })
+
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := os.Remove(path); err != nil {
+			t.Errorf("remove temp file: %v", err)
+		}
+	})
+
 	return path
 }
 
 func failCurrentUser() func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return nil, http.ErrNoCookie
 	}
 }
 
 func makeTestSigner(t *testing.T) *crypto.RFC9421Signer {
 	t.Helper()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("failed to generate test signing key: %v", err)
 	}
+
 	return crypto.NewRFC9421Signer(km)
 }
 
@@ -164,12 +207,14 @@ type stubResolver struct {
 	facts policy.Facts
 }
 
-func (r *stubResolver) ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts {
+func (r *stubResolver) ResolveFacts(_ string) policy.Facts {
 	return r.facts
 }
 
-func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+func newTestHandler(t *testing.T, currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
+	t.Helper()
+
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(
@@ -195,12 +240,15 @@ func newOutgoingHandler(
 	localTokenEndPoint string,
 ) *outgoingshares.Handler {
 	t.Helper()
+
 	if resolver == nil {
 		resolver = &stubResolver{facts: policy.NewCodeFlow().Evaluate()}
 	}
+
 	if localTokenEndPoint == "" {
 		localTokenEndPoint = "https://example.com/ocm/token"
 	}
+
 	handler := outgoingshares.NewHandler(
 		repo,
 		discClient,
@@ -214,6 +262,7 @@ func newOutgoingHandler(
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 	handler.SetPeerOrigin(peerorigin.NewResolver(false))
+
 	return handler
 }
 
@@ -236,6 +285,8 @@ func newLegacyVoluntaryOutgoingHandler(
 	user *identity.User,
 ) *outgoingshares.Handler {
 	t.Helper()
+
 	resolver := &stubResolver{facts: configfixture.CodeFlowLegacyVoluntary().Evaluate()}
+
 	return newOutgoingHandler(t, repo, discClient, ctxClient, user, resolver, "")
 }

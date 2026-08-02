@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wiring_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -53,18 +59,18 @@ func TestBuild_SignaturePolicyWiredFromCodeFlow(t *testing.T) {
 				t.Fatal("SignatureMiddleware must be non-nil")
 			}
 
-			peerResolver := func(r *http.Request, body []byte) (string, error) {
+			peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 				return "sender.example.com", nil
 			}
 			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				}),
 			)
 
 			body := []byte(`{"test":"data"}`)
-			req := httptest.NewRequest(
-				"POST",
+			req := httptest.NewRequestWithContext(context.Background(),
+				http.MethodPost,
 				"https://localhost:9200/ocm/shares",
 				bytes.NewReader(body),
 			)

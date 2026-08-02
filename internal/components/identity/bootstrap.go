@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package identity
 
 import (
@@ -5,12 +10,14 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// SeededUser describes a user to create during bootstrap.
 type SeededUser struct {
 	Username    string
 	Password    string
@@ -28,8 +35,10 @@ type Bootstrap struct {
 	log  *slog.Logger
 }
 
+// NewBootstrap returns a Bootstrap for the given repo, auth, and logger.
 func NewBootstrap(repo PartyRepo, auth *UserAuth, log *slog.Logger) *Bootstrap {
 	log = logutil.NoopIfNil(log)
+
 	return &Bootstrap{
 		repo: repo,
 		auth: auth,
@@ -40,18 +49,22 @@ func NewBootstrap(repo PartyRepo, auth *UserAuth, log *slog.Logger) *Bootstrap {
 // Run creates the admin user and any seeded users; returns the count created.
 func (b *Bootstrap) Run(ctx context.Context, admin SeededUser, seeded []SeededUser) (int, error) {
 	var created int
+
 	if admin.Username != "" {
 		n, err := b.ensureUser(ctx, admin)
 		if err != nil {
 			return created, err
 		}
+
 		created += n
 	}
+
 	for _, s := range seeded {
 		n, err := b.ensureUser(ctx, s)
 		if err != nil {
 			return created, err
 		}
+
 		created += n
 	}
 
@@ -67,12 +80,14 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	if username == "" {
 		username = "admin"
 	}
+
 	users, err := b.repo.List(ctx, "")
 	if err != nil {
 		return err
 	}
 
 	var existingSuperAdmin *User
+
 	for _, u := range users {
 		if u.Role == RoleSuperAdmin {
 			existingSuperAdmin = u
@@ -82,21 +97,26 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 
 	if existingSuperAdmin != nil {
 		if explicitPasswordSet && password != "" {
-			hash, err := b.auth.HashPassword(password)
-			if err != nil {
-				return err
+			if rotateErr := b.rotateSuperAdminPassword(ctx, existingSuperAdmin, password); rotateErr != nil {
+				return rotateErr
 			}
-			existingSuperAdmin.PasswordHash = hash
-			if err := b.repo.Update(ctx, existingSuperAdmin); err != nil {
-				return err
-			}
+
 			b.log.Info("super admin password rotated", "username", existingSuperAdmin.Username)
 		}
+
 		return nil
 	}
+
 	passwordGenerated := false
+
 	if password == "" {
-		password = generateRandomPassword()
+		var genErr error
+
+		password, genErr = generateRandomPassword()
+		if genErr != nil {
+			return genErr
+		}
+
 		passwordGenerated = true
 	}
 
@@ -105,8 +125,13 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 		return err
 	}
 
+	id, err := UUIDv7()
+	if err != nil {
+		return err
+	}
+
 	superAdmin := &User{
-		ID:           UUIDv7(),
+		ID:           id,
 		Username:     username,
 		DisplayName:  "Super Administrator",
 		PasswordHash: hash,
@@ -130,12 +155,24 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	return nil
 }
 
-func generateRandomPassword() string {
+func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, password string) error {
+	hash, err := b.auth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	admin.PasswordHash = hash
+
+	return b.repo.Update(ctx, admin)
+}
+
+func generateRandomPassword() (string, error) {
 	b := make([]byte, 24)
 	if _, err := rand.Read(b); err != nil {
-		return "changeme-" + UUIDv7()
+		return "", fmt.Errorf("failed to generate random password: %w", err)
 	}
-	return base64.URLEncoding.EncodeToString(b)
+
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
@@ -144,9 +181,11 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 		b.log.Debug("user already exists", "username", s.Username)
 		return 0, nil
 	}
+
 	if !errors.Is(err, ErrUserNotFound) {
 		return 0, err
 	}
+
 	hash, err := b.auth.HashPassword(s.Password)
 	if err != nil {
 		return 0, err
@@ -157,8 +196,13 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 		role = "user"
 	}
 
+	id, err := UUIDv7()
+	if err != nil {
+		return 0, err
+	}
+
 	user := &User{
-		ID:           UUIDv7(),
+		ID:           id,
 		Username:     s.Username,
 		Email:        s.Email,
 		DisplayName:  s.DisplayName,
@@ -174,6 +218,7 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 	}
 
 	b.log.Info("created user", "username", s.Username, "role", role)
+
 	return 1, nil
 }
 
@@ -188,8 +233,10 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 		if existing.IsProbe() && existing.Realm == realm {
 			return existing, nil
 		}
+
 		return nil, ErrUserExists
 	}
+
 	if !errors.Is(err, ErrUserNotFound) {
 		return nil, err
 	}
@@ -202,8 +249,13 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 	now := time.Now()
 	expiresAt := now.Add(ProbeUserTTL)
 
+	id, err := UUIDv7()
+	if err != nil {
+		return nil, err
+	}
+
 	user := &User{
-		ID:           UUIDv7(),
+		ID:           id,
 		Username:     username,
 		Email:        "",
 		DisplayName:  "Probe User",
@@ -220,5 +272,6 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 	}
 
 	b.log.Info("created probe user", "username", username, "realm", realm, "expires_at", expiresAt)
+
 	return user, nil
 }

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package json implements a JSON file-based persistence driver.
 // It uses atomic writes (temp file + fsync + rename) and in-process locking.
 package json
@@ -22,22 +27,22 @@ type Driver struct {
 	closed  bool
 
 	// In-memory state loaded from JSON
-	outgoingShares  map[string]*store.OutgoingShare  // keyed by providerId
-	incomingShares  map[string]*store.IncomingShare  // keyed by shareId
+	outgoingShares  map[string]*store.OutgoingShare  // keyed by providerID
+	incomingShares  map[string]*store.IncomingShare  // keyed by shareID
 	outgoingInvites map[string]*store.OutgoingInvite // keyed by id
 	incomingInvites map[string]*store.IncomingInvite // keyed by id
 
 	// Secondary indexes for outgoing shares
-	webdavIndex  map[string]string // webdavId -> providerId
-	shareIdIndex map[string]string // shareId -> providerId
-	secretIndex  map[string]string // sharedSecret -> providerId
+	webdavIndex  map[string]string // webdavID -> providerID
+	shareIDIndex map[string]string // shareID -> providerID
+	secretIndex  map[string]string // sharedSecret -> providerID
 
 	// Secondary indexes for incoming shares
-	providerIndex map[string]string // "sendingServer:providerId" -> shareId
+	providerIndex map[string]string // "sendingServer:providerID" -> shareID
 
 	// Secondary indexes for invites
 	outgoingInviteTokenIndex     map[string]string // token -> outgoing invite id
-	incomingInviteTokenUserIndex map[string]string // "token\x00recipientUserId" -> incoming invite id
+	incomingInviteTokenUserIndex map[string]string // "token\x00recipientUserID" -> incoming invite id
 }
 
 // NewDriver creates a new JSON driver instance.
@@ -53,7 +58,7 @@ func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 		outgoingInvites:              make(map[string]*store.OutgoingInvite),
 		incomingInvites:              make(map[string]*store.IncomingInvite),
 		webdavIndex:                  make(map[string]string),
-		shareIdIndex:                 make(map[string]string),
+		shareIDIndex:                 make(map[string]string),
 		secretIndex:                  make(map[string]string),
 		providerIndex:                make(map[string]string),
 		outgoingInviteTokenIndex:     make(map[string]string),
@@ -67,7 +72,7 @@ func (d *Driver) Name() string {
 }
 
 // Init loads data from JSON files.
-func (d *Driver) Init(ctx context.Context) error {
+func (d *Driver) Init(_ context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -78,12 +83,15 @@ func (d *Driver) Init(ctx context.Context) error {
 	if err := d.loadFile(fileOutgoingShares, &d.outgoingShares); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load outgoing shares: %w", err)
 	}
+
 	if err := d.loadFile(fileIncomingShares, &d.incomingShares); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load incoming shares: %w", err)
 	}
+
 	if err := d.loadFile(fileOutgoingInvites, &d.outgoingInvites); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load outgoing invites: %w", err)
 	}
+
 	if err := d.loadFile(fileIncomingInvites, &d.incomingInvites); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load incoming invites: %w", err)
 	}
@@ -99,7 +107,9 @@ func (d *Driver) Init(ctx context.Context) error {
 func (d *Driver) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	d.closed = true
+
 	return nil
 }
 

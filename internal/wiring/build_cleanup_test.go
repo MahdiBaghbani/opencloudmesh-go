@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package wiring
 
 import (
@@ -14,11 +19,13 @@ import (
 
 func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 	var closeCalled atomic.Bool
+
 	oldClose := closePersistenceOnBootstrapFailure
 	closePersistenceOnBootstrapFailure = func(persistenceRepos *repos.Repos, logger *slog.Logger) {
 		closeCalled.Store(true)
 		defaultClosePersistenceOnBootstrapFailure(persistenceRepos, logger)
 	}
+
 	t.Cleanup(func() { closePersistenceOnBootstrapFailure = oldClose })
 
 	oldWire := wireSharedDepsHook
@@ -30,13 +37,16 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 	) (BuildResult, error) {
 		return BuildResult{}, fmt.Errorf("injected wire failure")
 	}
+
 	t.Cleanup(func() { wireSharedDepsHook = oldWire })
 
 	cfg := config.DevConfig()
+
 	_, err := Build(cfg, tslog.DiscardLogger(), harnessBuildOptsForPackageTest(tswiring.HarnessWireOptions))
 	if err == nil {
 		t.Fatal("expected wire shared deps failure")
 	}
+
 	if !closeCalled.Load() {
 		t.Fatal("Build must close persistence when wireSharedDeps fails after repos.New")
 	}
@@ -44,10 +54,12 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 
 func TestWireSharedDeps_RejectsNilPersistence(t *testing.T) {
 	cfg := config.DevConfig()
+
 	_, err := wireSharedDeps(cfg, tslog.DiscardLogger(), BuildOpts{}, nil)
 	if err == nil {
 		t.Fatal("expected error for nil persistence")
 	}
+
 	if err.Error() != "wire shared deps: persistence repos must be non-nil" {
 		t.Fatalf("unexpected error: %v", err)
 	}

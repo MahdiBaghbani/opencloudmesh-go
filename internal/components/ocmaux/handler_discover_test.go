@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocmaux
 
 import (
@@ -20,11 +25,23 @@ func discoverTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }
 
+// mustEncodeJSON writes v as JSON to w and reports a test error when the
+// encode fails. Errorf (not Fatalf) because mock handlers may run on httptest
+// server goroutines.
+func mustEncodeJSON(t *testing.T, w http.ResponseWriter, v any) {
+	t.Helper()
+
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Errorf("encode JSON: %v", err)
+	}
+}
+
 func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 	var serverURL string
+
 	discServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -33,11 +50,14 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 				"resourceTypes":      []any{},
 				"criteria":           []any{},
 			})
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+
 	serverURL = discServer.URL
 
 	host := strings.TrimPrefix(discServer.URL, "https://")
@@ -47,7 +67,7 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+host, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+host, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -59,9 +79,10 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 
 func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 	var serverURL string
+
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -69,11 +90,14 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 				"resourceTypes":      []any{},
 				"criteria":           []any{},
 			})
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+
 	serverURL = discServer.URL
 
 	base := serverURL + "/apps/files/files/123"
@@ -82,7 +106,7 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+base, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+base, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -98,7 +122,7 @@ func TestHandleDiscover_SSRFBlockedFriendlyResponse(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=http://127.0.0.1:8080", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=http://127.0.0.1:8080", nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -110,15 +134,19 @@ func TestHandleDiscover_SSRFBlockedFriendlyResponse(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if resp.Success {
 		t.Fatal("expected success=false")
 	}
+
 	if resp.ReasonCode != reason.SSRFBlocked {
 		t.Fatalf("reasonCode = %q, want %q", resp.ReasonCode, reason.SSRFBlocked)
 	}
+
 	if resp.Error != discoverMsgSSRFBlocked {
 		t.Fatalf("error = %q, want friendly message", resp.Error)
 	}
+
 	if strings.Contains(resp.Error, "private IP") || strings.Contains(resp.Error, "CIDR") {
 		t.Fatalf("user-facing error leaked SSRF details: %q", resp.Error)
 	}
@@ -130,7 +158,7 @@ func TestHandleDiscover_DNSFailureReason(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=https://this-domain-does-not-exist-12345.invalid", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=https://this-domain-does-not-exist-12345.invalid", nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -143,9 +171,11 @@ func TestHandleDiscover_DNSFailureReason(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if resp.ReasonCode != discoverReasonDNSUnresolvable {
 		t.Fatalf("reasonCode = %q, want %q", resp.ReasonCode, discoverReasonDNSUnresolvable)
 	}
+
 	if resp.Error != discoverMsgDNSFailed {
 		t.Fatalf("error = %q, want friendly DNS message", resp.Error)
 	}
@@ -154,7 +184,7 @@ func TestHandleDiscover_DNSFailureReason(t *testing.T) {
 func TestHandleDiscover_InvalidURLReason(t *testing.T) {
 	h := NewAuxHandler(nil, nil, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=ftp://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=ftp://example.com", nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -166,6 +196,7 @@ func TestHandleDiscover_InvalidURLReason(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if resp.ReasonCode != discoverReasonInvalidURL {
 		t.Fatalf("reasonCode = %q, want %q", resp.ReasonCode, discoverReasonInvalidURL)
 	}
@@ -181,7 +212,7 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+discServer.URL, nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -193,9 +224,11 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if resp.ReasonCode != discoverReasonNoOCMDiscovery {
 		t.Fatalf("reasonCode = %q, want %q", resp.ReasonCode, discoverReasonNoOCMDiscovery)
 	}
+
 	if resp.Error != discoverMsgNoOCM {
 		t.Fatalf("error = %q, want %q", resp.Error, discoverMsgNoOCM)
 	}
@@ -203,27 +236,31 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 
 func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 	var serverURL string
+
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":       true,
 				"apiVersion":    "1.4.0",
 				"endPoint":      serverURL + "/ocm",
 				"resourceTypes": []any{},
 				"criteria":      []any{},
 			})
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+
 	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+discServer.URL, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -236,12 +273,15 @@ func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if resp.Success {
 		t.Fatal("expected success=false")
 	}
+
 	if resp.ReasonCode != discoverReasonNoInviteAcceptDialog {
 		t.Fatalf("reasonCode = %q, want %q", resp.ReasonCode, discoverReasonNoInviteAcceptDialog)
 	}
+
 	if resp.Error != discoverMsgNoInviteAcceptDialog {
 		t.Fatalf("error = %q, want %q", resp.Error, discoverMsgNoInviteAcceptDialog)
 	}

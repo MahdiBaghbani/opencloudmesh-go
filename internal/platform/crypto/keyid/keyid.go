@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package keyid provides canonical parsing and comparison normalization for
 // OCM keyId URIs. It is the single source of truth for remote peer keyId
 // handling across the codebase.
@@ -68,6 +73,7 @@ func Authority(p Parsed) string {
 		if strings.Contains(p.Hostname, ":") {
 			return "[" + p.Hostname + "]"
 		}
+
 		return p.Hostname
 	}
 
@@ -80,15 +86,15 @@ func Authority(p Parsed) string {
 //
 // Uses hostport.Normalize internally to ensure a single normalization
 // implementation across the codebase.
-func AuthorityForCompareFromKeyID(p Parsed) string {
+func AuthorityForCompareFromKeyID(p Parsed) (string, error) {
 	authority := Authority(p)
+
 	normalized, err := hostport.Normalize(authority, p.Scheme)
 	if err != nil {
-		// Authority was already parsed from a valid keyId URI, so this
-		// should not fail. Fall back to the raw authority on error.
-		return authority
+		return "", fmt.Errorf("keyid: normalize authority for compare: %w", err)
 	}
-	return normalized
+
+	return normalized, nil
 }
 
 // AuthorityForCompareFromDeclaredPeer normalizes a schemeless declared peer

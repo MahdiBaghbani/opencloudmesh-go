@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package integration
 
 import (
@@ -8,17 +13,21 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
 func healthPathForConfig(t *testing.T, cfg *config.Config) string {
 	t.Helper()
+
 	opts := service.RouteOptsFromConfig(cfg)
+
 	path, ok := tsrouting.HealthFullPath(opts)
 	if !ok {
 		t.Fatal("Routes(opts) missing api-healthz row")
 	}
+
 	return path
 }
 
@@ -26,11 +35,16 @@ func TestHealthEndpoint(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+healthPathForConfig(t, ts.Config), nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
@@ -58,11 +72,16 @@ func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 	})
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+healthPathForConfig(t, ts.Config), nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
@@ -78,11 +97,17 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 	defer ts.Stop(t)
 
 	for _, path := range tsrouting.HostRootDiscoveryPaths() {
-		resp, err := http.Get(ts.BaseURL + path)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+path, nil)
+		if err != nil {
+			t.Fatalf("build discovery request for %q: %v", path, err)
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if err != nil {
 			t.Fatalf("failed to get discovery at %q: %v", path, err)
 		}
-		resp.Body.Close()
+		defer tshttp.MustClose(t, resp.Body)
+
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("host-root discovery %q returned %d, want 200", path, resp.StatusCode)
 		}
@@ -90,11 +115,18 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 
 	for _, path := range tsrouting.HostRootDiscoveryPaths() {
 		prefixed := ts.BaseURL + "/ocm" + path
-		resp, err := http.Get(prefixed)
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, prefixed, nil)
+		if err != nil {
+			t.Fatalf("build prefixed discovery request for %q: %v", prefixed, err)
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if err != nil {
 			t.Fatalf("failed to get prefixed discovery at %q: %v", prefixed, err)
 		}
-		resp.Body.Close()
+		defer tshttp.MustClose(t, resp.Body)
+
 		if resp.StatusCode == http.StatusOK {
 			t.Errorf("discovery must not be served under external_base_path at %s", prefixed)
 		}
@@ -115,15 +147,22 @@ func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
 	if !strings.HasPrefix(ts.BaseURL, "http://localhost:") {
 		t.Fatalf("BaseURL should target the local listener, got %q", ts.BaseURL)
 	}
+
 	if strings.Contains(ts.BaseURL, "advertised.example.com") {
 		t.Fatalf("BaseURL must not use the advertised PublicOrigin, got %q", ts.BaseURL)
 	}
 
-	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+healthPathForConfig(t, ts.Config), nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("health check against local listener failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected healthz 200 from local listener, got %d", resp.StatusCode)
 	}
@@ -133,11 +172,16 @@ func TestDiscoveryEndpoint(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + "/.well-known/ocm")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("build discovery request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get discovery: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
@@ -164,12 +208,15 @@ func TestDiscoveryEndpoint(t *testing.T) {
 	if !disc.Enabled {
 		t.Error("expected enabled=true")
 	}
+
 	if disc.APIVersion != "1.4.0" {
 		t.Errorf("expected apiVersion '1.4.0', got %q", disc.APIVersion)
 	}
+
 	if disc.Provider != "OpenCloudMesh" {
 		t.Errorf("expected provider 'OpenCloudMesh', got %q", disc.Provider)
 	}
+
 	if len(disc.ResourceTypes) == 0 {
 		t.Error("expected at least one resource type")
 	}

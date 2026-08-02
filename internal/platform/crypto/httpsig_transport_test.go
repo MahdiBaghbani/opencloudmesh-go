@@ -1,11 +1,25 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package crypto_test
 
 import (
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
@@ -14,34 +28,147 @@ func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	var gotSignatureInput string
-	var gotVerified bool
+	var (
+		gotSignatureInput string
+		gotVerified       bool
+	)
+
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotSignatureInput = r.Header.Get("Signature-Input")
 		result := verifier.VerifyRequest(r, nil, httpsigEd25519KeyFetcher(km))
 		gotVerified = result.Verified
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	req, err := http.NewRequest("GET", server.URL+"/ocm/discovery", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/ocm/discovery", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := signer.SignRequest(req, nil); err != nil {
-		t.Fatalf("SignRequest: %v", err)
+
+	if serr := signer.SignRequest(req, nil); serr != nil {
+		t.Fatalf("SignRequest: %v", serr)
 	}
 
-	resp, err := server.Client().Do(req)
+	resp, err := server.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("client.Do: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if !strings.Contains(gotSignatureInput, `"content-length"`) {
 		t.Fatalf("server-observed Signature-Input = %q, want content-length coverage for an empty body", gotSignatureInput)
 	}
+
 	if !gotVerified {
 		t.Fatal("expected server-side verification of the empty-body request to succeed")
+	}
+}
+
+func TestSignVerifyRoundTrip_ExactKeyIDOverHTTPJWKS(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	opts := crypto.DefaultRFC9421Options()
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	var (
+		gotVerified bool
+		gotKeyID    string
+		gotErr      error
+	)
+
+	var srv *httptest.Server
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		tshttp.WriteJSON(w, km.JWKS())
+	})
+	mux.HandleFunc("/ocm/discovery", func(w http.ResponseWriter, r *http.Request) {
+		resolver, err := jwks.NewResolver(srv.Client())
+		if err != nil {
+			gotErr = err
+
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
+		result := verifier.VerifyRequest(r, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) { //nolint:contextcheck // test: fetcher signature is fixed by VerifyRequest; no context to thread
+			return resolver.ResolveURL(context.Background(), srv.URL+"/jwks", keyID)
+		})
+		gotVerified = result.Verified
+		gotKeyID = result.KeyID
+		gotErr = result.Error
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	srv = httptest.NewTLSServer(mux)
+	defer srv.Close()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/ocm/discovery", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if serr := signer.SignRequest(req, nil); serr != nil {
+		t.Fatalf("SignRequest: %v", serr)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
+		t.Fatalf("client.Do: %v", err)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if !gotVerified {
+		t.Fatalf("expected server-side verification via HTTP JWKS exact keyid match: %v", gotErr)
+	}
+
+	if gotKeyID != km.GetKeyID() {
+		t.Fatalf("verified KeyID = %q, want %q", gotKeyID, km.GetKeyID())
+	}
+}
+
+func TestVerifyRequest_MissingKeyIDMakesNoHTTPCall(t *testing.T) {
+	var jwksRequests atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		jwksRequests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		tshttp.WriteJSON(w, jwks.Set{Keys: []jwks.Key{}})
+	}))
+	defer srv.Close()
+
+	resolver, err := jwks.NewResolver(srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
+	req.Header.Set("Date", httpsigStandardDate)
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;alg="ed25519";tag="ocm"`,
+		now,
+	))
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return resolver.ResolveURL(context.Background(), srv.URL+"/jwks", keyID)
+	})
+	if result.Verified {
+		t.Fatal("expected missing keyid rejection")
+	}
+
+	if result.Reason != crypto.ReasonMissingKeyID {
+		t.Fatalf("Reason = %q, want %q (err=%v)", result.Reason, crypto.ReasonMissingKeyID, result.Error)
+	}
+
+	if got := jwksRequests.Load(); got != 0 {
+		t.Fatalf("JWKS HTTP requests = %d, want 0: missing keyid must fail before network access", got)
 	}
 }

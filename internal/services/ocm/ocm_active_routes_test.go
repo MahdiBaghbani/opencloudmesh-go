@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocm
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,12 +25,14 @@ func activeOCMPostRouteRows(t *testing.T) []service.RouteRow {
 
 	cfg := config.DevConfig()
 	rows := service.DerivedRouteInventory(service.RouteOptsFromConfig(cfg))
+
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Service == "ocm" && row.Method == http.MethodPost {
 			out = append(out, row)
 		}
 	}
+
 	return out
 }
 
@@ -32,12 +40,14 @@ func expectedOCMPostPaths(t *testing.T) []string {
 	t.Helper()
 
 	tokenPath := ""
+
 	for _, row := range activeOCMPostRouteRows(t) {
 		if row.ID == service.RouteIDOCMToken {
 			tokenPath = row.FullPath
 			break
 		}
 	}
+
 	if tokenPath == "" {
 		t.Fatal("configured token route is missing")
 	}
@@ -48,14 +58,18 @@ func expectedOCMPostPaths(t *testing.T) []string {
 		tokenPath,
 	}
 	slices.Sort(paths)
+
 	return paths
 }
 
 func TestActiveOCMRoutes(t *testing.T) {
-	got := make([]string, 0)
-	for _, row := range activeOCMPostRouteRows(t) {
+	rows := activeOCMPostRouteRows(t)
+
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
 		got = append(got, row.FullPath)
 	}
+
 	slices.Sort(got)
 
 	want := expectedOCMPostPaths(t)
@@ -66,6 +80,7 @@ func TestActiveOCMRoutes(t *testing.T) {
 
 func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -75,6 +90,7 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 		t.Run(mountedPath, func(t *testing.T) {
 			contentType := "application/json"
 			body := []byte(`{"shareWith":"user@remote.example","name":"test","providerId":"provider-123","owner":"owner@local.example","sender":"sender@remote.example","shareType":"user","resourceType":"file","protocol":{"name":"webdav"}}`)
+
 			switch mountedPath {
 			case "/ocm" + RouteInviteAccepted:
 				body = []byte(`{"recipientProvider":"remote.example","token":"invite-token","userID":"user-1","email":"user@remote.example","name":"Remote User"}`)
@@ -84,12 +100,13 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 				body = []byte("grant_type=authorization_code&client_id=remote.example&code=secret-code")
 			}
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				strings.TrimPrefix(mountedPath, "/ocm"),
 				bytes.NewReader(body),
 			)
 			req.Header.Set("Content-Type", contentType)
+
 			w := httptest.NewRecorder()
 			svc.Handler().ServeHTTP(w, req)
 
@@ -102,24 +119,27 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 
 func TestOCMRequestBodyLimit(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	body := []byte(`{"sender":"sender@remote.example","padding":"` + strings.Repeat("x", 1<<20) + `"}`)
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost,
 		strings.TrimPrefix("/ocm"+RouteShares, "/ocm"),
 		bytes.NewReader(body),
 	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
 	if w.Code == http.StatusUnauthorized {
 		t.Fatalf("body over 1 MiB returned %d: signature verification happened before required body-limit rejection", w.Code)
 	}
+
 	if w.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("body over 1 MiB returned %d: %s", w.Code, w.Body.String())
 	}
@@ -145,7 +165,7 @@ func TestService_RoutingSmoke(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			svc.Handler().ServeHTTP(w, req)
 

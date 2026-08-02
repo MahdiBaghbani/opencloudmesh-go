@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ocm
 
 import (
@@ -6,6 +11,8 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
@@ -33,6 +40,7 @@ func (pd *serviceTestPeerDiscovery) ResolveVerificationKey(_ context.Context, ke
 	if key, ok := pd.publicKeys[keyID]; ok {
 		return key, nil
 	}
+
 	return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, jwks.ErrKeyNotFound)
 }
 
@@ -45,7 +53,9 @@ func testInputs(cfg *config.Config) Inputs {
 	if err != nil {
 		panic("testInputs: " + err.Error())
 	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	return Inputs{
 		PartyRepo:         identity.NewMemoryPartyRepo(),
 		CodeFlow:          policy.NewCodeFlow(),
@@ -69,7 +79,8 @@ func setupTestInputsWithOutgoingShareRepo(t *testing.T) Inputs {
 	t.Helper()
 
 	in := testInputs(config.DevConfig())
-	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
+	in.OutgoingShareRepo = tsrepos.OpenMemory(t).OutgoingShares
+
 	return in
 }
 
@@ -81,18 +92,20 @@ func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serv
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("load key manager: %v", err)
 	}
+
 	signer := crypto.NewRFC9421Signer(km)
 	pd := &serviceTestPeerDiscovery{
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
 			km.GetKeyID(): {
 				KeyID:     km.GetKeyID(),
-				Algorithm: sigalg.Ed25519,
 				PublicKey: km.GetSigningKey().PublicKey,
 				JWKKty:    "OKP",
 				JWKCrv:    "Ed25519",
+				JWKAlg:    "Ed25519",
 			},
 		},
 	}
+
 	return signer, pd
 }
 
@@ -131,19 +144,21 @@ func (s *identityCapturingTokenStore) CleanExpired(ctx context.Context) error {
 func setupSignedTokenServiceInputs(
 	t *testing.T,
 	pd inboundsignature.PeerDiscovery,
-) (Inputs, *identityCapturingTokenStore, *sharesoutgoing.MemoryOutgoingShareRepo) {
+) (Inputs, *identityCapturingTokenStore, sharesoutgoing.OutgoingShareRepo) {
 	t.Helper()
 
 	cfg := config.DevConfig()
 
 	in := testInputs(cfg)
 	replaceSignatureMiddleware(&in, cfg, pd)
+
 	innerStore := token.NewMemoryTokenStore()
 	spyStore := &identityCapturingTokenStore{inner: innerStore}
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 
 	in.CodeFlow = policy.NewCodeFlow()
 	in.OutgoingShareRepo = shareRepo
 	in.TokenStore = spyStore
+
 	return in, spyStore, shareRepo
 }

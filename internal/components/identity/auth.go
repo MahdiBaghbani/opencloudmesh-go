@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package identity
 
 import (
@@ -78,8 +83,10 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 		return ErrInvalidPassword
 	}
 
-	var memory, time uint32
-	var threads uint8
+	var (
+		memory, time uint32
+		threads      uint8
+	)
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &threads); err != nil {
 		return ErrInvalidPassword
 	}
@@ -93,6 +100,7 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 	if err != nil {
 		return ErrInvalidPassword
 	}
+
 	computedHash := argon2.IDKey([]byte(password), salt, time, memory, threads, uint32(len(expectedHash)))
 	if subtle.ConstantTimeCompare(expectedHash, computedHash) != 1 {
 		return ErrInvalidPassword

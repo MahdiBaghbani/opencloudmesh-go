@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package config
 
 import (
@@ -22,6 +27,8 @@ func TestLoggingConfig_DefaultsPerMode(t *testing.T) {
 }
 
 func TestLoad_LoggingConfig_FromTOML(t *testing.T) {
+	// Clear ambient env override so the logging load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -46,6 +53,8 @@ level = "warn"
 }
 
 func TestLoad_LoggingConfig_FlagsOverrideTOML(t *testing.T) {
+	// Clear ambient env override so the flag-over-TOML precedence is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -60,6 +69,7 @@ level = "warn"
 	}
 
 	logLevel := "error"
+
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
@@ -76,6 +86,8 @@ level = "warn"
 }
 
 func TestLoad_LoggingConfig_InvalidLevel_FailsFast(t *testing.T) {
+	// Clear ambient env override so the validation error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -93,6 +105,7 @@ level = "verbose"
 	if err == nil {
 		t.Fatal("expected error for invalid logging.level")
 	}
+
 	if !strings.Contains(err.Error(), "invalid logging.level") {
 		t.Errorf("expected logging.level error, got: %v", err)
 	}
@@ -103,6 +116,8 @@ func TestLoad_LoggingConfig_AllValidLevels(t *testing.T) {
 
 	for _, level := range validLevels {
 		t.Run(level, func(t *testing.T) {
+			// Clear ambient env override so each level load is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
 

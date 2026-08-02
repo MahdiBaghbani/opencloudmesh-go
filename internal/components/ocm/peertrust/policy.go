@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package peertrust
 
 import (
@@ -9,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// PolicyDecision holds the result of a PolicyEngine evaluation.
 type PolicyDecision struct {
 	Allowed       bool
 	Reason        string
@@ -16,6 +22,12 @@ type PolicyDecision struct {
 	Authenticated bool // true if peer was authenticated via signature
 }
 
+// PolicyEngine evaluates peer hosts against denylist, allowlist, and trust groups.
+// Denylist and allowlist entries are matched case-insensitively against a
+// lowercased peerHost. Trust-group membership uses hostport.Normalize separately.
+// The OCM spec defines denylist/allowlist as IP-address based
+// (https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L759-L762)
+// and does not define FQDN matching.
 type PolicyEngine struct {
 	cfg           *PolicyConfig
 	trustGroupMgr *TrustGroupManager
@@ -23,8 +35,10 @@ type PolicyEngine struct {
 	mu            sync.RWMutex
 }
 
+// NewPolicyEngine returns a PolicyEngine bound to the given config, trust group manager, and logger.
 func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger *slog.Logger) *PolicyEngine {
 	logger = logutil.NoopIfNil(logger)
+
 	return &PolicyEngine{
 		cfg:           cfg,
 		trustGroupMgr: trustGroupMgr,
@@ -32,6 +46,7 @@ func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger
 	}
 }
 
+// Evaluate decides whether peerHost is allowed using denylist, allowlist, and trust groups.
 func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authenticated bool) *PolicyDecision {
 	pe.mu.RLock()
 	defer pe.mu.RUnlock()
@@ -40,6 +55,7 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 
 	if pe.isInList(peerHost, pe.cfg.DenyList) {
 		pe.logger.Warn("peer denied by denylist", "peer", peerHost)
+
 		return &PolicyDecision{
 			Allowed:       false,
 			Reason:        "peer in denylist",
@@ -57,10 +73,11 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 		}
 	}
 
-	// Check trust group membership (M1 union across all trust groups).
+	// Check trust group membership across all trust groups.
 	// When any trust group enforces membership, require verified directory data.
 	if pe.trustGroupMgr != nil {
 		requireVerified := pe.anyEnforcesMembership()
+
 		isMember := pe.trustGroupMgr.IsMember(ctx, peerHost, requireVerified)
 		if isMember {
 			return &PolicyDecision{
@@ -80,13 +97,16 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 	}
 }
 
-// isInList checks if a host is in a list (case-insensitive).
+// isInList checks if host is in list using case-insensitive string equality.
+// Evaluate lowercases peerHost before calling this; list entries are not passed
+// through hostport.Normalize here.
 func (pe *PolicyEngine) isInList(host string, list []string) bool {
 	for _, entry := range list {
 		if strings.EqualFold(host, entry) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -97,11 +117,13 @@ func (pe *PolicyEngine) anyEnforcesMembership() bool {
 	if pe.trustGroupMgr == nil {
 		return false
 	}
+
 	for _, tg := range pe.trustGroupMgr.GetTrustGroups() {
 		if tg.EnforceMembership {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -109,5 +131,6 @@ func (pe *PolicyEngine) anyEnforcesMembership() bool {
 func (pe *PolicyEngine) UpdatePolicy(cfg *PolicyConfig) {
 	pe.mu.Lock()
 	defer pe.mu.Unlock()
+
 	pe.cfg = cfg
 }

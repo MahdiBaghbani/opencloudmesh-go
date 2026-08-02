@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package config
 
 import (
@@ -6,47 +11,77 @@ import (
 	"testing"
 )
 
-// TestPersistencePresetDefaults verifies that both mode presets default
-// to the memory backend so that memory is a first-class choice, not a
-// hidden fallback.
+// TestPersistencePresetDefaults verifies each mode preset's persistence
+// default: strict is durable sqlite under the default data dir, dev overlays
+// the ephemeral memory backend.
 func TestPersistencePresetDefaults(t *testing.T) {
 	presets := []struct {
-		name string
-		fn   func() *Config
+		name        string
+		fn          func() *Config
+		wantBackend string
+		wantDataDir string
 	}{
-		{"strict", StrictConfig},
-		{"dev", DevConfig},
+		{"strict", StrictConfig, BackendSQLite, DefaultPersistenceDataDir},
+		{"dev", DevConfig, BackendMemory, ""},
 	}
 
 	for _, p := range presets {
 		t.Run(p.name, func(t *testing.T) {
 			cfg := p.fn()
-			if cfg.Persistence.Backend != BackendMemory {
+			if cfg.Persistence.Backend != p.wantBackend {
 				t.Errorf("%s preset: expected Backend=%q, got %q",
-					p.name, BackendMemory, cfg.Persistence.Backend)
+					p.name, p.wantBackend, cfg.Persistence.Backend)
+			}
+
+			if cfg.Persistence.DataDir != p.wantDataDir {
+				t.Errorf("%s preset: expected DataDir=%q, got %q",
+					p.name, p.wantDataDir, cfg.Persistence.DataDir)
 			}
 		})
 	}
 }
 
-// TestPersistenceLoad_DefaultsToMemory verifies that Load() without a config
-// file returns the memory backend (strict preset default).
-func TestPersistenceLoad_DefaultsToMemory(t *testing.T) {
+// TestDevConfig_PersistenceMemoryOverlay verifies that the dev preset
+// overrides the strict durable sqlite default with the ephemeral memory
+// backend and no data dir.
+func TestDevConfig_PersistenceMemoryOverlay(t *testing.T) {
+	cfg := DevConfig()
+
+	if cfg.Persistence.Backend != BackendMemory {
+		t.Errorf("expected Backend=%q, got %q", BackendMemory, cfg.Persistence.Backend)
+	}
+
+	if cfg.Persistence.DataDir != "" {
+		t.Errorf("expected empty DataDir for memory, got %q", cfg.Persistence.DataDir)
+	}
+}
+
+// TestPersistenceLoad_DefaultsToStrictSQLite verifies that Load() without a
+// config file returns the strict preset default: durable sqlite under the
+// default data dir.
+func TestPersistenceLoad_DefaultsToStrictSQLite(t *testing.T) {
+	// Clear ambient env override so the default backend load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.Persistence.Backend != BackendMemory {
-		t.Errorf("expected Backend=%q, got %q", BackendMemory, cfg.Persistence.Backend)
+
+	if cfg.Persistence.Backend != BackendSQLite {
+		t.Errorf("expected Backend=%q, got %q", BackendSQLite, cfg.Persistence.Backend)
 	}
-	if cfg.Persistence.DataDir != "" {
-		t.Errorf("expected empty DataDir for memory, got %q", cfg.Persistence.DataDir)
+
+	if cfg.Persistence.DataDir != DefaultPersistenceDataDir {
+		t.Errorf("expected DataDir=%q, got %q", DefaultPersistenceDataDir, cfg.Persistence.DataDir)
 	}
 }
 
 // TestPersistenceLoad_OverlayFromTOML verifies that a persistence section in
 // TOML overlays the preset defaults correctly.
 func TestPersistenceLoad_OverlayFromTOML(t *testing.T) {
+	// Clear ambient env override so the persistence overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -70,6 +105,7 @@ data_dir = "/tmp/ocm-data"
 	if cfg.Persistence.Backend != BackendJSON {
 		t.Errorf("expected Backend=%q, got %q", BackendJSON, cfg.Persistence.Backend)
 	}
+
 	if cfg.Persistence.DataDir != "/tmp/ocm-data" {
 		t.Errorf("expected DataDir=/tmp/ocm-data, got %q", cfg.Persistence.DataDir)
 	}
@@ -78,6 +114,8 @@ data_dir = "/tmp/ocm-data"
 // TestPersistenceLoad_MirrorOverlay verifies mirror backend config loads without
 // a mirror subsection.
 func TestPersistenceLoad_MirrorOverlay(t *testing.T) {
+	// Clear ambient env override so the mirror overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -101,6 +139,7 @@ data_dir = "/tmp/ocm-mirror"
 	if cfg.Persistence.Backend != BackendMirror {
 		t.Errorf("expected Backend=%q, got %q", BackendMirror, cfg.Persistence.Backend)
 	}
+
 	if cfg.Persistence.DataDir != "/tmp/ocm-mirror" {
 		t.Errorf("expected DataDir=/tmp/ocm-mirror, got %q", cfg.Persistence.DataDir)
 	}
@@ -109,6 +148,8 @@ data_dir = "/tmp/ocm-mirror"
 // TestPersistenceLoad_UnknownBackendFails verifies that an unknown backend
 // value fails validation with a clear error. No silent fallback to memory.
 func TestPersistenceLoad_UnknownBackendFails(t *testing.T) {
+	// Clear ambient env override so the unknown-backend validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -137,6 +178,8 @@ func TestPersistenceLoad_DataDirRequiredForDurableBackends(t *testing.T) {
 
 	for _, backend := range durableBackends {
 		t.Run(backend, func(t *testing.T) {
+			// Clear ambient env override so each durable-backend validation is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			tomlPath := filepath.Join(dir, "config.toml")
 
@@ -158,6 +201,8 @@ func TestPersistenceLoad_DataDirRequiredForDurableBackends(t *testing.T) {
 // TestPersistenceLoad_MemoryNoDataDirRequired verifies that the memory
 // backend does not require data_dir.
 func TestPersistenceLoad_MemoryNoDataDirRequired(t *testing.T) {
+	// Clear ambient env override so the memory backend load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -176,6 +221,7 @@ backend = "memory"
 	if err != nil {
 		t.Fatalf("Load() error = %v (memory backend must not require data_dir)", err)
 	}
+
 	if cfg.Persistence.Backend != BackendMemory {
 		t.Errorf("expected Backend=%q, got %q", BackendMemory, cfg.Persistence.Backend)
 	}
@@ -183,8 +229,12 @@ backend = "memory"
 
 // TestPersistenceLoad_ExplicitEmptyBackendFails verifies that an explicitly
 // empty `backend = ""` in TOML fails with a clear error and is not silently
-// treated as an absent key that would fall back to the preset memory value.
+// treated as an absent key that would fall back to the preset default
+// (strict: BackendSQLite under DefaultPersistenceDataDir; dev overlays to
+// BackendMemory).
 func TestPersistenceLoad_ExplicitEmptyBackendFails(t *testing.T) {
+	// Clear ambient env override so the empty-backend validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -208,6 +258,8 @@ backend = ""
 // TestPersistenceLoad_OverlayPreservesUnchangedFields verifies that a partial
 // persistence overlay does not reset unrelated preset fields.
 func TestPersistenceLoad_OverlayPreservesUnchangedFields(t *testing.T) {
+	// Clear ambient env override so the overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -232,6 +284,7 @@ data_dir = "/some/path"
 	if cfg.Persistence.Backend != BackendJSON {
 		t.Errorf("expected Backend=%q, got %q", BackendJSON, cfg.Persistence.Backend)
 	}
+
 	if cfg.Persistence.DataDir != "/some/path" {
 		t.Errorf("expected DataDir=/some/path, got %q", cfg.Persistence.DataDir)
 	}

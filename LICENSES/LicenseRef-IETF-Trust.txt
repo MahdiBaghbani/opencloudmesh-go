@@ -1,0 +1,11 @@
+The OpenAPI specification snapshot vendored at
+internal/components/ocm/spec/vendor/spec.yaml is a verbatim copy of
+spec.yaml from the cs3org/OCM-API repository at commit
+6a0586183cbef10ecae9dedc42561806447eb2f5 (version 1.4.0), recorded in
+internal/components/ocm/spec/vendor/pin.json.
+
+The upstream repository does not declare a LICENSE file. The document is
+an IETF Internet-Draft artifact (draft-ietf-ocm-open-cloud-mesh,
+ipr="trust200902") and is subject to the IETF Trust Legal Provisions:
+
+  https://trustee.ietf.org/license-info

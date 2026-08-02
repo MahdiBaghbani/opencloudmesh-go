@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package identity
 
 import (
@@ -8,13 +13,15 @@ import (
 	"time"
 )
 
+// Session holds an authenticated user session token and expiry.
 type Session struct {
 	Token     string    `json:"token"`
-	UserID    string    `json:"user_id"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	UserID    string    `json:"userId"`
+	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// IsExpired reports whether the session has passed its expiry time.
 func (s *Session) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
 }
@@ -37,11 +44,13 @@ type SessionRepo interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
+// GenerateToken returns a cryptographically random session token.
 func GenerateToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
+
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
@@ -52,6 +61,7 @@ type MemorySessionRepo struct {
 	byUser   map[string][]string // userID -> tokens
 }
 
+// NewMemorySessionRepo returns an empty in-memory session store.
 func NewMemorySessionRepo() *MemorySessionRepo {
 	return &MemorySessionRepo{
 		sessions: make(map[string]*Session),
@@ -59,7 +69,8 @@ func NewMemorySessionRepo() *MemorySessionRepo {
 	}
 }
 
-func (r *MemorySessionRepo) Create(ctx context.Context, userID string, ttl time.Duration) (*Session, error) {
+// Create stores a new session in the in-memory repository.
+func (r *MemorySessionRepo) Create(_ context.Context, userID string, ttl time.Duration) (*Session, error) {
 	token, err := GenerateToken()
 	if err != nil {
 		return nil, err
@@ -82,7 +93,8 @@ func (r *MemorySessionRepo) Create(ctx context.Context, userID string, ttl time.
 	return session, nil
 }
 
-func (r *MemorySessionRepo) Get(ctx context.Context, token string) (*Session, error) {
+// Get returns a session by token from the in-memory repository.
+func (r *MemorySessionRepo) Get(_ context.Context, token string) (*Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -98,7 +110,8 @@ func (r *MemorySessionRepo) Get(ctx context.Context, token string) (*Session, er
 	return session, nil
 }
 
-func (r *MemorySessionRepo) Delete(ctx context.Context, token string) error {
+// Delete removes a session by token from the in-memory repository.
+func (r *MemorySessionRepo) Delete(_ context.Context, token string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -106,6 +119,7 @@ func (r *MemorySessionRepo) Delete(ctx context.Context, token string) error {
 	if !ok {
 		return nil
 	}
+
 	tokens := r.byUser[session.UserID]
 	for i, t := range tokens {
 		if t == token {
@@ -115,10 +129,12 @@ func (r *MemorySessionRepo) Delete(ctx context.Context, token string) error {
 	}
 
 	delete(r.sessions, token)
+
 	return nil
 }
 
-func (r *MemorySessionRepo) DeleteByUser(ctx context.Context, userID string) error {
+// DeleteByUser removes all sessions for a user from the in-memory repository.
+func (r *MemorySessionRepo) DeleteByUser(_ context.Context, userID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -126,16 +142,19 @@ func (r *MemorySessionRepo) DeleteByUser(ctx context.Context, userID string) err
 	for _, token := range tokens {
 		delete(r.sessions, token)
 	}
+
 	delete(r.byUser, userID)
 
 	return nil
 }
 
-func (r *MemorySessionRepo) DeleteExpired(ctx context.Context) (int, error) {
+// DeleteExpired removes expired sessions from the in-memory repository.
+func (r *MemorySessionRepo) DeleteExpired(_ context.Context) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	var count int
+
 	now := time.Now()
 
 	for token, session := range r.sessions {
@@ -147,7 +166,9 @@ func (r *MemorySessionRepo) DeleteExpired(ctx context.Context) (int, error) {
 					break
 				}
 			}
+
 			delete(r.sessions, token)
+
 			count++
 		}
 	}

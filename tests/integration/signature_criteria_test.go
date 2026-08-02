@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 package integration
 
@@ -11,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -21,6 +24,7 @@ func TestSignatureCriteria(t *testing.T) {
 
 	t.Run("criteria off allows unsigned token request", func(t *testing.T) {
 		falseVal := false
+
 		ts := harness.StartTestServerWithIETFConfig(t, func(cfg *config.Config) {
 			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = &falseVal
 		})
@@ -30,6 +34,7 @@ func TestSignatureCriteria(t *testing.T) {
 		if status != http.StatusBadRequest {
 			t.Fatalf("criteria-off: status = %d, body = %q; want 400", status, body)
 		}
+
 		if !strings.Contains(body, "invalid_grant") {
 			t.Fatalf("criteria-off: status = %d, body = %q; want it to contain invalid_grant", status, body)
 		}
@@ -37,6 +42,7 @@ func TestSignatureCriteria(t *testing.T) {
 
 	t.Run("criteria on rejects unsigned token request", func(t *testing.T) {
 		trueVal := true
+
 		ts := harness.StartTestServerWithIETFConfig(t, func(cfg *config.Config) {
 			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = &trueVal
 		})
@@ -57,19 +63,28 @@ func postUnsignedToken(t *testing.T, baseURL string) (int, string) {
 	form.Set("client_id", "client.example.com")
 	form.Set("code", "unused-code")
 
-	resp, err := http.Post(
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
 		baseURL+"/ocm/token",
-		"application/x-www-form-urlencoded",
 		strings.NewReader(form.Encode()),
 	)
 	if err != nil {
+		t.Fatalf("build unsigned token request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
 		t.Fatalf("post unsigned token request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read token response body: %v", err)
 	}
+
 	return resp.StatusCode, string(body)
 }

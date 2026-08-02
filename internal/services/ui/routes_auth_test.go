@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package ui
 
 import (
@@ -16,10 +21,12 @@ func TestRouteSpecs_SessionPolicy_WayfAndAcceptInvite(t *testing.T) {
 	}
 
 	var wayfSpec, acceptSpec *service.RouteSpec
+
 	for _, spec := range service.RegisteredRouteSpecs(enabled) {
 		if spec.Service != "ui" {
 			continue
 		}
+
 		switch spec.Pattern {
 		case RouteWAYF:
 			wayfSpec = &spec
@@ -35,6 +42,7 @@ func TestRouteSpecs_SessionPolicy_WayfAndAcceptInvite(t *testing.T) {
 	if wayfSpec.SessionPolicy != service.SessionPublicWhenWAYF {
 		t.Errorf("wayf SessionPolicy = %q, want public when WAYF enabled", wayfSpec.SessionPolicy)
 	}
+
 	if acceptSpec.SessionPolicy != service.SessionProtected {
 		t.Errorf("accept-invite SessionPolicy = %q, want protected", acceptSpec.SessionPolicy)
 	}
@@ -74,6 +82,7 @@ func TestRouteSpecs_SessionAuthProjection_WithExternalBasePath(t *testing.T) {
 	if service.SessionAuthRequiredForPath("/ocm/ui/wayf", opts) {
 		t.Error("expected /ocm/ui/wayf public when WAYF enabled")
 	}
+
 	if !service.SessionAuthRequiredForPath("/ocm/ui/accept-invite", opts) {
 		t.Error("expected /ocm/ui/accept-invite protected")
 	}

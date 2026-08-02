@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package crypto_test
 
 import (
@@ -19,7 +24,7 @@ const (
 var (
 	httpsigTestBodyJSON        = []byte(`{"test":"data"}`)
 	httpsigAppendixBComponents = []string{
-		"@method", "@target-uri", "content-digest", "content-length", "date",
+		"@method", "@target-uri", "content-digest", "content-length",
 	}
 	httpsigPlaceholderSig    = "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:"
 	httpsigPlaceholderSigAlt = "ocm=:AAAA:"
@@ -36,15 +41,16 @@ func mustHTTPSigKeyManager(t testing.TB) *crypto.KeyManager {
 
 func httpsigFixedOptions() crypto.RFC9421Options {
 	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return httpsigFixedNow() }
+	opts.Now = httpsigFixedNow
+
 	return opts
 }
 
 func httpsigEd25519KeyFetcher(km *crypto.KeyManager) func(string) (sigalg.ResolvedPublicKey, error) {
 	return func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
+			KeyID: keyID, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	}
 }

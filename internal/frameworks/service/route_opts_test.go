@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package service_test
 
 import (
@@ -35,6 +40,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
 				t.Helper()
+
 				if service.SessionAuthRequiredForPath("/ocm/api/healthz", opts) {
 					t.Error("expected /ocm/api/healthz public with external base path")
 				}
@@ -60,6 +66,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
 				t.Helper()
+
 				if service.SessionAuthRequiredForPath("/ui/wayf", opts) {
 					t.Error("expected /ui/wayf public when WAYF enabled")
 				}
@@ -85,6 +92,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
 				t.Helper()
+
 				if !service.SessionAuthRequiredForPath("/ui/accept-invite", opts) {
 					t.Error("expected /ui/accept-invite protected when invite accept enabled")
 				}
@@ -131,6 +139,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			if opts != tt.want {
 				t.Errorf("RouteOptsFromConfig() = %+v, want %+v", opts, tt.want)
 			}
+
 			if tt.assertAuthPaths != nil {
 				tt.assertAuthPaths(t, opts)
 			}

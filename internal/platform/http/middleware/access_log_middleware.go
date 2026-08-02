@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package middleware
 
 import (
@@ -24,17 +29,19 @@ func AccessLogMiddleware(log *slog.Logger, trustedProxies *realip.TrustedProxies
 			start := time.Now()
 			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 
-			defer func() {
+			defer func() { //nolint:contextcheck // middleware: deferred access log reuses the request context captured in r; no other context is available
 				// Get logger from context (has request_id, method, path, client_ip)
 				logger, ok := appctx.LoggerFromContext(r.Context())
 
 				// Fallback: if context logger missing, recompute base fields
 				if !ok {
 					reqID := chimw.GetReqID(r.Context())
+
 					clientIP := "unknown"
 					if trustedProxies != nil {
 						clientIP = trustedProxies.GetClientIPString(r)
 					}
+
 					logger = log.With(
 						"request_id", reqID,
 						"method", r.Method,
