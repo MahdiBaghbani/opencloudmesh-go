@@ -8,14 +8,12 @@ package webdav
 
 import (
 	"context"
-	"io"
-	"io/fs"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"golang.org/x/net/webdav"
 
@@ -161,6 +159,12 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *share
 		},
 	}
 
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		if ct := mime.TypeByExtension(filepath.Ext(localPath)); ct != "" {
+			w.Header().Set("Content-Type", ct)
+		}
+	}
+
 	davHandler.ServeHTTP(w, r)
 }
 
@@ -251,29 +255,20 @@ func extractCredential(r *http.Request) *credentialResult {
 	return nil
 }
 
-// singleFileFS implements webdav.FileSystem for a single file.
+// singleFileFS implements webdav.FileSystem for a single file. The webdavId
+// resource root is the shared file itself; any trailing URL name is cosmetic
+// metadata (e.g. the share display name) and must never be used for filesystem
+// lookup. Only fs.path / share.LocalPath is opened.
 type singleFileFS struct {
 	path string
-	info fs.FileInfo
+	info os.FileInfo
 }
 
 func (fs *singleFileFS) Mkdir(_ context.Context, _ string, _ os.FileMode) error {
 	return os.ErrPermission
 }
 
-func (fs *singleFileFS) OpenFile(_ context.Context, name string, flag int, _ os.FileMode) (webdav.File, error) {
-	name = strings.TrimPrefix(name, "/")
-	if name != "" && name != filepath.Base(fs.path) {
-		return nil, os.ErrNotExist
-	}
-
-	if name == "" {
-		return &virtualDir{
-			name:  "/",
-			files: []os.FileInfo{fs.info},
-		}, nil
-	}
-
+func (fs *singleFileFS) OpenFile(_ context.Context, _ string, flag int, _ os.FileMode) (webdav.File, error) {
 	if flag&(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) != 0 {
 		return nil, os.ErrPermission
 	}
@@ -289,70 +284,6 @@ func (fs *singleFileFS) Rename(_ context.Context, _, _ string) error {
 	return os.ErrPermission
 }
 
-func (fs *singleFileFS) Stat(_ context.Context, name string) (os.FileInfo, error) {
-	name = strings.TrimPrefix(name, "/")
-	if name == "" {
-		return &virtualDirInfo{name: "/"}, nil
-	}
-
-	if name == filepath.Base(fs.path) {
-		return fs.info, nil
-	}
-
-	return nil, os.ErrNotExist
+func (fs *singleFileFS) Stat(_ context.Context, _ string) (os.FileInfo, error) {
+	return fs.info, nil
 }
-
-// virtualDir is a virtual directory containing a single file.
-type virtualDir struct {
-	name   string
-	files  []os.FileInfo
-	offset int
-}
-
-func (d *virtualDir) Close() error                       { return nil }
-func (d *virtualDir) Read(_ []byte) (n int, err error)   { return 0, os.ErrInvalid }
-func (d *virtualDir) Write(_ []byte) (n int, err error)  { return 0, os.ErrPermission }
-func (d *virtualDir) Seek(_ int64, _ int) (int64, error) { return 0, os.ErrInvalid }
-
-func (d *virtualDir) Readdir(count int) ([]os.FileInfo, error) {
-	if d.offset >= len(d.files) {
-		if count <= 0 {
-			return nil, nil
-		}
-
-		return nil, io.EOF
-	}
-
-	if count <= 0 {
-		files := d.files[d.offset:]
-		d.offset = len(d.files)
-
-		return files, nil
-	}
-
-	end := d.offset + count
-	if end > len(d.files) {
-		end = len(d.files)
-	}
-
-	files := d.files[d.offset:end]
-	d.offset = end
-
-	return files, nil
-}
-
-func (d *virtualDir) Stat() (os.FileInfo, error) {
-	return &virtualDirInfo{name: d.name}, nil
-}
-
-// virtualDirInfo is the os.FileInfo for a virtual directory.
-type virtualDirInfo struct {
-	name string
-}
-
-func (i *virtualDirInfo) Name() string       { return i.name }
-func (i *virtualDirInfo) Size() int64        { return 0 }
-func (i *virtualDirInfo) Mode() os.FileMode  { return os.ModeDir | 0555 }
-func (i *virtualDirInfo) ModTime() time.Time { return time.Now() }
-func (i *virtualDirInfo) IsDir() bool        { return true }
-func (i *virtualDirInfo) Sys() interface{}   { return nil }
