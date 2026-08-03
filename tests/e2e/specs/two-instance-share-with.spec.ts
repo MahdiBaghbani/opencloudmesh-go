@@ -19,20 +19,15 @@ import {
   createShareableFile,
   ServerInstance,
 } from '../harness/server';
+import { loginAndNavigateToInbox } from '../harness/auth';
+import { establishTrust } from '../harness/invites';
+import { sendOutgoingShare } from '../harness/shares';
 
 let binaryPath: string;
 
 test.beforeAll(() => {
   binaryPath = buildBinary();
 });
-
-async function login(page: Page, baseURL: string) {
-  await page.goto(`${baseURL}/ui/login`);
-  await page.fill('#username', 'admin');
-  await page.fill('#password', 'testpassword123');
-  await page.click('#submit-btn');
-  await page.waitForURL('**/ui/inbox', { timeout: 5000 });
-}
 
 /**
  * Asserts that a server's discovery endpoint advertises strict signature support.
@@ -48,17 +43,17 @@ async function assertStrictDiscovery(page: Page, baseURL: string) {
 test.describe('Two-Instance Share With (API)', () => {
   let serverA: ServerInstance;
   let serverB: ServerInstance;
-  let shareFilePath: string;
+  let shareFilePath: string | undefined;
 
   test.beforeEach(async () => {
     [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'strict' });
-    shareFilePath = createShareableFile();
   });
 
   test.afterEach(async () => {
     if (serverA) stopServer(serverA);
     if (serverB) stopServer(serverB);
     if (shareFilePath) rmSync(shareFilePath, { force: true });
+    shareFilePath = undefined;
   });
 
   test('A sends share to B, B accepts via inbox', async ({ page }) => {
@@ -66,44 +61,31 @@ test.describe('Two-Instance Share With (API)', () => {
     await assertStrictDiscovery(page, serverA.baseURL);
     await assertStrictDiscovery(page, serverB.baseURL);
 
-    // Login to server A
-    await login(page, serverA.baseURL);
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
 
-    // Send outgoing share from A to B via API
-    const shareResponse = await page.request.post(
-      `${serverA.baseURL}/api/shares/outgoing`,
-      {
-        data: {
-          receiverDomain: `localhost:${serverB.port}`,
-          shareWith: `admin@localhost:${serverB.port}`,
-          localPath: shareFilePath,
-          permissions: ['read'],
-        },
-      },
-    );
-    expect(shareResponse.status()).toBe(201);
+    const sent = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'share-api.txt',
+      permissions: ['read'],
+    });
+    shareFilePath = sent.shareFilePath;
+    const expectedName = 'share-api.txt';
 
-    const shareBody = await shareResponse.json();
-    expect(shareBody.status).toBe('sent');
-
-    // Login to server B (same page -- cookies are per-origin).
-    // login() already lands on /ui/inbox, so no extra navigation needed.
-    await login(page, serverB.baseURL);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
 
     // Wait for the share to appear
-    await page.waitForSelector('.share-item', { timeout: 10000 });
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
 
     // Verify the share name matches the file basename
-    const expectedName = basename(shareFilePath);
-    await expect(page.locator('.share-name')).toContainText(expectedName);
-    await expect(page.locator('.share-status')).toContainText('pending');
+    await expect(page.locator('#share-list .share-name')).toContainText(expectedName);
+    await expect(page.locator('#share-list .share-status')).toContainText('pending');
 
     // Accept the share
-    await page.click('.btn-accept');
+    await page.click('#share-list .btn-accept');
 
     // Wait for accepted status
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
-    await expect(page.locator('.share-status')).toContainText('accepted');
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
+    await expect(page.locator('#share-list .share-status')).toContainText('accepted');
 
     // Get the shareId from B's inbox API
     const listResponse = await page.request.get(
@@ -125,13 +107,13 @@ test.describe('Two-Instance Share With (API)', () => {
     expect(verifyBody.contentPreview).toContain('E2E test file content');
 
     // Verify WebDAV access via UI button (result visible in video artifact)
-    await page.click('[data-ocm-action="verify-access"]');
-    await page.waitForSelector('[data-ocm-field="verify-access-result"]', {
+    await page.click('#share-list [data-ocm-action="verify-access"]');
+    await page.waitForSelector('#share-list [data-ocm-field="verify-access-result"]', {
       state: 'visible',
       timeout: 10000,
     });
     await expect(
-      page.locator('[data-ocm-field="verify-access-result"]'),
+      page.locator('#share-list [data-ocm-field="verify-access-result"]'),
     ).toContainText('200');
   });
 });
@@ -157,8 +139,8 @@ test.describe('Two-Instance Share With (UI)', () => {
     await assertStrictDiscovery(page, serverA.baseURL);
     await assertStrictDiscovery(page, serverB.baseURL);
 
-    // Login to server A
-    await login(page, serverA.baseURL);
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
 
     // Navigate to A's outgoing UI
     await page.goto(`${serverA.baseURL}/ui/outgoing`);
@@ -175,23 +157,21 @@ test.describe('Two-Instance Share With (UI)', () => {
     await page.waitForSelector('#share-result', { state: 'visible', timeout: 10000 });
     await expect(page.locator('#share-result')).toContainText('Share sent successfully');
 
-    // Login to server B (same page -- cookies are per-origin).
-    // login() lands on /ui/inbox, so the share should appear there.
-    await login(page, serverB.baseURL);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
 
     // Wait for the share to appear
-    await page.waitForSelector('.share-item', { timeout: 10000 });
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
 
     // Verify the share name matches the file basename
     const expectedName = basename(shareFilePath);
-    await expect(page.locator('.share-name')).toContainText(expectedName);
-    await expect(page.locator('.share-status')).toContainText('pending');
+    await expect(page.locator('#share-list .share-name')).toContainText(expectedName);
+    await expect(page.locator('#share-list .share-status')).toContainText('pending');
 
     // Accept the share
-    await page.click('.btn-accept');
+    await page.click('#share-list .btn-accept');
 
     // Wait for accepted status
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
-    await expect(page.locator('.share-status')).toContainText('accepted');
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
+    await expect(page.locator('#share-list .share-status')).toContainText('accepted');
   });
 });

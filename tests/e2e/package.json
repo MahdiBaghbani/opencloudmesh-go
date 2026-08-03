@@ -4,7 +4,7 @@
   "description": "End-to-end tests for OpenCloudMesh Go server",
   "private": true,
   "scripts": {
-    "test": "bun test harness/signing.test.ts && bunx playwright test",
+    "test": "bunx playwright test",
     "test:headed": "bunx playwright test --headed",
     "test:debug": "bunx playwright test --debug",
     "install:browsers": "bunx playwright install chromium"

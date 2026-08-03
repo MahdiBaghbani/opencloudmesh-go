@@ -40,3 +40,9 @@ pins:
   docker/build-push-action:
     release: v7.3.0
     sha: 53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+  dorny/paths-filter:
+    release: v4.0.2
+    sha: 7b450fff21473bca461d4b92ce414b9d0420d706
+  dorny/test-reporter:
+    release: v3.0.0
+    sha: a43b3a5f7366b97d083190328d2c652e1a8b6aa2

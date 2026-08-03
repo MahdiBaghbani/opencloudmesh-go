@@ -45,7 +45,13 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   
   // Reporter configuration
-  reporter: process.env.CI ? 'github' : 'list',
+  reporter: process.env.CI
+    ? [
+        ['github'],
+        ['html', { open: 'never' }],
+        ['junit', { outputFile: 'test-results/junit.xml' }],
+      ]
+    : 'list',
   
   // Shared settings for all projects
   use: {

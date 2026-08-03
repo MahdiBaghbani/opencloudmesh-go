@@ -20,6 +20,8 @@ export interface ServerConfig {
   name: string;
   mode?: 'dev' | 'strict';
   extraConfig?: string;
+  port?: number;
+  peerPort?: number;
 }
 
 export interface ServerInstance {
@@ -105,7 +107,7 @@ export function buildBinary(): string {
   console.log('Building server binary...');
   execSync(`go build -o ${binaryPath} ./cmd/opencloudmesh-go`, {
     cwd: PROJECT_ROOT,
-    env: { ...process.env, CGO_ENABLED: '0' },
+    env: { ...process.env, CGO_ENABLED: '1' },
     stdio: 'pipe',
   });
 
@@ -118,7 +120,14 @@ export function buildBinary(): string {
  * signing.pem. mode=dev keeps localhost public_origin and SSRF off permitted
  * without relaxing the global OCM signature axis.
  */
-function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
+function generateConfig(
+  name: string,
+  port: number,
+  tempDir: string,
+  mode: string,
+  extraConfig?: string,
+  peerPort?: number,
+): string {
   // Root-level keys must all appear here, before any [table] header.
   const rootKeys = [
     `mode = "${mode}"`,
@@ -126,6 +135,26 @@ function generateConfig(name: string, port: number, tempDir: string, mode: strin
     `public_origin = "https://localhost:${port}"`,
     `external_base_path = ""`,
   ].join('\n');
+
+  const ssrfBlock =
+    mode === 'strict'
+      ? `[outbound_http.ssrf]
+mode = "strict"
+${
+  typeof peerPort === 'number'
+    ? `
+route_policy = "e2e"
+
+[outbound_http.ssrf.route_policies.e2e]
+allow_private_host_suffixes = ["localhost"]
+allow_private_cidrs = ["127.0.0.0/8", "::1/128"]
+allowed_ports = [${peerPort}]
+`
+    : ''
+}`
+      : `[outbound_http.ssrf]
+mode = "off"
+`;
 
   let config = `${rootKeys}
 
@@ -149,9 +178,7 @@ max_response_bytes = 1048576
 insecure_skip_verify = false
 tls_root_ca_file = "${CA_CERT}"
 
-[outbound_http.ssrf]
-mode = "off"
-
+${ssrfBlock}
 [signature]
 key_path = "${join(tempDir, 'signing.pem')}"
 `;
@@ -168,12 +195,19 @@ key_path = "${join(tempDir, 'signing.pem')}"
  */
 export async function startServer(binaryPath: string, config: ServerConfig): Promise<ServerInstance> {
   const tempDir = mkdtempSync(join(tmpdir(), `ocm-e2e-${config.name}-`));
-  const port = await getAvailablePort();
+  const port = typeof config.port === 'number' ? config.port : await getAvailablePort();
   const mode = config.mode || 'dev';
 
   // Write config file
   const configPath = join(tempDir, 'config.toml');
-  const configContent = generateConfig(config.name, port, tempDir, mode, config.extraConfig);
+  const configContent = generateConfig(
+    config.name,
+    port,
+    tempDir,
+    mode,
+    config.extraConfig,
+    config.peerPort,
+  );
   writeFileSync(configPath, configContent);
 
   // Start subprocess
@@ -246,6 +280,41 @@ export function stopServer(instance: ServerInstance): void {
 }
 
 /**
+ * Waits until the server health endpoint is unreachable (after stopServer).
+ */
+export async function waitForServerStopped(
+  instance: ServerInstance,
+  timeoutMs = 5000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const healthURL = `${instance.baseURL}/api/healthz`;
+
+  while (Date.now() < deadline) {
+    let down = false;
+    await new Promise<void>((resolve) => {
+      const req = https.get(healthURL, { ca: caCert }, (res) => {
+        res.resume();
+        resolve(); // still up -> keep polling
+      });
+      req.on('error', () => {
+        down = true; // connection refused / reset -> server down
+        resolve();
+      });
+      req.setTimeout(1000, () => {
+        req.destroy();
+        resolve(); // treat as still up -> keep polling
+      });
+    });
+    if (down) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  throw new Error(`Server ${instance.name} still reachable after ${timeoutMs}ms`);
+}
+
+/**
  * Dumps server logs for debugging.
  */
 export function dumpLogs(instance: ServerInstance): void {
@@ -272,16 +341,23 @@ export async function startTwoServers(
   const nameB = config?.nameB ?? 'server-b';
   const mode = config?.mode ?? 'dev';
 
+  const portA = await getAvailablePort();
+  const portB = await getAvailablePort();
+
   const instanceA = await startServer(binaryPath, {
     name: nameA,
     mode,
     extraConfig: config?.extraConfigA,
+    port: portA,
+    peerPort: portB,
   });
 
   const instanceB = await startServer(binaryPath, {
     name: nameB,
     mode,
     extraConfig: config?.extraConfigB,
+    port: portB,
+    peerPort: portA,
   });
 
   return [instanceA, instanceB];

@@ -83,6 +83,40 @@ func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
 	}
 }
 
+func TestHandleVerifyAccess_PassesEmptySubPath(t *testing.T) {
+	var gotSubPath string
+
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	share := createAcceptedShareForUser(t, repo, "prov-va-subpath", "sender.example.com", "file.txt")
+
+	userA := &identity.User{ID: userAID, Username: "alice"}
+
+	ac := &mockAccessor{accessFn: func(_ context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+		gotSubPath = opts.SubPath
+
+		return &access.AccessResult{
+			Response: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"text/plain"}},
+				Body:       io.NopCloser(bytes.NewBufferString("ok")),
+			},
+		}, nil
+	}}
+	router := newTestRouterWithAccess(repo, ac, userA)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if gotSubPath != "" {
+		t.Errorf("expected empty SubPath, got %q", gotSubPath)
+	}
+}
+
 func TestHandleVerifyAccess_SelectsWebappProtocolAndPopulatesShareInfo(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp", "sender.example.com", "webapp-file.txt")

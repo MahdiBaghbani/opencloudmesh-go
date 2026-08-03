@@ -31,7 +31,6 @@ import (
 // Verify-access reason codes for structured error responses.
 const (
 	verifyReasonShareNotAccepted = "share_not_accepted"
-	verifyReasonUnsafePath       = "unsafe_path"
 )
 
 // InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.
@@ -425,11 +424,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isUnsafePath(share.Name) {
-		writeVerifyError(w, http.StatusBadRequest, verifyReasonUnsafePath, "share name contains unsafe path components")
-		return
-	}
-
 	protocol := access.ProtocolWebDAV
 	if share.WebappURI != "" || strings.EqualFold(share.ProtocolName, access.ProtocolWebapp) {
 		protocol = access.ProtocolWebapp
@@ -452,7 +446,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		Share:    &shareInfo,
 		Protocol: protocol,
 		Method:   "GET",
-		SubPath:  url.PathEscape(share.Name),
 	})
 	if err != nil {
 		h.writeAccessError(w, err)
@@ -486,13 +479,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		h.log.Error("failed to encode verify access response", "error", err)
 	}
-}
-
-// isUnsafePath rejects share names containing /, \, or ..
-func isUnsafePath(name string) bool {
-	return strings.Contains(name, "/") ||
-		strings.Contains(name, "\\") ||
-		strings.Contains(name, "..")
 }
 
 // readBoundedPreview reads up to maxPreviewBytes; truncation=true if more bytes exist.

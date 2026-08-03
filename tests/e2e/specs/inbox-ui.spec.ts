@@ -4,23 +4,24 @@
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 /**
- * Inbox UI development tests (single-server, fast feedback, seeded data).
+ * Inbox UI development tests.
  * Verifies inbox UI elements: data attributes, protocol details toggle,
  * verify-access error display, invite attributes.
- * Share seeded via signed POST to /ocm/shares (no two-instance overhead).
  */
 
 import { test, expect } from '@playwright/test';
+import { rmSync } from 'fs';
 import {
   buildBinary,
   startServer,
+  startTwoServers,
   stopServer,
+  waitForServerStopped,
   ServerInstance,
 } from '../harness/server';
-import {
-  localPeerShareFields,
-  postSignedIncomingShare,
-} from '../harness/signing';
+import { loginAndNavigateToInbox } from '../harness/auth';
+import { establishTrust } from '../harness/invites';
+import { sendOutgoingShare } from '../harness/shares';
 
 let binaryPath: string;
 
@@ -28,98 +29,84 @@ test.beforeAll(() => {
   binaryPath = buildBinary();
 });
 
-test.describe('Inbox UI', () => {
-  let server: ServerInstance;
+test.describe('Inbox UI (two-instance shares)', () => {
+  let serverA: ServerInstance;
+  let serverB: ServerInstance;
+  let serverAStopped = false;
+  const shareFilePaths: string[] = [];
 
   test.beforeEach(async () => {
-    server = await startServer(binaryPath, { name: 'inbox-ui-test', mode: 'dev' });
+    serverAStopped = false;
+    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'dev' });
   });
 
   test.afterEach(async () => {
-    if (server) {
-      stopServer(server);
+    if (serverA && !serverAStopped) stopServer(serverA);
+    if (serverB) stopServer(serverB);
+    for (const path of shareFilePaths) {
+      rmSync(path, { force: true });
     }
+    shareFilePaths.length = 0;
   });
 
-  async function loginAndNavigateToInbox(page: import('@playwright/test').Page) {
-    await page.goto(`${server.baseURL}/ui/login`);
-    await page.fill('#username', 'admin');
-    await page.fill('#password', 'testpassword123');
-    await page.click('#submit-btn');
-    await page.waitForURL('**/ui/inbox', { timeout: 5000 });
-  }
-
-  /**
-   * Seeds a test share via signed POST /ocm/shares using the instance key.
-   * shareWith and sender/owner providers must match public_origin host:port.
-   */
-  async function createTestShare(request: import('@playwright/test').APIRequestContext) {
-    const { provider, owner, sender } = localPeerShareFields(server);
-
-    const response = await postSignedIncomingShare(request, server, {
-      shareWith: `admin@${provider}`,
+  test('existing selectors: share-item, share-name, share-status', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
       name: 'ui-test-file.txt',
-      providerId: `ui-test-provider-${Date.now()}`,
-      owner,
-      sender,
-      shareType: 'user',
-      resourceType: 'file',
-      protocol: {
-        name: 'webdav',
-        webdav: {
-          uri: 'ui-test-webdav-id',
-          sharedSecret: 'test-secret-123',
-          permissions: ['read'],
-          requirements: ['must-exchange-token'],
-        },
-      },
     });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
 
-    expect(response.status()).toBe(201);
-    return response;
-  }
-
-  test('existing selectors: share-item, share-name, share-status', async ({ page, request }) => {
-    await createTestShare(request);
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    await expect(page.locator('.share-item')).toHaveCount(1);
-    await expect(page.locator('.share-name')).toContainText('ui-test-file.txt');
-    await expect(page.locator('.share-status')).toContainText('pending');
-    await expect(page.locator('.share-item')).toHaveAttribute('data-share-id', /.+/);
+    await expect(page.locator('#share-list .share-item')).toHaveCount(1);
+    await expect(page.locator('#share-list .share-name')).toContainText('ui-test-file.txt');
+    await expect(page.locator('#share-list .share-status')).toContainText('pending');
+    await expect(page.locator('#share-list .share-item')).toHaveAttribute('data-share-id', /.+/);
   });
 
-  test('accepted share gets data-test-resource-name attribute', async ({ page, request }) => {
-    await createTestShare(request);
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
+  test('accepted share gets data-test-resource-name attribute', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'ui-test-file.txt',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
 
     // Before accept: no data-test-resource-name
-    await expect(page.locator('.share-item')).not.toHaveAttribute('data-test-resource-name', /.*/);
+    await expect(page.locator('#share-list .share-item')).not.toHaveAttribute(
+      'data-test-resource-name',
+      /.*/,
+    );
 
-    await page.click('.btn-accept');
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
+    await page.click('#share-list .btn-accept');
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
 
-    await expect(page.locator('.share-item')).toHaveAttribute(
+    await expect(page.locator('#share-list .share-item')).toHaveAttribute(
       'data-test-resource-name',
       'ui-test-file.txt',
     );
     // Accept/decline buttons gone after accepting
-    await expect(page.locator('.btn-accept')).toHaveCount(0);
-    await expect(page.locator('.btn-decline')).toHaveCount(0);
+    await expect(page.locator('#share-list .btn-accept')).toHaveCount(0);
+    await expect(page.locator('#share-list .btn-decline')).toHaveCount(0);
   });
 
   test('protocol details toggle shows and hides details with redacted secret', async ({
     page,
-    request,
   }) => {
-    await createTestShare(request);
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'ui-test-file.txt',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
 
-    const toggleBtn = page.locator('[data-ocm-action="toggle-protocol-details"]');
-    const detailsContainer = page.locator('[data-ocm-field="protocol-details"]');
+    const toggleBtn = page.locator('#share-list [data-ocm-action="toggle-protocol-details"]');
+    const detailsContainer = page.locator('#share-list [data-ocm-field="protocol-details"]');
 
     // Initially hidden
     await expect(detailsContainer).toBeHidden();
@@ -141,33 +128,56 @@ test.describe('Inbox UI', () => {
     await expect(detailsContainer).toBeHidden();
   });
 
-  test('verify-access displays error for unreachable remote', async ({ page, request }) => {
-    await createTestShare(request);
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
+  test('verify-access displays error for unreachable remote', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'ui-test-file.txt',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
 
     // Must accept first (verify-access requires accepted status)
-    await page.click('.btn-accept');
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
+    await page.click('#share-list .btn-accept');
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
 
-    const verifyBtn = page.locator('[data-ocm-action="verify-access"]');
-    const verifyResult = page.locator('[data-ocm-field="verify-access-result"]');
+    // Kill sender so B's verify-access call to A fails
+    stopServer(serverA);
+    serverAStopped = true;
+    await waitForServerStopped(serverA);
+
+    const verifyBtn = page.locator('#share-list [data-ocm-action="verify-access"]');
+    const verifyResult = page.locator('#share-list [data-ocm-field="verify-access-result"]');
 
     // Initially hidden
     await expect(verifyResult).toBeHidden();
 
-    // Click verify (will fail -- no real remote WebDAV server)
+    // Click verify (A is unreachable)
     await verifyBtn.click();
 
-    // Wait for result (access client tries outbound calls that will fail; generous timeout)
+    // Wait for result
     await expect(verifyResult).toBeVisible({ timeout: 15000 });
 
-    // Should show error styling and a reason code
+    // Should show error styling and a failure message
     await expect(verifyResult).toHaveClass(/error/);
-    // The result text includes the reason code in parentheses
     const resultText = await verifyResult.textContent();
     expect(resultText).toBeTruthy();
     expect(resultText).toContain('Failed');
+  });
+});
+
+test.describe('Inbox UI (single-instance invite)', () => {
+  let server: ServerInstance;
+
+  test.beforeEach(async () => {
+    server = await startServer(binaryPath, { name: 'inbox-ui-test', mode: 'dev' });
+  });
+
+  test.afterEach(async () => {
+    if (server) {
+      stopServer(server);
+    }
   });
 
   test('invite data-test-invite-sender on accepted invite', async ({ page }) => {
@@ -177,7 +187,7 @@ test.describe('Inbox UI', () => {
     // Uses page.request (not the standalone request fixture) so session cookies
     // are shared with the logged-in page context.
 
-    await loginAndNavigateToInbox(page);
+    await loginAndNavigateToInbox(page, server.baseURL);
 
     // Step 1: create invite via outgoing UI
     await page.goto(`${server.baseURL}/ui/outgoing`);

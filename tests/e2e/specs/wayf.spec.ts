@@ -42,7 +42,7 @@ test.describe('WAYF and Accept Invite', () => {
     server = await startServer(binaryPath, {
       name: 'wayf-test',
       mode: 'dev',
-      extraConfig: '[http.services.ui.wayf]\nenabled = true\n',
+      extraConfig: '[http.services.ui.wayf]\nenabled = true\n[http.services.ui.invite_accept]\nenabled = true\n',
     });
   });
 

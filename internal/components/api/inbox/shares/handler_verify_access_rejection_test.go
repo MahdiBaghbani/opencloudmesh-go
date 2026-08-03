@@ -67,32 +67,3 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 		t.Errorf("expected reasonCode share_not_accepted, got %s", resp.ReasonCode)
 	}
 }
-
-func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
-	repo := tsrepos.OpenMemory(t).IncomingShares
-	share := createAcceptedShareForUser(t, repo, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
-
-	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
-		t.Fatal("access client should not be called for unsafe path")
-		return nil, nil //nolint:nilnil // test: unreachable after t.Fatal; satisfies the mock accessor signature
-	}}
-	router := newTestRouterWithAccess(repo, ac, userA)
-
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp inboxshares.VerifyAccessResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	if resp.ReasonCode != "unsafe_path" {
-		t.Errorf("expected reasonCode unsafe_path, got %s", resp.ReasonCode)
-	}
-}

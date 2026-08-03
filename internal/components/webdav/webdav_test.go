@@ -321,6 +321,85 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_BearerServesFileAtResourceRoot(t *testing.T) {
+	dir := t.TempDir()
+
+	filePath := filepath.Join(dir, "hello.txt")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := newMockOutgoingShareRepo()
+	share := seedShare(t, repo)
+
+	share.LocalPath = filePath
+	if err := repo.Update(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
+
+	tokenStore := newMockTokenStore()
+	if err := tokenStore.Store(context.Background(), unexpiredTestToken("valid-token", share.ShareID)); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := NewHandler(repo, tokenStore, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if w.Body.String() != "hello" {
+		t.Errorf("expected body %q, got %q", "hello", w.Body.String())
+	}
+}
+
+func TestServeHTTP_BearerServesFileForNonBasenameRequest(t *testing.T) {
+	dir := t.TempDir()
+
+	filePath := filepath.Join(dir, "hello.txt")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := newMockOutgoingShareRepo()
+	share := seedShare(t, repo)
+
+	share.LocalPath = filePath
+	if err := repo.Update(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
+
+	tokenStore := newMockTokenStore()
+	if err := tokenStore.Store(context.Background(), unexpiredTestToken("valid-token", share.ShareID)); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := NewHandler(repo, tokenStore, nil)
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/webdav/ocm/"+testWebDAVID+"/some-other-name.txt",
+		nil,
+	)
+	req.Header.Set("Authorization", "Bearer valid-token")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if w.Body.String() != "hello" {
+		t.Errorf("expected body %q, got %q", "hello", w.Body.String())
+	}
+}
+
 func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	_ = seedShare(t, repo)
