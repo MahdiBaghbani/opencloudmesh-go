@@ -84,7 +84,8 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git commit -m "chore(release): ${VERSION}"
+          # -s adds the Signed-off-by trailer the repo commit policy requires.
+          git commit -s -m "chore(release): ${VERSION}"
 
       - name: go vet
         run: go vet ./...
