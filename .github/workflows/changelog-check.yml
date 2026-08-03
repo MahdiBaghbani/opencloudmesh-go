@@ -3,7 +3,7 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: changelog-check
+name: CI Changelog
 
 on:
   pull_request:
