@@ -80,7 +80,7 @@ function parseInviteString(inviteString: string): { token: string; providerDomai
   };
 }
 
-const wayfConfig = '[http.services.ui.wayf]\nenabled = true\n';
+const wayfConfig = '[http.services.ui.wayf]\nenabled = true\n[http.services.ui.invite_accept]\nenabled = true\n';
 
 test.describe('Two-Instance WAYF Flow', () => {
   let serverA: ServerInstance;
