@@ -58,9 +58,18 @@ SPDX-FileCopyrightText = "IETF Trust and the persons identified as the document 
 SPDX-License-Identifier = "LicenseRef-IETF-Trust"
 
 # Sovereign Tech funder logos: external trademarks included only for
-# funding acknowledgment. NOT AGPL and NOT project copyright.
+# funding acknowledgment. NOT AGPL and NOT project copyright. Each mark
+# is attributed to its own owner explicitly; the funders tree is not
+# blanket-attributed to a single holder. See LICENSES/LicenseRef-
+# SovereignTech-Brand.txt for the brand terms and usage guidelines.
 [[annotations]]
-path = "assets/logos/funders/**"
+path = "assets/logos/funders/sovereign-tech-agency.svg"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Sovereign Tech Agency"
+SPDX-License-Identifier = "LicenseRef-SovereignTech-Brand"
+
+[[annotations]]
+path = "assets/logos/funders/sovereign-tech-fund.svg"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Sovereign Tech Fund"
 SPDX-License-Identifier = "LicenseRef-SovereignTech-Brand"
