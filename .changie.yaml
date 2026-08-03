@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Changie config. See https://github.com/miniscruff/changie for the schema.
+# The v1 schema uses changesDir/unreleasedDir (not "Path"-suffixed names);
+# unknown keys are ignored silently.
+
+changesDir: .changes
+unreleasedDir: unreleased
+changelogPath: CHANGELOG.md
+versionExt: md
+headerPath: header.md
+fragmentFileFormat: "{{.Kind}}-{{.Time.Format \"20060102-150405\"}}"
+versionFormat: '## {{.Version}}'
+kindFormat: '### {{.Kind}}'
+changeFormat: "* {{.Body}}{{if .Custom.Issue}} (#{{.Custom.Issue}}){{end}}"
+
+kinds:
+  - key: added
+    label: Added
+    auto: minor
+  - key: changed
+    label: Changed
+    auto: minor
+  - key: fixed
+    label: Fixed
+    auto: patch
+  - key: deprecated
+    label: Deprecated
+    auto: patch
+  - key: removed
+    label: Removed
+    auto: major
+  - key: security
+    label: Security
+    auto: patch
+
+custom:
+  - key: Issue
+    type: int
+    optional: true
+    label: Issue number
+
+newlines:
+  afterChangelogHeader: 1
+  beforeChangelogVersion: 1
+  afterChangelogVersion: 1
+  beforeVersion: 0
+  afterVersion: 1
+  beforeKind: 0
+  afterKind: 1
+  afterChange: 1
+  endOfVersion: 1

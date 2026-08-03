@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+blank_issues_enabled: false
+contact_links:
+  - name: "Report a security vulnerability"
+    url: "https://github.com/MahdiBaghbani/opencloudmesh-go/security/advisories/new"
+    about: "Privately report a security vulnerability. Do NOT open a public issue for security problems."
+  - name: "Discussions"
+    url: "https://github.com/MahdiBaghbani/opencloudmesh-go/discussions"
+    about: "Ask questions and discuss ideas in Discussions."

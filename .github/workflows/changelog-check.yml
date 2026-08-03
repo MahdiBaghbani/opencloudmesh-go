@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: CI Changelog
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  # Pinned changie release; update together with the install step below.
+  CHANGIE_VERSION: v1.25.1
+
+jobs:
+  changelog:
+    name: changelog
+    runs-on: ubuntu-latest
+    steps:
+      # Skip the gate for dependabot or PRs carrying the skip-changelog label.
+      # The step always exits 0 (never fails the job) and emits a `skip` output
+      # that gates every later step, so skipped PRs do not run the fragment gate.
+      - id: skip
+        name: Skip check
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          if [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping changelog check: dependabot-authored PR"
+            exit 0
+          fi
+          labels="$(jq -r '.pull_request.labels[].name // empty' "$GITHUB_EVENT_PATH")"
+          if printf '%s\n' "$labels" | grep -qx 'skip-changelog'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping changelog check: skip-changelog label"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "No skip condition matched; running changelog gate."
+
+      - if: steps.skip.outputs.skip != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # Require at least one changie fragment under .changes/unreleased/.
+      - if: steps.skip.outputs.skip != 'true'
+        name: Check for changelog fragment
+        uses: brettcannon/check-for-changed-files@d85c64d17b3c1d0ac57c9cc46ea39399b0d6fa71
+        with:
+          file-pattern: |
+            .changes/unreleased/*.yaml
+          failure-message: "Missing a changelog fragment under ${file-pattern}; add one with 'changie new' or apply the skip-changelog label"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: steps.skip.outputs.skip != 'true'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - if: steps.skip.outputs.skip != 'true'
+        name: Install changie
+        run: go install "github.com/miniscruff/changie@${CHANGIE_VERSION}"
+
+      # Validate fragments are well-formed. A malformed fragment must fail.
+      # `changie batch` requires a bump argument; `auto` derives the bump
+      # from each fragment's kind `auto` field (see .changie.yaml kinds).
+      - if: steps.skip.outputs.skip != 'true'
+        name: Validate fragments
+        continue-on-error: false
+        run: changie batch auto --dry-run
