@@ -44,3 +44,58 @@ func TestPrintVersionFalse(t *testing.T) {
 		t.Fatalf("printVersion(false) wrote %q, want nothing", buf.String())
 	}
 }
+
+func TestRunVersionShortFlag(t *testing.T) {
+	var buf bytes.Buffer
+
+	code := run([]string{"-version"}, &buf)
+	if code != 0 {
+		t.Fatalf("run(-version) = %d, want 0", code)
+	}
+
+	want := version + "\n"
+	if buf.String() != want {
+		t.Fatalf("run(-version) wrote %q, want %q", buf.String(), want)
+	}
+}
+
+func TestRunVersionLongFlag(t *testing.T) {
+	var buf bytes.Buffer
+
+	code := run([]string{"--version"}, &buf)
+	if code != 0 {
+		t.Fatalf("run(--version) = %d, want 0", code)
+	}
+
+	want := version + "\n"
+	if buf.String() != want {
+		t.Fatalf("run(--version) wrote %q, want %q", buf.String(), want)
+	}
+}
+
+func TestRunBadFlag(t *testing.T) {
+	var buf bytes.Buffer
+
+	code := run([]string{"--nonexistent-flag"}, &buf)
+	if code != 2 {
+		t.Fatalf("run(--nonexistent-flag) = %d, want 2", code)
+	}
+}
+
+func TestRunHelpShortFlag(t *testing.T) {
+	var buf bytes.Buffer
+
+	code := run([]string{"-h"}, &buf)
+	if code != 0 {
+		t.Fatalf("run(-h) = %d, want 0", code)
+	}
+}
+
+func TestRunHelpLongFlag(t *testing.T) {
+	var buf bytes.Buffer
+
+	code := run([]string{"--help"}, &buf)
+	if code != 0 {
+		t.Fatalf("run(--help) = %d, want 0", code)
+	}
+}

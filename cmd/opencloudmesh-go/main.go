@@ -42,89 +42,46 @@ func printVersion(showVersion bool, w io.Writer) (done bool, err error) {
 }
 
 func main() {
-	cfg, logger, err := loadConfigAndLogger()
-	if err != nil {
-		logger.Error("failed to load config", "error", err)
-		os.Exit(1)
-	}
-
-	slog.SetDefault(logger)
-	logger.Info("effective configuration", "config", cfg.Redacted())
-
-	if validateErr := service.ValidatePreBootstrap(cfg); validateErr != nil {
-		logger.Error("pre-bootstrap startup validation failed", "error", validateErr)
-		os.Exit(1)
-	}
-
-	result, err := wiring.Build(cfg, logger, wiring.BuildOpts{})
-	if err != nil {
-		logger.Error("failed to bootstrap dependencies", "error", err)
-		os.Exit(1)
-	}
-
-	logRuntimePosture(logger, cfg.Mode)
-
-	d := result.Deps
-	if d == nil {
-		logger.Error(wiring.ErrMsgNilDepsAfterBuild)
-		os.Exit(1)
-	}
-
-	if bootstrapErr := bootstrapAdmin(context.Background(), cfg, d, logger); bootstrapErr != nil {
-		logger.Error("failed to bootstrap super admin", "error", bootstrapErr)
-		os.Exit(1)
-	}
-
-	services, err := wiring.BuildCoreServices(cfg, logger, d)
-	if err != nil {
-		logger.Error("failed to create services", "error", err)
-		os.Exit(1)
-	}
-
-	if err := service.ValidateBuiltServices(services); err != nil {
-		logger.Error("built service validation failed", "error", err)
-		os.Exit(1)
-	}
-
-	if err := runServer(context.Background(), cfg, logger, result, services); err != nil {
-		logger.Error("server error", "error", err)
-		os.Exit(1)
-	}
-
-	logger.Info("server stopped")
+	os.Exit(run(os.Args[1:], os.Stdout))
 }
 
-func loadConfigAndLogger() (*config.Config, *slog.Logger, error) {
-	configPath := flag.String("config", "", "Path to TOML config file (optional)")
-	modeFlag := flag.String("mode", "", "Preset bundle: strict or dev")
-	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
-	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
-	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
-	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
-	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
-	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
-	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
-	showVersion := flag.Bool("version", false, "Print version and exit")
+func run(args []string, stdout io.Writer) int {
+	fs := flag.NewFlagSet("opencloudmesh-go", flag.ContinueOnError)
+	fs.SetOutput(stdout)
+	fs.Usage = func() {}
 
-	flag.Parse()
+	configPath := fs.String("config", "", "Path to TOML config file (optional)")
+	modeFlag := fs.String("mode", "", "Preset bundle: strict or dev")
+	listenAddr := fs.String("listen", "", "Listen address (overrides config)")
+	publicOrigin := fs.String("public-origin", "", "Public origin (overrides config)")
+	externalBasePath := fs.String("external-base-path", "", "External base path (overrides config)")
+	adminUsername := fs.String("admin-username", "", "Bootstrap admin username (overrides config)")
+	adminPassword := fs.String("admin-password", "", "Bootstrap admin password (overrides config)")
+	loggingLevel := fs.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
+	tokenExchangePath := fs.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
+	showVersion := fs.Bool("version", false, "Print version and exit")
 
-	done, err := printVersion(*showVersion, os.Stdout)
-	if done {
-		if err != nil {
-			os.Exit(1)
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
 		}
 
-		os.Exit(0)
+		return 2
 	}
 
-	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	done, err := printVersion(*showVersion, stdout)
+	if done {
+		if err != nil {
+			return 1
+		}
 
-	cfg, err := config.Load(config.LoaderOptions{
-		ConfigPath: *configPath,
-		ModeFlag:   *modeFlag,
-		FlagOverrides: config.FlagOverrides{
+		return 0
+	}
+
+	cfg, logger, err := loadConfigAndLogger(
+		*configPath,
+		*modeFlag,
+		config.FlagOverrides{
 			ListenAddr:        listenAddr,
 			PublicOrigin:      publicOrigin,
 			ExternalBasePath:  externalBasePath,
@@ -133,7 +90,70 @@ func loadConfigAndLogger() (*config.Config, *slog.Logger, error) {
 			LoggingLevel:      loggingLevel,
 			TokenExchangePath: tokenExchangePath,
 		},
-		Logger: bootstrapLogger,
+	)
+	if err != nil {
+		logger.Error("failed to load config", "error", err)
+		return 1
+	}
+
+	slog.SetDefault(logger)
+	logger.Info("effective configuration", "config", cfg.Redacted())
+
+	if validateErr := service.ValidatePreBootstrap(cfg); validateErr != nil {
+		logger.Error("pre-bootstrap startup validation failed", "error", validateErr)
+		return 1
+	}
+
+	result, err := wiring.Build(cfg, logger, wiring.BuildOpts{})
+	if err != nil {
+		logger.Error("failed to bootstrap dependencies", "error", err)
+		return 1
+	}
+
+	logRuntimePosture(logger, cfg.Mode)
+
+	d := result.Deps
+	if d == nil {
+		logger.Error(wiring.ErrMsgNilDepsAfterBuild)
+		return 1
+	}
+
+	if bootstrapErr := bootstrapAdmin(context.Background(), cfg, d, logger); bootstrapErr != nil {
+		logger.Error("failed to bootstrap super admin", "error", bootstrapErr)
+		return 1
+	}
+
+	services, err := wiring.BuildCoreServices(cfg, logger, d)
+	if err != nil {
+		logger.Error("failed to create services", "error", err)
+		return 1
+	}
+
+	if err := service.ValidateBuiltServices(services); err != nil {
+		logger.Error("built service validation failed", "error", err)
+		return 1
+	}
+
+	if err := runServer(context.Background(), cfg, logger, result, services); err != nil {
+		logger.Error("server error", "error", err)
+		return 1
+	}
+
+	logger.Info("server stopped")
+
+	return 0
+}
+
+func loadConfigAndLogger(configPath, modeFlag string, overrides config.FlagOverrides) (*config.Config, *slog.Logger, error) {
+	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	cfg, err := config.Load(config.LoaderOptions{
+		ConfigPath:    configPath,
+		ModeFlag:      modeFlag,
+		FlagOverrides: overrides,
+		Logger:        bootstrapLogger,
 	})
 	if err != nil {
 		return nil, bootstrapLogger, err
