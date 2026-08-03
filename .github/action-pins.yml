@@ -10,6 +10,9 @@ pins:
   actions/checkout:
     release: v7.0.1
     sha: 3d3c42e5aac5ba805825da76410c181273ba90b1
+  actions/dependency-review-action:
+    release: v5.0.0
+    sha: a1d282b36b6f3519aa1f3fc636f609c47dddb294
   actions/setup-go:
     release: v7.0.0
     sha: b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
