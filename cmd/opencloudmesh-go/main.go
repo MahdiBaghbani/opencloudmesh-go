@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -29,6 +30,16 @@ import (
 )
 
 var version = "dev"
+
+func printVersion(showVersion bool, w io.Writer) (done bool, err error) {
+	if !showVersion {
+		return false, nil
+	}
+
+	_, err = fmt.Fprintln(w, version)
+
+	return true, err
+}
 
 func main() {
 	cfg, logger, err := loadConfigAndLogger()
@@ -97,8 +108,9 @@ func loadConfigAndLogger() (*config.Config, *slog.Logger, error) {
 
 	flag.Parse()
 
-	if *showVersion {
-		if _, err := fmt.Fprintln(os.Stdout, version); err != nil {
+	done, err := printVersion(*showVersion, os.Stdout)
+	if done {
+		if err != nil {
 			os.Exit(1)
 		}
 
