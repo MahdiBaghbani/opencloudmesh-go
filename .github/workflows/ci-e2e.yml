@@ -146,7 +146,7 @@ jobs:
           if [ "${CHANGES}" != "success" ]; then
             exit 1
           fi
-          if [ "${RESULT}" = "success" ] || [ "${RESULT}" = "skipped" ] || [ "${RESULT}" = "cancelled" ]; then
+          if [ "${RESULT}" = "success" ] || [ "${RESULT}" = "skipped" ]; then
             exit 0
           else
             exit 1
