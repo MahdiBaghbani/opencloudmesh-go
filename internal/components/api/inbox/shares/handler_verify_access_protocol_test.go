@@ -84,11 +84,13 @@ func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_PassesEmptySubPath(t *testing.T) {
+	var gotSubPath string
+
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-subpath", "sender.example.com", "file.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	var gotSubPath string
+
 	ac := &mockAccessor{accessFn: func(_ context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
 		gotSubPath = opts.SubPath
 
