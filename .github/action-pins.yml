@@ -46,3 +46,6 @@ pins:
   dorny/test-reporter:
     release: v3.0.0
     sha: a43b3a5f7366b97d083190328d2c652e1a8b6aa2
+  brettcannon/check-for-changed-files:
+    release: v1.2.2
+    sha: d85c64d17b3c1d0ac57c9cc46ea39399b0d6fa71
