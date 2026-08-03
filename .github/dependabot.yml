@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+#
+# gomod-only Dependabot config. github-actions is intentionally omitted because
+# verify-action-pins uses .github/action-pins.yml as the SSOT; a Dependabot
+# workflow SHA update would not update that file. docker is intentionally omitted
+# because docker/Dockerfile uses ARG-based FROM, which dependabot-core issue #2057
+# cannot resolve; adding it would be a no-op and falsely signal coverage.
+
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      go-modules:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "build(deps)"
