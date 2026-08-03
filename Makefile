@@ -11,9 +11,12 @@ SHELL := /bin/bash
 	pre-commit-install pre-commit-run \
 	generate-action-inventory verify-action-pins reuse-lint
 
+# Version embedded into binaries via -ldflags; falls back to "dev" outside git.
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 # Build the server binary
 build:
-	go build -o bin/opencloudmesh-go ./cmd/opencloudmesh-go
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/opencloudmesh-go ./cmd/opencloudmesh-go
 
 # Run unit tests with race detector (excludes integration tests)
 test-go:

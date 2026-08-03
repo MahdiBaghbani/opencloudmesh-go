@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump kind
+        required: true
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+        default: minor
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  # Pinned changie release; update together with changelog-check.yml.
+  CHANGIE_VERSION: v1.25.1
+  GOLANGCI_LINT_VERSION: v2.12.2
+  NU_VERSION: 0.114.1
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install changie
+        run: go install "github.com/miniscruff/changie@${CHANGIE_VERSION}"
+
+      - name: Batch changelog fragments
+        run: changie batch "${{ inputs.bump }}"
+
+      - name: Resolve release version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION="$(changie latest)"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved release version: ${VERSION}"
+
+      - name: Merge changelog
+        run: changie merge
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Stage release changes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git add CHANGELOG.md ".changes/${VERSION}.md" .changes/unreleased
+
+      - name: Commit release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git commit -m "chore(release): ${VERSION}"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m
+
+      - name: Install Nushell
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/nushell/nushell/releases/download/${{ env.NU_VERSION }}/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/nu.tar.gz
+          tar -xzf /tmp/nu.tar.gz -C /tmp
+          sudo mv "/tmp/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu/nu" /usr/local/bin/nu
+          nu --version
+
+      - name: Verify immutable action pins
+        run: make verify-action-pins
+
+      - name: Tag release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: git tag -a "${VERSION}" -m "Release ${VERSION}"
+
+      - name: Push release commit and tag
+        run: |
+          set -euo pipefail
+          git push origin HEAD:"${GITHUB_REF#refs/heads/}"
+          git push origin "${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh release create "${VERSION}" --verify-tag -F ".changes/${VERSION}.md" --title "${VERSION}"
+
+  image:
+    name: image
+    needs: release
+    # GITHUB_TOKEN is a reserved secret name and cannot be declared in
+    # `on.workflow_call.secrets`; every job (including reusable-workflow
+    # calls) already receives its own ephemeral GITHUB_TOKEN automatically,
+    # so it is not passed through here.
+    uses: ./.github/workflows/build-push-docker.yml
+    with:
+      semver: ${{ needs.release.outputs.version }}

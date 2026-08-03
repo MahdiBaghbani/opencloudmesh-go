@@ -28,6 +28,8 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
+var version = "dev"
+
 func main() {
 	cfg, logger, err := loadConfigAndLogger()
 	if err != nil {
@@ -91,8 +93,17 @@ func loadConfigAndLogger() (*config.Config, *slog.Logger, error) {
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
+	showVersion := flag.Bool("version", false, "Print version and exit")
 
 	flag.Parse()
+
+	if *showVersion {
+		if _, err := fmt.Fprintln(os.Stdout, version); err != nil {
+			os.Exit(1)
+		}
+
+		os.Exit(0)
+	}
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,

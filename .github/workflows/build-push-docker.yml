@@ -16,6 +16,12 @@ on:
         description: Semver image tag (example v1.2.3)
         required: true
         type: string
+  workflow_call:
+    inputs:
+      semver:
+        description: Semver image tag (example v1.2.3)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -32,22 +38,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_call' && inputs.semver || '' }}
 
       - name: Resolve semver tag
         id: meta
         env:
-          DISPATCH_SEMVER: ${{ github.event.inputs.semver }}
+          DISPATCH_SEMVER: ${{ inputs.semver }}
         run: |
           set -eu
           semver_ok() {
             # Core: no leading zeros. Prerelease ids: 0 | [1-9][0-9]* | alnum/hyphen with a letter/hyphen.
-            # Build metadata (+...) rejected. Same check for workflow_dispatch and tag push.
+            # Build metadata (+...) rejected. Same check for workflow_dispatch, workflow_call, and tag push.
             local id='(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)'
             [[ "$1" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-${id}(\.${id})*)?$ ]]
           }
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
             if [ -z "${DISPATCH_SEMVER}" ]; then
-              echo "workflow_dispatch requires inputs.semver"
+              echo "workflow_dispatch/workflow_call requires inputs.semver"
               exit 1
             fi
             SEMVER_TAG="${DISPATCH_SEMVER}"
@@ -61,7 +68,7 @@ jobs:
             echo "Invalid semver tag: ${SEMVER_TAG}"
             exit 1
           fi
-          FULL_SHA="${GITHUB_SHA}"
+          FULL_SHA="$(git rev-parse HEAD)"
           {
             echo "semver_tag=${SEMVER_TAG}"
             echo "full_sha=${FULL_SHA}"
