@@ -4,30 +4,31 @@ go 1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/alicebob/miniredis/v2 v2.36.1
-	github.com/go-acme/lego/v4 v4.34.0
-	github.com/go-chi/chi/v5 v5.2.4
+	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/go-acme/lego/v4 v4.35.2
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/google/uuid v1.6.0
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/valkey-io/valkey-go v1.0.71
-	golang.org/x/crypto v0.52.0
-	golang.org/x/net v0.55.0
-	golang.org/x/sync v0.20.0
+	github.com/valkey-io/valkey-go v1.0.76
+	golang.org/x/crypto v0.54.0
+	golang.org/x/net v0.56.0
+	golang.org/x/sync v0.22.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.31.1
+	gorm.io/gorm v1.31.2
 )
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	golang.org/x/mod v0.35.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
-	golang.org/x/tools v0.44.0 // indirect
+	golang.org/x/mod v0.37.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/tools v0.47.0 // indirect
 )
