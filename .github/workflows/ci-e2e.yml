@@ -133,7 +133,7 @@ jobs:
   e2e-result:
     name: e2e-result
     needs: [changes, e2e]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Report e2e result
