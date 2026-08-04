@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Native GitHub auto-merge for Dependabot patch and minor bumps. Major bumps
+# are left for manual review. Auto-merge only fires after the required status
+# checks configured on master (see branch protection) pass, so a Dependabot
+# PR is never merged before CI is green.
+
+name: Dependabot Automerge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: automerge
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      # Dependabot metadata tells us the semver level of the bump. For grouped
+      # PRs this reports the highest level in the group, which is minor or patch
+      # here because .github/dependabot.yml groups only minor+patch.
+      - name: Fetch dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Queue a squash auto-merge for patch and minor bumps. GitHub holds the
+      # merge until required status checks pass and the PR is mergeable.
+      - name: Enable auto-merge
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+
+      # Major bumps can break the build; keep them manual.
+      - name: Comment on major bump
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr comment "$PR_NUMBER" --body "Dependabot major update left for manual review. Auto-merge is enabled only for patch and minor bumps."
