@@ -21,7 +21,10 @@ permissions:
 jobs:
   automerge:
     name: automerge
-    if: github.actor == 'dependabot[bot]'
+    # github.event.pull_request.user.login names the PR author and cannot be
+    # spoofed via commit authorship; github.actor/triggering_actor reflect the
+    # last actor on the triggering context and can (zizmor bot-conditions).
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     # gh pr merge / gh pr comment shell out to git to discover the repo,
     # which fails with "not a git repository" because this job has no
@@ -31,11 +34,11 @@ jobs:
       GH_REPO: ${{ github.repository }}
     steps:
       # Dependabot metadata tells us the semver level of the bump. For grouped
-      # PRs this reports the highest level in the group, which is minor or patch
-      # here because .github/dependabot.yml groups only minor+patch.
+      # PRs this reports the highest level in the group. .github/dependabot.yml
+      # groups minor+patch version updates and security updates separately.
       - name: Fetch dependabot metadata
         id: meta
-        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 

@@ -32,8 +32,8 @@ pins:
     release: v2.3.8
     sha: 8d6379e14d29928660c4ba802d8e85393440b329
   github/codeql-action/upload-sarif:
-    release: v4.37.4
-    sha: f205ea1c3313d32999d8d6a48b4f6530d4437b38
+    release: v4.37.6
+    sha: 5595ccaf912efad79be6eef63a5619ff05969be3
   docker/setup-buildx-action:
     release: v4.2.0
     sha: bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
@@ -53,8 +53,8 @@ pins:
     release: v1.2.2
     sha: d85c64d17b3c1d0ac57c9cc46ea39399b0d6fa71
   dependabot/fetch-metadata:
-    release: v2.4.0
-    sha: 08eff52bf64351f401fb50d4972fa95b9f2c2d1b
+    release: v3.1.0
+    sha: 25dd0e34f4fe68f24cc83900b1fe3fe149efef98
   marocchino/sticky-pull-request-comment:
-    release: v2.9.3
-    sha: d2ad0de260ae8b0235ce059e63f2949ba9e05943
+    release: v3.0.5
+    sha: 5770ad5eb8f42dd2c4f34da00c94c5381e49af88

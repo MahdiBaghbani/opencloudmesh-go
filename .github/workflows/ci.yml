@@ -34,6 +34,9 @@ jobs:
   shellcheck:
     uses: ./.github/workflows/ci-shellcheck.yml
 
+  actionlint:
+    uses: ./.github/workflows/ci-actionlint.yml
+
   security:
     permissions:
       contents: read
@@ -53,6 +56,8 @@ jobs:
       NU_VERSION: 0.114.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - name: Install Nushell
         run: |
           set -euo pipefail
@@ -68,6 +73,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
       # Blocking REUSE gate: any missing copyright/licensing info fails CI.
       - name: Sync dev dependencies
@@ -78,7 +85,7 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [fmt-vet, lint, shellcheck, security, test, build, action-pins, reuse]
+    needs: [fmt-vet, lint, shellcheck, actionlint, security, test, build, action-pins, reuse]
     if: ${{ !cancelled() }}
     steps:
       - name: Require blocking jobs
@@ -86,9 +93,10 @@ jobs:
           test "${{ needs.fmt-vet.result }}" = "success"
           test "${{ needs.lint.result }}" = "success"
           test "${{ needs.shellcheck.result }}" = "success"
+          test "${{ needs.actionlint.result }}" = "success"
           test "${{ needs.test.result }}" = "success"
           test "${{ needs.build.result }}" = "success"
           test "${{ needs.action-pins.result }}" = "success"
-          # Security required: blocking gosec gates CI; govulncheck stays report-only.
+          # Security required: blocking gosec + zizmor gate CI; govulncheck stays report-only.
           test "${{ needs.security.result }}" = "success"
           test "${{ needs.reuse.result }}" = "success"

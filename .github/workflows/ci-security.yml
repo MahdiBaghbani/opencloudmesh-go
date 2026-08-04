@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
@@ -40,7 +42,36 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
            github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3
         with:
           sarif_file: gosec.sarif
           category: gosec
+
+  # Blocking zizmor gate: high-severity workflow findings (SARIF "error" level)
+  # fail the security job. SARIF mode always exits 0 by design, so the upload
+  # artifact is produced first (stdout redirect; zizmor has no -o/--output
+  # flag, -o is --offline) and the plain run below does the gating.
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    env:
+      ZIZMOR_VERSION: 1.29.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install zizmor
+        run: pipx install "zizmor==${ZIZMOR_VERSION}"
+      - name: zizmor SARIF
+        run: zizmor --min-severity high --format sarif . > zizmor.sarif
+      - name: zizmor gate
+        run: zizmor --min-severity high .
+      - name: Upload zizmor SARIF
+        if: >-
+          always() &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor

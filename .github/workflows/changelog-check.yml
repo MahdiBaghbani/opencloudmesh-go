@@ -48,6 +48,8 @@ jobs:
 
       - if: steps.skip.outputs.skip != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       # Require at least one changie fragment under .changes/unreleased/.
       - if: steps.skip.outputs.skip != 'true'
@@ -84,7 +86,7 @@ jobs:
       # and previewed as plain markdown.
       - if: failure() && steps.skip.outputs.skip != 'true'
         name: Post changelog instructions
-        uses: marocchino/sticky-pull-request-comment@d2ad0de260ae8b0235ce059e63f2949ba9e05943
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88
         with:
           header: changie-reminder
           path: .github/messages/changelog-reminder.md

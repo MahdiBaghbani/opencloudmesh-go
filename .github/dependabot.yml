@@ -22,5 +22,9 @@ updates:
         update-types:
           - minor
           - patch
+      # Security bumps group separately from version bumps so a CVE fix never
+      # waits behind a routine minor/patch rollup (and vice versa).
+      security:
+        applies-to: security-updates
     commit-message:
       prefix: "build(deps)"

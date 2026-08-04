@@ -18,9 +18,10 @@ on:
           - patch
         default: minor
 
+# Workflow-level permissions stay minimal; jobs that need write scope declare
+# it themselves (zizmor excessive-permissions).
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 env:
   # Pinned changie release; update together with changelog-check.yml.
@@ -36,6 +37,9 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest
+    # contents: write is required for git push, tagging, and gh release create.
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
@@ -45,6 +49,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          # Push auth is re-established explicitly in the push step below.
+          persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
@@ -121,6 +127,10 @@ jobs:
       - name: Push release commit and tag
         run: |
           set -euo pipefail
+          # persist-credentials is off, so authenticate pushes explicitly.
+          # The token never hits logs: nothing here echoes the URL (no set -x)
+          # and Actions masks the GITHUB_TOKEN value in git's push output.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin HEAD:"${GITHUB_REF#refs/heads/}"
           git push origin "${{ steps.version.outputs.version }}"
 
@@ -132,6 +142,12 @@ jobs:
   image:
     name: image
     needs: release
+    # packages: write must be granted here: a called reusable workflow can only
+    # maintain or downgrade the caller token, never elevate it, so the
+    # packages: write inside build-push-docker.yml needs this caller-side grant.
+    permissions:
+      contents: read
+      packages: write
     # GITHUB_TOKEN is a reserved secret name and cannot be declared in
     # `on.workflow_call.secrets`; every job (including reusable-workflow
     # calls) already receives its own ephemeral GITHUB_TOKEN automatically,

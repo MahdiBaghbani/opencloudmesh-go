@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Report-only action pin update warning: flags pins when a newer upstream
+# release is available. Never blocks CI: it is a separate scheduled workflow
+# that is not wired into the ci.yml aggregator and the check step is
+# continue-on-error. Output goes to the job log (::warning) and the step
+# summary only; no SARIF.
+#
+# The check lives in .github/scripts/stale-action-pins.nu next to the other
+# pin verifiers. Freshness lookup (GitHub releases/latest, tags fallback)
+# is new logic that verify-action-pins.nu does not cover; it parses the same
+# fixed schema_version 1 layout of .github/action-pins.yml.
+
+name: CI Stale Action Pins
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stale-pins:
+    name: stale-pins
+    runs-on: ubuntu-latest
+    env:
+      NU_VERSION: 0.113.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install Nushell
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/nushell/nushell/releases/download/${{ env.NU_VERSION }}/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/nu.tar.gz
+          tar -xzf /tmp/nu.tar.gz -C /tmp
+          sudo mv "/tmp/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu/nu" /usr/local/bin/nu
+          nu --version
+      - name: Report stale action pins
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nu .github/scripts/stale-action-pins.nu
