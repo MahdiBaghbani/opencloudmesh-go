@@ -49,6 +49,15 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "OpenCloudMesh Go contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
+# Contributor-facing changelog reminder posted on PRs by the CI Changelog
+# gate when a fragment is missing. Pure markdown (no inline SPDX) so the
+# posted comment carries no license noise; attribution is aggregated here.
+[[annotations]]
+path = ".github/messages/changelog-reminder.md"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "OpenCloudMesh Go contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
 # Vendored OCM-API OpenAPI snapshot (see vendor/pin.json): verbatim
 # third-party IETF draft artifact; upstream declares no LICENSE file.
 [[annotations]]

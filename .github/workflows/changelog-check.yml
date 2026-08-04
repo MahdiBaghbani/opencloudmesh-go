@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 env:
   # Pinned changie release; update together with the install step below.
@@ -76,3 +76,16 @@ jobs:
         name: Validate fragments
         continue-on-error: false
         run: changie batch auto --dry-run
+
+      # On failure, post the contributor guide as a sticky PR comment. The
+      # action creates or updates the comment identified by `header`, so
+      # re-runs update the same comment instead of posting new ones. The
+      # guide text lives in .github/changelog-reminder.md so it can be edited
+      # and previewed as plain markdown.
+      - if: failure() && steps.skip.outputs.skip != 'true'
+        name: Post changelog instructions
+        uses: marocchino/sticky-pull-request-comment@d2ad0de260ae8b0235ce059e63f2949ba9e05943
+        with:
+          header: changie-reminder
+          path: .github/messages/changelog-reminder.md
+          skip_unchanged: true

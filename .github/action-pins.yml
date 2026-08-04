@@ -52,3 +52,9 @@ pins:
   brettcannon/check-for-changed-files:
     release: v1.2.2
     sha: d85c64d17b3c1d0ac57c9cc46ea39399b0d6fa71
+  dependabot/fetch-metadata:
+    release: v2.4.0
+    sha: 08eff52bf64351f401fb50d4972fa95b9f2c2d1b
+  marocchino/sticky-pull-request-comment:
+    release: v2.9.3
+    sha: d2ad0de260ae8b0235ce059e63f2949ba9e05943
