@@ -6,6 +6,8 @@
 name: Build and Push Docker
 
 on:
+  # push:tags is a fallback for human-pushed tags only. release.yml calls this
+  # via workflow_call, because GITHUB_TOKEN-pushed tags do not trigger on:push.
   push:
     tags:
       - "v[0-9]*.[0-9]*.[0-9]*"

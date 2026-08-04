@@ -80,7 +80,7 @@ jobs:
       # On failure, post the contributor guide as a sticky PR comment. The
       # action creates or updates the comment identified by `header`, so
       # re-runs update the same comment instead of posting new ones. The
-      # guide text lives in .github/changelog-reminder.md so it can be edited
+      # guide text lives in .github/messages/changelog-reminder.md so it can be edited
       # and previewed as plain markdown.
       - if: failure() && steps.skip.outputs.skip != 'true'
         name: Post changelog instructions
