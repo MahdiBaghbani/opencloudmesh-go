@@ -7,7 +7,7 @@
 SHELL := /bin/bash
 .PHONY: build test-go test-integration test-e2e test-e2e-install \
 	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
-	actionlint security check ci \
+	actionlint security licenses licenses-check licenses-save licenses-install check ci \
 	pre-commit-install pre-commit-run \
 	generate-action-inventory verify-action-pins reuse-lint
 
@@ -50,11 +50,24 @@ GOLANGCI_LINT_VERSION ?= v2.12.2
 GOVULNCHECK_VERSION ?= v1.1.4
 GOIMPORTS_VERSION ?= v0.30.0
 ACTIONLINT_VERSION ?= v1.7.12
+GO_LICENSES_VERSION ?= v2.0.1
 
 GOLANGCI_LINT ?= golangci-lint
 GOVULNCHECK ?= govulncheck
 GOIMPORTS ?= goimports
 ACTIONLINT ?= actionlint
+GO_LICENSES ?= go-licenses
+
+# Linked-tree license scan scope (single binary under cmd/).
+GO_LICENSES_PKG ?= ./cmd/opencloudmesh-go
+LICENSES_ALLOWLIST ?= .github/licenses-allowlist.txt
+LICENSES_SAVE_PATH ?= bin/licenses
+# Own module is AGPL; go-licenses save treats AGPL as forbidden, so ignore it
+# when collecting third-party NOTICE/LICENSE files for the image artifact.
+GO_LICENSES_IGNORE ?= github.com/MahdiBaghbani/opencloudmesh-go
+
+# Comma-separated allowlist for go-licenses check (skip blank/# comment lines).
+ALLOWED_LICENSES = $(shell grep -vE '^\s*(#|$$)' $(LICENSES_ALLOWLIST) | paste -sd, -)
 
 # Install pinned CLIs into GOBIN (no @latest). gosec runs via golangci-lint
 # SSOT only; no standalone gosec binary.
@@ -63,6 +76,11 @@ tools:
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
 	go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
+	go install github.com/google/go-licenses/v2@$(GO_LICENSES_VERSION)
+
+# Install only go-licenses (focused; CI licenses jobs call this so the version SSOT stays in the Makefile).
+licenses-install:
+	go install github.com/google/go-licenses/v2@$(GO_LICENSES_VERSION)
 
 # Mutating format: go fmt + goimports (matches pre-commit gofmt/goimports hooks).
 fmt:
@@ -122,6 +140,24 @@ security:
 	-$(GOVULNCHECK) ./...
 	$(GOLANGCI_LINT) run --enable-only=gosec ./...
 
+# Print transitive license tree for the server binary (go-licenses report).
+licenses:
+	@command -v $(GO_LICENSES) >/dev/null 2>&1 || (echo "go-licenses not found; install with: make tools"; exit 1)
+	$(GO_LICENSES) report $(GO_LICENSES_PKG)
+
+# License allowlist check. Strict locally; CI keeps it report-only via the workflow's continue-on-error (single suppression layer). W7 flips CI to blocking by removing that continue-on-error.
+licenses-check:
+	@command -v $(GO_LICENSES) >/dev/null 2>&1 || (echo "go-licenses not found; install with: make tools"; exit 1)
+	$(GO_LICENSES) check $(GO_LICENSES_PKG) --allowed_licenses=$(ALLOWED_LICENSES)
+
+# Save third-party NOTICE/LICENSE files for the licenses-notices CI artifact.
+licenses-save:
+	@command -v $(GO_LICENSES) >/dev/null 2>&1 || (echo "go-licenses not found; install with: make tools"; exit 1)
+	$(GO_LICENSES) save $(GO_LICENSES_PKG) \
+		--ignore=$(GO_LICENSES_IGNORE) \
+		--save_path=$(LICENSES_SAVE_PATH) \
+		--force
+
 # Light local check: no full lint, no security scan.
 check: fmt-check vet lint-new test-go
 
@@ -138,8 +174,8 @@ pre-commit-run:
 	uv run pre-commit run
 
 # Laptop CI mirror: fmt, vet, lint, shellcheck, actionlint, security,
-# unit+integration, build, pins, reuse.
-ci: fmt-check vet lint shellcheck actionlint security test build verify-action-pins reuse-lint
+# licenses (report), unit+integration, build, pins, reuse.
+ci: fmt-check vet lint shellcheck actionlint security licenses licenses-check test build verify-action-pins reuse-lint
 
 # List immutable action@sha references found in workflow files (audit helper).
 generate-action-inventory:
