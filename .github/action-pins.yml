@@ -73,6 +73,9 @@ pins:
   oven-sh/setup-bun:
     release: v2.2.0
     sha: 0c5077e51419868618aeaa5fe8019c62421857d6
+  ossf/scorecard-action:
+    release: v2.4.4
+    sha: 2d1146689b8cda280b9bc96326124645441f03bc
   # Action lives in crate-ci/typos (not a separate typos-action repo).
   crate-ci/typos:
     release: v1.49.0
