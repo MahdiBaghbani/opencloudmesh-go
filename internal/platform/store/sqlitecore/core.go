@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"time"
 
-	gormsqlite "gorm.io/driver/sqlite"
+	gormsqlite "github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -44,15 +44,17 @@ func Open(dataDir string) (*Core, error) {
 
 	dbPath := filepath.Join(dataDir, "ocm.db")
 
-	// The busy timeout lets concurrent writers wait (up to 5s) instead of
-	// failing immediately with SQLITE_BUSY. Combined with wrapping the
-	// read-then-write update paths in a single transaction, this makes the
-	// pre-read + validate + coalesce + write atomic: SQLite's transaction
-	// isolation prevents another writer from committing a change between the
-	// pre-read and the write within the same transaction (the SHARED lock
-	// held by the pre-read blocks the other writer's COMMIT until our
-	// transaction finishes).
-	dsn := fmt.Sprintf("%s?_busy_timeout=5000", dbPath)
+	// busy_timeout lets a competing writer wait (up to 5s) for the database
+	// lock instead of failing immediately with SQLITE_BUSY. _txlock=immediate
+	// opens every write transaction with BEGIN IMMEDIATE, so the write lock is
+	// taken at BEGIN instead of upgraded from a read lock mid-transaction: a
+	// second writer blocks at its own BEGIN until the first transaction
+	// commits, which eliminates the SHARED-to-RESERVED upgrade race that made
+	// concurrent updates intermittently fail. Combined with wrapping the
+	// read-then-write update paths in one transaction, the pre-read +
+	// validate + coalesce + write is atomic: no other writer can commit
+	// between the pre-read and the write.
+	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_txlock=immediate", dbPath)
 
 	db, err := gorm.Open(gormsqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),

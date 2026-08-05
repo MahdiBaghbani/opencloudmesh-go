@@ -15,7 +15,7 @@ ARG OCM_IMAGE_REVISION="unknown"
 ##############################
 FROM ${BASE_BUILD_IMAGE} AS build
 
-ENV CGO_ENABLED=1
+ENV CGO_ENABLED=0
 
 RUN --mount=type=cache,id=opencloudmesh-go-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=opencloudmesh-go-apt-lists,target=/var/lib/apt/lists,sharing=locked \
@@ -27,10 +27,7 @@ RUN --mount=type=cache,id=opencloudmesh-go-apt-cache,target=/var/cache/apt,shari
     --assume-yes \
     git \
     bash \
-    make \
-    build-essential \
-    libsqlite3-dev \
-    binutils;
+    make;
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 

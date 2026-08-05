@@ -106,7 +106,9 @@ func TestSubprocessConfig_generateTOMLConfigPersistence(t *testing.T) {
 		// Clear ambient env so Load sees only the generated TOML.
 		t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 
-		// Strict preset defaults to sqlite; pin forces memory for CGO-disabled builds.
+		// Strict preset defaults to sqlite; harness pins memory for
+		// test isolation (deterministic, fast, no on-disk state).
+		// Pure-Go sqlite works with CGO_ENABLED=0.
 		raw := generateTOMLConfig("test", 8080, "/tmp", "strict", false, "", "", "", "")
 		wantPin := fmt.Sprintf("[persistence]\nbackend = %q\n", config.BackendMemory)
 

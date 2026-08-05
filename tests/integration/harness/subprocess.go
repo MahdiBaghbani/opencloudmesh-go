@@ -655,10 +655,10 @@ mode = "off"
 		}
 	}
 
-	// Pin the memory backend explicitly: the subprocess binary is built with
-	// CGO_ENABLED=0, where the sqlite driver is a stub, so the strict preset's
-	// durable sqlite default cannot boot there. Tests that need durable
-	// persistence declare their own [persistence] table in ExtraConfig.
+	// Pin the memory backend explicitly: it boots fast and keeps generated
+	// configs free of on-disk state. The pure-Go sqlite driver works in the
+	// CGO_ENABLED=0 subprocess binary, so tests that need durable persistence
+	// declare their own [persistence] table in ExtraConfig.
 	if !extraDefinesPersistenceTable(extra) {
 		config += fmt.Sprintf(`[persistence]
 backend = %q

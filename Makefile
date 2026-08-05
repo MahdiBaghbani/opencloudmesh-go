@@ -15,20 +15,22 @@ SHELL := /bin/bash
 # Version embedded into binaries via -ldflags; falls back to "dev" outside git.
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-# Build the server binary
+# Build the server binary (pure-Go; no CGO/sqlite toolchain).
 build:
-	go build -ldflags "-X main.version=$(VERSION)" -o bin/opencloudmesh-go ./cmd/opencloudmesh-go
+	CGO_ENABLED=0 go build -ldflags "-X main.version=$(VERSION)" -o bin/opencloudmesh-go ./cmd/opencloudmesh-go
 
 # Run unit tests with race detector (excludes integration tests).
 # -count=1 disables cached results; -shuffle=on randomizes test execution
 # order within each package (not package traversal order).
+# -race requires CGO on this toolchain, so test-go and test-integration
+# both set CGO_ENABLED=1 (the production build stays CGO_ENABLED=0).
 test-go:
-	go test -race -count=1 -shuffle=on -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-unit.out $$(go list ./... | grep -v /tests/integration)
+	CGO_ENABLED=1 go test -race -count=1 -shuffle=on -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-unit.out $$(go list ./... | grep -v /tests/integration)
 
 # Run integration tests only; -count=1 and -shuffle=on match test-go
 # (randomizes test execution order within each package, not package order).
 test-integration:
-	go test -race -count=1 -shuffle=on -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-integration.out ./tests/integration/...
+	CGO_ENABLED=1 go test -race -count=1 -shuffle=on -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-integration.out ./tests/integration/...
 
 # Fuzz targets for crypto and OCM JSON parsers (long-running; not part of ci).
 # go test -fuzz requires exactly one package and exactly one matching fuzz
@@ -210,12 +212,21 @@ licenses-check:
 	$(GO_LICENSES) check $(GO_LICENSES_PKG) --allowed_licenses=$(ALLOWED_LICENSES)
 
 # Save third-party NOTICE/LICENSE files for the licenses-notices CI artifact.
+# Also ship the human-readable index (LICENSE-3RD-PARTY.md) and the SQLite
+# public-domain dedication from docs/notices/SQLITE-PUBLIC-DOMAIN.txt
+# (LicenseRef-SQLite-Public-Domain); go-licenses collects modernc/glebarez
+# package LICENSE files but does not copy those curated notices. Docker
+# COPY /build/bin/licenses -> /app/licenses picks both up. Release-archive
+# presence of this tree is asserted in R2 (GoReleaser); do not treat local
+# licenses-save as that proof.
 licenses-save:
 	@command -v $(GO_LICENSES) >/dev/null 2>&1 || (echo "go-licenses not found; install with: make tools"; exit 1)
 	$(GO_LICENSES) save $(GO_LICENSES_PKG) \
 		--ignore=$(GO_LICENSES_IGNORE) \
 		--save_path=$(LICENSES_SAVE_PATH) \
 		--force
+	cp LICENSE-3RD-PARTY.md $(LICENSES_SAVE_PATH)/LICENSE-3RD-PARTY.md
+	cp docs/notices/SQLITE-PUBLIC-DOMAIN.txt $(LICENSES_SAVE_PATH)/SQLITE-LICENSE
 
 # markdownlint-cli2 via bunx (pinned MARKDOWNLINT_CLI2_VERSION). Uses .markdownlint.json.
 # Strict locally and blocking in CI.

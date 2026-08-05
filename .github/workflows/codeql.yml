@@ -41,17 +41,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install CGO build dependencies
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install \
-            --no-install-recommends --assume-yes \
-            build-essential libsqlite3-dev
-      # Manual CGO+sqlite build; autobuild cannot resolve this toolchain.
-      - name: Build (CGO)
-        env:
-          CGO_ENABLED: '1'
+      # Pure-Go build (CGO_ENABLED=0 via Makefile). Autobuild is not pinned in
+      # action-pins.yml; make build keeps the pin inventory unchanged.
+      - name: Build
         run: make build
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3
