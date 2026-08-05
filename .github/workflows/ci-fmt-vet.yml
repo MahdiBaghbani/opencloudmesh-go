@@ -33,6 +33,4 @@ jobs:
       - name: go vet
         run: make vet
       - name: go mod tidy check
-        run: |
-          go mod tidy
-          git diff --exit-code go.mod go.sum
+        run: go mod tidy && git diff --exit-code go.mod go.sum

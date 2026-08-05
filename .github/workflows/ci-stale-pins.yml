@@ -29,18 +29,14 @@ jobs:
     name: stale-pins
     runs-on: ubuntu-latest
     env:
-      NU_VERSION: 0.113.1
+      NU_VERSION: 0.114.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Install Nushell
-        run: |
-          set -euo pipefail
-          curl -fsSL "https://github.com/nushell/nushell/releases/download/${{ env.NU_VERSION }}/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/nu.tar.gz
-          tar -xzf /tmp/nu.tar.gz -C /tmp
-          sudo mv "/tmp/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu/nu" /usr/local/bin/nu
-          nu --version
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
       - name: Report stale action pins
         continue-on-error: true
         env:

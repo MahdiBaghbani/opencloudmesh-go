@@ -27,12 +27,17 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     # gh pr merge / gh pr comment shell out to git to discover the repo,
-    # which fails with "not a git repository" because this job has no
-    # actions/checkout. GH_REPO makes gh resolve the repo via the API
-    # instead, so no checkout is needed.
+    # which fails when remote discovery is unavailable. GH_REPO makes gh
+    # resolve the repo via the API instead.
     env:
       GH_REPO: ${{ github.repository }}
+      NU_VERSION: 0.114.1
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       # Dependabot metadata tells us the semver level of the bump. For grouped
       # PRs this reports the highest level in the group. .github/dependabot.yml
       # groups minor+patch version updates and security updates separately.
@@ -41,6 +46,10 @@ jobs:
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
 
       # Dependabot omits update-type on many security PRs
       # (github.com/dependabot/fetch-metadata/issues/499), so derive the
@@ -52,33 +61,7 @@ jobs:
           UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
           PREV: ${{ steps.meta.outputs.previous-version }}
           NEW: ${{ steps.meta.outputs.new-version }}
-        run: |
-          set -euo pipefail
-          level=""
-          case "$UPDATE_TYPE" in
-            version-update:semver-patch) level="patch" ;;
-            version-update:semver-minor) level="minor" ;;
-            version-update:semver-major) level="major" ;;
-          esac
-          if [ -z "$level" ] && [ -n "$PREV" ] && [ -n "$NEW" ]; then
-            prev="${PREV#v}"; new="${NEW#v}"
-            if [ "${new%%.*}" != "${prev%%.*}" ]; then
-              level="major"
-            else
-              prev_mm="${prev#*.}"; new_mm="${new#*.}"
-              if [ "${new_mm%%.*}" != "${prev_mm%%.*}" ]; then
-                level="minor"
-              else
-                level="patch"
-              fi
-            fi
-          fi
-          echo "level=${level}" >> "$GITHUB_OUTPUT"
-          if [ "$level" = "patch" ] || [ "$level" = "minor" ]; then
-            echo "automerge=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "automerge=false" >> "$GITHUB_OUTPUT"
-          fi
+        run: nu .github/scripts/dependabot-classify-bump.nu
 
       # Queue a squash auto-merge for patch and minor bumps. GitHub holds the
       # merge until required status checks pass and the PR is mergeable.
@@ -87,9 +70,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+        run: gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
 
       # Major bumps (version or security) can break the build; keep manual.
       # Unknown levels also fall here and stay manual.
@@ -98,6 +79,4 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh pr comment "$PR_NUMBER" --body "Left for manual review. Auto-merge is enabled only for patch and minor bumps."
+        run: gh pr comment "$PR_NUMBER" --body "Left for manual review. Auto-merge is enabled only for patch and minor bumps."

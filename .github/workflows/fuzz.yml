@@ -24,6 +24,8 @@ jobs:
   fuzz:
     name: fuzz
     runs-on: ubuntu-latest
+    env:
+      NU_VERSION: 0.114.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -35,6 +37,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
       # pull_request only: skip when the diff touches no fuzz-relevant paths.
       - name: Path filter
         if: github.event_name == 'pull_request'
@@ -44,18 +49,7 @@ jobs:
           # it is present in the local history, so the three-dot diff resolves
           # without an extra git fetch.
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          changed=$(git diff --name-only "$BASE_SHA...HEAD")
-          # here-string (not a pipe) so grep -q cannot SIGPIPE a producer under pipefail
-          # internal/platform/crypto/ covers sigparams, jwks, sigalg, and keyid.
-          if grep -qE \
-            '^(internal/platform/crypto/|internal/components/ocm/spec/|go\.mod$|go\.sum$|Makefile$|\.github/workflows/fuzz\.yml$)' <<< "$changed"; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "No fuzz-relevant changes; skipping."
-          fi
+        run: nu .github/scripts/fuzz-path-filter.nu
       - name: Run fuzz
         if: github.event_name != 'pull_request' || steps.path_filter.outputs.run == 'true'
         run: make fuzz

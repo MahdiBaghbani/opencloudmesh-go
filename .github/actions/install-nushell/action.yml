@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: Install Nushell
+description: Install a pinned Nushell release to /usr/local/bin/nu
+
+inputs:
+  nu-version:
+    description: Nushell release version (for example 0.114.1)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Nushell
+      shell: bash
+      env:
+        # Map input to env so the run block uses shell expansion only
+        # (zizmor template-injection). URL shape matches the Nushell release
+        # asset: .../download/${NU_VERSION}/nu-${NU_VERSION}-x86_64-unknown-linux-gnu.tar.gz
+        NU_VERSION: ${{ inputs.nu-version }}
+      run: |
+        set -euo pipefail
+        curl -fsSL "https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/nu.tar.gz
+        tar -xzf /tmp/nu.tar.gz -C /tmp
+        sudo mv "/tmp/nu-${NU_VERSION}-x86_64-unknown-linux-gnu/nu" /usr/local/bin/nu
+        nu --version
