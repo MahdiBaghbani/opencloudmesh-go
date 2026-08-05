@@ -87,8 +87,8 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: go build
-        run: go build ./...
+      - name: Build Go binary
+        uses: ./.github/actions/build-go
 
       - name: go test
         run: go test ./...
@@ -140,6 +140,7 @@ jobs:
     # `on.workflow_call.secrets`; every job (including reusable-workflow
     # calls) already receives its own ephemeral GITHUB_TOKEN automatically,
     # so it is not passed through here.
-    uses: ./.github/workflows/build-push-docker.yml
+    uses: ./.github/workflows/docker-build.yml
     with:
+      push: true
       semver: ${{ needs.release.outputs.version }}

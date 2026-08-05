@@ -3,7 +3,7 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: CI Build
+name: CI Build Binary
 
 on:
   workflow_call:
@@ -14,4 +14,10 @@ permissions:
 jobs:
   build:
     name: build
-    uses: ./.github/workflows/ci-build-binary.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build Go binary
+        uses: ./.github/actions/build-go
