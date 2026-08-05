@@ -14,6 +14,8 @@ golangci = "golangci"
 opencloudmesh = "opencloudmesh"
 dockypody = "dockypody"
 wayf = "wayf"
+# in-toto provenance attestation file extension (*.intoto.jsonl); not the word "into".
+intoto = "intoto"
 # RFC 8615 style path segment (hyphenated form is also checked as tokens).
 well-known = "well-known"
 # Intentional American-adjacent identifier used across config/discovery APIs.
