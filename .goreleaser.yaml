@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# GoReleaser v2 config for binary release archives.
+# Release notes come from --release-notes=.changes/<tag>.md (no changelog: key).
+version: 2
+
+before:
+  hooks:
+    # Download only: go mod tidy dirties the tag checkout and aborts the run.
+    - go mod download
+
+gomod:
+  proxy: false
+
+builds:
+  - id: opencloudmesh-go
+    main: ./cmd/opencloudmesh-go
+    binary: opencloudmesh-go
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    # Binary is included automatically. Notices: curated index, REUSE SQLite
+    # text, and the go-licenses tree prepared by make licenses-save
+    # (paths keep bin/licenses/ so modernc module dirs stay nested).
+    files:
+      - LICENSE-3RD-PARTY.md
+      - LICENSES/LicenseRef-SQLite-Public-Domain.txt
+      - bin/licenses/**/*
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+release:
+  prerelease: auto
+  mode: replace
+  replace_existing_artifacts: true

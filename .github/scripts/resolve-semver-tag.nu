@@ -7,18 +7,7 @@
 # Reads DISPATCH_SEMVER, GITHUB_EVENT_NAME, GITHUB_REF_TYPE, GITHUB_REF.
 # Appends semver_tag, full_sha, sha_tag to GITHUB_OUTPUT.
 
-# Core: no leading zeros. Prerelease ids: 0 | [1-9][0-9]* | alnum/hyphen with a letter/hyphen.
-# Build metadata (+...) rejected. Same check for workflow_dispatch, workflow_call, and tag push.
-# Plain single-quoted string: interpolated $"..." treats [0-9] as an unclosed delimiter.
-const SEMVER_RE = '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$'
-
-def append-output [name: string, value: string] {
-  $"($name)=($value)\n" | save --append $env.GITHUB_OUTPUT
-}
-
-def semver-ok [tag: string] {
-  $tag =~ $SEMVER_RE
-}
+use ./release-semver-common.nu [semver-ok, append-output, git-head-sha]
 
 def main [] {
   let event_name = ($env.GITHUB_EVENT_NAME? | default '')
@@ -49,17 +38,7 @@ def main [] {
     exit 1
   }
 
-  let rev = (try {
-    ^git rev-parse HEAD | complete
-  } catch {
-    {exit_code: 127, stdout: '', stderr: 'git not found'}
-  })
-  if $rev.exit_code != 0 {
-    let stderr_msg = (try { $rev.stderr } catch { 'Unknown error' })
-    print --stderr $"resolve-semver-tag: git rev-parse failed: ($stderr_msg)"
-    exit $rev.exit_code
-  }
-  let full_sha = ($rev.stdout | str trim)
+  let full_sha = (git-head-sha --label resolve-semver-tag)
 
   append-output 'semver_tag' $semver_tag
   append-output 'full_sha' $full_sha

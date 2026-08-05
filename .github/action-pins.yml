@@ -28,6 +28,9 @@ pins:
   golang/govulncheck-action:
     release: v1.1.0
     sha: 032d45514ae346b1db93c04b0c90b841c370344f
+  goreleaser/goreleaser-action:
+    release: v7.2.3
+    sha: f06c13b6b1a9625abc9e6e439d9c05a8f2190e94
   astral-sh/setup-uv:
     release: v9.0.0
     sha: c771a70e6277c0a99b617c7a806ffedaca235ff9
