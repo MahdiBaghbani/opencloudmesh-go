@@ -139,7 +139,7 @@ export def validate-archives-manifest [manifest: record, root: string] {
 # Parse digest-pin fields from the install-nushell composite action. The
 # composite lane should expose NU_SHA256 in env and verify with sha256sum -c.
 export def parse-install-nushell-composite [text: string] {
-  mut sha256 = null
+  mut sha256: any = null
   for line in ($text | lines) {
     let parsed = ($line | parse -r $NU_SHA256_ENV)
     if not ($parsed | is-empty) {
