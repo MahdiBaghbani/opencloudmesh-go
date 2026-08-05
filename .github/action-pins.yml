@@ -83,3 +83,8 @@ pins:
   hadolint/hadolint-action:
     release: v3.4.0
     sha: 2a66e89f53d0771bb131a7fa31f3136336094aa6
+archives:
+  nushell/nushell:
+    version: 0.114.1
+    asset: nu-0.114.1-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 8802b26edcdf1a64477567b5ce909fbae3d72d731c8f0847892ea16c6fa73c53
