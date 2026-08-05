@@ -3,38 +3,93 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: Build and Push Docker
+name: Docker Build
 
 on:
-  # push:tags is a fallback for human-pushed tags only. release.yml calls this
-  # via workflow_call, because GITHUB_TOKEN-pushed tags do not trigger on:push.
-  push:
-    tags:
-      - "v[0-9]*.[0-9]*.[0-9]*"
-      - "v[0-9]*.[0-9]*.[0-9]*-*"
+  # Publish is driven by release.yml via workflow_call (push: true + semver).
+  # Verify mode uses push: false (load local image, ci-<sha> tag).
   workflow_dispatch:
     inputs:
+      push:
+        description: Push image to GHCR (publish mode)
+        required: false
+        type: boolean
+        default: false
       semver:
-        description: Semver image tag (example v1.2.3)
-        required: true
+        description: Semver image tag (example v1.2.3); required when push is true
+        required: false
         type: string
+        default: ''
   workflow_call:
     inputs:
+      push:
+        description: Push image to GHCR (publish mode)
+        required: false
+        type: boolean
+        default: false
       semver:
-        description: Semver image tag (example v1.2.3)
-        required: true
+        description: Semver image tag (example v1.2.3); required when push is true
+        required: false
         type: string
+        default: ''
 
 permissions:
   contents: read
-  packages: write
 
 env:
   IMAGE: ghcr.io/mahdibaghbani/opencloudmesh-go
   NU_VERSION: 0.114.1
 
 jobs:
-  build-and-push:
+  verify:
+    if: ${{ inputs.push == false }}
+    name: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: setup buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+
+      - name: Build image (load local)
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          build-args: |
+            OCM_IMAGE_VERSION=ci-${{ github.sha }}
+            OCM_IMAGE_REVISION=${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE }}:ci-${{ github.sha }}
+          provenance: 'false'
+          sbom: false
+
+      # Report-only: continue-on-error suppresses CRITICAL failures so the job
+      # stays green while findings are collected. Flip to blocking later by
+      # removing continue-on-error once the image has zero CRITICAL findings
+      # (CRITICAL-gated; do not tighten severity until that wave).
+      - name: Scan image for CRITICAL vulnerabilities (report-only)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        continue-on-error: true
+        with:
+          image-ref: ${{ env.IMAGE }}:ci-${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+  publish:
+    if: ${{ inputs.push == true }}
+    name: publish
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -46,7 +101,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_call' && inputs.semver || '' }}
+          ref: ${{ inputs.semver }}
           persist-credentials: false
 
       - uses: ./.github/actions/install-nushell
@@ -72,13 +127,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: build and push image
+      - name: Build and push image
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: .
           file: docker/Dockerfile
           push: true
+          load: false
           build-args: |
             OCM_IMAGE_VERSION=${{ steps.meta.outputs.semver_tag }}
             OCM_IMAGE_REVISION=${{ steps.meta.outputs.full_sha }}
@@ -111,7 +167,10 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      # Report-only: continue-on-error suppresses CRITICAL failures; flip to blocking by removing continue-on-error once the image has zero CRITICAL findings.
+      # Report-only: continue-on-error suppresses CRITICAL failures so the job
+      # stays green while findings are collected. Flip to blocking later by
+      # removing continue-on-error once the image has zero CRITICAL findings
+      # (CRITICAL-gated; do not tighten severity until that wave).
       - name: Scan image for CRITICAL vulnerabilities (report-only)
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         continue-on-error: true

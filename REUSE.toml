@@ -82,3 +82,13 @@ path = "assets/logos/funders/sovereign-tech-fund.svg"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Sovereign Tech Fund"
 SPDX-License-Identifier = "LicenseRef-SovereignTech-Brand"
+
+# Curated SQLite public-domain dedication shipped as SQLITE-LICENSE in
+# the image licenses tree. License text lives under LICENSES/; this
+# committed notice source is what make licenses-save copies into
+# bin/licenses (gitignored), so REUSE can see the LicenseRef as used.
+[[annotations]]
+path = "docs/notices/SQLITE-PUBLIC-DOMAIN.txt"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "SQLite authors (Hwaci)"
+SPDX-License-Identifier = "LicenseRef-SQLite-Public-Domain"

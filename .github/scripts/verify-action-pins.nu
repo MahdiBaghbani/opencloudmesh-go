@@ -5,7 +5,13 @@
 
 # Verify workflow action refs match .github/action-pins.yml (immutable SHA pins).
 
-use ./action-pins-common.nu [load-action-pins-context]
+use ./action-pins-common.nu [
+  load-action-pins-context
+  validate-archives-manifest
+  parse-install-nushell-composite
+  validate-install-nushell-composite-drift
+  INSTALL_NUSHELL_ACTION_REL
+]
 
 const HEX40 = '^[a-f0-9]{40}$'
 const USES_LINE = 'uses:\s*(?<action>[^@\s]+)@(?<ref>\S+)'
@@ -66,6 +72,25 @@ def main [] {
         $errors = ($errors | append $"($path): ($use.action)@($use.ref) != manifest ($expected | get $use.action)")
       }
     }
+  }
+
+  let archive_ctx = (validate-archives-manifest $manifest $ctx.root)
+  $errors = ($errors | append $archive_ctx.errors)
+
+  let nushell_entry = ($archive_ctx.nushell_entry?)
+  if $nushell_entry != null {
+    let action_path = ($ctx.root | path join $INSTALL_NUSHELL_ACTION_REL)
+    let composite_text = (open --raw $action_path)
+    let composite_pins = (parse-install-nushell-composite $composite_text)
+    $errors = (
+      $errors
+      | append (
+        validate-install-nushell-composite-drift
+          $nushell_entry
+          $composite_pins
+          $action_path
+      )
+    )
   }
 
   if not ($errors | is-empty) {
