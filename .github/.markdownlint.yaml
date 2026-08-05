@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# GitHub templates are embedded Markdown snippets, not standalone documents.
+MD013: false
+MD034: false
+MD060: false
+MD033:
+  allowed_elements:
+    - p
+    - a
+    - img
+MD041: false

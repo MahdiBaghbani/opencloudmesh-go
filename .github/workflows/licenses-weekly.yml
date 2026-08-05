@@ -3,7 +3,7 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-# Report-only at T+0; weekly block flips at T+2w after 0 unknown, per W7.
+# Scheduled blocking license check. Fails on unknown/out-of-allowlist licenses.
 # Not wired into ci.yml.
 
 name: Licenses Weekly
@@ -30,7 +30,6 @@ jobs:
           cache: true
       - name: Install go-licenses
         run: make licenses-install
-      # Report-only at T+0; single suppression layer is this step's continue-on-error (NOT a Make `-` prefix). W7 flips CI to blocking by removing this continue-on-error.
-      - name: License check (report-only)
+      # Blocking: the Make target is strict. CI fails on unknown/out-of-allowlist licenses.
+      - name: License check
         run: make licenses-check
-        continue-on-error: true

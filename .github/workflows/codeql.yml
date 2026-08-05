@@ -3,9 +3,8 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-# Report-only at T+0; flip to a required blocking check via branch
-# protection once the Security-tab baseline is clean (per W7/operator).
-# Not wired into ci.yml so it does not block PR merge.
+# Report-only: not wired into ci.yml, so it does not block PR merge.
+# Flip to a required check via branch protection once the Security-tab baseline is clean.
 
 name: CodeQL
 

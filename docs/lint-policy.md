@@ -41,10 +41,10 @@ it conform.
 
 Earlier `.golangci.yml` scaffolding excluded cyclop on test paths, `noctx`
 on test and integration paths, and gosec on test paths. That scaffolding
-was temporary while tests were refactored to meet the full bar. W6 removed
-those exclusions after the refactors landed. Findings newly surfaced by
-removal were burned down under the same refactor-first bar as production
-code; no replacement test-path waivers were added.
+was temporary while tests were refactored to meet the full bar. After the
+test refactors landed, the temporary exclusions were removed. Findings newly
+surfaced by removal were burned down under the same refactor-first bar as
+production code; no replacement test-path waivers were added.
 
 ## Retained justified categories
 
@@ -162,8 +162,13 @@ uv run pre-commit run --all-files
 
 A clean `make lint` is the golangci-lint gate. `go test ./...` exercises the
 full module including integration tests. `gofmt -l .` must produce no output.
-Pre-commit and REUSE checks mirror CI hygiene for commits that touch Go or
-licensed files.
+Pre-commit covers gofmt, goimports, go vet, go mod tidy, golangci-lint, unit
+tests, shellcheck, actionlint, and REUSE - the Go, shell, workflow, and
+licensing gates. The hygiene quartet (markdownlint, typos, hadolint, yamllint)
+runs in CI and is available locally via `make markdownlint`, `make typos`,
+`make hadolint`, and `make yamllint` (prerequisites: `make hygiene-tools`); it
+is intentionally not a pre-commit hook so contributors are not forced to
+install bun, uv, typos, and hadolint.
 
 Related: [development.md](development.md), [testing.md](testing.md),
 [CONTRIBUTING.md](../CONTRIBUTING.md).

@@ -64,3 +64,13 @@ pins:
   marocchino/sticky-pull-request-comment:
     release: v3.0.5
     sha: 5770ad5eb8f42dd2c4f34da00c94c5381e49af88
+  oven-sh/setup-bun:
+    release: v2.2.0
+    sha: 0c5077e51419868618aeaa5fe8019c62421857d6
+  # Action lives in crate-ci/typos (not a separate typos-action repo).
+  crate-ci/typos:
+    release: v1.49.0
+    sha: 8a48f81b6c64dcfea44b3633223084c4be58ac5f
+  hadolint/hadolint-action:
+    release: v3.4.0
+    sha: 2a66e89f53d0771bb131a7fa31f3136336094aa6

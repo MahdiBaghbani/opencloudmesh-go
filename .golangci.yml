@@ -144,7 +144,8 @@ linters:
         - G306
         # G104: best-effort cleanup; meaningful errors covered by errcheck
         - G104
-        # G101: matches reason-code strings and test-fixture labels, not real secrets; real secrets are env/config-injected
+        # G101: matches reason-code strings and test-fixture labels, not real secrets;
+        # real secrets are env/config-injected
         - G101
         # G115: conversions are over fixed small values (lengths, argon2 params); no unbounded input
         - G115

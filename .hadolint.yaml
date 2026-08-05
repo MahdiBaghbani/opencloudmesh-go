@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# DL3008 is ignored for Debian packages because this image relies on the
+# distribution's supported package set rather than per-package version pins
+# across its build and runtime stages.
+ignored:
+  - DL3008
