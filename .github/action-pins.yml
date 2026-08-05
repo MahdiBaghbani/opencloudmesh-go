@@ -7,6 +7,9 @@
 # release: upstream tag at pin time; sha: lowercase 40-char commit for that tag.
 schema_version: 1
 pins:
+  actions/attest-build-provenance:
+    release: v4.1.1
+    sha: 0f67c3f4856b2e3261c31976d6725780e5e4c373
   actions/checkout:
     release: v7.0.1
     sha: 3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -28,6 +31,9 @@ pins:
   astral-sh/setup-uv:
     release: v9.0.0
     sha: c771a70e6277c0a99b617c7a806ffedaca235ff9
+  aquasecurity/trivy-action:
+    release: v0.36.0
+    sha: a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
   coverallsapp/github-action:
     release: v2.3.8
     sha: 8d6379e14d29928660c4ba802d8e85393440b329

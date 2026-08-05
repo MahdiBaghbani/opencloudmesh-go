@@ -59,3 +59,19 @@ to the public internet.
 The project may run `govulncheck` and other automated dependency scanning in
 CI. Those results are informational. They are not a hard gate and do not
 guarantee a fix timeline or SLA for reported vulnerabilities.
+
+## Signed Releases
+
+Scorecard's Signed-Releases check is expected to fail because GitHub Artifact
+Attestations live in the attestations API, not in release assets named
+`*.sig`, `*.asc`, or `*.intoto.jsonl` that Scorecard scans. This failing check
+is accepted as non-required. Provenance is verifiable with:
+
+```bash
+gh attestation verify oci://ghcr.io/mahdibaghbani/opencloudmesh-go:v1.2.3 \
+  --repo MahdiBaghbani/opencloudmesh-go
+```
+
+See upstream Scorecard issues
+[#4667](https://github.com/ossf/scorecard/issues/4667) and
+[#4080](https://github.com/ossf/scorecard/issues/4080).
