@@ -3,34 +3,30 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: CI Format + Vet
+name: CI Lint Golangci
 
 on:
   workflow_call:
 
-permissions:
-  contents: read
-
 env:
-  GOIMPORTS_VERSION: v0.30.0
+  GOLANGCI_LINT_VERSION: v2.12.2
 
 jobs:
-  fmt-vet:
-    name: fmt + vet
+  lint:
+    name: golangci-lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
-      - name: Verify formatting
-        run: make fmt-check
-      - name: go vet
-        run: make vet
-      - name: go mod tidy check
-        run: go mod tidy && git diff --exit-code go.mod go.sum
+      # Full-tree lint gate: baseline is clean, so CI blocks on any issue.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m

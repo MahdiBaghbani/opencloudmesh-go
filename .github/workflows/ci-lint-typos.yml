@@ -3,7 +3,7 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: CI hadolint
+name: CI Lint Typos
 
 on:
   workflow_call:
@@ -12,17 +12,16 @@ permissions:
   contents: read
 
 jobs:
-  hadolint:
-    name: hadolint
+  typos:
+    name: typos
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # hadolint-action has no path-filter input; always lint docker/Dockerfile.
+      # crate-ci ships the action as crate-ci/typos (action.yml name: typos-action).
       # Blocking: findings fail CI.
-      - name: hadolint
-        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6
+      - name: typos
+        uses: crate-ci/typos@8a48f81b6c64dcfea44b3633223084c4be58ac5f
         with:
-          dockerfile: docker/Dockerfile
-          config: .hadolint.yaml
+          config: .typos.toml
