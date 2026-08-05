@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: Release Binary
+
+on:
+  # Publish is driven by release.yml via workflow_call. GITHUB_TOKEN-pushed
+  # tags do not fire on:push, so this lane is never tag-push triggered.
+  # Intentional retry path: re-run with the same tag. Gated by Validate release
+  # tag (annotated tag must already exist and .changes/<tag>.md must exist), so
+  # only already-validated tags can be re-released.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v-prefixed release tag (example v1.2.3)
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing v-prefixed release tag (example v1.2.3)
+        required: true
+        type: string
+
+# Workflow-level permissions stay minimal; the binary job declares write scope
+# for release upload and provenance attestation (zizmor excessive-permissions).
+permissions:
+  contents: read
+
+env:
+  NU_VERSION: 0.114.1
+
+concurrency:
+  group: release-binary-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  binary:
+    name: binary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: checkout (default branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
+
+      - name: Validate release tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: nu .github/scripts/validate-release-tag.nu
+
+      - name: Checkout release tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: git checkout --detach "refs/tags/${TAG}"
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          # cache disabled to silence zizmor cache-poisoning; release builds are one-off
+          cache: false
+
+      - name: Install go-licenses
+        run: make licenses-install
+
+      - name: Save NOTICE and LICENSES
+        run: make licenses-save
+
+      - name: Assert modernc notice files
+        run: |
+          set -euo pipefail
+          test -f LICENSE-3RD-PARTY.md
+          test -f LICENSES/LicenseRef-SQLite-Public-Domain.txt
+          test -f bin/licenses/modernc.org/libc/LICENSE
+          test -f bin/licenses/modernc.org/sqlite/lib/LICENSE
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.1
+          args: release --clean --release-notes=.changes/${{ inputs.tag }}.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest binary provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
