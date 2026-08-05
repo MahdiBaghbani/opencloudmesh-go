@@ -6,7 +6,7 @@
 # Require every listed CI job result env var to be exactly "success".
 # Workflow step must supply:
 #   LINT_RESULT, SECURITY_RESULT, LICENSES_RESULT, TEST_RESULT,
-#   BUILD_RESULT, ACTION_PINS_RESULT, REUSE_RESULT
+#   BUILD_RESULT, PINS_RESULT, REUSE_RESULT
 
 def require-success [name: string] {
   let value = ($env | get --optional $name | default '')
@@ -24,6 +24,6 @@ def main [] {
   require-success 'LICENSES_RESULT'
   require-success 'TEST_RESULT'
   require-success 'BUILD_RESULT'
-  require-success 'ACTION_PINS_RESULT'
+  require-success 'PINS_RESULT'
   require-success 'REUSE_RESULT'
 }
