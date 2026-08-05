@@ -1,0 +1,7 @@
+kind: changed
+body: >-
+  build foundation: switch the SQLite driver to pure-Go
+  glebarez to drop the CGO dependency, add a reusable build-go
+  composite action and a reusable docker-build workflow, add a
+  ci-build dispatcher, and pin the install-nushell action archive
+  digest with a verify step
