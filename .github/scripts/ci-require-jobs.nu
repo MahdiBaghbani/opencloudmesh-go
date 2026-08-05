@@ -4,7 +4,11 @@
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 # Require every listed CI job result env var to be exactly "success".
-# Workflow step must supply:
+# require-success passes only on "success" and fails on ANY non-success
+# result, including cancelled, skipped, and failed.
+# This complements the rollup job's if: always(), which ensures the rollup
+# runs even when an upstream job is cancelled.
+# CI rollup job env must supply:
 #   LINT_RESULT, SECURITY_RESULT, LICENSES_RESULT, TEST_RESULT,
 #   BUILD_RESULT, PINS_RESULT, REUSE_RESULT
 
