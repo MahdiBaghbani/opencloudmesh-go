@@ -14,7 +14,7 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![REUSE compliance status](https://api.reuse.software/badge/github.com/MahdiBaghbani/opencloudmesh-go)](https://api.reuse.software/info/github.com/MahdiBaghbani/opencloudmesh-go)
 [![CI status](https://img.shields.io/github/actions/workflow/status/MahdiBaghbani/opencloudmesh-go/ci.yml?branch=master&label=CI)](https://github.com/MahdiBaghbani/opencloudmesh-go/actions/workflows/ci.yml)
-[![Playwright E2E](https://img.shields.io/github/actions/workflow/status/MahdiBaghbani/opencloudmesh-go/ci-e2e.yml?branch=master&label=playwright%20e2e)](https://github.com/MahdiBaghbani/opencloudmesh-go/actions/workflows/ci-e2e.yml)
+[![Playwright E2E](https://img.shields.io/github/actions/workflow/status/MahdiBaghbani/opencloudmesh-go/ci-test-e2e.yml?branch=master&label=playwright%20e2e)](https://github.com/MahdiBaghbani/opencloudmesh-go/actions/workflows/ci-test-e2e.yml)
 [![Coverage status](https://coveralls.io/repos/github/MahdiBaghbani/opencloudmesh-go/badge.svg?branch=master)](https://coveralls.io/github/MahdiBaghbani/opencloudmesh-go?branch=master)
 [![Release](https://img.shields.io/github/v/release/MahdiBaghbani/opencloudmesh-go?label=release)](https://github.com/MahdiBaghbani/opencloudmesh-go/releases)
 [![Release status](https://img.shields.io/github/actions/workflow/status/MahdiBaghbani/opencloudmesh-go/release.yml?branch=master&label=release)](https://github.com/MahdiBaghbani/opencloudmesh-go/actions/workflows/release.yml)

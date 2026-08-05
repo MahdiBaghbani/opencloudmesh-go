@@ -3,7 +3,7 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: CI E2E
+name: CI Test E2E
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
               - 'go.mod'
               - 'go.sum'
               - 'Makefile'
-              - '.github/workflows/ci-e2e.yml'
+              - '.github/workflows/ci-test-e2e.yml'
       - uses: ./.github/actions/install-nushell
         with:
           nu-version: ${{ env.NU_VERSION }}

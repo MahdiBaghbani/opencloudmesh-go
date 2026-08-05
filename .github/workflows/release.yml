@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 env:
-  # Pinned changie release; update together with changelog-check.yml.
+  # Pinned changie release; update together with policy-changelog-check.yml.
   CHANGIE_VERSION: v1.25.1
   GOLANGCI_LINT_VERSION: v2.12.2
   NU_VERSION: 0.114.1

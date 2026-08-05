@@ -5,7 +5,7 @@
 
 # Scheduled and path-filtered Go fuzz runs; standalone (not wired into ci.yml).
 
-name: Fuzz
+name: CI Test Fuzz
 
 on:
   schedule:

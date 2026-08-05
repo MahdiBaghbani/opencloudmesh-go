@@ -6,7 +6,7 @@
 # Path filter for fuzz CI: set run=true when the BASE_SHA...HEAD diff
 # touches fuzz-relevant paths. Reads BASE_SHA; appends run to GITHUB_OUTPUT.
 
-const FUZZ_PATH_RE = '^(internal/platform/crypto/|internal/components/ocm/spec/|go\.mod$|go\.sum$|Makefile$|\.github/workflows/fuzz\.yml$)'
+const FUZZ_PATH_RE = '^(internal/platform/crypto/|internal/components/ocm/spec/|go\.mod$|go\.sum$|Makefile$|\.github/workflows/ci-test-fuzz\.yml$)'
 
 def append-output [name: string, value: string] {
   $"($name)=($value)\n" | save --append $env.GITHUB_OUTPUT
