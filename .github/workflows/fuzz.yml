@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Scheduled and path-filtered Go fuzz runs; standalone (not wired into ci.yml).
+
+name: Fuzz
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          # Full history: the path-filter step needs a merge base for the
+          # three-dot diff against the PR base SHA. Fuzz runs are low-frequency.
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          cache: true
+      # pull_request only: skip when the diff touches no fuzz-relevant paths.
+      - name: Path filter
+        if: github.event_name == 'pull_request'
+        id: path_filter
+        env:
+          # base.sha is a parent of the PR merge commit; with fetch-depth: 0
+          # it is present in the local history, so the three-dot diff resolves
+          # without an extra git fetch.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE_SHA...HEAD")
+          # here-string (not a pipe) so grep -q cannot SIGPIPE a producer under pipefail
+          # internal/platform/crypto/ covers sigparams, jwks, sigalg, and keyid.
+          if grep -qE \
+            '^(internal/platform/crypto/|internal/components/ocm/spec/|go\.mod$|go\.sum$|Makefile$|\.github/workflows/fuzz\.yml$)' <<< "$changed"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No fuzz-relevant changes; skipping."
+          fi
+      - name: Run fuzz
+        if: github.event_name != 'pull_request' || steps.path_filter.outputs.run == 'true'
+        run: make fuzz
+      # Corpus persistence is operator-driven: download the artifact and commit
+      # new entries under testdata/fuzz/ locally (no auto-commit; no PAT).
+      - name: Upload fuzz corpus
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || steps.path_filter.outputs.run == 'true') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: fuzz-corpus
+          path: '**/testdata/fuzz/'
+          if-no-files-found: ignore

@@ -6,7 +6,7 @@
 # OpenCloudMesh server build and test targets.
 SHELL := /bin/bash
 .PHONY: build test-go test-integration test-e2e test-e2e-install \
-	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
+	test fuzz clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
 	actionlint security licenses licenses-check licenses-save licenses-install check ci \
 	pre-commit-install pre-commit-run \
 	generate-action-inventory verify-action-pins reuse-lint \
@@ -19,13 +19,42 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 build:
 	go build -ldflags "-X main.version=$(VERSION)" -o bin/opencloudmesh-go ./cmd/opencloudmesh-go
 
-# Run unit tests with race detector (excludes integration tests)
+# Run unit tests with race detector (excludes integration tests).
+# -count=1 disables cached results; -shuffle=on randomizes test execution
+# order within each package (not package traversal order).
 test-go:
-	go test -race -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-unit.out $$(go list ./... | grep -v /tests/integration)
+	go test -race -count=1 -shuffle=on -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-unit.out $$(go list ./... | grep -v /tests/integration)
 
-# Run integration tests only
+# Run integration tests only; -count=1 and -shuffle=on match test-go
+# (randomizes test execution order within each package, not package order).
 test-integration:
-	go test -race -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-integration.out ./tests/integration/...
+	go test -race -count=1 -shuffle=on -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-integration.out ./tests/integration/...
+
+# Fuzz targets for crypto and OCM JSON parsers (long-running; not part of ci).
+# go test -fuzz requires exactly one package and exactly one matching fuzz
+# target, so each pair runs in its own invocation for FUZZ_TIME.
+FUZZ_TIME ?= 30s
+FUZZ_TARGETS := \
+  FuzzParseSignatureInput:./internal/platform/crypto/sigparams \
+  FuzzUnmarshalNewShareRequest:./internal/components/ocm/spec \
+  FuzzUnmarshalJWKS:./internal/platform/crypto/jwks
+
+fuzz:
+	@set -eu; \
+	if [ -z "$(FUZZ_TARGETS)" ]; then \
+		echo "FUZZ_TARGETS is empty; set FUZZ_TARGETS to 'Target:pkg ...' to fuzz" >&2; \
+		exit 1; \
+	fi; \
+	for pair in $(FUZZ_TARGETS); do \
+		case "$$pair" in \
+			*:*) ;; \
+			*) echo "malformed FUZZ_TARGETS entry '$$pair' (expected Target:pkg); skipping" >&2; continue ;; \
+		esac; \
+		target=$${pair%%:*}; \
+		pkg=$${pair##*:}; \
+		echo "fuzz $$target @ $$pkg ($(FUZZ_TIME))"; \
+		go test -fuzz=$$target -fuzztime=$(FUZZ_TIME) $$pkg; \
+	done
 
 # Install E2E test dependencies
 test-e2e-install:
