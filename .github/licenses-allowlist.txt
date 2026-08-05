@@ -4,7 +4,7 @@
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 # Allowed license names for `go-licenses check --allowed_licenses=...`.
-# Aligned with .github/workflows/ci-dependency-review.yml allow-licenses.
+# Aligned with .github/workflows/ci-security-dependency-review.yml allow-licenses.
 # go-licenses classifier emits bare AGPL-3.0 for this repo's LICENSE, so
 # AGPL-3.0 is listed in addition to the SPDX -only / -or-later forms.
 Apache-2.0

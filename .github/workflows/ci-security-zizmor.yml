@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: CI Security Zizmor
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    env:
+      ZIZMOR_VERSION: 1.29.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install zizmor
+        run: pipx install "zizmor==${ZIZMOR_VERSION}"
+      # Blocking zizmor gate: high-severity workflow findings (SARIF "error" level)
+      # fail the security job. SARIF mode always exits 0 by design, so the upload
+      # artifact is produced first (stdout redirect; zizmor has no -o/--output
+      # flag, -o is --offline) and the plain run below does the gating.
+      - name: zizmor SARIF
+        run: zizmor --min-severity high --format sarif . > zizmor.sarif
+      - name: zizmor gate
+        run: zizmor --min-severity high .
+      - name: Upload zizmor SARIF
+        if: >-
+          always() &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
