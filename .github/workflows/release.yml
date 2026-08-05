@@ -18,9 +18,10 @@ on:
           - patch
         default: minor
 
+# Workflow-level permissions stay minimal; jobs that need write scope declare
+# it themselves (zizmor excessive-permissions).
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 env:
   # Pinned changie release; update together with changelog-check.yml.
@@ -36,6 +37,9 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest
+    # contents: write is required for git push, tagging, and gh release create.
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
@@ -45,6 +49,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          # Push auth is re-established explicitly in the push step below.
+          persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
@@ -59,33 +65,24 @@ jobs:
 
       - name: Resolve release version
         id: version
-        run: |
-          set -euo pipefail
-          VERSION="$(changie latest)"
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "Resolved release version: ${VERSION}"
+        run: version="$(changie latest)"; printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
       - name: Merge changelog
         run: changie merge
 
       - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+        run: git config user.name "github-actions[bot]" && git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Stage release changes
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          git add CHANGELOG.md ".changes/${VERSION}.md" .changes/unreleased
+        run: git add CHANGELOG.md ".changes/${VERSION}.md" .changes/unreleased
 
+      # -s adds the Signed-off-by trailer the repo commit policy requires.
       - name: Commit release
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          # -s adds the Signed-off-by trailer the repo commit policy requires.
-          git commit -s -m "chore(release): ${VERSION}"
+        run: 'git commit -s -m "chore(release): ${VERSION}"'
 
       - name: go vet
         run: go vet ./...
@@ -102,13 +99,9 @@ jobs:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m
 
-      - name: Install Nushell
-        run: |
-          set -euo pipefail
-          curl -fsSL "https://github.com/nushell/nushell/releases/download/${{ env.NU_VERSION }}/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/nu.tar.gz
-          tar -xzf /tmp/nu.tar.gz -C /tmp
-          sudo mv "/tmp/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu/nu" /usr/local/bin/nu
-          nu --version
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
 
       - name: Verify immutable action pins
         run: make verify-action-pins
@@ -121,6 +114,10 @@ jobs:
       - name: Push release commit and tag
         run: |
           set -euo pipefail
+          # persist-credentials is off, so authenticate pushes explicitly.
+          # The token never hits logs: nothing here echoes the URL (no set -x)
+          # and Actions masks the GITHUB_TOKEN value in git's push output.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin HEAD:"${GITHUB_REF#refs/heads/}"
           git push origin "${{ steps.version.outputs.version }}"
 
@@ -132,6 +129,13 @@ jobs:
   image:
     name: image
     needs: release
+    # The called workflow can only maintain or downgrade this token, so the
+    # image publish and attestation permissions must be granted here.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     # GITHUB_TOKEN is a reserved secret name and cannot be declared in
     # `on.workflow_call.secrets`; every job (including reusable-workflow
     # calls) already receives its own ephemeral GITHUB_TOKEN automatically,

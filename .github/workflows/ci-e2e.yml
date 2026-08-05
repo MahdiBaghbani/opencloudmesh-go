@@ -22,6 +22,7 @@ env:
   BUN_VERSION: 1.3.14
   # From oven-sh/bun release asset SHASUMS256.txt for bun-linux-x64.zip.
   BUN_LINUX_X64_SHA256: 951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f
+  NU_VERSION: 0.114.1
 
 concurrency:
   group: ci-e2e-${{ github.ref }}
@@ -34,19 +35,11 @@ jobs:
     outputs:
       e2e: ${{ steps.apply.outputs.e2e }}
     steps:
-      - id: decide
-        env:
-          EVENT: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT" = "schedule" ] || [ "$EVENT" = "workflow_dispatch" ]; then
-            echo "force=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "force=false" >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        if: steps.decide.outputs.force != 'true'
+        with:
+          fetch-depth: 1
+          persist-credentials: false
       - id: filter
-        if: steps.decide.outputs.force != 'true'
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706
         with:
           filters: |
@@ -59,16 +52,14 @@ jobs:
               - 'go.sum'
               - 'Makefile'
               - '.github/workflows/ci-e2e.yml'
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
       - id: apply
         env:
-          FORCE: ${{ steps.decide.outputs.force }}
+          EVENT: ${{ github.event_name }}
           FILTERED: ${{ steps.filter.outputs.e2e }}
-        run: |
-          if [ "$FORCE" = "true" ]; then
-            echo "e2e=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "e2e=$FILTERED" >> "$GITHUB_OUTPUT"
-          fi
+        run: nu .github/scripts/e2e-changes.nu
 
   e2e:
     name: e2e
@@ -81,6 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
@@ -136,18 +129,15 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
       - name: Report e2e result
         env:
           CHANGES: ${{ needs.changes.result }}
           RESULT: ${{ needs.e2e.result }}
-        run: |
-          echo "changes result: ${CHANGES}"
-          echo "e2e result: ${RESULT}"
-          if [ "${CHANGES}" != "success" ]; then
-            exit 1
-          fi
-          if [ "${RESULT}" = "success" ] || [ "${RESULT}" = "skipped" ]; then
-            exit 0
-          else
-            exit 1
-          fi
+        run: nu .github/scripts/e2e-result.nu

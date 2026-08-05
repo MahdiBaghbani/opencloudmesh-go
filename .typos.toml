@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Project / domain terms and intentional identifier spellings.
+# Map each allowlisted token to itself so typos accepts it as-is.
+
+[default.extend-words]
+OCM = "OCM"
+WebDAV = "WebDAV"
+changie = "changie"
+golangci = "golangci"
+opencloudmesh = "opencloudmesh"
+dockypody = "dockypody"
+wayf = "wayf"
+# in-toto provenance attestation file extension (*.intoto.jsonl); not the word "into".
+intoto = "intoto"
+# RFC 8615 style path segment (hyphenated form is also checked as tokens).
+well-known = "well-known"
+# Intentional American-adjacent identifier used across config/discovery APIs.
+unparseable = "unparseable"
+
+[default.extend-identifiers]
+Unparseable = "Unparseable"
+WebDAV = "WebDAV"
+OCM = "OCM"
+
+[files]
+extend-exclude = ["internal/components/ocm/spec/vendor/"]

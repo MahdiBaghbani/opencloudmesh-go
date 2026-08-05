@@ -31,53 +31,36 @@ permissions:
 
 env:
   IMAGE: ghcr.io/mahdibaghbani/opencloudmesh-go
+  NU_VERSION: 0.114.1
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_call' && inputs.semver || '' }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
 
       - name: Resolve semver tag
         id: meta
         env:
           DISPATCH_SEMVER: ${{ inputs.semver }}
-        run: |
-          set -eu
-          semver_ok() {
-            # Core: no leading zeros. Prerelease ids: 0 | [1-9][0-9]* | alnum/hyphen with a letter/hyphen.
-            # Build metadata (+...) rejected. Same check for workflow_dispatch, workflow_call, and tag push.
-            local id='(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)'
-            [[ "$1" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-${id}(\.${id})*)?$ ]]
-          }
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
-            if [ -z "${DISPATCH_SEMVER}" ]; then
-              echo "workflow_dispatch/workflow_call requires inputs.semver"
-              exit 1
-            fi
-            SEMVER_TAG="${DISPATCH_SEMVER}"
-          elif [ "${{ github.ref_type }}" = "tag" ]; then
-            SEMVER_TAG="${GITHUB_REF#refs/tags/}"
-          else
-            echo "Ref ${{ github.ref }} does not carry a semver tag"
-            exit 1
-          fi
-          if ! semver_ok "${SEMVER_TAG}"; then
-            echo "Invalid semver tag: ${SEMVER_TAG}"
-            exit 1
-          fi
-          FULL_SHA="$(git rev-parse HEAD)"
-          {
-            echo "semver_tag=${SEMVER_TAG}"
-            echo "full_sha=${FULL_SHA}"
-            echo "sha_tag=sha-${FULL_SHA}"
-          } >> "${GITHUB_OUTPUT}"
-          echo "SEMVER_TAG=${SEMVER_TAG}"
-          echo "GITHUB_SHA=${FULL_SHA}"
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+          GITHUB_REF: ${{ github.ref }}
+        run: nu .github/scripts/resolve-semver-tag.nu
 
       - name: setup buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
@@ -102,6 +85,8 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ steps.meta.outputs.semver_tag }}
             ${{ env.IMAGE }}:${{ steps.meta.outputs.sha_tag }}
+          provenance: mode=max
+          sbom: true
 
       - name: Publish digest manifest
         id: digest_manifest
@@ -110,23 +95,7 @@ jobs:
           FULL_SHA: ${{ steps.meta.outputs.full_sha }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
           IMAGE: ${{ env.IMAGE }}
-        run: |
-          set -eu
-          if [ -z "${IMAGE_DIGEST}" ]; then
-            echo "Missing image digest from build-push step"
-            exit 1
-          fi
-          MANIFEST="digest-manifest-${SEMVER_TAG}-${FULL_SHA}.json"
-          printf '%s\n' \
-            "{" \
-            "  \"image\": \"${IMAGE}\"," \
-            "  \"semver_tag\": \"${SEMVER_TAG}\"," \
-            "  \"commit_sha\": \"${FULL_SHA}\"," \
-            "  \"sha_tag\": \"sha-${FULL_SHA}\"," \
-            "  \"digest\": \"${IMAGE_DIGEST}\"" \
-            "}" > "${MANIFEST}"
-          cat "${MANIFEST}"
-          echo "manifest_path=${MANIFEST}" >> "${GITHUB_OUTPUT}"
+        run: nu .github/scripts/digest-manifest.nu
 
       - name: Upload digest manifest
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -134,3 +103,21 @@ jobs:
           name: docker-digest-manifest-${{ steps.meta.outputs.semver_tag }}
           path: ${{ steps.digest_manifest.outputs.manifest_path }}
           if-no-files-found: error
+
+      - name: Attest image provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      # Report-only: continue-on-error suppresses CRITICAL failures; flip to blocking by removing continue-on-error once the image has zero CRITICAL findings.
+      - name: Scan image for CRITICAL vulnerabilities (report-only)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        continue-on-error: true
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'

@@ -41,6 +41,10 @@ RUN --mount=type=cache,id=opencloudmesh-go-go-mod-cache,target=/go/pkg/mod,shari
     --mount=type=cache,id=opencloudmesh-go-go-build-cache,target=/root/.cache/go-build,sharing=locked \
     make build
 
+# Bundle third-party NOTICE/LICENSE files for AGPL and linked-tree license obligations.
+RUN --mount=type=cache,id=opencloudmesh-go-go-mod-cache,target=/go/pkg/mod,sharing=locked \
+    make licenses-install && make licenses-save
+
 ##############################
 ### Directory builder      ###
 ##############################
@@ -109,6 +113,7 @@ COPY --from=directory /configs /configs
 COPY --from=directory /usr/bin /usr/bin
 COPY --from=directory /tls /tls
 COPY --from=directory /etc/ssl/certs /etc/ssl/certs
+COPY --from=build /build/bin/licenses /app/licenses
 
 ENV PATH="/app/bin:${PATH}"
 

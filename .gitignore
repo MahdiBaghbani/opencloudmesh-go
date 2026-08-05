@@ -23,5 +23,7 @@ Thumbs.db
 coverage.out
 coverage-unit.out
 coverage-integration.out
+tests/e2e/playwright-report/
+tests/e2e/test-results/
 
 /opencloudmesh-go

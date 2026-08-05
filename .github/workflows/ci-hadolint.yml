@@ -3,7 +3,7 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: CI Build
+name: CI hadolint
 
 on:
   workflow_call:
@@ -12,16 +12,17 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: build
+  hadolint:
+    name: hadolint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      # hadolint-action has no path-filter input; always lint docker/Dockerfile.
+      # Blocking: findings fail CI.
+      - name: hadolint
+        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6
         with:
-          go-version-file: go.mod
-          cache: true
-      - name: Build binary
-        run: make build
+          dockerfile: docker/Dockerfile
+          config: .hadolint.yaml

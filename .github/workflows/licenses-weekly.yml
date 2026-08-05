@@ -3,30 +3,33 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-name: CI Lint
+# Scheduled blocking license check. Fails on unknown/out-of-allowlist licenses.
+# Not wired into ci.yml.
+
+name: Licenses Weekly
 
 on:
-  workflow_call:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
 
-env:
-  GOLANGCI_LINT_VERSION: v2.12.2
+permissions:
+  contents: read
 
 jobs:
-  lint:
-    name: golangci-lint
+  licenses:
+    name: licenses
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
           cache: true
-      # Full-tree lint gate: baseline is clean, so CI blocks on any issue.
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
-        with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --timeout=5m
+      - name: Install go-licenses
+        run: make licenses-install
+      # Blocking: the Make target is strict. CI fails on unknown/out-of-allowlist licenses.
+      - name: License check
+        run: make licenses-check

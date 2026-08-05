@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+# Non-workflow YAML only (see make yamllint). Workflows are owned by actionlint.
+extends: default
+
+rules:
+  # Repo YAML often exceeds 80; keep a generous but finite wrap target.
+  line-length:
+    max: 120
+  # Files start with SPDX comment headers, not --- document markers.
+  document-start: disable
+  # Truthy values like "on" appear in GitHub issue forms / dependabot keys.
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1

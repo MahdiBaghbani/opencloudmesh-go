@@ -17,12 +17,22 @@ permissions:
 env:
   # Pinned changie release; update together with the install step below.
   CHANGIE_VERSION: v1.25.1
+  NU_VERSION: 0.114.1
 
 jobs:
   changelog:
     name: changelog
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
+
       # Skip the gate for dependabot or PRs carrying the skip-changelog label.
       # The step always exits 0 (never fails the job) and emits a `skip` output
       # that gates every later step, so skipped PRs do not run the fragment gate.
@@ -30,24 +40,7 @@ jobs:
         name: Skip check
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          set -euo pipefail
-          if [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipping changelog check: dependabot-authored PR"
-            exit 0
-          fi
-          labels="$(jq -r '.pull_request.labels[].name // empty' "$GITHUB_EVENT_PATH")"
-          if printf '%s\n' "$labels" | grep -qx 'skip-changelog'; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipping changelog check: skip-changelog label"
-            exit 0
-          fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "No skip condition matched; running changelog gate."
-
-      - if: steps.skip.outputs.skip != 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        run: nu .github/scripts/changelog-skip-check.nu
 
       # Require at least one changie fragment under .changes/unreleased/.
       - if: steps.skip.outputs.skip != 'true'
@@ -84,7 +77,7 @@ jobs:
       # and previewed as plain markdown.
       - if: failure() && steps.skip.outputs.skip != 'true'
         name: Post changelog instructions
-        uses: marocchino/sticky-pull-request-comment@d2ad0de260ae8b0235ce059e63f2949ba9e05943
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88
         with:
           header: changie-reminder
           path: .github/messages/changelog-reminder.md

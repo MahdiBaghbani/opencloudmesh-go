@@ -34,11 +34,29 @@ jobs:
   shellcheck:
     uses: ./.github/workflows/ci-shellcheck.yml
 
+  actionlint:
+    uses: ./.github/workflows/ci-actionlint.yml
+
   security:
     permissions:
       contents: read
       security-events: write
     uses: ./.github/workflows/ci-security.yml
+
+  licenses:
+    uses: ./.github/workflows/ci-licenses.yml
+
+  markdownlint:
+    uses: ./.github/workflows/ci-markdownlint.yml
+
+  typos:
+    uses: ./.github/workflows/ci-typos.yml
+
+  hadolint:
+    uses: ./.github/workflows/ci-hadolint.yml
+
+  yamllint:
+    uses: ./.github/workflows/ci-yamllint.yml
 
   test:
     uses: ./.github/workflows/ci-test.yml
@@ -53,13 +71,11 @@ jobs:
       NU_VERSION: 0.114.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Install Nushell
-        run: |
-          set -euo pipefail
-          curl -fsSL "https://github.com/nushell/nushell/releases/download/${{ env.NU_VERSION }}/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/nu.tar.gz
-          tar -xzf /tmp/nu.tar.gz -C /tmp
-          sudo mv "/tmp/nu-${{ env.NU_VERSION }}-x86_64-unknown-linux-gnu/nu" /usr/local/bin/nu
-          nu --version
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
       - name: Verify immutable action pins
         run: make verify-action-pins
 
@@ -68,6 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
       # Blocking REUSE gate: any missing copyright/licensing info fails CI.
       - name: Sync dev dependencies
@@ -78,17 +96,33 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [fmt-vet, lint, shellcheck, security, test, build, action-pins, reuse]
+    needs: [fmt-vet, lint, shellcheck, actionlint, security, licenses, markdownlint, typos, hadolint, yamllint, test, build, action-pins, reuse]
     if: ${{ !cancelled() }}
+    env:
+      NU_VERSION: 0.114.1
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
+      # Require every listed CI job result to be success (see ci-require-jobs.nu).
       - name: Require blocking jobs
-        run: |
-          test "${{ needs.fmt-vet.result }}" = "success"
-          test "${{ needs.lint.result }}" = "success"
-          test "${{ needs.shellcheck.result }}" = "success"
-          test "${{ needs.test.result }}" = "success"
-          test "${{ needs.build.result }}" = "success"
-          test "${{ needs.action-pins.result }}" = "success"
-          # Security required: blocking gosec gates CI; govulncheck stays report-only.
-          test "${{ needs.security.result }}" = "success"
-          test "${{ needs.reuse.result }}" = "success"
+        env:
+          FMT_VET_RESULT: ${{ needs.fmt-vet.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          SHELLCHECK_RESULT: ${{ needs.shellcheck.result }}
+          ACTIONLINT_RESULT: ${{ needs.actionlint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          ACTION_PINS_RESULT: ${{ needs.action-pins.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          LICENSES_RESULT: ${{ needs.licenses.result }}
+          MARKDOWNLINT_RESULT: ${{ needs.markdownlint.result }}
+          TYPOS_RESULT: ${{ needs.typos.result }}
+          HADOLINT_RESULT: ${{ needs.hadolint.result }}
+          YAMLLINT_RESULT: ${{ needs.yamllint.result }}
+          REUSE_RESULT: ${{ needs.reuse.result }}
+        run: nu .github/scripts/ci-require-jobs.nu
