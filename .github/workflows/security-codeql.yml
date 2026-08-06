@@ -3,8 +3,8 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-# Report-only: not wired into ci.yml, so it does not block PR merge.
-# Flip to a required check via branch protection once the Security-tab baseline is clean.
+# Standalone CodeQL workflow; not wired into the ci.yml rollup.
+# Required check on master via branch protection.
 
 name: CodeQL
 
@@ -33,14 +33,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
-        with:
-          languages: go
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
           cache: true
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
+        with:
+          languages: go
       # Pure-Go build (CGO_ENABLED=0 via Makefile). Autobuild is not pinned in
       # action-pins.yml; make build keeps the pin inventory unchanged.
       - name: Build
