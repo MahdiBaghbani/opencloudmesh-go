@@ -26,21 +26,18 @@ func loginSubprocessAdmin(t *testing.T, srv *harness.SubprocessServer) string {
 		return token
 	}
 
-	logPath := filepath.Join(srv.TempDir, "server.log")
-
-	logs, err := os.ReadFile(logPath)
+	password, err := extractBootstrapPassword(srv.TempDir)
 	if err != nil {
-		t.Fatalf("failed to read subprocess log for bootstrap password: %v", err)
+		t.Fatalf("read bootstrap admin password file: %v", err)
 	}
 
-	password := extractBootstrapPassword(string(logs))
 	if password == "" {
-		t.Fatalf("could not find bootstrap admin password in server log:\n%s", logs)
+		t.Fatalf("could not find bootstrap admin password file in %s", srv.TempDir)
 	}
 
 	token, body, ok := tryLogin(t, srv.BaseURL, "admin", password)
 	if !ok {
-		t.Fatalf("login failed with logged bootstrap password %q: %s", password, body)
+		t.Fatalf("login failed with bootstrap password from file %q: %s", filepath.Join(srv.TempDir, "bootstrap-admin-password"), body)
 	}
 
 	return token
@@ -95,22 +92,19 @@ func tryLogin(t *testing.T, baseURL, username, password string) (string, string,
 	return parsed.Token, string(body), true
 }
 
-func extractBootstrapPassword(logs string) string {
-	marker := `"password":"`
+func extractBootstrapPassword(tempDir string) (string, error) {
+	path := filepath.Join(tempDir, "bootstrap-admin-password")
 
-	start := strings.Index(logs, marker)
-	if start == -1 {
-		return ""
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+
+		return "", err
 	}
 
-	start += len(marker)
-
-	end := strings.Index(logs[start:], `"`)
-	if end == -1 {
-		return ""
-	}
-
-	return logs[start : start+end]
+	return strings.TrimSpace(string(content)), nil
 }
 
 func createOutgoingShare(t *testing.T, baseURL, token string, payload map[string]any) (int, string) {

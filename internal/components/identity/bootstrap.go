@@ -171,6 +171,27 @@ func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, p
 	return b.repo.Update(ctx, admin)
 }
 
+// GenerateRandomPassword returns a cryptographically random password.
+func GenerateRandomPassword() (string, error) {
+	return generateRandomPassword()
+}
+
+// SuperAdminExists reports whether a super admin user already exists.
+func (b *Bootstrap) SuperAdminExists(ctx context.Context) (bool, error) {
+	users, err := b.repo.List(ctx, "")
+	if err != nil {
+		return false, err
+	}
+
+	for _, u := range users {
+		if u.Role == RoleSuperAdmin {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func generateRandomPassword() (string, error) {
 	b := make([]byte, 24)
 	if _, err := rand.Read(b); err != nil {
