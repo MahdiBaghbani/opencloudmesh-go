@@ -8,6 +8,10 @@ name: CI Lint Golangci
 on:
   workflow_call:
 
+permissions:
+  contents: read
+  pull-requests: read
+
 env:
   GOLANGCI_LINT_VERSION: v2.12.2
 
@@ -15,6 +19,10 @@ jobs:
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
