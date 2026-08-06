@@ -199,12 +199,24 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 
 	explicitPasswordSet := cfg.Server.BootstrapAdmin.Password != ""
 
-	return bootstrap.EnsureSuperAdmin(
+	generatedPassword, err := bootstrap.EnsureSuperAdmin(
 		ctx,
 		bootstrapUsername,
 		cfg.Server.BootstrapAdmin.Password,
 		explicitPasswordSet,
 	)
+	if err != nil {
+		return err
+	}
+
+	if generatedPassword != "" {
+		//nolint:forbidigo // one-time bootstrap secret must go to stdout, not slog
+		if _, err := fmt.Println("One-time super admin password (save now, not logged):", generatedPassword); err != nil {
+			return fmt.Errorf("failed to print one-time super admin password: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func runServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, result wiring.BuildResult, services map[string]service.Service) error {
