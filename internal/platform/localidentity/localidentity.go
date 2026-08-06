@@ -54,6 +54,10 @@ func ValidateExternalBasePath(path string) (string, error) {
 		return "", fmt.Errorf("localidentity: external_base_path %q must start with / when set", path)
 	}
 
+	if len(path) >= 2 && (path[1] == '/' || path[1] == '\\') {
+		return "", fmt.Errorf("localidentity: external_base_path %q must not have '/' or '\\' in the second position", path)
+	}
+
 	if strings.HasSuffix(path, "/") {
 		return "", fmt.Errorf("localidentity: external_base_path %q must not have a trailing slash", path)
 	}

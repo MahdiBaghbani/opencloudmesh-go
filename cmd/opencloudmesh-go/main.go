@@ -32,7 +32,7 @@ import (
 
 var version = "dev"
 
-const defaultBootstrapPasswordFile = "bootstrap-admin-password"
+const defaultBootstrapFilePath = "bootstrap-admin-password"
 
 func printVersion(showVersion bool, w io.Writer) (done bool, err error) {
 	if !showVersion {
@@ -215,12 +215,12 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 				return err
 			}
 
-			passwordPath, err := resolveBootstrapPasswordFilePath(cfg)
+			bootstrapFilePath, err := resolveBootstrapPasswordFilePath(cfg)
 			if err != nil {
 				return err
 			}
 
-			if writeErr := writeBootstrapPasswordFile(passwordPath, generatedPassword, logger); writeErr != nil {
+			if writeErr := writeBootstrapPasswordFile(bootstrapFilePath, generatedPassword, logger); writeErr != nil {
 				return writeErr
 			}
 
@@ -246,25 +246,25 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 }
 
 func resolveBootstrapPasswordFilePath(cfg *config.Config) (string, error) {
-	path := cfg.Server.BootstrapAdmin.PasswordFile
-	if path == "" {
+	filePath := cfg.Server.BootstrapAdmin.PasswordFile
+	if filePath == "" {
 		if cfg.Persistence.DataDir != "" {
-			path = filepath.Join(cfg.Persistence.DataDir, defaultBootstrapPasswordFile)
+			filePath = filepath.Join(cfg.Persistence.DataDir, defaultBootstrapFilePath)
 		} else {
-			path = defaultBootstrapPasswordFile
+			filePath = defaultBootstrapFilePath
 		}
 	}
 
-	if !filepath.IsAbs(path) {
+	if !filepath.IsAbs(filePath) {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return "", fmt.Errorf("resolve bootstrap password file path: %w", err)
 		}
 
-		path = filepath.Join(cwd, path)
+		filePath = filepath.Join(cwd, filePath)
 	}
 
-	return filepath.Clean(path), nil
+	return filepath.Clean(filePath), nil
 }
 
 func removeBootstrapPasswordTempFile(tempPath string, logger *slog.Logger) {
@@ -273,14 +273,14 @@ func removeBootstrapPasswordTempFile(tempPath string, logger *slog.Logger) {
 	}
 }
 
-func writeBootstrapPasswordFile(path, password string, logger *slog.Logger) error {
-	if dir := filepath.Dir(path); dir != "" && dir != "." {
+func writeBootstrapPasswordFile(filePath, password string, logger *slog.Logger) error {
+	if dir := filepath.Dir(filePath); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("create bootstrap password file directory %q: %w", dir, err)
 		}
 	}
 
-	dir := filepath.Dir(path)
+	dir := filepath.Dir(filePath)
 	if dir == "" {
 		dir = "."
 	}
@@ -335,7 +335,7 @@ func writeBootstrapPasswordFile(path, password string, logger *slog.Logger) erro
 		return fmt.Errorf("close bootstrap password temp file: %w", err)
 	}
 
-	if err := os.Rename(tempPath, path); err != nil {
+	if err := os.Rename(tempPath, filePath); err != nil {
 		removeTemp()
 
 		return fmt.Errorf("rename bootstrap password temp file: %w", err)
@@ -347,7 +347,7 @@ func writeBootstrapPasswordFile(path, password string, logger *slog.Logger) erro
 
 	logger.Info(
 		"super admin password written to file",
-		"path", path,
+		"path", filePath,
 		"hint", "rotate via admin UI/CLI",
 	)
 
