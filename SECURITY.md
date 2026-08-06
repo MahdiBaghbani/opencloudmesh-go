@@ -56,9 +56,12 @@ to the public internet.
 
 ## Automated Scanning
 
-The project may run `govulncheck` and other automated dependency scanning in
-CI. Those results are informational. They are not a hard gate and do not
-guarantee a fix timeline or SLA for reported vulnerabilities.
+The project runs `govulncheck` in CI to scan existing dependencies for known
+vulnerabilities. It is a blocking check that fails CI on confirmed
+vulnerabilities. Scanning of NEW dependencies introduced by a pull request is
+a separate, required gate; see the Dependency-Review Gate section below.
+Scorecard is report-only; see the Scorecard Posture section below. These scans
+do not guarantee a fix timeline or SLA for reported vulnerabilities.
 
 ## Signed Releases
 
@@ -75,3 +78,48 @@ gh attestation verify oci://ghcr.io/mahdibaghbani/opencloudmesh-go:v1.2.3 \
 See upstream Scorecard issues
 [#4667](https://github.com/ossf/scorecard/issues/4667) and
 [#4080](https://github.com/ossf/scorecard/issues/4080).
+
+## Scorecard Posture
+
+OpenSSF Scorecard runs on master push and on a weekly schedule, publishes
+results to the OpenSSF API, and uploads SARIF to this repository's GitHub
+Security tab.
+
+It is deliberately report-only: it is NOT a merge gate and NOT run per-PR,
+because it is a holistic repo-level assessment whose checks do not vary per
+pull request.
+
+It includes intentionally-unmet checks for a solo-maintainer repo. Code-Review
+(0 approvals, reviews disabled) is one of these and is reflected in the
+open-alert count below. The Signed-Releases exception (GitHub Artifact
+Attestations live in the attestations API, not release assets Scorecard scans)
+is tracked separately in the Signed Releases section above and is not part of
+the open-alert count below. These are accepted, not gating.
+
+The score is raised by targeted fixes, not by gating. Two such fixes:
+Token-Permissions (workflow token permissions are scoped to least privilege)
+and Pinned-Dependencies (Docker base images are pinned by digest).
+
+As of 2026-08-06, per the GitHub Security tab (code-scanning alerts,
+tool=Scorecard), there are 20 open Scorecard alerts (16 high, 3 medium,
+1 low): Token-Permissions 14, Pinned-Dependencies 3, CII-Best-Practices 1,
+Code-Review 1, Vulnerabilities 1. That count is a pre-merge snapshot: the
+token-permission scoping and base-image digest pinning target the
+Token-Permissions and Pinned-Dependencies categories, so once those changes
+merge and Scorecard re-runs, those two counts are expected to drop. The
+Vulnerabilities alert is Scorecard's report-only check and is separate from
+the blocking govulncheck CI job; see Automated Scanning above.
+
+## Dependency-Review Gate
+
+The dependency-review action runs on every pull_request against master and IS
+a required merge gate (one of the required checks).
+
+Configuration: fail-on-severity moderate (severity levels are low, moderate,
+high, critical; the gate fails on vulnerabilities at moderate or higher, so
+low-severity findings do not block), fail-on-scopes
+runtime, development, unknown (defense-in-depth so dev/unknown-scope vulns do
+not pass silently), plus a license allowlist.
+
+Contrast with Scorecard: dependency-review is per-PR and blocking; Scorecard
+is repo-level and report-only.
