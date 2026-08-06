@@ -26,6 +26,10 @@ func TestValidateExternalBasePath(t *testing.T) {
 		{"trailing slash", "/ocm/", "", true},
 		{"dot", "/ocm/../x", "", true},
 		{"empty segment", "/ocm//x", "", true},
+		{"backslash at position 2", "/\\evil", "", true},
+		{"backslash mid path", "/ocm\\evil", "", true},
+		{"leading double slash", "//evil", "", true},
+		{"parent segment only", "..", "", true},
 	}
 
 	for _, tt := range tests {

@@ -383,3 +383,139 @@ func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
 		t.Fatalf("expected redirect to preserve original path, got %q", redirect)
 	}
 }
+
+func TestNormalizeBasePath(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"empty", "", "", false},
+		{"simple", "/ocm", "/ocm", false},
+		{"nested", "/apps/ocm", "/apps/ocm", false},
+		{"trailing slash trimmed once", "/ui/", "/ui", false},
+		{"no leading slash rejected", "ui", "", true},
+		{"double slash rejected", "//evil", "", true},
+		{"parent segment rejected", "/ocm/../x", "", true},
+		{"backslash rejected", "/\\evil", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeBasePath(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %q", got)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAuthGate_InvalidBasePathFallsBackToEmpty(t *testing.T) {
+	recorder := newRecordingHandler()
+	logger := slog.New(recorder)
+
+	protected := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	r := chi.NewRouter()
+	r.Use(NewAuthGate(AuthGateConfig{
+		RequireAuth: func(path string) bool {
+			return path == "/ui/inbox"
+		},
+		Log:         logger,
+		SessionRepo: &testSessionRepo{},
+		PartyRepo:   newTestPartyRepo(),
+		BasePath:    "//evil",
+	}))
+	r.Get("/ui/inbox", protected)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/inbox", nil)
+	rr := httptest.NewRecorder()
+
+	// Must not panic; invalid base path falls back to "" so the UI prefix
+	// resolves to "/ui" (the empty-base-path behavior).
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", rr.Code)
+	}
+
+	parsed, err := url.Parse(rr.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse Location: %v", err)
+	}
+
+	if parsed.Path != "/ui/login" {
+		t.Fatalf("expected login path /ui/login (empty base fallback), got %q", parsed.Path)
+	}
+
+	// Bind the warning to the invalid-base-path event by exact message marker
+	// (repo convention: match on the message, not just the level), and verify
+	// the structured attrs tie the record to this specific failure.
+	var sawWarning bool
+
+	for _, rec := range recorder.records {
+		if rec.Level != slog.LevelWarn {
+			continue
+		}
+
+		if rec.Message != "invalid auth gate base path; falling back to empty" {
+			continue
+		}
+
+		sawWarning = true
+
+		var (
+			gotBasePath  string
+			gotError     string
+			sawBasePath  bool
+			sawErrorAttr bool
+		)
+
+		rec.Attrs(func(a slog.Attr) bool {
+			switch a.Key {
+			case "base_path":
+				gotBasePath = a.Value.String()
+				sawBasePath = true
+			case "error":
+				gotError = a.Value.String()
+				sawErrorAttr = true
+			}
+
+			return true
+		})
+
+		if !sawBasePath {
+			t.Error("expected base_path attr in invalid base path warning")
+		} else if gotBasePath != "//evil" {
+			t.Errorf("expected base_path %q, got %q", "//evil", gotBasePath)
+		}
+
+		if !sawErrorAttr {
+			t.Error("expected error attr in invalid base path warning")
+		} else if gotError == "" {
+			t.Error("expected non-empty error attr in invalid base path warning")
+		}
+
+		break
+	}
+
+	if !sawWarning {
+		t.Fatalf("expected a warning with message %q to be logged for invalid base path",
+			"invalid auth gate base path; falling back to empty")
+	}
+}
