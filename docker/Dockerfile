@@ -5,8 +5,8 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-ARG BASE_BUILD_IMAGE="golang:1.26.5-trixie"
-ARG BASE_RUNTIME_IMAGE="debian:trixie-slim"
+ARG BASE_BUILD_IMAGE="golang:1.26.5-trixie@sha256:87ffdb09b6a2e29ff910748b745395e8a0299aa80b7c0551cdca9b55e3fd2b3e"
+ARG BASE_RUNTIME_IMAGE="debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258"
 ARG OCM_IMAGE_VERSION="dev"
 ARG OCM_IMAGE_REVISION="unknown"
 
@@ -83,7 +83,7 @@ FROM ${BASE_RUNTIME_IMAGE}
 
 ARG OCM_IMAGE_VERSION="dev"
 ARG OCM_IMAGE_REVISION="unknown"
-ARG BASE_RUNTIME_IMAGE="debian:trixie-slim"
+ARG BASE_RUNTIME_IMAGE="debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258"
 ARG BASE_BUILD_IMAGE
 
 LABEL org.opencontainers.image.title="opencloudmesh-go" \
