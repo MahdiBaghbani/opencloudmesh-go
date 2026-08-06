@@ -6,10 +6,12 @@
 package identity_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
@@ -113,9 +115,13 @@ func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 	ctx := context.Background()
 
 	// First call creates super admin with explicit password
-	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret123", true)
+	generatedPassword, err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret123", true)
 	if err != nil {
 		t.Fatalf("EnsureSuperAdmin failed: %v", err)
+	}
+
+	if generatedPassword != "" {
+		t.Error("expected empty generated password for explicit password")
 	}
 
 	// Verify super admin exists
@@ -129,9 +135,13 @@ func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 	}
 
 	// Second call should be idempotent (no new user)
-	err = bootstrap.EnsureSuperAdmin(ctx, "different", "password", true)
+	generatedPassword, err = bootstrap.EnsureSuperAdmin(ctx, "different", "password", true)
 	if err != nil {
 		t.Fatalf("EnsureSuperAdmin (second) failed: %v", err)
+	}
+
+	if generatedPassword != "" {
+		t.Error("expected empty generated password on idempotent call")
 	}
 
 	// Original super admin should still exist
@@ -150,14 +160,25 @@ func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 func TestBootstrap_EnsureSuperAdmin_AutoGenPassword(t *testing.T) {
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	var logBuf bytes.Buffer
+
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	bootstrap := identity.NewBootstrap(repo, auth, logger)
 	ctx := context.Background()
 
 	// Empty password should auto-generate
-	err := bootstrap.EnsureSuperAdmin(ctx, "admin", "", false)
+	generatedPassword, err := bootstrap.EnsureSuperAdmin(ctx, "admin", "", false)
 	if err != nil {
 		t.Fatalf("EnsureSuperAdmin failed: %v", err)
+	}
+
+	if generatedPassword == "" {
+		t.Fatal("expected non-empty generated password")
+	}
+
+	if strings.Contains(logBuf.String(), generatedPassword) {
+		t.Error("generated password must not appear in log output")
 	}
 
 	// Verify super admin exists
@@ -169,9 +190,13 @@ func TestBootstrap_EnsureSuperAdmin_AutoGenPassword(t *testing.T) {
 	if !user.IsSuperAdmin() {
 		t.Errorf("expected role 'super_admin', got %q", user.Role)
 	}
-	// Password hash should be set (we can't verify the actual password)
+	// Password hash should be set and match the generated password
 	if user.PasswordHash == "" {
 		t.Error("password hash should be set")
+	}
+
+	if err := auth.VerifyPassword(user.PasswordHash, generatedPassword); err != nil {
+		t.Errorf("generated password should match stored hash: %v", err)
 	}
 }
 
@@ -183,7 +208,7 @@ func TestSuperAdmin_CannotBeDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	// Create super admin
-	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
+	_, err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
 	if err != nil {
 		t.Fatalf("EnsureSuperAdmin failed: %v", err)
 	}
@@ -209,7 +234,7 @@ func TestSuperAdmin_CannotBeDemoted(t *testing.T) {
 	ctx := context.Background()
 
 	// Create super admin
-	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
+	_, err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
 	if err != nil {
 		t.Fatalf("EnsureSuperAdmin failed: %v", err)
 	}
@@ -245,7 +270,7 @@ func TestSuperAdmin_UsernameCanBeRenamed(t *testing.T) {
 	ctx := context.Background()
 
 	// Create super admin
-	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
+	_, err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
 	if err != nil {
 		t.Fatalf("EnsureSuperAdmin failed: %v", err)
 	}

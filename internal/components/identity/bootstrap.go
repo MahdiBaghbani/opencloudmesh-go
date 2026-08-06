@@ -73,17 +73,17 @@ func (b *Bootstrap) Run(ctx context.Context, admin SeededUser, seeded []SeededUs
 
 // EnsureSuperAdmin creates or verifies the super admin user.
 // If no super admin exists, creates one with the given username and password.
-// If password is empty, generates a random password and logs it once.
-// If a super admin already exists, this is a no-op (returns nil).
+// If password is empty, generates a random password and returns it to the caller.
+// If a super admin already exists, this is a no-op (returns "", nil).
 // Password rotation only happens when explicitPasswordSet is true.
-func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password string, explicitPasswordSet bool) error {
+func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password string, explicitPasswordSet bool) (string, error) {
 	if username == "" {
 		username = "admin"
 	}
 
 	users, err := b.repo.List(ctx, "")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var existingSuperAdmin *User
@@ -98,36 +98,39 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	if existingSuperAdmin != nil {
 		if explicitPasswordSet && password != "" {
 			if rotateErr := b.rotateSuperAdminPassword(ctx, existingSuperAdmin, password); rotateErr != nil {
-				return rotateErr
+				return "", rotateErr
 			}
 
 			b.log.Info("super admin password rotated", "username", existingSuperAdmin.Username)
 		}
 
-		return nil
+		return "", nil
 	}
 
 	passwordGenerated := false
+
+	var generatedPassword string
 
 	if password == "" {
 		var genErr error
 
 		password, genErr = generateRandomPassword()
 		if genErr != nil {
-			return genErr
+			return "", genErr
 		}
 
 		passwordGenerated = true
+		generatedPassword = password
 	}
 
 	hash, err := b.auth.HashPassword(password)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	id, err := UUIDv7()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	superAdmin := &User{
@@ -140,19 +143,21 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	}
 
 	if err := b.repo.Create(ctx, superAdmin); err != nil {
-		return err
+		return "", err
 	}
 
 	if passwordGenerated {
 		b.log.Info("super admin created with auto-generated password",
 			"username", username,
-			"password", password,
-			"user_id", superAdmin.ID)
-	} else {
-		b.log.Info("super admin created", "username", username, "user_id", superAdmin.ID)
+			"user_id", superAdmin.ID,
+			"hint", "password auto-generated; rotate via admin UI/CLI")
+
+		return generatedPassword, nil
 	}
 
-	return nil
+	b.log.Info("super admin created", "username", username, "user_id", superAdmin.ID)
+
+	return "", nil
 }
 
 func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, password string) error {
