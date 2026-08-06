@@ -328,7 +328,7 @@ func TestResolveBootstrapPasswordFilePath(t *testing.T) {
 			cfg: &config.Config{
 				Server: config.ServerConfig{
 					BootstrapAdmin: config.BootstrapAdminConfig{
-						PasswordFile: "secrets/admin.pass",
+						CredentialFile: "secrets/admin.pass",
 					},
 				},
 			},
@@ -339,7 +339,7 @@ func TestResolveBootstrapPasswordFilePath(t *testing.T) {
 			cfg: &config.Config{
 				Server: config.ServerConfig{
 					BootstrapAdmin: config.BootstrapAdminConfig{
-						PasswordFile: "/var/lib/ocm/admin.pass",
+						CredentialFile: "/var/lib/ocm/admin.pass",
 					},
 				},
 			},
@@ -350,7 +350,7 @@ func TestResolveBootstrapPasswordFilePath(t *testing.T) {
 			cfg: &config.Config{
 				Server: config.ServerConfig{
 					BootstrapAdmin: config.BootstrapAdminConfig{
-						PasswordFile: "secrets/admin.pass",
+						CredentialFile: "secrets/admin.pass",
 					},
 				},
 				Persistence: config.PersistenceConfig{

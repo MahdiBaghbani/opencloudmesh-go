@@ -218,9 +218,9 @@ type BootstrapAdminConfig struct {
 	// Password for the super admin. If empty on first boot, a random password is generated.
 	Password string `toml:"password"`
 
-	// PasswordFile is where an auto-generated bootstrap password is written.
+	// CredentialFile is where an auto-generated bootstrap password is written.
 	// Relative paths resolve against the process working directory.
-	PasswordFile string `toml:"password_file"`
+	CredentialFile string `toml:"password_file"`
 }
 
 // SignatureConfig holds HTTP signature settings.
@@ -412,7 +412,7 @@ func (c *Config) Redacted() string {
 	redactedWriteString(&sb, "    BootstrapAdmin: {\n")
 	redactedFprintf(&sb, "      Username: %q,\n", c.Server.BootstrapAdmin.Username)
 	redactedWriteString(&sb, "      Password: [REDACTED],\n")
-	redactedFprintf(&sb, "      PasswordFile: %q,\n", c.Server.BootstrapAdmin.PasswordFile)
+	redactedFprintf(&sb, "      CredentialFile: %q,\n", c.Server.BootstrapAdmin.CredentialFile)
 	redactedWriteString(&sb, "    },\n")
 	redactedWriteString(&sb, "  },\n")
 	redactedWriteString(&sb, "  TLS: {\n")

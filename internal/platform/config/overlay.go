@@ -129,9 +129,9 @@ type serverConfig struct {
 
 // bootstrapAdmin holds bootstrap admin credentials in TOML.
 type bootstrapAdmin struct {
-	Username     string `toml:"username"`
-	Password     string `toml:"password"`
-	PasswordFile string `toml:"password_file"`
+	Username       string `toml:"username"`
+	Password       string `toml:"password"`
+	CredentialFile string `toml:"password_file"`
 }
 
 func overlayServerConfig(cfg *Config, fc *serverConfig) {
@@ -146,7 +146,7 @@ func overlayServerConfig(cfg *Config, fc *serverConfig) {
 	if fc.BootstrapAdmin != nil {
 		cfg.Server.BootstrapAdmin.Username = fc.BootstrapAdmin.Username
 		cfg.Server.BootstrapAdmin.Password = fc.BootstrapAdmin.Password
-		cfg.Server.BootstrapAdmin.PasswordFile = fc.BootstrapAdmin.PasswordFile
+		cfg.Server.BootstrapAdmin.CredentialFile = fc.BootstrapAdmin.CredentialFile
 	}
 }
 
