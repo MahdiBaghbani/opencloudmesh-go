@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
 
 env:
   # Pinned changie release; update together with the install step below.
@@ -23,6 +23,9 @@ jobs:
   changelog:
     name: changelog
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

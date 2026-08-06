@@ -15,8 +15,8 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   automerge:
@@ -26,6 +26,9 @@ jobs:
     # last actor on the triggering context and can (zizmor bot-conditions).
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     # gh pr merge / gh pr comment shell out to git to discover the repo,
     # which fails when remote discovery is unavailable. GH_REPO makes gh
     # resolve the repo via the API instead.
