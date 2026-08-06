@@ -246,7 +246,7 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 }
 
 func resolveBootstrapPasswordFilePath(cfg *config.Config) (string, error) {
-	filePath := cfg.Server.BootstrapAdmin.PasswordFile
+	filePath := cfg.Server.BootstrapAdmin.CredentialFile
 	if filePath == "" {
 		if cfg.Persistence.DataDir != "" {
 			filePath = filepath.Join(cfg.Persistence.DataDir, defaultBootstrapFilePath)
