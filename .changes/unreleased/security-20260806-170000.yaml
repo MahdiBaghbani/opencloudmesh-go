@@ -1,0 +1,10 @@
+kind: security
+body: >-
+  CI/CD security polish: install Go before CodeQL init and
+  fix the stale CodeQL workflow header; pin Docker base images by digest;
+  bump dorny/paths-filter to v4.0.3; scope GITHUB_TOKEN permissions to
+  least privilege across workflows; disable the setup-go cache in the
+  release workflow to mitigate zizmor's cache-poisoning finding; tighten
+  dependency-review to moderate severity and runtime, development, unknown
+  scopes; document OpenSSF Scorecard and dependency-review posture in
+  SECURITY.md
