@@ -16,6 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -53,7 +54,14 @@ type AuthGateConfig struct {
 // without token parsing, session validation, or context enrichment.
 func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 	cfg.Log = logutil.NoopIfNil(cfg.Log)
-	basePath := normalizeBasePath(cfg.BasePath)
+
+	basePath, err := normalizeBasePath(cfg.BasePath)
+	if err != nil {
+		cfg.Log.Warn("invalid auth gate base path; falling back to empty",
+			"base_path", cfg.BasePath, "error", err)
+
+		basePath = ""
+	}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -112,16 +120,16 @@ func handleUnauthorized(w http.ResponseWriter, r *http.Request, basePath, reason
 	api.WriteUnauthorized(w, reason, message)
 }
 
-func normalizeBasePath(basePath string) string {
+func normalizeBasePath(basePath string) (string, error) {
 	if basePath == "" {
-		return ""
+		return "", nil
 	}
 
-	if !strings.HasPrefix(basePath, "/") {
-		basePath = "/" + basePath
-	}
+	// Tolerate exactly one trailing slash so "/ui/" normalizes to "/ui"
+	// before the shared validator rejects trailing slashes.
+	basePath = strings.TrimSuffix(basePath, "/")
 
-	return strings.TrimSuffix(basePath, "/")
+	return localidentity.ValidateExternalBasePath(basePath)
 }
 
 func uiPrefix(basePath string) string {

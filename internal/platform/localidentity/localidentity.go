@@ -66,6 +66,10 @@ func ValidateExternalBasePath(path string) (string, error) {
 		return "", fmt.Errorf("localidentity: external_base_path %q must not contain empty path segments", path)
 	}
 
+	if strings.Contains(path, "\\") {
+		return "", fmt.Errorf("localidentity: external_base_path %q must not contain backslashes", path)
+	}
+
 	return path, nil
 }
 
