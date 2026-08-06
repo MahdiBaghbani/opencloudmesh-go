@@ -54,7 +54,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
-          cache: true
+          # cache disabled to silence zizmor cache-poisoning; release builds are one-off
+          cache: false
 
       - name: Install changie
         run: go install "github.com/miniscruff/changie@${CHANGIE_VERSION}"
