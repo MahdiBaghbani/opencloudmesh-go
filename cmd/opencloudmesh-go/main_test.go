@@ -275,9 +275,9 @@ func TestBootstrapAdmin_WritesGeneratedPasswordFile(t *testing.T) {
 		t.Fatalf("bootstrapAdmin failed: %v", bootstrapErr)
 	}
 
-	passwordPath := filepath.Join(dir, defaultBootstrapPasswordFile)
+	bootstrapFilePath := filepath.Join(dir, defaultBootstrapFilePath)
 
-	content, err := os.ReadFile(passwordPath)
+	content, err := os.ReadFile(bootstrapFilePath)
 	if err != nil {
 		t.Fatalf("read password file: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestBootstrapAdmin_WritesGeneratedPasswordFile(t *testing.T) {
 		t.Fatal("expected non-empty generated password in file")
 	}
 
-	info, err := os.Stat(passwordPath)
+	info, err := os.Stat(bootstrapFilePath)
 	if err != nil {
 		t.Fatalf("stat password file: %v", err)
 	}
@@ -297,8 +297,8 @@ func TestBootstrapAdmin_WritesGeneratedPasswordFile(t *testing.T) {
 	}
 
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, passwordPath) {
-		t.Errorf("log output missing password file path %q: %s", passwordPath, logOutput)
+	if !strings.Contains(logOutput, bootstrapFilePath) {
+		t.Errorf("log output missing password file path %q: %s", bootstrapFilePath, logOutput)
 	}
 
 	if strings.Contains(logOutput, password) {
@@ -371,7 +371,7 @@ func TestResolveBootstrapPasswordFilePath(t *testing.T) {
 		{
 			name:     "cwd default",
 			cfg:      &config.Config{},
-			wantPath: filepath.Join(cwd, defaultBootstrapPasswordFile),
+			wantPath: filepath.Join(cwd, defaultBootstrapFilePath),
 		},
 	}
 
