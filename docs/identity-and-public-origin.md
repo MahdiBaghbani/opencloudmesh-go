@@ -51,7 +51,7 @@ Package `internal/platform/localidentity` is the single source of truth.
 | `EndpointBase` | `Origin + ExternalBasePath` |
 
 `localidentity.ValidateExternalBasePath` rejects whitespace, missing leading
-slash, trailing slash, `..`, and empty path segments.
+slash, trailing slash, `..`, empty path segments, and backslashes.
 
 ## Default-port stripping
 
