@@ -20,8 +20,8 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
-          fail-on-severity: high
-          fail-on-scopes: runtime
+          fail-on-severity: moderate
+          fail-on-scopes: runtime, development, unknown
           allow-licenses: >-
             Apache-2.0, BSD-2-Clause, BSD-3-Clause, MIT, ISC, MPL-2.0,
             LGPL-2.1-or-later, LGPL-3.0-or-later, GPL-2.0-only,
