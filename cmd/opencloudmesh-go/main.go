@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -30,6 +31,8 @@ import (
 )
 
 var version = "dev"
+
+const defaultBootstrapPasswordFile = "bootstrap-admin-password"
 
 func printVersion(showVersion bool, w io.Writer) (done bool, err error) {
 	if !showVersion {
@@ -197,26 +200,184 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 		bootstrapUsername = "admin"
 	}
 
-	explicitPasswordSet := cfg.Server.BootstrapAdmin.Password != ""
+	password := cfg.Server.BootstrapAdmin.Password
+	explicitPasswordSet := password != ""
 
-	generatedPassword, err := bootstrap.EnsureSuperAdmin(
-		ctx,
-		bootstrapUsername,
-		cfg.Server.BootstrapAdmin.Password,
-		explicitPasswordSet,
-	)
-	if err != nil {
-		return err
-	}
+	if !explicitPasswordSet {
+		exists, err := bootstrap.SuperAdminExists(ctx)
+		if err != nil {
+			return err
+		}
 
-	if generatedPassword != "" {
-		//nolint:forbidigo // one-time bootstrap secret must go to stdout, not slog
-		if _, err := fmt.Println("One-time super admin password (save now, not logged):", generatedPassword); err != nil {
-			return fmt.Errorf("failed to print one-time super admin password: %w", err)
+		if !exists {
+			generatedPassword, err := identity.GenerateRandomPassword()
+			if err != nil {
+				return err
+			}
+
+			passwordPath, err := resolveBootstrapPasswordFilePath(cfg)
+			if err != nil {
+				return err
+			}
+
+			if writeErr := writeBootstrapPasswordFile(passwordPath, generatedPassword, logger); writeErr != nil {
+				return writeErr
+			}
+
+			_, err = bootstrap.EnsureSuperAdmin(
+				ctx,
+				bootstrapUsername,
+				generatedPassword,
+				true,
+			)
+
+			return err
 		}
 	}
 
+	_, err := bootstrap.EnsureSuperAdmin(
+		ctx,
+		bootstrapUsername,
+		password,
+		explicitPasswordSet,
+	)
+
+	return err
+}
+
+func resolveBootstrapPasswordFilePath(cfg *config.Config) (string, error) {
+	path := cfg.Server.BootstrapAdmin.PasswordFile
+	if path == "" {
+		if cfg.Persistence.DataDir != "" {
+			path = filepath.Join(cfg.Persistence.DataDir, defaultBootstrapPasswordFile)
+		} else {
+			path = defaultBootstrapPasswordFile
+		}
+	}
+
+	if !filepath.IsAbs(path) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("resolve bootstrap password file path: %w", err)
+		}
+
+		path = filepath.Join(cwd, path)
+	}
+
+	return filepath.Clean(path), nil
+}
+
+func removeBootstrapPasswordTempFile(tempPath string, logger *slog.Logger) {
+	if rmErr := os.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+		logger.Warn("best-effort remove of bootstrap password temp file failed", "error", rmErr)
+	}
+}
+
+func writeBootstrapPasswordFile(path, password string, logger *slog.Logger) error {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return fmt.Errorf("create bootstrap password file directory %q: %w", dir, err)
+		}
+	}
+
+	dir := filepath.Dir(path)
+	if dir == "" {
+		dir = "."
+	}
+
+	f, err := os.CreateTemp(dir, ".bootstrap-admin-password-*")
+	if err != nil {
+		return fmt.Errorf("create bootstrap password temp file: %w", err)
+	}
+
+	tempPath := f.Name()
+
+	removeTemp := func() {
+		removeBootstrapPasswordTempFile(tempPath, logger)
+	}
+
+	if err := f.Chmod(0600); err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			removeTemp()
+			return fmt.Errorf("close bootstrap password temp file: %w", closeErr)
+		}
+
+		removeTemp()
+
+		return fmt.Errorf("chmod bootstrap password temp file: %w", err)
+	}
+
+	if _, err := f.WriteString(password); err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			removeTemp()
+			return fmt.Errorf("close bootstrap password temp file: %w", closeErr)
+		}
+
+		removeTemp()
+
+		return fmt.Errorf("write bootstrap password temp file: %w", err)
+	}
+
+	if err := f.Sync(); err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			removeTemp()
+			return fmt.Errorf("close bootstrap password temp file: %w", closeErr)
+		}
+
+		removeTemp()
+
+		return fmt.Errorf("sync bootstrap password file: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		removeTemp()
+
+		return fmt.Errorf("close bootstrap password temp file: %w", err)
+	}
+
+	if err := os.Rename(tempPath, path); err != nil {
+		removeTemp()
+
+		return fmt.Errorf("rename bootstrap password temp file: %w", err)
+	}
+
+	if err := syncBootstrapPasswordDir(dir); err != nil {
+		return err
+	}
+
+	logger.Info(
+		"super admin password written to file",
+		"path", path,
+		"hint", "rotate via admin UI/CLI",
+	)
+
 	return nil
+}
+
+func syncBootstrapPasswordDir(dir string) error {
+	dirFile, err := os.Open(dir)
+	if err != nil {
+		return fmt.Errorf("open bootstrap password file directory %q: %w", dir, err)
+	}
+
+	syncErr := dirFile.Sync()
+	closeErr := dirFile.Close()
+
+	if syncErr != nil && !isUnsupportedDirSyncError(syncErr) {
+		return fmt.Errorf("sync bootstrap password file directory: %w", syncErr)
+	}
+
+	if closeErr != nil {
+		return fmt.Errorf("close bootstrap password file directory: %w", closeErr)
+	}
+
+	return nil
+}
+
+func isUnsupportedDirSyncError(err error) bool {
+	return errors.Is(err, syscall.ENOTSUP) ||
+		errors.Is(err, syscall.EINVAL) ||
+		errors.Is(err, syscall.EROFS)
 }
 
 func runServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, result wiring.BuildResult, services map[string]service.Service) error {

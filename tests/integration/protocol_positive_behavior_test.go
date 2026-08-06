@@ -335,11 +335,13 @@ func loginSubprocessAdminWithClient(t *testing.T, srv *harness.SubprocessServer)
 		}
 	}
 
-	logs := srv.ReadLog(t)
+	password, err := extractBootstrapPassword(srv.TempDir)
+	if err != nil {
+		t.Fatalf("read bootstrap admin password file: %v", err)
+	}
 
-	password := extractBootstrapPassword(logs)
 	if password == "" {
-		t.Fatalf("bootstrap admin password not found in server log:\n%s", logs)
+		t.Fatalf("bootstrap admin password not found in %s", srv.TempDir)
 	}
 
 	token, body, ok := tryLoginWithClient(t, srv.Client(), srv.BaseURL, "admin", password)

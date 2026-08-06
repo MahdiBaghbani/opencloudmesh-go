@@ -181,6 +181,10 @@ func TestBootstrap_EnsureSuperAdmin_AutoGenPassword(t *testing.T) {
 		t.Error("generated password must not appear in log output")
 	}
 
+	if !strings.Contains(logBuf.String(), "rotate via admin UI/CLI") {
+		t.Error("log output should contain non-secret rotation hint")
+	}
+
 	// Verify super admin exists
 	user, err := repo.GetByUsername(ctx, "admin")
 	if err != nil {
