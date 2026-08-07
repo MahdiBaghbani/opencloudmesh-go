@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -211,14 +212,7 @@ func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 	}
 
 	for path := range got {
-		found := false
-
-		for _, w := range want {
-			if path == w {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(want, path)
 
 		if !found {
 			t.Errorf("PeerMapping allowlist has unexpected %q", path)

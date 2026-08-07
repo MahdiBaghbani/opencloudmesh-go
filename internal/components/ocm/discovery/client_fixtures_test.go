@@ -6,6 +6,7 @@
 package discovery_test
 
 import (
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,9 +23,7 @@ func validDiscoveryPayload(serverURL string, extra map[string]any) map[string]an
 		"resourceTypes": []any{},
 		"criteria":      []any{},
 	}
-	for k, v := range extra {
-		raw[k] = v
-	}
+	maps.Copy(raw, extra)
 
 	return raw
 }

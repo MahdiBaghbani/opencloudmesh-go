@@ -143,13 +143,13 @@ func pathMatchesRoute(path, pattern string) bool {
 		return true
 	}
 
-	if strings.HasSuffix(pattern, "/*") {
-		prefix := strings.TrimSuffix(pattern, "/*")
+	if before, ok := strings.CutSuffix(pattern, "/*"); ok {
+		prefix := before
 		return pathMatchesPrefix(path, prefix)
 	}
 
-	if idx := strings.Index(pattern, "{"); idx >= 0 {
-		prefix := strings.TrimSuffix(pattern[:idx], "/")
+	if before, _, ok := strings.Cut(pattern, "{"); ok {
+		prefix := strings.TrimSuffix(before, "/")
 		return pathMatchesPrefix(path, prefix)
 	}
 

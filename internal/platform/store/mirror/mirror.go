@@ -418,7 +418,7 @@ func (d *Driver) exportIncomingInvites(ctx context.Context) error {
 
 // writeJSON atomically writes data to a JSON file in the mirror directory.
 // It writes to a temp file, syncs, then renames to avoid partial reads.
-func (d *Driver) writeJSON(filename string, data interface{}) error {
+func (d *Driver) writeJSON(filename string, data any) error {
 	mirrorDir := filepath.Join(d.dataDir, "mirror")
 	path := filepath.Join(mirrorDir, filename)
 	tempPath := path + ".tmp"

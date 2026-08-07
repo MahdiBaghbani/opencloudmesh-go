@@ -7,6 +7,7 @@ package integration
 
 import (
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"testing"
@@ -267,9 +268,7 @@ func ensureServiceConfig(cfg *config.Config, name string, patch map[string]any) 
 		return
 	}
 
-	for k, v := range patch {
-		existing[k] = v
-	}
+	maps.Copy(existing, patch)
 
 	cfg.HTTP.Services[name] = existing
 }

@@ -76,8 +76,8 @@ func InventoryRows(opts service.RouteOpts) []service.RouteRow {
 // ProbePathFromRow expands a route row FullPath into a concrete request path.
 func ProbePathFromRow(row service.RouteRow) string {
 	path := row.FullPath
-	if strings.HasSuffix(path, "/*") {
-		return strings.TrimSuffix(path, "/*") + "/matrix-probe"
+	if before, ok := strings.CutSuffix(path, "/*"); ok {
+		return before + "/matrix-probe"
 	}
 
 	if idx := strings.Index(path, "{"); idx >= 0 {

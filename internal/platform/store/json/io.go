@@ -21,7 +21,7 @@ const (
 )
 
 // loadFile loads a JSON file into the target map.
-func (d *Driver) loadFile(filename string, target interface{}) error {
+func (d *Driver) loadFile(filename string, target any) error {
 	path := filepath.Join(d.dataDir, filename)
 
 	data, err := os.ReadFile(path)
@@ -34,7 +34,7 @@ func (d *Driver) loadFile(filename string, target interface{}) error {
 
 // saveFile atomically writes data to a JSON file.
 // Pattern: write to temp file, fsync, rename.
-func (d *Driver) saveFile(filename string, data interface{}) error {
+func (d *Driver) saveFile(filename string, data any) error {
 	path := filepath.Join(d.dataDir, filename)
 	tempPath := path + ".tmp"
 

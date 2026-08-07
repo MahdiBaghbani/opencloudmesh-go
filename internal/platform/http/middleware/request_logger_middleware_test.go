@@ -8,6 +8,7 @@ package middleware
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -46,9 +47,7 @@ func (h *recordingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		attrs:   make(map[string]any),
 		groups:  h.groups,
 	}
-	for k, v := range h.attrs {
-		nh.attrs[k] = v
-	}
+	maps.Copy(nh.attrs, h.attrs)
 
 	for _, a := range attrs {
 		nh.attrs[a.Key] = a.Value.Any()
@@ -63,9 +62,7 @@ func (h *recordingHandler) WithGroup(name string) slog.Handler {
 		attrs:   make(map[string]any),
 		groups:  append(h.groups, name),
 	}
-	for k, v := range h.attrs {
-		nh.attrs[k] = v
-	}
+	maps.Copy(nh.attrs, h.attrs)
 
 	return nh
 }

@@ -323,7 +323,7 @@ func actInboundDuplicateLabelPost(t *testing.T, env inboundNegativeEnv, body []b
 // buildInboundRawProtocolBody builds a share request body with a raw protocol
 // JSON arm for negative structure/requirement cases.
 func buildInboundRawProtocolBody(env inboundNegativeEnv, name, providerID, protocolJSON string) []byte {
-	return []byte(fmt.Sprintf(`{
+	return fmt.Appendf(nil, `{
 		"shareWith": %q,
 		"name": %q,
 		"providerId": %q,
@@ -337,7 +337,7 @@ func buildInboundRawProtocolBody(env inboundNegativeEnv, name, providerID, proto
 		providerID,
 		address.FormatOutgoingOCMAddressFromUserID("step14-owner", env.providerHost),
 		address.FormatOutgoingOCMAddressFromUserID("step14-sender", env.providerHost),
-		protocolJSON))
+		protocolJSON)
 }
 
 func postJSONWithClient(t *testing.T, client *http.Client, targetURL string, body []byte) *http.Response {

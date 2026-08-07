@@ -7,6 +7,7 @@ package wellknown
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
@@ -27,14 +28,7 @@ func TestNewOCMHandler_TokenExchangePath(t *testing.T) {
 		testLogger(),
 	)
 
-	found := false
-
-	for _, cap := range h.data.Capabilities {
-		if cap == "exchange-token" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(h.data.Capabilities, "exchange-token")
 
 	if !found {
 		t.Error("expected 'exchange-token' in capabilities")
@@ -69,14 +63,7 @@ func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
 			testLogger(),
 		)
 
-		found := false
-
-		for _, cap := range h.data.Capabilities {
-			if cap == "exchange-token" {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(h.data.Capabilities, "exchange-token")
 
 		if !found {
 			t.Error("expected exchange-token in capabilities when code flow is configured")
@@ -115,7 +102,7 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 			t.Fatalf("failed to marshal: %v", err)
 		}
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		if err := json.Unmarshal(data, &parsed); err != nil {
 			t.Fatalf("failed to unmarshal: %v", err)
 		}
@@ -125,7 +112,7 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 			t.Error("criteria key must be present in JSON")
 		}
 
-		criteriaSlice, ok := criteriaRaw.([]interface{})
+		criteriaSlice, ok := criteriaRaw.([]any)
 		if !ok {
 			t.Errorf("criteria must be an array, got %T", criteriaRaw)
 		}

@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 )
@@ -371,9 +372,7 @@ func overlayHTTPConfig(cfg *Config, fc *httpFileConfig) {
 			cfg.HTTP.Services = make(map[string]map[string]any)
 		}
 
-		for name, svcCfg := range fc.Services {
-			cfg.HTTP.Services[name] = svcCfg
-		}
+		maps.Copy(cfg.HTTP.Services, fc.Services)
 	}
 
 	if len(fc.Interceptors) > 0 {
@@ -381,9 +380,7 @@ func overlayHTTPConfig(cfg *Config, fc *httpFileConfig) {
 			cfg.HTTP.Interceptors = make(map[string]map[string]any)
 		}
 
-		for name, intCfg := range fc.Interceptors {
-			cfg.HTTP.Interceptors[name] = intCfg
-		}
+		maps.Copy(cfg.HTTP.Interceptors, fc.Interceptors)
 	}
 }
 

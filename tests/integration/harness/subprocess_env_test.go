@@ -7,6 +7,7 @@ package harness
 
 import (
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -142,10 +143,8 @@ func TestScrubSubprocessEnvEmptyAndNoop(t *testing.T) {
 // fallback knob remains in the blocklist, guarding the hermetic contract.
 func TestHermeticEnvBlocklistContainsUseEnvFallback(t *testing.T) {
 	want := "OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK"
-	for _, k := range hermeticEnvBlocklist {
-		if k == want {
-			return
-		}
+	if slices.Contains(hermeticEnvBlocklist, want) {
+		return
 	}
 
 	blocklisted := append([]string(nil), hermeticEnvBlocklist...)

@@ -48,7 +48,7 @@ linters:
     - noinlineerr
     # Bans idiomatic short names in handlers/tests (~685).
     - varnamelen
-    # Mandates t.Parallel() (~1409); corpus not ready.
+    # Mandates t.Parallel() (~1409); see docs/lint-policy.md.
     - paralleltest
     # Sentinel error naming style (~392).
     - err113
@@ -58,8 +58,6 @@ linters:
     - wrapcheck
     # External test package layout (~155); conflicts with in-package tests.
     - testpackage
-    # Go version uplift hints (~71); phase after green baseline.
-    - modernize
     # Magic number literal bans (~69); noisy in HTTP status tests.
     - mnd
     # Function length (~49); overlaps cyclop complexity gates.
@@ -108,6 +106,9 @@ linters:
       # output and breaks positional struct literals. Disabled; not auto-fixed.
       disable:
         - fieldalignment
+    modernize:
+      disable:
+        - stringsseq
     staticcheck:
       checks:
         - all
@@ -162,6 +163,12 @@ linters:
         linters:
           - revive
         text: "unused-parameter: parameter 'ctx'"
+      - linters:
+          - modernize
+        text: "Goroutine creation can be simplified using WaitGroup.Go"
+      - linters:
+          - modernize
+        text: "var requestCount int32 may be simplified using atomic.Int32"
 
 formatters:
   enable:

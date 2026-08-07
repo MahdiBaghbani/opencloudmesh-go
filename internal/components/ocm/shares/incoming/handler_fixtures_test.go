@@ -155,17 +155,13 @@ func newAcceptedShareHandler(
 	return newTestHandler(repo, partyRepo), "sender.com"
 }
 
-func ptrBool(v bool) *bool {
-	return &v
-}
-
 func peerMappingConfigWithInstance(host string) *config.PeerMappingConfig {
 	return &config.PeerMappingConfig{
 		Platform: map[string]config.PeerPlatformOverlay{
 			"platform-a": {
 				Instance: map[string]config.PeerMappingInstanceOverlay{
 					host: {
-						RequiresTokenExchangeRequirement: ptrBool(false),
+						RequiresTokenExchangeRequirement: new(false),
 					},
 				},
 			},

@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -94,9 +95,7 @@ func NewDiscoveryTestServer(tb testing.TB, doc map[string]any) (*httptest.Server
 	tb.Helper()
 
 	payload := make(map[string]any, len(doc)+1)
-	for k, v := range doc {
-		payload[k] = v
-	}
+	maps.Copy(payload, doc)
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
@@ -105,9 +104,7 @@ func NewDiscoveryTestServer(tb testing.TB, doc map[string]any) (*httptest.Server
 		}
 
 		served := make(map[string]any, len(payload)+1)
-		for k, v := range payload {
-			served[k] = v
-		}
+		maps.Copy(served, payload)
 
 		baseURL := "http://" + r.Host
 		served["endPoint"] = strings.TrimSuffix(baseURL, "/") + "/ocm"

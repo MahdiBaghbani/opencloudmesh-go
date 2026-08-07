@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -144,13 +145,7 @@ func makeCapturingReceiverTLSServer(t *testing.T, capabilities, criteria []strin
 }
 
 func hasExchangeTokenCapability(capabilities []string) bool {
-	for _, c := range capabilities {
-		if c == "exchange-token" {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(capabilities, "exchange-token")
 }
 
 func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {

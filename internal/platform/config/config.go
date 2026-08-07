@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"net/url"
 	"strings"
 )
@@ -392,9 +393,7 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	}
 	// Return a copy to prevent mutation
 	result := make(map[string]any)
-	for k, v := range svcCfg {
-		result[k] = v
-	}
+	maps.Copy(result, svcCfg)
 
 	return result
 }

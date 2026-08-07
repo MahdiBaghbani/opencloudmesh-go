@@ -51,7 +51,7 @@ func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 	}
 
 	// Parse as raw JSON to verify email and name fields are present (not omitted)
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
 		t.Fatalf("failed to parse raw JSON: %v", err)
 	}

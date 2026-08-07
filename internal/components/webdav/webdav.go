@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/net/webdav"
@@ -121,13 +122,7 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 
 // shareRequires reports whether reqs contains the given requirement.
 func shareRequires(reqs []string, req string) bool {
-	for _, r := range reqs {
-		if r == req {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(reqs, req)
 }
 
 // serveFile serves share.LocalPath via WebDAV.
@@ -245,8 +240,8 @@ func extractCredential(r *http.Request) *credentialResult {
 		return nil
 	}
 
-	if strings.HasPrefix(auth, "Bearer ") {
-		token := strings.TrimPrefix(auth, "Bearer ")
+	if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
+		token := after
 		if token != "" {
 			return &credentialResult{Token: token}
 		}

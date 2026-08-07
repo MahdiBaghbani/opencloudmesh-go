@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -154,17 +155,8 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 					t.Fatalf("protocol role %q was dropped from Protocols", tc.name)
 				}
 
-				found := false
-
 				want := "protocol role \"" + tc.name + "\" preserved but not locally shape-validated"
-				for _, w := range disc.Warnings {
-					if w == want {
-						found = true
-						break
-					}
-				}
-
-				if !found {
+				if !slices.Contains(disc.Warnings, want) {
 					t.Fatalf("expected warning %q, got %v", want, disc.Warnings)
 				}
 			})

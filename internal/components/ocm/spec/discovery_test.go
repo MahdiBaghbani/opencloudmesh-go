@@ -218,7 +218,7 @@ func TestDiscovery_JwksUriPresent(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("failed to unmarshal map: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestDiscovery_JwksUriOmittedWhenEmpty(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("failed to unmarshal map: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 		t.Error("criteria key must be present in JSON")
 	}
 
-	criteriaSlice, ok := criteriaRaw.([]interface{})
+	criteriaSlice, ok := criteriaRaw.([]any)
 	if !ok {
 		t.Errorf("criteria must be an array, got %T", criteriaRaw)
 	}

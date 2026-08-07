@@ -6,6 +6,7 @@
 package wellknown
 
 import (
+	"slices"
 	"sort"
 	"testing"
 
@@ -96,14 +97,7 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 
 	h := newOCMHandler(c, nil, in, testLogger())
 
-	found := false
-
-	for _, cap := range h.data.Capabilities {
-		if cap == "http-sig" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(h.data.Capabilities, "http-sig")
 
 	if !found {
 		t.Error("expected 'http-sig' in capabilities when KeyManager is present")

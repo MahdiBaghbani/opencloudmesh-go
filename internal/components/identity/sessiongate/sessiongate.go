@@ -178,8 +178,8 @@ func extractSessionToken(r *http.Request) string {
 
 	// Try Authorization header (Bearer token)
 	auth := r.Header.Get("Authorization")
-	if strings.HasPrefix(auth, "Bearer ") {
-		return strings.TrimPrefix(auth, "Bearer ")
+	if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
+		return after
 	}
 
 	return ""

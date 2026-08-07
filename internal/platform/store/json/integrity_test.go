@@ -21,7 +21,7 @@ import (
 
 // writePersistedJSON writes data directly to a named JSON file in dir,
 // bypassing the driver's normal write path. Used to inject corrupt state.
-func writePersistedJSON(t *testing.T, dir, filename string, data interface{}) {
+func writePersistedJSON(t *testing.T, dir, filename string, data any) {
 	t.Helper()
 
 	raw, err := json.Marshal(data)
