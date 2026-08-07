@@ -214,7 +214,7 @@ pin) and auto-fetches, so it needs no manual install. rumdl (Rust), typos
 `make typos`, and `make hadolint` exit non-zero if the binary is missing.
 Contributors who install the pre-commit hooks must have rumdl, typos, and
 hadolint on PATH (install once from their GitHub releases; CI installs rumdl
-and hadolint directly per `.github/workflows/ci-lint-markdownlint.yml` and
+and hadolint directly per `.github/workflows/ci-lint-rumdl.yml` and
 `.github/workflows/ci-lint-hadolint.yml`).
 
 ## Verification

@@ -23,7 +23,7 @@ jobs:
   actionlint:
     uses: ./.github/workflows/ci-lint-actionlint.yml
   markdownlint:
-    uses: ./.github/workflows/ci-lint-markdownlint.yml
+    uses: ./.github/workflows/ci-lint-rumdl.yml
   typos:
     uses: ./.github/workflows/ci-lint-typos.yml
   hadolint:
