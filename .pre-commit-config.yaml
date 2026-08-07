@@ -8,6 +8,8 @@
 # go-mod-tidy: index check (CI fmt-vet).
 # golangci-lint / go-test-unit: full module (make lint / make test-go).
 # shellcheck: staged shell scripts. actionlint: GitHub workflows when staged.
+# markdownlint: full tree via make. typos: full tree via make.
+# hadolint: docker/Dockerfile via make. yamllint: non-workflow YAML via make.
 # reuse: full-tree REUSE lint (make reuse-lint / CI reuse job).
 minimum_pre_commit_version: "3.0.0"
 
@@ -74,6 +76,42 @@ repos:
         language: system
         pass_filenames: false
         files: '^\.github/workflows/.*\.(yml|yaml)$'
+        require_serial: true
+
+      - id: markdownlint
+        name: markdownlint (full tree, make markdownlint)
+        entry: make
+        args: [markdownlint]
+        language: system
+        types: [markdown]
+        pass_filenames: false
+        require_serial: true
+
+      - id: typos
+        name: typos (full tree, make typos)
+        entry: make
+        args: [typos]
+        language: system
+        pass_filenames: false
+        require_serial: true
+
+      - id: hadolint
+        name: hadolint (docker/Dockerfile, make hadolint)
+        entry: make
+        args: [hadolint]
+        language: system
+        files: '^(docker/Dockerfile|\.hadolint\.yaml)$'
+        pass_filenames: false
+        require_serial: true
+
+      - id: yamllint
+        name: yamllint (non-workflow YAML, make yamllint)
+        entry: make
+        args: [yamllint]
+        language: system
+        types: [yaml]
+        exclude: '^\.github/workflows/'
+        pass_filenames: false
         require_serial: true
 
   - repo: https://codeberg.org/fsfe/reuse-tool
