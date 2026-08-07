@@ -3,7 +3,6 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Package harness provides test utilities for integration tests.
 package harness
 
 import (

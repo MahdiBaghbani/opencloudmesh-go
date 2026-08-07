@@ -80,7 +80,8 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		85: {},
 	},
 	"internal/platform/config/loader.go": {
-		909: {},
+		// TOML instance-key "ocm" path segment; godoclint removed duplicate package doc from loader.go (-1).
+		908: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		9: {},

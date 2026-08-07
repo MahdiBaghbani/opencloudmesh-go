@@ -72,8 +72,6 @@ linters:
     - gocognit
     # Deprecated import guard OFF; gomodguard_v2 is already on via default:all.
     - gomodguard
-    # Godoc comment style lint; docs cleanup deferred until baseline is stable.
-    - godoclint
     # Bans named returns; style noise across handlers and helpers.
     - nonamedreturns
     # Restricts returning interfaces; conflicts with DI and factory patterns.

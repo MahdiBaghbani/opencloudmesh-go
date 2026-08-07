@@ -17,7 +17,7 @@ import (
 // Reason codes for classified OCM failures.
 // These are stable identifiers for error reporting and orchestration.
 const (
-	// Signature-related failures
+	// ReasonSignatureRequired is a signature-related failure reason code.
 	ReasonSignatureRequired = "signature_required"
 	ReasonSignatureInvalid  = "signature_invalid"
 	ReasonSignatureMismatch = "signature_mismatch"
@@ -25,32 +25,32 @@ const (
 	ReasonKeyIDMismatch     = "keyid_mismatch"
 	ReasonKeyNotFound       = "key_not_found"
 
-	// Token exchange failures
+	// ReasonTokenExchangeFailed is a token exchange failure reason code.
 	ReasonTokenExchangeFailed = "token_exchange_failed"
 	ReasonTokenInvalidFormat  = "token_invalid_format"
 	ReasonTokenExpired        = "token_expired"
 	ReasonTokenUnauthorized   = "token_unauthorized"
 	ReasonTokenForbidden      = "token_forbidden"
 
-	// Discovery failures
+	// ReasonDiscoveryFailed is a discovery failure reason code.
 	ReasonDiscoveryFailed       = "discovery_failed"
 	ReasonDiscoveryTimeout      = "discovery_timeout"
 	ReasonPeerCapabilityMissing = "peer_capability_missing"
 
-	// Network failures
+	// ReasonNetworkError is a network failure reason code.
 	ReasonNetworkError    = "network_error"
 	ReasonPeerUnreachable = "peer_unreachable"
 	ReasonSSRFBlocked     = "ssrf_blocked"
 	ReasonTLSError        = "tls_error"
 
-	// Protocol failures
+	// ReasonProtocolMismatch is a protocol failure reason code.
 	ReasonProtocolMismatch   = "protocol_mismatch"
 	ReasonUnsupportedVersion = "unsupported_version"
 
-	// Remote access
+	// ReasonRemoteError is a remote access failure reason code.
 	ReasonRemoteError = "remote_error"
 
-	// Unknown/unclassified
+	// ReasonUnknown is an unknown or unclassified failure reason code.
 	ReasonUnknown = "unknown"
 )
 

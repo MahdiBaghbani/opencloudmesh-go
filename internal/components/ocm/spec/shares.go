@@ -3,13 +3,12 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Wire-format DTOs for POST /ocm/shares.
-// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 package spec
 
 import "slices"
 
 // NewShareRequest carries the wire body for POST /ocm/shares.
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 type NewShareRequest struct {
 	ShareWith         string   `json:"shareWith"`
 	Name              string   `json:"name"`

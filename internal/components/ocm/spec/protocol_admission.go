@@ -3,8 +3,6 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Minimal protocol admission checks for the current OCM wire contract.
-// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 package spec
 
 import (
@@ -14,6 +12,7 @@ import (
 )
 
 // SupportedResourceTypes are the OCM resource types accepted for share creation.
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 var SupportedResourceTypes = []string{"file", "folder"}
 
 // SupportedWebDAVRequirements are the WebDAV protocol requirement values

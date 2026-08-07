@@ -3,8 +3,6 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// OCM spec error and validation types.
-// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 package spec
 
 import (
@@ -13,6 +11,7 @@ import (
 )
 
 // ValidationError carries one field-level validation error in an OCM error response.
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 type ValidationError struct {
 	Name    string `json:"name"`
 	Message string `json:"message"`

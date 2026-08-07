@@ -3,7 +3,6 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Package config provides configuration loading and validation.
 package config
 
 // PeerMappingConfig holds the hierarchical [ocm.peer_compat] overlay.
