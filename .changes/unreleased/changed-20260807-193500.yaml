@@ -1,9 +1,11 @@
 kind: changed
 body: >-
-  ci and tooling polish: pin a lint base-ref in the Makefile, consolidate
-  the changelog, move Dependabot to uv, harden the ci.yml rollup with a parity
-  invariant and a require-jobs gate, pin hadolint and add hygiene pre-commit
-  hooks for markdownlint, typos, hadolint, and yamllint, migrate the markdown
-  linter from markdownlint-cli2 to rumdl with hierarchical .rumdl.toml config
-  and a SHA256-verified CI install, and document the unit, e2e, and fuzz CI
-  wiring in docs/testing.md
+  ci and tooling polish: derive the lint-new base ref from the master
+  merge-base (replacing the pinned SHA), consolidate the unreleased changelog,
+  extend Dependabot to the uv ecosystem (gomod retained), switch the ci.yml
+  rollup gate from always() to !cancelled(), pin hadolint with a SHA256-verified
+  direct CI install and add hygiene pre-commit hooks for markdownlint, typos,
+  hadolint, and yamllint, migrate the markdown linter from markdownlint-cli2 to
+  rumdl with hierarchical .rumdl.toml config and a SHA256-verified CI install,
+  rename the markdownlint workflow to rumdl, and document the unit, e2e, and
+  fuzz CI wiring in docs/testing.md

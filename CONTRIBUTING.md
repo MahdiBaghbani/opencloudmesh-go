@@ -105,7 +105,7 @@ gate), [typos](https://github.com/crate-ci/typos), and
 [hadolint](https://github.com/hadolint/hadolint) must also be on `PATH`;
 `make markdownlint`, `make typos`, and `make hadolint` exit non-zero if the
 binary is missing. yamllint auto-fetches via `uvx` and needs no manual install.
-CI runs shellcheck but not actionlint; CI installs rumdl and hadolint directly.
+CI runs shellcheck and actionlint; CI installs rumdl and hadolint directly.
 
 Optional manual run before commit:
 
