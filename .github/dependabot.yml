@@ -3,7 +3,8 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 #
-# gomod-only Dependabot config. github-actions is intentionally omitted because
+# Dependabot config: gomod for Go modules; uv for dev Python tools (pre-commit,
+# reuse) in pyproject.toml / uv.lock. github-actions is intentionally omitted because
 # verify-action-pins uses .github/action-pins.yml as the SSOT; a Dependabot
 # workflow SHA update would not update that file. docker is intentionally omitted
 # because docker/Dockerfile uses ARG-based FROM, which dependabot-core issue #2057
@@ -28,3 +29,18 @@ updates:
         applies-to: security-updates
     commit-message:
       prefix: "build(deps)"
+  - package-ecosystem: uv
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      python-dev-tools:
+        update-types:
+          - minor
+          - patch
+      security:
+        applies-to: security-updates
+    commit-message:
+      prefix: "build(deps-dev)"
