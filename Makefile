@@ -170,10 +170,12 @@ lint:
 lint-fix:
 	$(GOLANGCI_LINT) run --fix ./...
 
-# Delta vs pinned lint baseline; does not require full baseline clean.
-# 81fb0ce is this branch's merge-base with master; pinning it keeps lint-new
-# deterministic as master advances.
-LINT_BASE_REF ?= 81fb0ce
+# Delta vs master merge-base; does not require full baseline clean.
+# LINT_BASE_REF derives the merge-base with master at run time (fork-point,
+# then plain merge-base, then HEAD fallback) so it stays current as master
+# advances. On master, or when master is unavailable locally, it collapses to
+# HEAD, so lint-new is a no-op there; use `make lint` for the full baseline.
+LINT_BASE_REF ?= $(shell git merge-base --fork-point master HEAD 2>/dev/null || git merge-base master HEAD 2>/dev/null || git rev-parse HEAD)
 lint-new:
 	$(GOLANGCI_LINT) run --new-from-rev=$(LINT_BASE_REF) ./...
 
