@@ -48,6 +48,10 @@ failure blocks the commit.
 | go-test-unit | full module, `-race`, excludes `tests/integration` | `make test-go` |
 | shellcheck | staged shell scripts | CI shellcheck job |
 | actionlint | `.github/workflows` when a workflow file is staged | pre-commit only |
+| markdownlint | full tree (rumdl) | `make markdownlint` / CI markdownlint job |
+| typos | full tree | `make typos` / CI typos job |
+| hadolint | `docker/Dockerfile` + `.hadolint.yaml` | `make hadolint` / CI hadolint job |
+| yamllint | non-workflow YAML | `make yamllint` / CI yamllint job |
 | reuse | full tree | `make reuse-lint` / CI reuse job |
 
 Local hooks under `scripts/git/` are Nushell helpers invoked by
@@ -96,7 +100,12 @@ Nushell (`nu`) is required for the staged Go helpers. Install via
 [shellcheck](https://www.shellcheck.net/) and
 [actionlint](https://github.com/rhysd/actionlint) must be on `PATH` for
 pre-commit (shellcheck for shell scripts; actionlint for workflow files).
-CI runs shellcheck but not actionlint.
+The hygiene linters [rumdl](https://github.com/rvben/rumdl) (the markdownlint
+gate), [typos](https://github.com/crate-ci/typos), and
+[hadolint](https://github.com/hadolint/hadolint) must also be on `PATH`;
+`make markdownlint`, `make typos`, and `make hadolint` exit non-zero if the
+binary is missing. yamllint auto-fetches via `uvx` and needs no manual install.
+CI runs shellcheck but not actionlint; CI installs rumdl and hadolint directly.
 
 Optional manual run before commit:
 

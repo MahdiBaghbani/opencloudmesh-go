@@ -19,9 +19,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
-        with:
-          bun-version: 1.3.14
+      # rumdl is installed from the pinned v0.2.52 release asset (SHA256
+      # verified) so CI lints with the same rumdl version the Makefile pins
+      # (RUMDL_VERSION). make markdownlint runs the PATH rumdl against the
+      # whole tree, using the hierarchical .rumdl.toml config.
+      - name: Install rumdl v0.2.52
+        env:
+          RUMDL_VERSION: "v0.2.52"
+          RUMDL_SHA256: 55ce88e1030013fb06b7e18cdd5ffb26c4b3a0237729847c1676ddcf438ab716
+        run: |
+          set -euo pipefail
+          asset="rumdl-${RUMDL_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          base="https://github.com/rvben/rumdl/releases/download/${RUMDL_VERSION}"
+          curl -fsSL "${base}/${asset}" -o "/tmp/${asset}"
+          echo "${RUMDL_SHA256}  /tmp/${asset}" | sha256sum -c -
+          tar xzf "/tmp/${asset}" -C /tmp
+          sudo install -m 0755 /tmp/rumdl /usr/local/bin/rumdl
+          rumdl --version
       # Blocking: the Make target is strict. CI fails on markdownlint findings.
       - name: markdownlint
         run: make markdownlint

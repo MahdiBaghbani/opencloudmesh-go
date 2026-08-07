@@ -37,6 +37,15 @@ it conform.
 `.golangci.yml` enables `nolintlint` with `require-explanation: true` and
 `require-specific: true`.
 
+As of the standing inventory, the repository retains 342 `//nolint`
+directives: 222 under `internal/`, 119 under `tests/`, and 1 under `cmd/`.
+Suppressions are spread across production and test packages rather than
+clustered in one tree; the largest single-package concentration is
+`tests/integration` (81 directives in 28 files). All are governed by
+`nolintlint` with `require-explanation` and `require-specific` (each
+directive names a specific linter and carries a rationale), so the standing
+set is auditable rather than tacit.
+
 ## Removed temporary exclusions
 
 Earlier `.golangci.yml` scaffolding excluded cyclop on test paths, `noctx`
@@ -45,6 +54,21 @@ was temporary while tests were refactored to meet the full bar. After the
 test refactors landed, the temporary exclusions were removed. Findings newly
 surfaced by removal were burned down under the same refactor-first bar as
 production code; no replacement test-path waivers were added.
+
+## Gosec global excludes
+
+`.golangci.yml` sets global gosec excludes (not inline `//nolint` directives)
+so accepted-as-is findings are auditable in one place:
+
+- **G304**: paths are config-controlled, not user input.
+- **G306**: 0644 is correct for public certs; private keys use 0600.
+- **G104**: best-effort cleanup; meaningful errors are covered by errcheck.
+  `.golangci.yml` `exclusions.rules` also carries a gosec G104 text
+  exclusion for residual matches.
+- **G101**: matches reason-code strings and test-fixture labels, not real
+  secrets; real secrets are env/config-injected.
+- **G115**: conversions are over fixed small values (lengths, argon2 params);
+  no unbounded input.
 
 ## Retained justified categories
 
@@ -146,6 +170,53 @@ New suppressions require genuine justification and an accurate ASCII
 explanation. Review against the categories above. If none apply, refactor
 instead.
 
+## zizmor workflow security
+
+CI runs zizmor via `.github/workflows/ci-security-zizmor.yml` with config in
+`.github/zizmor.yml`. The blocking gate is `zizmor --min-severity high .`:
+high-severity workflow findings (SARIF "error" level) fail the security job.
+Medium and lower severities are non-blocking. Both CI zizmor runs (the SARIF
+artifact upload and the gating run) use `--min-severity high`, so only
+high-severity findings are emitted.
+
+`unpinned-uses` is disabled in `.github/zizmor.yml` because SHA-pinning of
+GitHub Actions is owned by `make verify-action-pins`
+(`.github/scripts/verify-action-pins.nu`); zizmor does not double-enforce pins.
+
+## Hygiene linters
+
+markdownlint, typos, hadolint, and yamllint are hygiene gates separate from
+golangci-lint. The markdownlint gate runs rumdl (a Rust markdown linter,
+drop-in for markdownlint-cli2); markdownlint, hadolint, and yamllint run via
+their make targets (`make markdownlint`, `make hadolint`, `make yamllint`).
+The typos CI job uses the crate-ci/typos action directly (pinned in
+`.github/action-pins.yml`, config `.typos.toml`). As pre-commit hooks
+(`.pre-commit-config.yaml`), all four call their matching `make <target>`
+(`entry: make <target>`). The Makefile pins versions for the make-backed
+linters (rumdl, yamllint, hadolint, typos); the typos CI job is the exception
+(action-pinned).
+
+Accepted suppressions:
+
+- **hadolint**: `.hadolint.yaml` ignores DL3008 because the Debian build and
+  runtime stages rely on the distribution's supported package set, not
+  per-package version pins.
+- **markdownlint (rumdl)**: hierarchical `.rumdl.toml`. Root `.rumdl.toml`
+  disables MD013 (line length, not a doc-correctness gate), MD034 (bare URLs
+  allowed), MD060, and restricts MD033 to `allowed_elements` p, a, img, and
+  excludes `node_modules/`. `.github/.rumdl.toml` and `.changes/.rumdl.toml`
+  extend the root and additionally disable MD041 (templates and release notes
+  are embedded snippets, not standalone documents with a top-level title).
+
+Contributor prerequisites: yamllint runs via `uvx yamllint==<pin>` (Makefile
+pin) and auto-fetches, so it needs no manual install. rumdl (Rust), typos
+(Rust), and hadolint (Haskell) are PATH binaries; `make markdownlint`,
+`make typos`, and `make hadolint` exit non-zero if the binary is missing.
+Contributors who install the pre-commit hooks must have rumdl, typos, and
+hadolint on PATH (install once from their GitHub releases; CI installs rumdl
+and hadolint directly per `.github/workflows/ci-lint-markdownlint.yml` and
+`.github/workflows/ci-lint-hadolint.yml`).
+
 ## Verification
 
 Run these from the repository root when validating lint policy compliance:
@@ -156,19 +227,25 @@ go test ./...
 go build ./...
 gofmt -l .
 go vet ./...
+make markdownlint
+make typos
+make hadolint
+make yamllint
 uv run reuse lint
 uv run pre-commit run --all-files
 ```
 
 A clean `make lint` is the golangci-lint gate. `go test ./...` exercises the
 full module including integration tests. `gofmt -l .` must produce no output.
-Pre-commit covers gofmt, goimports, go vet, go mod tidy, golangci-lint, unit
-tests, shellcheck, actionlint, and REUSE - the Go, shell, workflow, and
-licensing gates. The hygiene quartet (markdownlint, typos, hadolint, yamllint)
-runs in CI and is available locally via `make markdownlint`, `make typos`,
-`make hadolint`, and `make yamllint` (prerequisites: `make hygiene-tools`); it
-is intentionally not a pre-commit hook so contributors are not forced to
-install bun, uv, typos, and hadolint.
+The four `make markdownlint`, `make typos`, `make hadolint`, and
+`make yamllint` commands run the hygiene gates directly (see the Hygiene
+linters section for PATH prerequisites). Pre-commit covers gofmt, goimports, go vet, go mod tidy, golangci-lint, unit
+tests, shellcheck, actionlint, the hygiene quartet (markdownlint, typos,
+hadolint, yamllint), and REUSE - the Go, shell, workflow, hygiene, and
+licensing gates. The hygiene quartet runs in CI and as pre-commit hooks (each
+calling the matching `make <target>`); yamllint auto-fetches via uvx, while
+rumdl, typos, and hadolint require a PATH install (see the Hygiene linters
+section above).
 
 Related: [development.md](development.md), [testing.md](testing.md),
 [CONTRIBUTING.md](../CONTRIBUTING.md).
