@@ -1,0 +1,6 @@
+kind: fixed
+body: >-
+  Dependabot config: add a grouping criterion (patterns: ["*"]) to the
+  security-update groups for gomod and uv so the config validates; a group
+  with only applies-to is rejected by Dependabot's schema and broke the
+  .github/dependabot.yml CI check

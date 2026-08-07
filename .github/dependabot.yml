@@ -24,9 +24,13 @@ updates:
           - minor
           - patch
       # Security bumps group separately from version bumps so a CVE fix never
-      # waits behind a routine minor/patch rollup (and vice versa).
+      # waits behind a routine minor/patch rollup (and vice versa). A group
+      # needs a grouping criterion, so patterns: ["*"] pulls every security
+      # bump into one PR distinct from the version-update group above.
       security:
         applies-to: security-updates
+        patterns:
+          - "*"
     commit-message:
       prefix: "build(deps)"
   - package-ecosystem: uv
@@ -42,5 +46,7 @@ updates:
           - patch
       security:
         applies-to: security-updates
+        patterns:
+          - "*"
     commit-message:
       prefix: "build(deps-dev)"
