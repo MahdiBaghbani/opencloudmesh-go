@@ -44,16 +44,10 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := tsrepos.OpenMemory(t).OutgoingShares
 
-			tmpFile, err := os.CreateTemp("", "webdav-logs-*")
+			tmpFile, err := os.CreateTemp(t.TempDir(), "webdav-logs-*")
 			if err != nil {
 				t.Fatalf("create temp file: %v", err)
 			}
-
-			t.Cleanup(func() {
-				if err := os.Remove(tmpFile.Name()); err != nil {
-					t.Errorf("remove temp file: %v", err)
-				}
-			})
 
 			if _, err := tmpFile.WriteString("payload"); err != nil {
 				t.Fatalf("write temp file: %v", err)

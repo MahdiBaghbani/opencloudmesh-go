@@ -55,10 +55,7 @@ func BuildBinary(t *testing.T) string {
 	t.Helper()
 
 	// Build to temp location
-	tempDir, err := os.MkdirTemp("", "ocm-build-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir for binary: %v", err)
-	}
+	tempDir := t.TempDir()
 
 	binaryName := "opencloudmesh-go"
 	if runtime.GOOS == "windows" {
@@ -77,12 +74,6 @@ func BuildBinary(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("failed to build binary: %v\nOutput: %s", err, output)
 	}
-
-	// Register cleanup
-	t.Cleanup(func() {
-		//nolint:errcheck // test cleanup: best-effort temp dir removal
-		os.RemoveAll(tempDir)
-	})
 
 	return binaryPath
 }
@@ -121,10 +112,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	t.Helper()
 
 	// Create temp directory for this server
-	tempDir, err := os.MkdirTemp("", "ocm-subprocess-"+cfg.Name+"-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
+	tempDir := t.TempDir()
 
 	// Get a free port unless the caller reserved one (strict pair fixtures).
 	port := cfg.Port
@@ -133,8 +121,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 
 		port, portErr = getFreePort(t.Context())
 		if portErr != nil {
-			//nolint:errcheck // test cleanup: best-effort temp dir removal
-			os.RemoveAll(tempDir)
 			t.Fatalf("failed to get free port: %v", portErr)
 		}
 	}
@@ -145,15 +131,11 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		// Ensure parent directory exists
 		if dir := filepath.Dir(absPath); dir != tempDir {
 			if mkdirErr := os.MkdirAll(dir, 0755); mkdirErr != nil { //nolint:gosec // test fixture: 0755 on a local controlled test temp dir, not an attacker-controlled production path
-				//nolint:errcheck // test cleanup: best-effort temp dir removal
-				os.RemoveAll(tempDir)
 				t.Fatalf("failed to create directory for extra file %s: %v", relPath, mkdirErr)
 			}
 		}
 
 		if writeErr := os.WriteFile(absPath, []byte(contents), 0644); writeErr != nil {
-			//nolint:errcheck // test cleanup: best-effort temp dir removal
-			os.RemoveAll(tempDir)
 			t.Fatalf("failed to write extra file %s: %v", relPath, writeErr)
 		}
 	}
@@ -173,8 +155,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		cfg.ExtraConfig,
 	)
 	if writeErr := os.WriteFile(configPath, []byte(configContent), 0644); writeErr != nil {
-		//nolint:errcheck // test cleanup: best-effort temp dir removal
-		os.RemoveAll(tempDir)
 		t.Fatalf("failed to write config file: %v", writeErr)
 	}
 
@@ -187,8 +167,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	// under. See localListenerBaseURL in harness.go for the in-process parallel.
 	finalCfg, err := loadEffectiveSubprocessConfig(configPath, tempDir)
 	if err != nil {
-		//nolint:errcheck // test cleanup: best-effort temp dir removal
-		os.RemoveAll(tempDir)
 		t.Fatalf("failed to load effective config for %s: %v", cfg.Name, err)
 	}
 
@@ -199,8 +177,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 
 	logFile, err := os.Create(logPath)
 	if err != nil {
-		//nolint:errcheck // test cleanup: best-effort temp dir removal
-		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create log file: %v", err)
 	}
 
@@ -223,8 +199,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	if err := cmd.Start(); err != nil {
 		//nolint:errcheck // test cleanup: log file close
 		logFile.Close()
-		//nolint:errcheck // test cleanup: best-effort temp dir removal
-		os.RemoveAll(tempDir)
 		t.Fatalf("failed to start subprocess: %v", err)
 	}
 

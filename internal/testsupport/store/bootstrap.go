@@ -7,30 +7,18 @@ package store
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 // TempDataDir creates an isolated temporary data directory for a store driver
-// test and registers its removal with t.Cleanup. The pattern follows
-// os.MkdirTemp semantics (a trailing "*" is replaced by a random suffix).
-func TempDataDir(t *testing.T, pattern string) string {
+// test via t.TempDir(). The pattern argument is ignored and kept for call-site
+// compatibility; cleanup is managed by testing.T.
+func TempDataDir(t *testing.T, _ string) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", pattern)
-	if err != nil {
-		t.Fatalf("create temp data dir: %v", err)
-	}
-
-	t.Cleanup(func() {
-		if err := os.RemoveAll(dir); err != nil {
-			t.Errorf("cleanup temp data dir: %v", err)
-		}
-	})
-
-	return dir
+	return t.TempDir()
 }
 
 // OpenDriver constructs a store driver from cfg and initializes it, failing the

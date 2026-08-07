@@ -48,16 +48,7 @@ func TestTLSManager_Static_MissingFiles(t *testing.T) {
 }
 
 func TestTLSManager_SelfSigned_Generate(t *testing.T) {
-	// Create temp directory for certs
-	tempDir, err := os.MkdirTemp("", "ocm-test-tls-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if rerr := os.RemoveAll(tempDir); rerr != nil {
-			t.Errorf("remove temp dir: %v", rerr)
-		}
-	}()
+	tempDir := t.TempDir()
 
 	cfg := &config.TLSConfig{
 		Mode:          "selfsigned",
@@ -93,15 +84,7 @@ func TestTLSManager_SelfSigned_Generate(t *testing.T) {
 }
 
 func TestTLSManager_SelfSigned_Reload(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-tls-reload-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if rerr := os.RemoveAll(tempDir); rerr != nil {
-			t.Errorf("remove temp dir: %v", rerr)
-		}
-	}()
+	tempDir := t.TempDir()
 
 	cfg := &config.TLSConfig{
 		Mode:          "selfsigned",

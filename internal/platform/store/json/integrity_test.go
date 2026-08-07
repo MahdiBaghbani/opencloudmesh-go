@@ -120,18 +120,10 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 // assertRebuildRejectsDuplicateOutgoingShares persists shares with an injected
 // duplicate key and asserts driver Init fails during index rebuild. fieldLabel
 // names the conflicting field in the failure message.
-func assertRebuildRejectsDuplicateOutgoingShares(t *testing.T, tmpPattern string, shares map[string]*store.OutgoingShare, fieldLabel string) {
+func assertRebuildRejectsDuplicateOutgoingShares(t *testing.T, shares map[string]*store.OutgoingShare, fieldLabel string) {
 	t.Helper()
 
-	tempDir, err := os.MkdirTemp("", tmpPattern)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if rerr := os.RemoveAll(tempDir); rerr != nil {
-			t.Errorf("remove temp dir: %v", rerr)
-		}
-	}()
+	tempDir := t.TempDir()
 
 	if merr := os.MkdirAll(tempDir, 0700); merr != nil {
 		t.Fatal(merr)
@@ -174,7 +166,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) {
 		},
 	}
 
-	assertRebuildRejectsDuplicateOutgoingShares(t, "ocm-test-json-dup-webdav-*", shares, "WebDAVID")
+	assertRebuildRejectsDuplicateOutgoingShares(t, shares, "WebDAVID")
 }
 
 // TestJSONRebuildRejectsDuplicateOutgoingShareID verifies that Init fails when
@@ -198,21 +190,13 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareID(t *testing.T) {
 		},
 	}
 
-	assertRebuildRejectsDuplicateOutgoingShares(t, "ocm-test-json-dup-shareid-*", shares, "ShareID")
+	assertRebuildRejectsDuplicateOutgoingShares(t, shares, "ShareID")
 }
 
 // TestJSONRebuildRejectsDuplicateOutgoingInviteToken verifies that Init fails
 // when persisted outgoing-invite data contains two records with the same Token.
 func TestJSONRebuildRejectsDuplicateOutgoingInviteToken(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-json-dup-inv-tok-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if rerr := os.RemoveAll(tempDir); rerr != nil {
-			t.Errorf("remove temp dir: %v", rerr)
-		}
-	}()
+	tempDir := t.TempDir()
 
 	if merr := os.MkdirAll(tempDir, 0700); merr != nil {
 		t.Fatal(merr)

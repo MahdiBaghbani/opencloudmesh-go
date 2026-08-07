@@ -8,7 +8,6 @@ package store
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -56,10 +55,7 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 	newSubDriver := func(t *testing.T) store.Driver {
 		t.Helper()
 
-		subDir, err := os.MkdirTemp(cfg.DataDir, "sub-")
-		if err != nil {
-			t.Fatalf("create subtest dir: %v", err)
-		}
+		subDir := t.TempDir()
 
 		subCfg := cloneConfig(cfg, subDir)
 
