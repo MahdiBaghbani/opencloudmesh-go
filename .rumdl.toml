@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# rumdl config (Rust markdown linter). rumdl auto-discovers .rumdl.toml
+# hierarchically, so .github/ and .changes/ extend this file instead of
+# re-declaring the shared rules.
+disable = ["MD013", "MD034", "MD060"]
+exclude = ["node_modules/"]
+
+[MD033]
+allowed_elements = ["p", "a", "img"]

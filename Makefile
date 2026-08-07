@@ -84,8 +84,8 @@ GOVULNCHECK_VERSION ?= v1.1.4
 GOIMPORTS_VERSION ?= v0.30.0
 ACTIONLINT_VERSION ?= v1.7.12
 GO_LICENSES_VERSION ?= v2.0.1
-# Hygiene tools: bunx/uvx pin npm/PyPI versions; typos/hadolint are PATH binaries.
-MARKDOWNLINT_CLI2_VERSION ?= 0.23.2
+# Hygiene tools: uvx pins PyPI versions; typos/hadolint/rumdl are PATH binaries.
+RUMDL_VERSION ?= v0.2.52
 YAMLLINT_VERSION ?= 1.38.0
 TYPOS_VERSION ?= v1.49.0
 HADOLINT_VERSION ?= v2.15.1
@@ -95,8 +95,8 @@ GOVULNCHECK ?= govulncheck
 GOIMPORTS ?= goimports
 ACTIONLINT ?= actionlint
 GO_LICENSES ?= go-licenses
-# bunx --bun runs the pinned npm package without a root package.json.
-MARKDOWNLINT ?= bunx --bun markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION)
+# rumdl is a Rust binary on PATH; CI installs the pinned RUMDL_VERSION directly.
+RUMDL ?= rumdl
 TYPOS ?= typos
 HADOLINT ?= hadolint
 HADOLINT_FLAGS ?= -c .hadolint.yaml
@@ -105,7 +105,7 @@ YAMLLINT ?= uvx yamllint==$(YAMLLINT_VERSION)
 # Non-workflow YAML only; .github/workflows/** is owned by actionlint.
 YAMLLINT_PATHS := .changie.yaml .pre-commit-config.yaml .golangci.yml \
 	.hadolint.yaml .github/dependabot.yml .github/action-pins.yml .changes \
-	.github/.markdownlint.yaml .github/ISSUE_TEMPLATE
+	.github/ISSUE_TEMPLATE
 
 # Linked-tree license scan scope (single binary under cmd/).
 GO_LICENSES_PKG ?= ./cmd/opencloudmesh-go
@@ -127,17 +127,18 @@ tools:
 	go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
 	go install github.com/google/go-licenses/v2@$(GO_LICENSES_VERSION)
 
-# Hygiene tool prerequisites (not go-installable). markdownlint-cli2 via bunx;
-# yamllint via uvx; typos (Rust) and hadolint (Haskell) must be on PATH.
-# See https://github.com/crate-ci/typos/releases and
+# Hygiene tool prerequisites (not go-installable). rumdl (Rust), typos (Rust),
+# and hadolint (Haskell) must be on PATH; yamllint via uvx.
+# See https://github.com/rvben/rumdl/releases (pin: RUMDL_VERSION),
+# https://github.com/crate-ci/typos/releases and
 # https://github.com/hadolint/hadolint/releases (pins: TYPOS_VERSION / HADOLINT_VERSION).
 hygiene-tools:
-	@command -v bun >/dev/null 2>&1 || (echo "bun not found; install from https://bun.sh"; exit 1)
+	@command -v $(RUMDL) >/dev/null 2>&1 || (echo "rumdl not found; install $(RUMDL_VERSION) from https://github.com/rvben/rumdl/releases"; exit 1)
 	@command -v uvx >/dev/null 2>&1 || (echo "uv/uvx not found; install from https://docs.astral.sh/uv/"; exit 1)
 	@command -v $(TYPOS) >/dev/null 2>&1 || (echo "typos not found; install $(TYPOS_VERSION) from https://github.com/crate-ci/typos/releases"; exit 1)
 	@command -v $(HADOLINT) >/dev/null 2>&1 || (echo "hadolint not found; install $(HADOLINT_VERSION) from https://github.com/hadolint/hadolint/releases"; exit 1)
-	@echo "hygiene-tools: bun=$$(bun --version) typos=$$($(TYPOS) --version) hadolint=$$($(HADOLINT) --version)"
-	@echo "hygiene-tools: markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION) via bunx; yamllint==$(YAMLLINT_VERSION) via uvx"
+	@echo "hygiene-tools: rumdl=$$($(RUMDL) --version) typos=$$($(TYPOS) --version) hadolint=$$($(HADOLINT) --version)"
+	@echo "hygiene-tools: rumdl@$(RUMDL_VERSION) on PATH; yamllint==$(YAMLLINT_VERSION) via uvx"
 
 # Install only go-licenses (focused; CI licenses jobs call this so the version SSOT stays in the Makefile).
 licenses-install:
@@ -230,15 +231,15 @@ licenses-save:
 	cp LICENSE-3RD-PARTY.md $(LICENSES_SAVE_PATH)/LICENSE-3RD-PARTY.md
 	cp docs/notices/SQLITE-PUBLIC-DOMAIN.txt $(LICENSES_SAVE_PATH)/SQLITE-LICENSE
 
-# markdownlint-cli2 via bunx (pinned MARKDOWNLINT_CLI2_VERSION). Uses .markdownlint.json.
-# Strict locally and blocking in CI.
+# rumdl (Rust markdown linter) via PATH binary. Uses hierarchical .rumdl.toml
+# (root + .github/ + .changes/). Strict locally and blocking in CI.
 markdownlint:
-	@command -v bun >/dev/null 2>&1 || (echo "bun not found; install from https://bun.sh"; exit 1)
-	$(MARKDOWNLINT) "**/*.md" "#node_modules" "#**/node_modules/**"
+	@command -v $(RUMDL) >/dev/null 2>&1 || (echo "rumdl not found; install $(RUMDL_VERSION) from https://github.com/rvben/rumdl/releases"; exit 1)
+	$(RUMDL) check .
 
 markdownlint-fix:
-	@command -v bun >/dev/null 2>&1 || (echo "bun not found; install from https://bun.sh"; exit 1)
-	$(MARKDOWNLINT) --fix "**/*.md" "#node_modules" "#**/node_modules/**"
+	@command -v $(RUMDL) >/dev/null 2>&1 || (echo "rumdl not found; install $(RUMDL_VERSION) from https://github.com/rvben/rumdl/releases"; exit 1)
+	$(RUMDL) check --fix .
 
 # typos binary (Rust; not go-installable). Config: .typos.toml.
 # Strict locally and blocking in CI.
