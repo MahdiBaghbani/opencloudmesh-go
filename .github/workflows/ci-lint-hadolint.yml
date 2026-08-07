@@ -19,10 +19,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # hadolint-action has no path-filter input; always lint docker/Dockerfile.
-      # Blocking: findings fail CI.
+      # hadolint is installed from the pinned v2.15.1 release asset (SHA256
+      # verified) so CI lints with the same hadolint version the Makefile pins
+      # (HADOLINT_VERSION). hadolint/hadolint-action is not used because it
+      # bundles an implicit, unconfigurable version and exposes no version
+      # input. make hadolint runs the PATH binary against docker/Dockerfile
+      # with .hadolint.yaml.
+      - name: Install hadolint v2.15.1
+        env:
+          HADOLINT_VERSION: "v2.15.1"
+          HADOLINT_SHA256: c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
+        run: |
+          set -euo pipefail
+          asset="hadolint-linux-x86_64"
+          base="https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}"
+          curl -fsSL "${base}/${asset}" -o "/tmp/${asset}"
+          echo "${HADOLINT_SHA256}  /tmp/${asset}" | sha256sum -c -
+          sudo install -m 0755 "/tmp/${asset}" /usr/local/bin/hadolint
+          hadolint --version
+      # Blocking: make hadolint is strict. CI fails on findings.
       - name: hadolint
-        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6
-        with:
-          dockerfile: docker/Dockerfile
-          config: .hadolint.yaml
+        run: make hadolint

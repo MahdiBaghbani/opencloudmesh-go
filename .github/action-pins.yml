@@ -83,9 +83,7 @@ pins:
   crate-ci/typos:
     release: v1.49.0
     sha: 8a48f81b6c64dcfea44b3633223084c4be58ac5f
-  hadolint/hadolint-action:
-    release: v3.4.0
-    sha: 2a66e89f53d0771bb131a7fa31f3136336094aa6
+
 archives:
   nushell/nushell:
     version: 0.114.1
