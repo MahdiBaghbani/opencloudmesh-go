@@ -41,7 +41,7 @@ As of the standing inventory, the repository retains 342 `//nolint`
 directives: 222 under `internal/`, 119 under `tests/`, and 1 under `cmd/`.
 Suppressions are spread across production and test packages rather than
 clustered in one tree; the largest single-package concentration is
-`tests/integration` (81 directives in 28 files). All are governed by
+`tests/integration` (116 directives in 30 files). All are governed by
 `nolintlint` with `require-explanation` and `require-specific` (each
 directive names a specific linter and carries a rationale), so the standing
 set is auditable rather than tacit.
