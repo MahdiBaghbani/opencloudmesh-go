@@ -46,6 +46,71 @@ clustered in one tree; the largest single-package concentration is
 directive names a specific linter and carries a rationale), so the standing
 set is auditable rather than tacit.
 
+## Disabled linters (global)
+
+Four linters disabled in `.golangci.yml` need a narrative rationale beyond
+their inline config comment; the entries below document those four. Other
+disabled linters carry their rationale as inline comments in `.golangci.yml`.
+Unlike the gosec global excludes (which run the linter and suppress accepted
+findings), these four do not run at all. Each entry states whether the
+disable is structural (needs an architectural change to turn on), deferred
+(has a concrete burn-down trigger), or permanent (a deliberate style choice
+with no burn-down trigger). None of these are "too noisy" or "will fix
+later" waivers; both phrases are banned by the Refactor-first suppressions
+section above.
+
+### paralleltest - structural
+
+`paralleltest` is globally disabled because the integration harness
+mutates process-global state that `t.Parallel` cannot isolate. The
+subprocess config-loading path takes a process-wide chdir lock and scrubs
+parent environment variables:
+
+- `tests/integration/harness/subprocess.go:341-345` - `subprocessChdirMu`
+  serializes a process-global `os.Chdir`; the mutex is taken at
+  `subprocess.go:366-367` for the config-load window.
+- `tests/integration/harness/subprocess.go:377,381` - the parent changes
+  directory into the per-test data directory (`os.Chdir(dataDir)`) and
+  restores the prior directory (`os.Chdir(prevDir)`) around the
+  config-load window.
+- `tests/integration/harness/subprocess.go:397,414,426` -
+  `scrubParentConfigEnv` unsets and later restores blocklisted
+  `OCM_CONFIG_*` variables via `os.Setenv` / `os.Unsetenv`.
+
+`t.Parallel` would run sibling tests concurrently while this process-global
+chdir and env scrub is in flight, so they would observe the wrong working
+directory and environment. Burn-down trigger: subprocess config loading no
+longer mutates the parent process working directory or environment (for
+example by isolating config loading to the child process only). There is no
+`tests/integration` path exclusion; the disable is global because the
+constraint is the harness, not a per-file waiver. This is not analogous to
+gosec: gosec is enabled with an audited exclude inventory, while
+`paralleltest` is fully off.
+
+### err113 - deferred
+
+`err113` (define errors as package-level sentinels) is deferred. It has no
+settings knob in golangci-lint v2.12.2 and roughly 308 production hits, so
+a blanket enable would surface hundreds of findings with no way to narrow
+them. Burn-down trigger: a phased
+sentinel-extraction program that lifts repeated `errors.New` literals to
+package-level sentinels, paired with `errname` for stable error names.
+
+### goconst - deferred
+
+`goconst` is deferred. The wall of repeated string literals (roughly 993
+findings) is dominated by fixture and protocol constants, and skipping
+test files (which would drop the count to roughly 84) is forbidden by the
+One standard above. Burn-down trigger: a dedicated const-extraction PR that
+lifts the repeated literals to named constants without a test-path waiver.
+
+### funcorder - permanent
+
+`funcorder` is kept disabled. Method and type ordering churn is review-
+hostile: the diff noise outweighs the readability gain, and the team has not
+adopted a fixed ordering convention to enforce. There is no burn-down
+trigger; this is a permanent style choice, not a deferred fix.
+
 ## Removed temporary exclusions
 
 Earlier `.golangci.yml` scaffolding excluded cyclop on test paths, `noctx`

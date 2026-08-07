@@ -42,7 +42,7 @@ linters:
     - exhaustruct
     # Blank-line-before-return style (~1240).
     - nlreturn
-    # String repetition hints (~875); defer until baseline stable.
+    # String repetition hints (~993); defer until baseline stable.
     - goconst
     # Inline error handling style enforcement (~711).
     - noinlineerr
