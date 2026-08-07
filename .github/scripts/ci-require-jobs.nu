@@ -6,8 +6,9 @@
 # Require every listed CI job result env var to be exactly "success".
 # require-success passes only on "success" and fails on ANY non-success
 # result, including cancelled, skipped, and failed.
-# This complements the rollup job's if: always(), which ensures the rollup
-# runs even when an upstream job is cancelled.
+# This complements the rollup job's if: !cancelled(), which runs the rollup
+# on success or failure (skipped only on cancellation) so require-jobs can
+# enforce all-success whenever the rollup runs.
 # CI rollup job env must supply:
 #   LINT_RESULT, SECURITY_RESULT, LICENSES_RESULT, TEST_RESULT,
 #   BUILD_RESULT, PINS_RESULT, REUSE_RESULT
