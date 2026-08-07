@@ -51,8 +51,8 @@ func WithCache(c cache.Cache) Option {
 
 // NewTestClient builds a discovery.Client with permissive outbound HTTP defaults.
 // Nil cache is replaced with the default in-memory cache inside discovery.NewClient.
-func NewTestClient(t testing.TB, opts ...Option) *ocmdiscovery.Client {
-	t.Helper()
+func NewTestClient(tb testing.TB, opts ...Option) *ocmdiscovery.Client {
+	tb.Helper()
 
 	o := clientOptions{
 		httpClient: httpclient.New(tshttp.PermissiveConfig(), nil),
@@ -67,8 +67,8 @@ func NewTestClient(t testing.TB, opts ...Option) *ocmdiscovery.Client {
 // InlineKeyDiscoveryDoc builds a raw discovery JSON document carrying a singular
 // inline publicKey entry, mirroring client_deserialize_test's inlineKeyDiscoveryPayload
 // with shape "singular", apiVersion spec.APIVersionPin, and a fixed peer base URL.
-func InlineKeyDiscoveryDoc(t testing.TB, publicKeyPEM string) map[string]any {
-	t.Helper()
+func InlineKeyDiscoveryDoc(tb testing.TB, publicKeyPEM string) map[string]any {
+	tb.Helper()
 
 	endpoint := strings.TrimSuffix(defaultInlineKeyServerURL, "/") + "/ocm"
 
@@ -90,8 +90,8 @@ func InlineKeyDiscoveryDoc(t testing.TB, publicKeyPEM string) map[string]any {
 // The served document endPoint is rewritten to match the httptest server authority so
 // callers can compose InlineKeyDiscoveryDoc (or any doc with a placeholder endpoint)
 // without conflicting with the dynamic server URL.
-func NewDiscoveryTestServer(t testing.TB, doc map[string]any) (*httptest.Server, func()) {
-	t.Helper()
+func NewDiscoveryTestServer(tb testing.TB, doc map[string]any) (*httptest.Server, func()) {
+	tb.Helper()
 
 	payload := make(map[string]any, len(doc)+1)
 	for k, v := range doc {
@@ -126,7 +126,7 @@ func NewDiscoveryTestServer(t testing.TB, doc map[string]any) (*httptest.Server,
 	srv.Start()
 
 	cleanup := func() { srv.Close() }
-	t.Cleanup(cleanup)
+	tb.Cleanup(cleanup)
 
 	return srv, cleanup
 }

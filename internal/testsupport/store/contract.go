@@ -241,6 +241,8 @@ func requireIncomingInviteStore(t *testing.T, d store.Driver) store.IncomingInvi
 }
 
 func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingShareStore) {
+	t.Helper()
+
 	share := NewOutgoingShareFixture()
 
 	createOutgoingShare(t, ctx, s, share)
@@ -374,6 +376,8 @@ func requireOutgoingShareNotFound(t *testing.T, ctx context.Context, s store.Out
 }
 
 func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingShareStore) {
+	t.Helper()
+
 	share := NewIncomingShareFixture()
 	share.UpdatedAt = time.Now().Add(-2 * time.Second).Unix()
 
@@ -502,6 +506,7 @@ func deleteIncomingShareForRecipient(t *testing.T, ctx context.Context, s store.
 
 // runProviderKeyScopedLookup verifies sender-scoped provider key lookup.
 func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.IncomingShareStore) {
+	t.Helper()
 	// Create two shares with same providerID but different senders
 	share1 := NewIncomingShareFixture()
 	share1.ShareID = "share-1"
@@ -555,6 +560,8 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 }
 
 func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingInviteStore) {
+	t.Helper()
+
 	invite := NewOutgoingInviteFixture()
 
 	createOutgoingInvite(t, ctx, s, invite)
@@ -706,6 +713,8 @@ func requireOutgoingInviteNotFound(t *testing.T, ctx context.Context, s store.Ou
 // are unchanged after an update, and the remote sender identity is persisted on
 // acceptance.
 func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.IncomingInviteStore) {
+	t.Helper()
+
 	invite := NewIncomingInviteFixture()
 
 	createIncomingInvite(t, ctx, s, invite)
@@ -896,6 +905,8 @@ func runIncomingInviteCompositeUniqueness(
 	ctx context.Context,
 	s store.IncomingInviteStore,
 ) {
+	t.Helper()
+
 	first := &store.IncomingInvite{
 		ID:              "composite-unique-test-1",
 		Token:           "composite-unique-token",
@@ -986,6 +997,8 @@ func runOutgoingShareDuplicateSharedSecret(
 	ctx context.Context,
 	s store.OutgoingShareStore,
 ) {
+	t.Helper()
+
 	first := &store.OutgoingShare{
 		ShareID:      "dup-secret-share-1",
 		ProviderID:   "dup-secret-provider-1",
@@ -1124,6 +1137,8 @@ func runOutgoingShareEmptySharedSecretLookup(
 	ctx context.Context,
 	s store.OutgoingShareStore,
 ) {
+	t.Helper()
+
 	row := &store.OutgoingShare{
 		ShareID:      "empty-secret-lookup-share-1",
 		ProviderID:   "empty-secret-lookup-provider-1",
@@ -1160,6 +1175,8 @@ func runOutgoingShareEmptySharedSecretLookup(
 // runOutgoingShareUpdateNotFound verifies that UpdateOutgoingShare returns
 // ErrNotFound when the target record does not exist.
 func runOutgoingShareUpdateNotFound(t *testing.T, ctx context.Context, s store.OutgoingShareStore) {
+	t.Helper()
+
 	ghost := NewOutgoingShareFixture()
 	ghost.ProviderID = "update-missing-out-share-provider"
 	ghost.ShareID = "update-missing-out-share-id"
@@ -1177,6 +1194,8 @@ func runOutgoingInviteUpdateNotFound(
 	ctx context.Context,
 	s store.OutgoingInviteStore,
 ) {
+	t.Helper()
+
 	ghost := NewOutgoingInviteFixture()
 	ghost.ID = "update-missing-out-invite-id"
 
@@ -1195,6 +1214,8 @@ func runIncomingShareProviderKeyUniqueness(
 	ctx context.Context,
 	s store.IncomingShareStore,
 ) {
+	t.Helper()
+
 	first := &store.IncomingShare{
 		ShareID:         "provider-key-unique-1",
 		SenderHost:      "provider-key-server.com",

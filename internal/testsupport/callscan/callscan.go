@@ -74,6 +74,8 @@ func scanFileForSpec(
 	d os.DirEntry,
 	walkErr error,
 ) ([]string, error) {
+	t.Helper()
+
 	if walkErr != nil {
 		return nil, walkErr
 	}

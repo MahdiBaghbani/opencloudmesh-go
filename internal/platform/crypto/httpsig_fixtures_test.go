@@ -34,9 +34,9 @@ func httpsigFixedNow() time.Time {
 	return time.Unix(httpsigFixedUnixTime, 0)
 }
 
-func mustHTTPSigKeyManager(t testing.TB) *crypto.KeyManager {
-	t.Helper()
-	return tscrypto.MustTestKeyManager(t, httpsigTestOrigin)
+func mustHTTPSigKeyManager(tb testing.TB) *crypto.KeyManager {
+	tb.Helper()
+	return tscrypto.MustTestKeyManager(tb, httpsigTestOrigin)
 }
 
 func httpsigFixedOptions() crypto.RFC9421Options {

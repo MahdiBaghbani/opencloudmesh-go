@@ -12,12 +12,12 @@ import (
 )
 
 // MustTestKeyManager returns a KeyManager with keys loaded or generated for origin.
-func MustTestKeyManager(t testing.TB, origin string) *platformcrypto.KeyManager {
-	t.Helper()
+func MustTestKeyManager(tb testing.TB, origin string) *platformcrypto.KeyManager {
+	tb.Helper()
 
 	km := platformcrypto.NewKeyManager("", origin)
 	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate origin=%q: %v", origin, err)
+		tb.Fatalf("LoadOrGenerate origin=%q: %v", origin, err)
 	}
 
 	return km
@@ -29,12 +29,12 @@ func NewTestKeyManager(origin string) *platformcrypto.KeyManager {
 }
 
 // MustTestKeyManagerWithPath returns a KeyManager loaded from or persisted to keyPath.
-func MustTestKeyManagerWithPath(t testing.TB, keyPath, origin string) *platformcrypto.KeyManager {
-	t.Helper()
+func MustTestKeyManagerWithPath(tb testing.TB, keyPath, origin string) *platformcrypto.KeyManager {
+	tb.Helper()
 
 	km := platformcrypto.NewKeyManager(keyPath, origin)
 	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate keyPath=%q origin=%q: %v", keyPath, origin, err)
+		tb.Fatalf("LoadOrGenerate keyPath=%q origin=%q: %v", keyPath, origin, err)
 	}
 
 	return km

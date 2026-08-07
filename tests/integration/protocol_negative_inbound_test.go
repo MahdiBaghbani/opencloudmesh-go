@@ -55,7 +55,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "unsigned_request",
 			wantStatus: http.StatusUnauthorized,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-unsigned-secret"
 				body := buildSignedInboundShareBody(t, "admin@"+env.consumerHost, "step14-neg-unsigned", env.providerHost, "webdav-uri-unsigned",
 					secret,
@@ -68,7 +68,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "wrong_signature_authority",
 			wantStatus: http.StatusForbidden,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-wrong-authority-secret"
 				wrongHost := "wrong-authority.invalid"
 				body := buildSignedInboundShareBody(t, "admin@"+env.consumerHost, "step14-neg-wrong-authority", wrongHost, "webdav-uri-wrong-authority",
@@ -82,7 +82,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "owner_provider_mismatch",
 			wantStatus: http.StatusForbidden,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-owner-mismatch-secret"
 				body := buildInboundShareBodyWithOwnerSender(t,
 					"admin@"+env.consumerHost,
@@ -101,7 +101,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "foreign_labels_without_ocm_signature",
 			wantStatus: http.StatusUnauthorized,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-foreign-labels-secret"
 				body := buildInboundShareBodyWithOwnerSender(t,
 					"admin@"+env.consumerHost,
@@ -120,7 +120,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "duplicate_ocm_signature",
 			wantStatus: http.StatusUnauthorized,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-duplicate-ocm-secret"
 				body := buildSignedInboundShareBody(t, "admin@"+env.consumerHost, "step14-neg-duplicate-ocm", env.providerHost, "webdav-uri-duplicate-ocm",
 					secret,
@@ -133,7 +133,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "invalid_protocol_structure",
 			wantStatus: http.StatusBadRequest,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-invalid-structure-secret"
 				protocolJSON := fmt.Sprintf(`{
 					"webdav": {
@@ -152,7 +152,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "unsupported_protocol_arm",
 			wantStatus: http.StatusNotImplemented,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-unsupported-arm-secret"
 				protocolJSON := fmt.Sprintf(`{
 					"name": "webdav",
@@ -173,7 +173,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 		{
 			name:       "unknown_requirement",
 			wantStatus: http.StatusNotImplemented,
-			act: func(t *testing.T, env inboundNegativeEnv) []string {
+			act: func(t *testing.T, env inboundNegativeEnv) []string { //nolint:thelper // table act closure, not a reusable helper
 				secret := "step14-neg-unknown-req-secret"
 				protocolJSON := fmt.Sprintf(`{
 					"name": "webdav",

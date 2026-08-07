@@ -68,8 +68,6 @@ linters:
     - gochecknoglobals
     # Constructor/export ordering (~32).
     - funcorder
-    # t.Helper() enforcement (~32).
-    - thelper
     # Nested if depth (~24); overlaps cyclop.
     - nestif
     # Cognitive complexity (~35); redundant with cyclop.

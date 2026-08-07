@@ -89,6 +89,7 @@ func BuildBinary(t *testing.T) string {
 
 // findProjectRoot finds the project root by looking for go.mod
 func findProjectRoot(t *testing.T) string {
+	t.Helper()
 	return FindProjectRoot(t)
 }
 

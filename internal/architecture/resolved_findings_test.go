@@ -256,6 +256,8 @@ func TestRFC9421Conformance(t *testing.T) {
 }
 
 func assertTagBasedIdentification(t *testing.T) {
+	t.Helper()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
@@ -292,6 +294,8 @@ func assertTagBasedIdentification(t *testing.T) {
 }
 
 func assertLabelFreeIdentification(t *testing.T) {
+	t.Helper()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
@@ -335,6 +339,8 @@ func assertLabelFreeIdentification(t *testing.T) {
 }
 
 func assertReasonUnsigned(t *testing.T) {
+	t.Helper()
+
 	verifier := crypto.NewRFC9421Verifier()
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", nil)
@@ -355,6 +361,8 @@ func assertReasonUnsigned(t *testing.T) {
 }
 
 func assertTagIntegrity(t *testing.T) {
+	t.Helper()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
@@ -393,6 +401,8 @@ func assertTagIntegrity(t *testing.T) {
 }
 
 func assertGoldenOutput(t *testing.T) {
+	t.Helper()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
