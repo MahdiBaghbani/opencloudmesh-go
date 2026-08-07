@@ -115,6 +115,26 @@ make test-e2e           # builds binary, then runs Playwright
 E2E runs sequentially (`workers: 1`) to avoid port conflicts between
 subprocess servers.
 
+## CI wiring
+
+The test layers are wired into GitHub Actions as three separate surfaces, so a
+slow or skipped layer never blocks the others.
+
+| Surface | Workflow | When it runs | Required check |
+| ------- | -------- | ------------ | -------------- |
+| Unit + integration | `ci-test.yml` calls `ci-test-unit-integration.yml` | push (master), pull request, workflow_dispatch, daily schedule (via the `ci.yml` rollup `test` job) | `ci` rollup |
+| E2E | `ci-test-e2e.yml` | push (master), pull request, workflow_dispatch, daily schedule; path-filtered on push/pull_request (skipped when the diff touches no e2e-relevant paths), always runs on schedule or manual dispatch | `e2e-result` |
+| Fuzz | `ci-test-fuzz.yml` | weekly schedule (Monday 09:00 UTC), workflow_dispatch, and pull requests; runs unconditionally on schedule or manual dispatch, on pull requests skipped unless the diff touches fuzz-relevant paths | standalone, optionally required |
+
+The `ci.yml` rollup gates lint, security, licenses, test (unit plus
+integration), build, pins, and reuse behind a single `ci` required check.
+E2E is not part of the rollup: it runs as its own workflow and surfaces through
+the `e2e-result` job, which reports success when the e2e job passes, or when it
+is correctly skipped by the path filter on push/pull_request events (scheduled
+and manual runs always run). Fuzz is also standalone (not in the rollup); it
+is optionally required, and becomes a hard required check once added to branch
+protection.
+
 ## Behavior verification map
 
 Focused docs cite the packages and tests that prove each behavior. Use this
