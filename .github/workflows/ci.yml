@@ -53,7 +53,7 @@ jobs:
     name: ci
     runs-on: ubuntu-latest
     needs: [lint, security, licenses, test, build, pins, reuse]
-    if: always()
+    if: ${{ !cancelled() }}
     env:
       NU_VERSION: 0.114.1
       LINT_RESULT: ${{ needs.lint.result }}
