@@ -1,9 +1,9 @@
 kind: security
 body: >-
   CI workflow security hardening: pin every GitHub Action to an
-  immutable commit SHA with a stale-pin freshness gate, add CodeQL SAST
-  and go-licenses checks, container image attestations with trivy
-  scanning, OpenSSF Scorecard posture, dependency-review, a scheduled
-  fuzz job, and blocking hygiene linters (typos, yamllint, hadolint,
-  shellcheck, markdownlint, actionlint), plus a security policy with
-  private vulnerability reporting
+  immutable commit SHA with a stale-pin freshness gate, add go-licenses
+  checks, container image attestations with report-only trivy scanning
+  (continue-on-error, fails only on CRITICAL findings), a security
+  policy with private vulnerability reporting, and blocking hygiene
+  linters (typos, yamllint, hadolint, shellcheck, markdownlint,
+  actionlint)

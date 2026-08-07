@@ -1,7 +1,0 @@
-kind: changed
-body: >-
-  dependabot auto-merge now also covers patch and minor security updates,
-  not just version updates; major bumps (version or security) stay manual.
-  CI aggregator jobs now gate on !cancelled() instead of always(), and
-  reusable build/test/fmt-vet/shellcheck workflows declare a minimal
-  contents:read permission scope.

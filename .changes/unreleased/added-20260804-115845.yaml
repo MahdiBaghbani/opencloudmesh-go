@@ -1,6 +1,7 @@
 kind: added
 body: >-
-  dependabot auto-merge for patch and minor go module bumps, gated by
-  required CI checks via native GitHub auto-merge; contributor changelog
-  guide posted as a sticky PR comment with changie install and usage
-  instructions when a fragment is missing
+  dependabot auto-merge for patch and minor go module and security
+  updates (major bumps stay manual), gated by required CI checks via
+  native GitHub auto-merge; contributor changelog guide posted as a
+  sticky PR comment with changie install and usage instructions when a
+  fragment is missing

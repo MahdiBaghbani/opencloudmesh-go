@@ -1,7 +1,5 @@
 kind: added
 body: >-
-  automation, security, and release tooling: dependabot config,
-  changie changelog system with PR gate, security policy with private
-  vulnerability reporting, dependency-review CI, native Go fuzz
-  targets, release workflow with --version, PR and issue templates,
-  and CI workflow name and badge cleanup
+  automation and release tooling: dependabot config, changie changelog
+  system with PR gate, release workflow with --version, PR and issue
+  templates, and CI workflow name and badge cleanup
