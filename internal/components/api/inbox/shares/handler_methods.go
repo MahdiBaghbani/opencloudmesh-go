@@ -85,8 +85,8 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 		json.NewEncoder(w).Encode(map[string]string{
-			"status":  string(shares.ShareStatusAccepted),
-			"shareId": shareID,
+			jsonKeyStatus:  string(shares.ShareStatusAccepted),
+			jsonKeyShareID: shareID,
 		})
 
 		return
@@ -108,8 +108,8 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(map[string]string{
-		"status":  string(shares.ShareStatusAccepted),
-		"shareId": shareID,
+		jsonKeyStatus:  string(shares.ShareStatusAccepted),
+		jsonKeyShareID: shareID,
 	})
 }
 
@@ -188,8 +188,8 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if err := json.NewEncoder(w).Encode(map[string]string{
-			"status":  string(shares.ShareStatusDeclined),
-			"shareId": shareID,
+			jsonKeyStatus:  string(shares.ShareStatusDeclined),
+			jsonKeyShareID: shareID,
 		}); err != nil {
 			h.log.Error("failed to encode declined share", "error", err)
 		}
@@ -213,8 +213,8 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(map[string]string{
-		"status":  string(shares.ShareStatusDeclined),
-		"shareId": shareID,
+		jsonKeyStatus:  string(shares.ShareStatusDeclined),
+		jsonKeyShareID: shareID,
 	}); err != nil {
 		h.log.Error("failed to encode declined share", "error", err)
 	}

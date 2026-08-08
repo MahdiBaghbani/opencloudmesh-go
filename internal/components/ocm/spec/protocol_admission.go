@@ -52,7 +52,7 @@ var errUnsupportedProtocolArm = errors.New("UNSUPPORTED")
 // Any other key is rejected as UNSUPPORTED.
 func ValidateProtocolArms(raw map[string]json.RawMessage) error {
 	for key := range raw {
-		if key != "name" && key != "webdav" && key != "webapp" {
+		if key != "name" && key != ProtocolWebDAV && key != "webapp" {
 			return errUnsupportedProtocolArm
 		}
 	}
@@ -67,19 +67,19 @@ func ValidateProtocolArms(raw map[string]json.RawMessage) error {
 // shape behavior.
 func ValidateProtocolShape(p Protocol) *ValidationError {
 	if p.Name == "" {
-		return &ValidationError{Name: "protocol.name", Message: "REQUIRED"}
+		return &ValidationError{Name: "protocol.name", Message: validationRequired}
 	}
 
-	if p.Name != "multi" && p.Name != "webdav" {
-		return &ValidationError{Name: "protocol.name", Message: "UNSUPPORTED"}
+	if p.Name != "multi" && p.Name != ProtocolWebDAV {
+		return &ValidationError{Name: "protocol.name", Message: validationUnsupported}
 	}
 
-	if p.Name == "webdav" && p.WebDAV == nil {
-		return &ValidationError{Name: "protocol.webdav", Message: "REQUIRED"}
+	if p.Name == ProtocolWebDAV && p.WebDAV == nil {
+		return &ValidationError{Name: "protocol.webdav", Message: validationRequired}
 	}
 
 	if p.Name == "multi" && p.WebDAV == nil && p.Webapp == nil {
-		return &ValidationError{Name: "protocol", Message: "REQUIRED"}
+		return &ValidationError{Name: "protocol", Message: validationRequired}
 	}
 
 	return nil
@@ -96,19 +96,19 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 	}
 
 	if p.URI == "" {
-		errs = append(errs, ValidationError{Name: "protocol.webdav.uri", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol.webdav.uri", Message: validationRequired})
 	}
 
 	if p.SharedSecret == "" {
-		errs = append(errs, ValidationError{Name: "protocol.webdav.sharedSecret", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol.webdav.sharedSecret", Message: validationRequired})
 	}
 
 	if len(p.Permissions) == 0 {
-		errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: validationRequired})
 	} else {
 		for _, perm := range p.Permissions {
 			if !isSupportedWebDAVPermission(perm) {
-				errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: "UNSUPPORTED"})
+				errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: validationUnsupported})
 
 				break
 			}
@@ -118,7 +118,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 	if len(p.AccessTypes) > 0 {
 		for _, accessType := range p.AccessTypes {
 			if !isSupportedWebDAVAccessType(accessType) {
-				errs = append(errs, ValidationError{Name: "protocol.webdav.accessTypes", Message: "UNSUPPORTED"})
+				errs = append(errs, ValidationError{Name: "protocol.webdav.accessTypes", Message: validationUnsupported})
 
 				break
 			}
@@ -127,7 +127,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 
 	for _, req := range p.Requirements {
 		if !isSupportedWebDAVRequirement(req) {
-			errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "UNSUPPORTED"})
+			errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: validationUnsupported})
 
 			break
 		}
@@ -142,7 +142,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 // produce no admission error either way (wire validation covers unknown values).
 func ValidateWebDAVRequirementsAdmission(localRequires bool, reqs []string) []ValidationError {
 	if localRequires && len(reqs) == 0 {
-		return []ValidationError{{Name: "protocol.webdav.requirements", Message: "REQUIRED"}}
+		return []ValidationError{{Name: "protocol.webdav.requirements", Message: validationRequired}}
 	}
 
 	return nil
@@ -186,19 +186,19 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 	}
 
 	if p.URI == "" {
-		errs = append(errs, ValidationError{Name: "protocol.webapp.uri", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol.webapp.uri", Message: validationRequired})
 	}
 
 	if len(p.Targets) == 0 {
-		errs = append(errs, ValidationError{Name: "protocol.webapp.targets", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol.webapp.targets", Message: validationRequired})
 	}
 
 	if len(p.Permissions) == 0 {
-		errs = append(errs, ValidationError{Name: "protocol.webapp.permissions", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol.webapp.permissions", Message: validationRequired})
 	} else {
 		for _, perm := range p.Permissions {
 			if !isSupportedWebappPermission(perm) {
-				errs = append(errs, ValidationError{Name: "protocol.webapp.permissions", Message: "UNSUPPORTED"})
+				errs = append(errs, ValidationError{Name: "protocol.webapp.permissions", Message: validationUnsupported})
 
 				break
 			}
@@ -206,7 +206,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 	}
 
 	if len(p.Requirements) == 0 {
-		errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: fieldProtocolWebappRequirements, Message: validationRequired})
 	} else {
 		for _, req := range p.Requirements {
 			if req == RequirementMustUseMFA {
@@ -219,19 +219,19 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 			}
 
 			if !isSupportedWebappRequirement(req) {
-				errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "UNSUPPORTED"})
+				errs = append(errs, ValidationError{Name: fieldProtocolWebappRequirements, Message: validationUnsupported})
 
 				break
 			}
 		}
 
 		if !p.HasRequirement(RequirementMustExchangeToken) {
-			errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "REQUIRED"})
+			errs = append(errs, ValidationError{Name: fieldProtocolWebappRequirements, Message: validationRequired})
 		}
 	}
 
 	if p.SharedSecret == "" {
-		errs = append(errs, ValidationError{Name: "protocol.webapp.sharedSecret", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol.webapp.sharedSecret", Message: validationRequired})
 	}
 
 	return errs
@@ -244,7 +244,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 // must-exchange-token.
 func ValidateWebappRequirementsAdmission(localRequires bool, reqs []string) []ValidationError {
 	if localRequires && len(reqs) == 0 {
-		return []ValidationError{{Name: "protocol.webapp.requirements", Message: "REQUIRED"}}
+		return []ValidationError{{Name: fieldProtocolWebappRequirements, Message: validationRequired}}
 	}
 
 	return nil

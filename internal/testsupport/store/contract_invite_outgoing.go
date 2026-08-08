@@ -25,7 +25,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	oldToken := updateOutgoingInviteToken(t, ctx, s, invite, "new-invite-token")
 	updateOutgoingInviteStatusAccepted(t, ctx, s, invite)
 	requireOutgoingInviteByTokenNotFound(t, ctx, s, oldToken)
-	requireOutgoingInviteByTokenHasStatus(t, ctx, s, invite.Token, "accepted")
+	requireOutgoingInviteByTokenHasStatus(t, ctx, s, invite.Token, fixtureStatusAccepted)
 	requireOutgoingInviteListByUserNonEmpty(t, ctx, s, invite.CreatedByUserID)
 	deleteOutgoingInvite(t, ctx, s, invite.ID)
 	requireOutgoingInviteNotFound(t, ctx, s, invite.ID)
@@ -101,8 +101,8 @@ func updateOutgoingInviteToken(
 func updateOutgoingInviteStatusAccepted(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, invite *store.OutgoingInvite) {
 	t.Helper()
 
-	invite.Status = "accepted"
-	invite.AcceptedUserID = "bob"
+	invite.Status = fixtureStatusAccepted
+	invite.AcceptedUserID = fixtureUserBob
 	invite.AcceptedProviderFQDNNormalized = invite.ProviderFQDN
 
 	if err := s.UpdateOutgoingInvite(ctx, invite); err != nil {
@@ -191,14 +191,14 @@ func runOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx c
 	invite := NewOutgoingInviteFixture()
 	invite.ID = "store-out-coalesce-id"
 	invite.Token = "store-out-coalesce-token"
-	invite.Status = "pending"
+	invite.Status = fixtureStatusPending
 	invite.AcceptedUserID = ""
 	invite.AcceptedProviderFQDNNormalized = ""
 	invite.AcceptedProviderFQDN = ""
 
 	createOutgoingInvite(t, ctx, s, invite)
 
-	invite.Status = "accepted"
+	invite.Status = fixtureStatusAccepted
 	invite.AcceptedUserID = "store-acceptor"
 	invite.AcceptedProviderFQDNNormalized = invite.ProviderFQDN
 	invite.AcceptedProviderFQDN = invite.ProviderFQDN
@@ -223,7 +223,7 @@ func runOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx c
 		t.Fatalf("GetOutgoingInvite after empty update: %v", err)
 	}
 
-	if got.Status != "accepted" {
+	if got.Status != fixtureStatusAccepted {
 		t.Errorf("Status after empty update: got %q, want accepted", got.Status)
 	}
 

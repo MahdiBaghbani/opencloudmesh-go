@@ -71,10 +71,10 @@ func ParseKid(kid string) (Kid, error) {
 func CanonicalJWKSAuthority(k Kid) (scheme, authority string, err error) {
 	scheme = strings.ToLower(strings.TrimSpace(k.Scheme))
 	if scheme == "" {
-		scheme = "https"
+		scheme = schemeHTTPS
 	}
 
-	if scheme != "http" && scheme != "https" {
+	if scheme != schemeHTTP && scheme != schemeHTTPS {
 		return "", "", fmt.Errorf("keyid: unsupported scheme %q", k.Scheme)
 	}
 

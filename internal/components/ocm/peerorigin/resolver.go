@@ -49,17 +49,17 @@ func (r *Resolver) Resolve(peerInput string) Decision {
 
 	allowHTTP := r != nil && r.devAllowHTTP
 
-	scheme := "https"
+	scheme := schemeHTTPS
 	if allowHTTP {
-		scheme = "http"
+		scheme = schemeHTTP
 	}
 
 	switch inputScheme {
-	case "https":
-		scheme = "https"
-	case "http":
+	case schemeHTTPS:
+		scheme = schemeHTTPS
+	case schemeHTTP:
 		if allowHTTP {
-			scheme = "http"
+			scheme = schemeHTTP
 		}
 	}
 

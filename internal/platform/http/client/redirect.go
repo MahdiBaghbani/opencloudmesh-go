@@ -49,9 +49,9 @@ func effectivePort(u *url.URL) string {
 // defaultPort returns the well-known default port for a scheme.
 func defaultPort(scheme string) string {
 	switch strings.ToLower(scheme) {
-	case "http":
+	case schemeHTTP:
 		return "80"
-	case "https":
+	case schemeHTTPS:
 		return "443"
 	default:
 		return ""

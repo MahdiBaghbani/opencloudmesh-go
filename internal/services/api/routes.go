@@ -6,6 +6,8 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
@@ -50,8 +52,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 	return []service.RouteSpec{
 		{
 			ID:            service.RouteIDAPIHealthz,
-			Service:       "api",
-			Method:        "GET",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodGet,
 			Pattern:       RouteHealthz,
 			SessionPolicy: service.SessionPublic,
 			HandlerAuth:   service.HandlerAuthNone,
@@ -60,8 +62,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-auth-login",
-			Service:       "api",
-			Method:        "POST",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodPost,
 			Pattern:       RouteAuthLogin,
 			SessionPolicy: service.SessionPublic,
 			HandlerAuth:   service.HandlerAuthRateLimitOnly,
@@ -71,8 +73,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-auth-logout",
-			Service:       "api",
-			Method:        "POST",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodPost,
 			Pattern:       RouteAuthLogout,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
@@ -81,8 +83,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-auth-me",
-			Service:       "api",
-			Method:        "GET",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodGet,
 			Pattern:       RouteAuthMe,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
@@ -91,8 +93,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-inbox-shares-list",
-			Service:       "api",
-			Method:        "GET",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodGet,
 			Pattern:       RouteInboxShares,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
@@ -101,8 +103,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-inbox-share-detail",
-			Service:       "api",
-			Method:        "GET",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodGet,
 			Pattern:       RouteInboxShareDetail,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
@@ -111,8 +113,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-inbox-share-accept",
-			Service:       "api",
-			Method:        "POST",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodPost,
 			Pattern:       RouteInboxShareAccept,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
@@ -121,8 +123,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-inbox-share-decline",
-			Service:       "api",
-			Method:        "POST",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodPost,
 			Pattern:       RouteInboxShareDecline,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
@@ -131,8 +133,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:                   "api-inbox-share-verify-access",
-			Service:              "api",
-			Method:               "POST",
+			Service:              string(service.BuildAPI),
+			Method:               http.MethodPost,
 			Pattern:              RouteInboxShareVerifyAccess,
 			SessionPolicy:        service.SessionProtected,
 			HandlerAuth:          service.HandlerAuthCurrentUser,
@@ -142,8 +144,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-inbox-invites-list",
-			Service:       "api",
-			Method:        "GET",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodGet,
 			Pattern:       RouteInboxInvites,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
@@ -152,8 +154,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:                   "api-inbox-invite-import",
-			Service:              "api",
-			Method:               "POST",
+			Service:              string(service.BuildAPI),
+			Method:               http.MethodPost,
 			Pattern:              RouteInboxInviteImport,
 			SessionPolicy:        service.SessionProtected,
 			HandlerAuth:          service.HandlerAuthCurrentUser,
@@ -163,8 +165,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:                   "api-inbox-invite-accept",
-			Service:              "api",
-			Method:               "POST",
+			Service:              string(service.BuildAPI),
+			Method:               http.MethodPost,
 			Pattern:              RouteInboxInviteAccept,
 			SessionPolicy:        service.SessionProtected,
 			HandlerAuth:          service.HandlerAuthCurrentUser,
@@ -174,8 +176,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:                   "api-inbox-invite-decline",
-			Service:              "api",
-			Method:               "POST",
+			Service:              string(service.BuildAPI),
+			Method:               http.MethodPost,
 			Pattern:              RouteInboxInviteDecline,
 			SessionPolicy:        service.SessionProtected,
 			HandlerAuth:          service.HandlerAuthCurrentUser,
@@ -185,8 +187,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:                   "api-shares-outgoing",
-			Service:              "api",
-			Method:               "POST",
+			Service:              string(service.BuildAPI),
+			Method:               http.MethodPost,
 			Pattern:              RouteSharesOutgoing,
 			SessionPolicy:        service.SessionProtected,
 			HandlerAuth:          service.HandlerAuthCurrentUser,
@@ -196,8 +198,8 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:            "api-invites-outgoing",
-			Service:       "api",
-			Method:        "POST",
+			Service:       string(service.BuildAPI),
+			Method:        http.MethodPost,
 			Pattern:       RouteInvitesOutgoing,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,

@@ -57,7 +57,7 @@ func protocolPostRows(opts service.RouteOpts) []service.RouteRow {
 
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
-		if row.Service != "ocm" || row.Method != http.MethodPost ||
+		if row.Service != string(service.BuildOCM) || row.Method != http.MethodPost ||
 			row.SurfaceClass != service.SurfaceProtocol || row.Synthetic {
 			continue
 		}

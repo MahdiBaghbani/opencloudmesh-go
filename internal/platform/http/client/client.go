@@ -234,7 +234,7 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	redirectURL = origReq.URL.ResolveReference(redirectURL)
 
 	// No HTTPS -> HTTP downgrade; http -> https is allowed.
-	if origReq.URL.Scheme == "https" && redirectURL.Scheme != "https" {
+	if origReq.URL.Scheme == schemeHTTPS && redirectURL.Scheme != schemeHTTPS {
 		return nil, fmt.Errorf("%w: %s -> %s", ErrRedirectDowngrade, origReq.URL.Scheme, redirectURL.Scheme)
 	}
 

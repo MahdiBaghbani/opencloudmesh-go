@@ -113,6 +113,13 @@ type PartyRepo interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
+const (
+	uuidVersion7Nibble   = 0x70 // UUID version 7 high nibble
+	uuidVariantNibble    = 0x80 // RFC 4122 variant bits
+	uuidVersionClearMask = 0x0f // clear version nibble before OR
+	uuidVariantClearMask = 0x3f // clear variant bits before OR
+)
+
 // UUIDv7 returns a time-ordered UUIDv7.
 func UUIDv7() (string, error) {
 	var uuid [16]byte
@@ -124,8 +131,8 @@ func UUIDv7() (string, error) {
 		return "", fmt.Errorf("failed to read random bytes for UUIDv7: %w", err)
 	}
 
-	uuid[6] = (uuid[6] & 0x0f) | 0x70 // Version 7
-	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant
+	uuid[6] = (uuid[6] & uuidVersionClearMask) | uuidVersion7Nibble // Version 7
+	uuid[8] = (uuid[8] & uuidVariantClearMask) | uuidVariantNibble  // Variant
 
 	return formatUUID(uuid[:]), nil
 }

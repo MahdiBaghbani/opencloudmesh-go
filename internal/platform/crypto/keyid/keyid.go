@@ -42,7 +42,7 @@ func Parse(keyID string) (Parsed, error) {
 	}
 
 	scheme := strings.ToLower(u.Scheme)
-	if scheme != "http" && scheme != "https" {
+	if scheme != schemeHTTP && scheme != schemeHTTPS {
 		return Parsed{}, fmt.Errorf("keyid: scheme must be http or https, got %q", u.Scheme)
 	}
 

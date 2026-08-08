@@ -36,37 +36,37 @@ type Descriptor struct {
 
 var descriptors = []Descriptor{
 	{
-		Name:        "wellknown",
+		Name:        string(BuildWellknown),
 		MountAtRoot: true,
 		Prefix:      "",
 		Build:       BuildWellknown,
 	},
 	{
-		Name:        "ocm",
+		Name:        string(BuildOCM),
 		MountAtRoot: false,
 		Prefix:      "ocm",
 		Build:       BuildOCM,
 	},
 	{
-		Name:        "ocmaux",
+		Name:        string(BuildOCMAux),
 		MountAtRoot: false,
 		Prefix:      "ocm-aux",
 		Build:       BuildOCMAux,
 	},
 	{
-		Name:        "api",
+		Name:        string(BuildAPI),
 		MountAtRoot: false,
 		Prefix:      "api",
 		Build:       BuildAPI,
 	},
 	{
-		Name:        "ui",
+		Name:        string(BuildUI),
 		MountAtRoot: false,
 		Prefix:      "ui",
 		Build:       BuildUI,
 	},
 	{
-		Name:        "webdav",
+		Name:        string(BuildWebDAV),
 		MountAtRoot: false,
 		Prefix:      "webdav",
 		Build:       BuildWebDAV,

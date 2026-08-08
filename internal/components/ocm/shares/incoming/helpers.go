@@ -94,7 +94,7 @@ func (h *Handler) validateProtocolAdmissions(
 	}
 
 	if shapeErr := spec.ValidateProtocolShape(req.Protocol); shapeErr != nil {
-		if shapeErr.Message == "UNSUPPORTED" {
+		if shapeErr.Message == validationUnsupported {
 			log.Warn("share rejected: unsupported protocol shape", "field", shapeErr.Name)
 			spec.WriteProtocolNotSupported(w)
 
@@ -150,11 +150,11 @@ func (h *Handler) resolveShareRecipient(
 
 	var formatErrs []spec.ValidationError
 	if _, _, err := address.Parse(req.Owner); err != nil {
-		formatErrs = append(formatErrs, spec.ValidationError{Name: "owner", Message: "INVALID_FORMAT"})
+		formatErrs = append(formatErrs, spec.ValidationError{Name: "owner", Message: validationInvalidFormat})
 	}
 
 	if _, _, err := address.Parse(req.Sender); err != nil {
-		formatErrs = append(formatErrs, spec.ValidationError{Name: "sender", Message: "INVALID_FORMAT"})
+		formatErrs = append(formatErrs, spec.ValidationError{Name: "sender", Message: validationInvalidFormat})
 	}
 
 	if len(formatErrs) > 0 {
@@ -168,7 +168,7 @@ func (h *Handler) resolveShareRecipient(
 	if err != nil {
 		log.Warn("invalid shareWith format", "share_with", req.ShareWith, "error", err)
 		spec.WriteValidationError(w, "INVALID_SHARE_WITH", []spec.ValidationError{
-			{Name: "shareWith", Message: "INVALID_FORMAT"},
+			{Name: fieldShareWith, Message: validationInvalidFormat},
 		})
 
 		return nil, false
@@ -178,7 +178,7 @@ func (h *Handler) resolveShareRecipient(
 	if err != nil {
 		log.Warn("failed to normalize shareWith provider", "provider", shareWithProvider, "error", err)
 		spec.WriteValidationError(w, "PROVIDER_MISMATCH", []spec.ValidationError{
-			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
+			{Name: fieldShareWith, Message: "PROVIDER_MISMATCH"},
 		})
 
 		return nil, false
@@ -189,7 +189,7 @@ func (h *Handler) resolveShareRecipient(
 			"share_with_provider", normalizedProvider,
 			"local_provider", h.localProviderFQDNForCompare)
 		spec.WriteValidationError(w, "PROVIDER_MISMATCH", []spec.ValidationError{
-			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
+			{Name: fieldShareWith, Message: "PROVIDER_MISMATCH"},
 		})
 
 		return nil, false
@@ -199,7 +199,7 @@ func (h *Handler) resolveShareRecipient(
 	if err != nil {
 		log.Warn("recipient not found", "identifier", identifier)
 		spec.WriteValidationError(w, "RECIPIENT_NOT_FOUND", []spec.ValidationError{
-			{Name: "shareWith", Message: "NOT_FOUND"},
+			{Name: fieldShareWith, Message: "NOT_FOUND"},
 		})
 
 		return nil, false

@@ -23,7 +23,7 @@ type PeerMappingConfig struct {
 // It defaults to "https" when the config has not been loaded.
 func (cfg *PeerMappingConfig) PublicScheme() string {
 	if cfg.scheme == "" {
-		return "https"
+		return schemeHTTPS
 	}
 
 	return cfg.scheme

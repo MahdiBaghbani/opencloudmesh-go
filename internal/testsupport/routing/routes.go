@@ -123,9 +123,9 @@ func HasDiscoveryField(row service.RouteRow, field string) bool {
 
 // IsOCMProtocolPath reports whether fullPath is under the mounted OCM protocol prefix.
 func IsOCMProtocolPath(fullPath string, opts service.RouteOpts) bool {
-	prefix := "/ocm"
+	prefix := externalBasePathOCM
 	if opts.ExternalBasePath != "" {
-		prefix = strings.TrimSuffix(opts.ExternalBasePath, "/") + "/ocm"
+		prefix = strings.TrimSuffix(opts.ExternalBasePath, "/") + externalBasePathOCM
 	}
 
 	return fullPath == prefix || strings.HasPrefix(fullPath, prefix+"/")

@@ -249,11 +249,11 @@ func resolveOutboundConfig(cfg *config.Config, opts BuildOpts) *config.OutboundH
 func buildCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
 	cacheDriver := cfg.Cache.Driver
 	if cacheDriver == "" {
-		cacheDriver = "memory"
+		cacheDriver = config.BackendMemory
 	}
 
 	driversConfig := cfg.Cache.Drivers
-	if cacheDriver == "memory" {
+	if cacheDriver == config.BackendMemory {
 		driversConfig = withMemoryMaxEntries(driversConfig)
 	}
 
@@ -271,7 +271,7 @@ func buildCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
 func buildRatelimitCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
 	cacheDriver := cfg.Cache.Driver
 	if cacheDriver == "" {
-		cacheDriver = "memory"
+		cacheDriver = config.BackendMemory
 	}
 
 	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)

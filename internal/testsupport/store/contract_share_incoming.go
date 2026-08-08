@@ -24,8 +24,8 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	requireIncomingShareByIDForRecipient(t, ctx, s, share)
 	requireIncomingShareNotFoundForRecipient(t, ctx, s, share.ShareID, "other-user")
 	requireIncomingShareByProviderKey(t, ctx, s, share)
-	updateIncomingShareStatusAndAssert(t, ctx, s, share, "accepted")
-	requireIncomingShareStatusUpdateNotFoundForRecipient(t, ctx, s, share.ShareID, "other-user", "accepted")
+	updateIncomingShareStatusAndAssert(t, ctx, s, share, fixtureStatusAccepted)
+	requireIncomingShareStatusUpdateNotFoundForRecipient(t, ctx, s, share.ShareID, "other-user", fixtureStatusAccepted)
 	requireIncomingShareListByRecipientNonEmpty(t, ctx, s, share.RecipientUserID)
 	deleteIncomingShareForRecipient(t, ctx, s, share.ShareID, share.RecipientUserID)
 	requireIncomingShareNotFoundForRecipient(t, ctx, s, share.ShareID, share.RecipientUserID)
@@ -213,15 +213,15 @@ func runIncomingShareProviderKeyUniqueness(
 	first := &store.IncomingShare{
 		ShareID:         "provider-key-unique-1",
 		SenderHost:      "provider-key-server.com",
-		ProviderID:      "provider-key-unique-pid",
-		Owner:           "alice@sender.com",
-		Sender:          "alice@sender.com",
-		ShareWith:       "bob@example.com",
-		Name:            "shared.txt",
-		ResourceType:    "file",
-		Permissions:     "read",
-		Status:          "pending",
-		RecipientUserID: "bob",
+		ProviderID:      fixtureProviderKeyUniquePID,
+		Owner:           fixtureOwnerAliceSender,
+		Sender:          fixtureOwnerAliceSender,
+		ShareWith:       fixtureShareWithBobExample,
+		Name:            fixtureNameSharedTxt,
+		ResourceType:    fixtureResourceTypeFile,
+		Permissions:     fixturePermissionsRead,
+		Status:          fixtureStatusPending,
+		RecipientUserID: fixtureUserBob,
 		CreatedAt:       time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
@@ -239,15 +239,15 @@ func runIncomingShareProviderKeyUniqueness(
 	second := &store.IncomingShare{
 		ShareID:         "provider-key-unique-2",
 		SenderHost:      "provider-key-server.com",
-		ProviderID:      "provider-key-unique-pid",
-		Owner:           "alice@sender.com",
-		Sender:          "alice@sender.com",
-		ShareWith:       "bob@example.com",
-		Name:            "shared.txt",
-		ResourceType:    "file",
-		Permissions:     "read",
-		Status:          "pending",
-		RecipientUserID: "bob",
+		ProviderID:      fixtureProviderKeyUniquePID,
+		Owner:           fixtureOwnerAliceSender,
+		Sender:          fixtureOwnerAliceSender,
+		ShareWith:       fixtureShareWithBobExample,
+		Name:            fixtureNameSharedTxt,
+		ResourceType:    fixtureResourceTypeFile,
+		Permissions:     fixturePermissionsRead,
+		Status:          fixtureStatusPending,
+		RecipientUserID: fixtureUserBob,
 		CreatedAt:       time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
@@ -256,7 +256,7 @@ func runIncomingShareProviderKeyUniqueness(
 	}
 
 	// Original must still be found by provider key lookup.
-	got, err := s.GetIncomingShareByProviderKey(ctx, "provider-key-server.com", "provider-key-unique-pid")
+	got, err := s.GetIncomingShareByProviderKey(ctx, "provider-key-server.com", fixtureProviderKeyUniquePID)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey after conflict: %v", err)
 	}
@@ -272,15 +272,15 @@ func runIncomingShareProviderKeyUniqueness(
 	third := &store.IncomingShare{
 		ShareID:         "provider-key-unique-3",
 		SenderHost:      "other-server.com",
-		ProviderID:      "provider-key-unique-pid",
-		Owner:           "alice@sender.com",
-		Sender:          "alice@sender.com",
-		ShareWith:       "bob@example.com",
-		Name:            "shared.txt",
-		ResourceType:    "file",
-		Permissions:     "read",
-		Status:          "pending",
-		RecipientUserID: "bob",
+		ProviderID:      fixtureProviderKeyUniquePID,
+		Owner:           fixtureOwnerAliceSender,
+		Sender:          fixtureOwnerAliceSender,
+		ShareWith:       fixtureShareWithBobExample,
+		Name:            fixtureNameSharedTxt,
+		ResourceType:    fixtureResourceTypeFile,
+		Permissions:     fixturePermissionsRead,
+		Status:          fixtureStatusPending,
+		RecipientUserID: fixtureUserBob,
 		CreatedAt:       time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
@@ -294,7 +294,7 @@ func runIncomingShareProviderKeyUniqueness(
 		}
 	})
 
-	gotThird, err := s.GetIncomingShareByProviderKey(ctx, "other-server.com", "provider-key-unique-pid")
+	gotThird, err := s.GetIncomingShareByProviderKey(ctx, "other-server.com", fixtureProviderKeyUniquePID)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey for third: %v", err)
 	}

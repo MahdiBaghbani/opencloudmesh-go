@@ -6,6 +6,8 @@
 package ocm
 
 import (
+	"net/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
@@ -37,8 +39,8 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 	return []service.RouteSpec{
 		{
 			ID:             "ocm-shares",
-			Service:        "ocm",
-			Method:         "POST",
+			Service:        string(service.BuildOCM),
+			Method:         http.MethodPost,
 			Pattern:        RouteShares,
 			SessionPolicy:  service.SessionPublic,
 			HandlerAuth:    service.HandlerAuthRequiredHTTPSig,
@@ -49,8 +51,8 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:             "ocm-invite-accepted",
-			Service:        "ocm",
-			Method:         "POST",
+			Service:        string(service.BuildOCM),
+			Method:         http.MethodPost,
 			Pattern:        RouteInviteAccepted,
 			SessionPolicy:  service.SessionPublic,
 			HandlerAuth:    service.HandlerAuthRequiredHTTPSig,
@@ -61,8 +63,8 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:              service.RouteIDOCMToken,
-			Service:         "ocm",
-			Method:          "POST",
+			Service:         string(service.BuildOCM),
+			Method:          http.MethodPost,
 			Pattern:         tokenPattern,
 			SessionPolicy:   service.SessionPublic,
 			HandlerAuth:     service.HandlerAuthRequiredHTTPSig,
@@ -74,8 +76,8 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 		},
 		{
 			ID:              "ocm-jwks",
-			Service:         "ocm",
-			Method:          "GET",
+			Service:         string(service.BuildOCM),
+			Method:          http.MethodGet,
 			Pattern:         RouteJWKS,
 			SessionPolicy:   service.SessionPublic,
 			HandlerAuth:     service.HandlerAuthNone,

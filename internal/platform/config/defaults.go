@@ -62,7 +62,7 @@ const DefaultTestShutdownWait = 5 * time.Second
 // TestHarnessOutboundHTTP returns the integration-harness outbound baseline.
 func TestHarnessOutboundHTTP() *OutboundHTTPConfig {
 	return &OutboundHTTPConfig{
-		SSRF:               SSRFConfig{Mode: "off"},
+		SSRF:               SSRFConfig{Mode: ssrfModeOff},
 		TimeoutMS:          TestOutboundTimeoutMS,
 		ConnectTimeoutMS:   TestOutboundConnectMS,
 		MaxRedirects:       DefaultOutboundMaxRedirects,
@@ -78,7 +78,7 @@ func TestHarnessOutboundHTTP() *OutboundHTTPConfig {
 // so callers do not need a separate strict variant to avoid env proxy discovery.
 func DefaultOutboundHTTP() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
-		SSRF:               SSRFConfig{Mode: "strict"},
+		SSRF:               SSRFConfig{Mode: ssrfModeStrict},
 		TimeoutMS:          DefaultOutboundTimeoutMS,
 		ConnectTimeoutMS:   DefaultOutboundConnectTimeoutMS,
 		MaxRedirects:       DefaultOutboundMaxRedirects,

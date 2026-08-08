@@ -134,17 +134,17 @@ func Normalize(alg string) (string, error) {
 	}
 
 	switch strings.ToUpper(trimmed) {
-	case "EDDSA":
+	case joseEdDSA:
 		return Ed25519, nil
-	case "ES256":
+	case joseES256:
 		return ECDSAP256SHA256, nil
-	case "ES384":
+	case joseES384:
 		return ECDSAP384SHA384, nil
-	case "RS256":
+	case joseRS256:
 		return RSAPKCS1SHA256, nil
-	case "RS384":
+	case joseRS384:
 		return RSAPKCS1SHA384, nil
-	case "RS512":
+	case joseRS512:
 		return RSAPKCS1SHA512, nil
 	case "HS256", "HS384", "HS512":
 		return "", fmt.Errorf("%w: %s", ErrSymmetricNotPermitted, lower)
@@ -185,7 +185,7 @@ func NormalizeSignatureInputAlgorithm(alg string) (string, error) {
 	}
 
 	switch strings.ToUpper(trimmed) {
-	case "EDDSA", "ES256", "ES384", "RS256", "RS384", "RS512":
+	case joseEdDSA, joseES256, joseES384, joseRS256, joseRS384, joseRS512:
 		return "", fmt.Errorf("sigalg: JOSE name %q is not an HTTP Signature Algorithms registry name", trimmed)
 	default:
 		return "", fmt.Errorf("sigalg: unsupported Signature-Input algorithm %q", trimmed)
@@ -208,17 +208,17 @@ func normalizeJWKAlg(jwkAlg string) (string, error) {
 	}
 
 	switch strings.ToUpper(trimmed) {
-	case "ED25519", "EDDSA":
+	case "ED25519", joseEdDSA:
 		return Ed25519, nil
-	case "ES256":
+	case joseES256:
 		return ECDSAP256SHA256, nil
-	case "ES384":
+	case joseES384:
 		return ECDSAP384SHA384, nil
-	case "RS256":
+	case joseRS256:
 		return RSAPKCS1SHA256, nil
-	case "RS384":
+	case joseRS384:
 		return RSAPKCS1SHA384, nil
-	case "RS512":
+	case joseRS512:
 		return RSAPKCS1SHA512, nil
 	case "HS256", "HS384", "HS512":
 		return "", fmt.Errorf("%w: %s", ErrSymmetricNotPermitted, strings.ToLower(trimmed))
