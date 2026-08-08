@@ -8,6 +8,7 @@ package sessiongate
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -129,7 +130,12 @@ func normalizeBasePath(basePath string) (string, error) {
 	// before the shared validator rejects trailing slashes.
 	basePath = strings.TrimSuffix(basePath, "/")
 
-	return localidentity.ValidateExternalBasePath(basePath)
+	validated, err := localidentity.ValidateExternalBasePath(basePath)
+	if err != nil {
+		return "", fmt.Errorf("identity: validate external base path: %w", err)
+	}
+
+	return validated, nil
 }
 
 func uiPrefix(basePath string) string {

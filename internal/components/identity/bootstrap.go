@@ -83,7 +83,7 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 
 	users, err := b.repo.List(ctx, "")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("identity: list users: %w", err)
 	}
 
 	var existingSuperAdmin *User
@@ -143,7 +143,7 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	}
 
 	if err := b.repo.Create(ctx, superAdmin); err != nil {
-		return "", err
+		return "", fmt.Errorf("identity: create super admin: %w", err)
 	}
 
 	if passwordGenerated {
@@ -168,7 +168,11 @@ func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, p
 
 	admin.PasswordHash = hash
 
-	return b.repo.Update(ctx, admin)
+	if err := b.repo.Update(ctx, admin); err != nil {
+		return fmt.Errorf("identity: update super admin password: %w", err)
+	}
+
+	return nil
 }
 
 // GenerateRandomPassword returns a cryptographically random password.
@@ -180,7 +184,7 @@ func GenerateRandomPassword() (string, error) {
 func (b *Bootstrap) SuperAdminExists(ctx context.Context) (bool, error) {
 	users, err := b.repo.List(ctx, "")
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("identity: list users: %w", err)
 	}
 
 	for _, u := range users {
@@ -209,7 +213,7 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 	}
 
 	if !errors.Is(err, ErrUserNotFound) {
-		return 0, err
+		return 0, fmt.Errorf("identity: get user by username: %w", err)
 	}
 
 	hash, err := b.auth.HashPassword(s.Password)
@@ -240,7 +244,7 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 	}
 
 	if err := b.repo.Create(ctx, user); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("identity: create user: %w", err)
 	}
 
 	b.log.Info("created user", "username", s.Username, "role", role)
@@ -264,7 +268,7 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 	}
 
 	if !errors.Is(err, ErrUserNotFound) {
-		return nil, err
+		return nil, fmt.Errorf("identity: get user by username: %w", err)
 	}
 
 	hash, err := b.auth.HashPassword(password)
@@ -294,7 +298,7 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 	}
 
 	if err := b.repo.Create(ctx, user); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("identity: create probe user: %w", err)
 	}
 
 	b.log.Info("created probe user", "username", username, "realm", realm, "expires_at", expiresAt)

@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -48,7 +49,7 @@ type SessionRepo interface {
 func GenerateToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return "", err
+		return "", fmt.Errorf("identity: generate session token: %w", err)
 	}
 
 	return base64.URLEncoding.EncodeToString(b), nil

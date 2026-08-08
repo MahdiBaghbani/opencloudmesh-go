@@ -56,7 +56,7 @@ func NewUserAuthFast() *UserAuth {
 func (a *UserAuth) HashPassword(password string) (string, error) {
 	salt := make([]byte, argon2SaltLen)
 	if _, err := rand.Read(salt); err != nil {
-		return "", err
+		return "", fmt.Errorf("identity: generate password salt: %w", err)
 	}
 
 	hash := argon2.IDKey([]byte(password), salt, a.time, a.memory, a.threads, a.keyLen)
@@ -113,7 +113,7 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 func (a *UserAuth) Authenticate(ctx context.Context, repo PartyRepo, username, password string) (*User, error) {
 	user, err := repo.GetByUsername(ctx, username)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("identity: get user by username: %w", err)
 	}
 
 	if user.IsExpired() {
