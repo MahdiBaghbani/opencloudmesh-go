@@ -227,8 +227,8 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if encErr := json.NewEncoder(w).Encode(map[string]string{
-			"status":   string(invites.InviteStatusAccepted),
-			"inviteId": inviteID,
+			jsonKeyStatus:   string(invites.InviteStatusAccepted),
+			jsonKeyInviteID: inviteID,
 		}); encErr != nil {
 			h.log.Error("failed to encode accepted invite", "error", encErr)
 		}
@@ -294,8 +294,8 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(map[string]string{
-		"status":   string(invites.InviteStatusAccepted),
-		"inviteId": inviteID,
+		jsonKeyStatus:   string(invites.InviteStatusAccepted),
+		jsonKeyInviteID: inviteID,
 	}); err != nil {
 		h.log.Error("failed to encode accepted invite", "error", err)
 	}
@@ -337,8 +337,8 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if err := json.NewEncoder(w).Encode(map[string]string{
-			"status":   string(invites.InviteStatusDeclined),
-			"inviteId": inviteID,
+			jsonKeyStatus:   string(invites.InviteStatusDeclined),
+			jsonKeyInviteID: inviteID,
 		}); err != nil {
 			h.log.Error("failed to encode declined invite", "error", err)
 		}
@@ -364,8 +364,8 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(map[string]string{
-		"status":   string(invites.InviteStatusDeclined),
-		"inviteId": inviteID,
+		jsonKeyStatus:   string(invites.InviteStatusDeclined),
+		jsonKeyInviteID: inviteID,
 	}); err != nil {
 		h.log.Error("failed to encode declined invite", "error", err)
 	}

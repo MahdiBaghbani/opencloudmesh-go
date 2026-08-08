@@ -28,9 +28,9 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	requireIncomingInviteNotFoundForRecipient(t, ctx, s, invite.ID, "other-user")
 	requireIncomingInviteByTokenForRecipient(t, ctx, s, invite)
 	requireIncomingInviteByTokenNotFoundForRecipient(t, ctx, s, invite.Token, "other-user")
-	updateIncomingInviteStatusAndAssert(t, ctx, s, invite, "accepted")
+	updateIncomingInviteStatusAndAssert(t, ctx, s, invite, fixtureStatusAccepted)
 	requireIncomingInviteStatusUpdateNotFoundForRecipient(t, ctx, s, invite.ID, "other-user", "declined")
-	requireIncomingInviteByTokenHasStatus(t, ctx, s, invite.Token, invite.RecipientUserID, "accepted")
+	requireIncomingInviteByTokenHasStatus(t, ctx, s, invite.Token, invite.RecipientUserID, fixtureStatusAccepted)
 	requireIncomingInviteListByRecipientNonEmpty(t, ctx, s, invite.RecipientUserID)
 	requireIncomingInviteDeleteNotFoundForRecipient(t, ctx, s, invite.ID, "other-user")
 	deleteIncomingInviteForRecipient(t, ctx, s, invite.ID, invite.RecipientUserID)
@@ -215,11 +215,11 @@ func runIncomingInviteCompositeUniqueness(
 
 	first := &store.IncomingInvite{
 		ID:              "composite-unique-test-1",
-		Token:           "composite-unique-token",
-		InviteString:    "ocm://invite/test",
-		SenderFQDN:      "remote.example",
-		RecipientUserID: "alice",
-		Status:          "pending",
+		Token:           fixtureCompositeUniqueToken,
+		InviteString:    fixtureInviteString,
+		SenderFQDN:      fixtureRemoteExample,
+		RecipientUserID: fixtureUserAlice,
+		Status:          fixtureStatusPending,
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
@@ -236,11 +236,11 @@ func runIncomingInviteCompositeUniqueness(
 	// Same (token, recipientUserID), different ID: must fail.
 	second := &store.IncomingInvite{
 		ID:              "composite-unique-test-2",
-		Token:           "composite-unique-token",
-		InviteString:    "ocm://invite/test",
-		SenderFQDN:      "remote.example",
-		RecipientUserID: "alice",
-		Status:          "pending",
+		Token:           fixtureCompositeUniqueToken,
+		InviteString:    fixtureInviteString,
+		SenderFQDN:      fixtureRemoteExample,
+		RecipientUserID: fixtureUserAlice,
+		Status:          fixtureStatusPending,
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
@@ -249,7 +249,7 @@ func runIncomingInviteCompositeUniqueness(
 	}
 
 	// Original must still be found by token lookup.
-	got, err := s.GetIncomingInviteByToken(ctx, "composite-unique-token", "alice")
+	got, err := s.GetIncomingInviteByToken(ctx, fixtureCompositeUniqueToken, fixtureUserAlice)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken after conflict: %v", err)
 	}
@@ -264,11 +264,11 @@ func runIncomingInviteCompositeUniqueness(
 	// Same token, different recipient: must succeed.
 	third := &store.IncomingInvite{
 		ID:              "composite-unique-test-3",
-		Token:           "composite-unique-token",
-		InviteString:    "ocm://invite/test",
-		SenderFQDN:      "remote.example",
-		RecipientUserID: "bob",
-		Status:          "pending",
+		Token:           fixtureCompositeUniqueToken,
+		InviteString:    fixtureInviteString,
+		SenderFQDN:      fixtureRemoteExample,
+		RecipientUserID: fixtureUserBob,
+		Status:          fixtureStatusPending,
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
@@ -282,7 +282,7 @@ func runIncomingInviteCompositeUniqueness(
 		}
 	})
 
-	gotBob, err := s.GetIncomingInviteByToken(ctx, "composite-unique-token", "bob")
+	gotBob, err := s.GetIncomingInviteByToken(ctx, fixtureCompositeUniqueToken, fixtureUserBob)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken for bob: %v", err)
 	}
@@ -303,19 +303,19 @@ func runIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx c
 	invite.ID = "store-in-coalesce-id"
 	invite.Token = "store-in-coalesce-token"
 	invite.RecipientUserID = "store-recipient-coalesce"
-	invite.Status = "pending"
+	invite.Status = fixtureStatusPending
 	invite.SenderUserID = ""
 	invite.SenderFQDNNormalized = ""
 
 	createIncomingInvite(t, ctx, s, invite)
 
-	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, "accepted", "store-sender", invite.SenderFQDN); err != nil {
+	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, fixtureStatusAccepted, "store-sender", invite.SenderFQDN); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient accepted with identity: %v", err)
 	}
 
 	// Re-accept with empty identity: the store must coalesce from the stored
 	// row, not erase the sender identity.
-	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, "accepted", "", ""); err != nil {
+	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, fixtureStatusAccepted, "", ""); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient accepted with empty identity: %v", err)
 	}
 
@@ -324,7 +324,7 @@ func runIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx c
 		t.Fatalf("GetIncomingInviteForRecipient after empty update: %v", err)
 	}
 
-	if got.Status != "accepted" {
+	if got.Status != fixtureStatusAccepted {
 		t.Errorf("Status after empty update: got %q, want accepted", got.Status)
 	}
 

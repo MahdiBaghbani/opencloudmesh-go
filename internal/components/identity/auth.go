@@ -17,11 +17,12 @@ import (
 )
 
 const (
-	argon2Time    = 3         // Number of iterations
-	argon2Memory  = 64 * 1024 // 64 MB
-	argon2Threads = 4         // Parallelism
-	argon2KeyLen  = 32        // Output key length
-	argon2SaltLen = 16        // Salt length
+	argon2Time       = 3         // Number of iterations
+	argon2Memory     = 64 * 1024 // 64 MB
+	argon2Threads    = 4         // Parallelism
+	argon2KeyLen     = 32        // Output key length
+	argon2SaltLen    = 16        // Salt length
+	argon2FastMemory = 16 * 1024 // 16 MB for fast test hashing
 )
 
 // UserAuth hashes and verifies passwords with Argon2id.
@@ -46,9 +47,9 @@ func NewUserAuth() *UserAuth {
 func NewUserAuthFast() *UserAuth {
 	return &UserAuth{
 		time:    1,
-		memory:  16 * 1024, // 16 MB
+		memory:  argon2FastMemory, // 16 MB
 		threads: 2,
-		keyLen:  32,
+		keyLen:  argon2KeyLen,
 	}
 }
 

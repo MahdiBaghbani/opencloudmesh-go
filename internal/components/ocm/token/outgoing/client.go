@@ -138,7 +138,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		return nil, err
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		return c.buildErrorResult(resp, body, req)
 	}
 

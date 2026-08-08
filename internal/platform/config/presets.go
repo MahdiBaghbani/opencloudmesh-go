@@ -70,16 +70,16 @@ func presetForMode(mode Mode) *Config {
 func StrictConfig() *Config {
 	cfg := &Config{
 		Mode:             string(ModeStrict),
-		PublicOrigin:     "https://localhost:9200",
+		PublicOrigin:     fmt.Sprintf("https://localhost:%d", defaultStrictHTTPSPort),
 		ExternalBasePath: "",
-		ListenAddr:       ":9200",
+		ListenAddr:       fmt.Sprintf(":%d", defaultStrictHTTPSPort),
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8", "::1/128"},
 		},
 		TLS: TLSConfig{
 			Mode:          "selfsigned",
-			HTTPPort:      9280,
-			HTTPSPort:     9200,
+			HTTPPort:      defaultStrictHTTPPort,
+			HTTPSPort:     defaultStrictHTTPSPort,
 			SelfSignedDir: ".ocm/certs",
 			ACME: ACMEConfig{
 				Directory:  "https://acme-v02.api.letsencrypt.org/directory",
@@ -133,10 +133,10 @@ func StrictConfig() *Config {
 func DevConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeDev)
-	cfg.TLS.Mode = "off"
+	cfg.TLS.Mode = tlsModeOff
 	cfg.TLS.ACME.Directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
 	cfg.TLS.ACME.UseStaging = true
-	cfg.OutboundHTTP.SSRF.Mode = "off"
+	cfg.OutboundHTTP.SSRF.Mode = ssrfModeOff
 	cfg.OutboundHTTP.MaxRedirects = 3
 	cfg.OutboundHTTP.InsecureSkipVerify = true
 	cfg.OutboundHTTP.UseEnvFallback = false

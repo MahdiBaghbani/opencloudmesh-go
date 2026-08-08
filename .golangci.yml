@@ -40,8 +40,6 @@ linters:
     - depguard
     # Zero-value struct literal noise (~1308); not correctness.
     - exhaustruct
-    # String repetition hints (~993); defer until baseline stable.
-    - goconst
     # Inline error handling style enforcement (~711).
     - noinlineerr
     # Bans idiomatic short names in handlers/tests (~685).
@@ -54,8 +52,6 @@ linters:
     - lll
     # External test package layout (~155); conflicts with in-package tests.
     - testpackage
-    # Magic number literal bans (~69); noisy in HTTP status tests.
-    - mnd
     # Function length (~49); overlaps cyclop complexity gates.
     - funlen
     # Package-level vars (~43); conflicts with architecture guard registries.
@@ -85,6 +81,8 @@ linters:
       disable-default-exclusions: true
       verbose: true
       exclude-functions: []
+    goconst:
+      ignore-tests: true
     govet:
       enable-all: true
       # fieldalignment reorders struct fields; for a wire-protocol library that
@@ -92,6 +90,34 @@ linters:
       # output and breaks positional struct literals. Disabled; not auto-fixed.
       disable:
         - fieldalignment
+    mnd:
+      ignored-files:
+        - ".*_test\\.go"
+      ignored-numbers:
+        # idiomatic file permissions
+        - "0600"
+        - "0644"
+        - "0700"
+        - "0755"
+        - "0o700"
+        # idiomatic small ints: indices, counts, retries, timeouts, buffer/key sizes, bit ops
+        - "2"
+        - "3"
+        - "4"
+        - "5"
+        - "6"
+        - "7"
+        - "8"
+        - "10"
+        - "15"
+        - "16"
+        - "24"
+        - "30"
+        - "32"
+        - "48"
+        - "64"
+        - "100"
+        - "128"
     modernize:
       disable:
         - stringsseq

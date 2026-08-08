@@ -13,10 +13,11 @@ in `.golangci.yml`; this document explains how we apply it.
 
 ## One standard
 
-Production and test code share the same lint standard. Tests are not a
-second-class surface: the same linters run with the same severity rules.
-There is no test-path waiver, cyclop complexity budget, or other YAML
-exclusion that relaxes the bar for `_test.go` files or test directories.
+Production and test code share the same lint standard unless an explicit
+linter-specific setting says otherwise. Tests are not a second-class
+surface: enabled linters still run with the same severity rules. The
+goconst and mnd test-file settings are documented below because test
+files (`*_test.go`) and idiomatic test values do not benefit from those checks.
 
 ## Refactor-first suppressions
 
@@ -48,12 +49,12 @@ set is auditable rather than tacit.
 
 ## Disabled linters (global)
 
-Twenty linters are disabled globally in `.golangci.yml`. Three of them
+Eighteen linters are disabled globally in `.golangci.yml`. Two of them
 need a narrative rationale beyond their inline config comment; the entries
-below document those three. The remaining seventeen disabled linters carry
+below document those two. The remaining sixteen disabled linters carry
 their rationale as inline comments in `.golangci.yml`.
 Unlike the gosec global excludes (which run the linter and suppress accepted
-findings), these three do not run at all. Each entry states whether the
+findings), these two do not run at all. Each entry states whether the
 disable is structural (needs an architectural change to turn on), deferred
 (has a concrete burn-down trigger), or permanent (a deliberate style choice
 with no burn-down trigger). None of these are "too noisy" or "will fix
@@ -97,13 +98,21 @@ them. Burn-down trigger: a phased
 sentinel-extraction program that lifts repeated `errors.New` literals to
 package-level sentinels, paired with `errname` for stable error names.
 
-### goconst - deferred
+## Repeated string literals (goconst)
 
-`goconst` is deferred. The wall of repeated string literals (roughly 993
-findings) is dominated by fixture and protocol constants, and skipping
-test files (which would drop the count to roughly 84) is forbidden by the
-One standard above. Burn-down trigger: a dedicated const-extraction PR that
-lifts the repeated literals to named constants without a test-path waiver.
+`goconst` is enabled with `ignore-tests: true`. Repeated production string
+literals are extracted into package-local named constants, while test
+files (`*_test.go`) are excluded because test-data strings are idiomatic
+as literals and extracting them obscures test intent.
+
+## Magic numbers (mnd)
+
+`mnd` is enabled with `ignored-files: [".*_test\\.go"]` (test files excluded,
+matching goconst) and an allowlist for idiomatic values. The allowlist covers
+common file permissions and small integers used as indices, counts, retries,
+timeouts, buffer sizes, key sizes, and bit operations. Only genuine magic
+numbers, such as HTTP status codes, service ports, and byte masks, require
+named constants.
 
 ## Function ordering (funcorder)
 
@@ -169,14 +178,12 @@ linters:
     - wsl
     - depguard
     - exhaustruct
-    - goconst
     - noinlineerr
     - varnamelen
     - paralleltest
     - err113
     - lll
     - testpackage
-    - mnd
     - funlen
     - gochecknoglobals
     - nestif
@@ -286,7 +293,9 @@ on test and integration paths, and gosec on test paths. That scaffolding
 was temporary while tests were refactored to meet the full bar. After the
 test refactors landed, the temporary exclusions were removed. Findings newly
 surfaced by removal were burned down under the same refactor-first bar as
-production code; no replacement test-path waivers were added.
+production code; no replacement exclusions were added for those scaffolding
+rules. The goconst and mnd test-file settings are separate linter policies
+documented above.
 
 ## Gosec global excludes
 

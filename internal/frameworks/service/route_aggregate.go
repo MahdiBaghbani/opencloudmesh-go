@@ -121,7 +121,7 @@ func subtreePrefix(desc Descriptor, basePath string) string {
 
 func defaultSubtreeSessionPolicy(serviceName string) SessionPolicy {
 	switch serviceName {
-	case "api", "ui":
+	case string(BuildAPI), string(BuildUI):
 		return SessionProtected
 	default:
 		return SessionPublic
@@ -130,17 +130,17 @@ func defaultSubtreeSessionPolicy(serviceName string) SessionPolicy {
 
 func surfaceClassForService(serviceName string) SurfaceClass {
 	switch serviceName {
-	case "wellknown":
+	case string(BuildWellknown):
 		return SurfaceDiscovery
-	case "ocm":
+	case string(BuildOCM):
 		return SurfaceProtocol
-	case "ocmaux":
+	case string(BuildOCMAux):
 		return SurfaceHelper
-	case "api":
+	case string(BuildAPI):
 		return SurfaceAPI
-	case "ui":
+	case string(BuildUI):
 		return SurfaceUI
-	case "webdav":
+	case string(BuildWebDAV):
 		return SurfaceWebDAV
 	default:
 		return ""

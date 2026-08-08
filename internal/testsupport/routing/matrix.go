@@ -25,21 +25,21 @@ func MatrixVariants() []MatrixVariant {
 	return []MatrixVariant{
 		{Name: "root-default", Opts: DefaultOpts()},
 		{Name: "base-path", Opts: service.RouteOpts{
-			ExternalBasePath:    "/ocm",
+			ExternalBasePath:    externalBasePathOCM,
 			TokenExchangePath:   "token",
 			WayfEnabled:         false,
 			InviteAcceptEnabled: false,
 			InvitesEnabled:      true,
 		}},
 		{Name: "base-path-custom-token", Opts: service.RouteOpts{
-			ExternalBasePath:    "/ocm",
+			ExternalBasePath:    externalBasePathOCM,
 			TokenExchangePath:   "auth/exchange",
 			WayfEnabled:         false,
 			InviteAcceptEnabled: false,
 			InvitesEnabled:      true,
 		}},
 		{Name: "base-path-nested-token", Opts: service.RouteOpts{
-			ExternalBasePath:    "/ocm",
+			ExternalBasePath:    externalBasePathOCM,
 			TokenExchangePath:   "token/v2",
 			WayfEnabled:         false,
 			InviteAcceptEnabled: false,
@@ -59,7 +59,7 @@ func MatrixVariants() []MatrixVariant {
 		}},
 		{Name: "root-wayf-enabled", Opts: WayfEnabledOpts()},
 		{Name: "base-path-wayf-enabled", Opts: service.RouteOpts{
-			ExternalBasePath:    "/ocm",
+			ExternalBasePath:    externalBasePathOCM,
 			WayfEnabled:         true,
 			InviteAcceptEnabled: false,
 			InvitesEnabled:      true,

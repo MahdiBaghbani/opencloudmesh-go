@@ -28,35 +28,35 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	var errs []ValidationError
 
 	if req.ShareWith == "" {
-		errs = append(errs, ValidationError{Name: "shareWith", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: fieldShareWith, Message: validationRequired})
 	}
 
 	if req.Name == "" {
-		errs = append(errs, ValidationError{Name: "name", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "name", Message: validationRequired})
 	}
 
 	if req.ProviderID == "" {
-		errs = append(errs, ValidationError{Name: "providerId", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "providerId", Message: validationRequired})
 	}
 
 	if req.Owner == "" {
-		errs = append(errs, ValidationError{Name: "owner", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "owner", Message: validationRequired})
 	}
 
 	if req.Sender == "" {
-		errs = append(errs, ValidationError{Name: "sender", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "sender", Message: validationRequired})
 	}
 
 	if req.ShareType == "" {
-		errs = append(errs, ValidationError{Name: "shareType", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "shareType", Message: validationRequired})
 	}
 
 	if req.ResourceType == "" {
-		errs = append(errs, ValidationError{Name: "resourceType", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "resourceType", Message: validationRequired})
 	}
 
 	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil {
-		errs = append(errs, ValidationError{Name: "protocol", Message: "REQUIRED"})
+		errs = append(errs, ValidationError{Name: "protocol", Message: validationRequired})
 	}
 
 	return errs

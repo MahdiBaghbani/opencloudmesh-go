@@ -413,7 +413,7 @@ func PublicSchemeFromOrigin(publicOrigin string) string {
 		return scheme
 	}
 
-	return "https"
+	return schemeHTTPS
 }
 
 // SchemeFromOrigin returns the lowercased scheme ("http" or "https") derived

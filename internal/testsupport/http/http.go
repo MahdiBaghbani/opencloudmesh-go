@@ -19,6 +19,16 @@ import (
 const (
 	TestOutboundTimeoutMS = config.TestOutboundTimeoutMS
 	TestOutboundConnectMS = config.TestOutboundConnectMS
+
+	ssrfModeOff    = "off"
+	ssrfModeStrict = "strict"
+
+	// StrictNoneOutboundConfig uses longer timeouts for SSRF behavior tests.
+	strictNoneOutboundTimeoutMS = 1000
+	strictNoneOutboundConnectMS = 500
+	// StrictShortTimeoutConfig uses short timeouts for route-policy unit tests.
+	strictShortOutboundTimeoutMS = 200
+	strictShortOutboundConnectMS = 100
 )
 
 // DefaultShutdownWait is the standard bounded wait for server shutdown and
@@ -30,7 +40,7 @@ const DefaultShutdownWait = config.DefaultTestShutdownWait
 // other test-specific overrides.
 func PermissiveConfig() *config.OutboundHTTPConfig {
 	return &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
+		SSRF:             config.SSRFConfig{Mode: ssrfModeOff},
 		UseEnvFallback:   false,
 		TimeoutMS:        TestOutboundTimeoutMS,
 		ConnectTimeoutMS: TestOutboundConnectMS,
@@ -51,9 +61,9 @@ func HarnessOutboundConfig() *config.OutboundHTTPConfig {
 // overrides.
 func StrictNoneOutboundConfig() *config.OutboundHTTPConfig {
 	return &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
+		SSRF:             config.SSRFConfig{Mode: ssrfModeStrict},
+		TimeoutMS:        strictNoneOutboundTimeoutMS,
+		ConnectTimeoutMS: strictNoneOutboundConnectMS,
 		MaxRedirects:     config.DefaultOutboundMaxRedirects,
 		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}
@@ -65,9 +75,9 @@ func StrictNoneOutboundConfig() *config.OutboundHTTPConfig {
 // to add RoutePolicy and RoutePolicies overrides.
 func StrictShortTimeoutConfig() *config.OutboundHTTPConfig {
 	return &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
+		SSRF:             config.SSRFConfig{Mode: ssrfModeStrict},
+		TimeoutMS:        strictShortOutboundTimeoutMS,
+		ConnectTimeoutMS: strictShortOutboundConnectMS,
 		MaxRedirects:     config.DefaultOutboundMaxRedirects,
 		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}

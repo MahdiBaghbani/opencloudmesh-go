@@ -31,6 +31,8 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
+const harnessAdminUsername = "admin"
+
 // TestServer wraps a server instance for testing.
 type TestServer struct {
 	Server      *server.Server
@@ -135,7 +137,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 
 	adminUser := identity.SeededUser{
-		Username:    "admin",
+		Username:    harnessAdminUsername,
 		Password:    "admin",
 		DisplayName: "Test Admin",
 		Role:        "admin",

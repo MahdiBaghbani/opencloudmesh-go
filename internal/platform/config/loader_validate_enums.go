@@ -15,7 +15,7 @@ import (
 
 func validateTLSMode(cfg *Config) error {
 	switch cfg.TLS.Mode {
-	case "off", "static", "selfsigned", "acme":
+	case tlsModeOff, "static", "selfsigned", "acme":
 		return nil
 	default:
 		return fmt.Errorf("invalid tls.mode %q: must be one of off, static, selfsigned, acme", cfg.TLS.Mode)
@@ -24,7 +24,7 @@ func validateTLSMode(cfg *Config) error {
 
 func validateSSRFMode(cfg *Config) error {
 	switch cfg.OutboundHTTP.SSRF.Mode {
-	case "strict", "off":
+	case ssrfModeStrict, ssrfModeOff:
 		return nil
 	default:
 		return fmt.Errorf("invalid outbound_http.ssrf.mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRF.Mode)
@@ -91,11 +91,11 @@ func validateSignatureJwksURI(cfg *Config) error {
 	}
 
 	scheme := strings.ToLower(u.Scheme)
-	if scheme != "https" && scheme != "http" {
+	if scheme != schemeHTTPS && scheme != schemeHTTP {
 		return fmt.Errorf("invalid signature.jwks_uri: scheme %q is not allowed", u.Scheme)
 	}
 
-	if scheme == "http" && cfg.PublicScheme() != "http" {
+	if scheme == schemeHTTP && cfg.PublicScheme() != schemeHTTP {
 		return errors.New("invalid signature.jwks_uri: must use https outside development HTTP opt-in")
 	}
 
@@ -268,7 +268,7 @@ func ValidateStrictModeStartupGuardrails(cfg *Config) error {
 }
 
 func validateStrictModeGuardrails(cfg *Config) error {
-	if cfg == nil || cfg.Mode != "strict" {
+	if cfg == nil || cfg.Mode != string(ModeStrict) {
 		return nil
 	}
 
@@ -276,11 +276,11 @@ func validateStrictModeGuardrails(cfg *Config) error {
 		return errors.New("mode=strict requires ocm.invite.enforce_must_invite!=false")
 	}
 
-	if cfg.TLS.Mode == "off" {
+	if cfg.TLS.Mode == tlsModeOff {
 		return errors.New("mode=strict requires tls.mode!=off")
 	}
 
-	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+	if cfg.OutboundHTTP.SSRF.Mode != ssrfModeStrict {
 		return errors.New("mode=strict requires outbound_http.ssrf.mode=strict")
 	}
 

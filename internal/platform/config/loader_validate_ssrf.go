@@ -191,7 +191,7 @@ func validateProxyURL(cfg *Config) error {
 	}
 
 	switch u.Scheme {
-	case "http", "https":
+	case schemeHTTP, schemeHTTPS:
 		// valid
 	default:
 		return fmt.Errorf("invalid outbound_http.proxy_url %q: scheme must be http or https, got %q", raw, u.Scheme)
@@ -232,7 +232,7 @@ func validatePublicOrigin(cfg *Config) error {
 	}
 
 	switch u.Scheme {
-	case "http", "https":
+	case schemeHTTP, schemeHTTPS:
 		// valid
 	default:
 		return fmt.Errorf("invalid public_origin %q: scheme must be http or https, got %q", origin, u.Scheme)

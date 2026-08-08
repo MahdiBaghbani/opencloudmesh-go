@@ -153,7 +153,7 @@ func validateExplicitEmptyPersistenceBackend(md toml.MetaData, fc fileConfig) er
 }
 
 func resolveEffectiveMode(fcMode, modeFlag string) (Mode, error) {
-	modeStr := "strict" // default
+	modeStr := string(ModeStrict) // default
 	if fcMode != "" {
 		modeStr = fcMode
 	}

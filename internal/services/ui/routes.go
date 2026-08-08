@@ -6,6 +6,9 @@
 package ui
 
 import (
+	"net/http"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
@@ -31,7 +34,7 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		{
 			ID:            "ui-login",
 			Service:       "ui",
-			Method:        "GET",
+			Method:        http.MethodGet,
 			Pattern:       RouteLogin,
 			SessionPolicy: service.SessionPublic,
 			HandlerAuth:   service.HandlerAuthNone,
@@ -41,7 +44,7 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		{
 			ID:            "ui-inbox",
 			Service:       "ui",
-			Method:        "GET",
+			Method:        http.MethodGet,
 			Pattern:       RouteInbox,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthNone,
@@ -51,7 +54,7 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		{
 			ID:            "ui-outgoing",
 			Service:       "ui",
-			Method:        "GET",
+			Method:        http.MethodGet,
 			Pattern:       RouteOutgoing,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthNone,
@@ -61,19 +64,19 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 		{
 			ID:               service.RouteIDUIWAYF,
 			Service:          "ui",
-			Method:           "GET",
+			Method:           http.MethodGet,
 			Pattern:          RouteWAYF,
 			SessionPolicy:    service.SessionPublicWhenWAYF,
 			HandlerAuth:      service.HandlerAuthNone,
 			SurfaceClass:     service.SurfaceUI,
-			DiscoveryFields:  []string{"invite-wayf"},
+			DiscoveryFields:  []string{spec.CapabilityInviteWAYF},
 			FeatureCondition: service.FeatureWAYFEnabled,
 			TrustClass:       service.TrustPeerNone,
 		},
 		{
 			ID:               service.RouteIDUIAcceptInvite,
 			Service:          "ui",
-			Method:           "GET",
+			Method:           http.MethodGet,
 			Pattern:          RouteAcceptInvite,
 			SessionPolicy:    service.SessionProtected,
 			HandlerAuth:      service.HandlerAuthNone,

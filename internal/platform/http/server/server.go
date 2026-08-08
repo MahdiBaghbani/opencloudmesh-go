@@ -26,6 +26,8 @@ import (
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 )
 
+const defaultHTTPSPort = 443
+
 var (
 	// ErrMissingServerDeps reports missing shared server dependencies.
 	ErrMissingServerDeps = errors.New("shared deps not provided")
@@ -330,7 +332,7 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 		}
 
 		var target string
-		if httpsPort == 443 {
+		if httpsPort == defaultHTTPSPort {
 			target = "https://" + hostOnly + r.URL.RequestURI()
 		} else {
 			target = "https://" + net.JoinHostPort(strings.Trim(hostOnly, "[]"), strconv.Itoa(httpsPort)) + r.URL.RequestURI()

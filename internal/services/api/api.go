@@ -214,7 +214,7 @@ func (s *Service) Handler() http.Handler {
 
 // Prefix returns the service URL prefix; implements service.Service.
 func (s *Service) Prefix() string {
-	return "api"
+	return string(service.BuildAPI)
 }
 
 // Close performs no cleanup for this service; implements service.Service.
