@@ -40,7 +40,7 @@ func (a *incomingInviteAdapter) Create(ctx context.Context, invite *invitesincom
 	}
 
 	if err := invites.ValidateCreateInviteStatus(string(invite.Status), invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("repos: validate create invite status: %w", err)
 	}
 
 	s := appIncomingInviteToStore(invite)
@@ -49,7 +49,7 @@ func (a *incomingInviteAdapter) Create(ctx context.Context, invite *invitesincom
 			return fmt.Errorf("invite already exists: %w", store.ErrAlreadyExists)
 		}
 
-		return err
+		return fmt.Errorf("repos: create incoming invite: %w", err)
 	}
 
 	return nil
@@ -66,7 +66,7 @@ func (a *incomingInviteAdapter) GetByIDForRecipientUserID(
 			return nil, invites.ErrInviteNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get incoming invite: %w", err)
 	}
 
 	return storeIncomingInviteToApp(s), nil
@@ -83,7 +83,7 @@ func (a *incomingInviteAdapter) GetByTokenForRecipientUserID(
 			return nil, invites.ErrInviteNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get incoming invite by token: %w", err)
 	}
 
 	return storeIncomingInviteToApp(s), nil
@@ -95,7 +95,7 @@ func (a *incomingInviteAdapter) ListByRecipientUserID(
 ) ([]*invitesincoming.IncomingInvite, error) {
 	storeInvites, err := a.s.ListIncomingInvites(ctx, recipientUserID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repos: list incoming invites: %w", err)
 	}
 
 	result := make([]*invitesincoming.IncomingInvite, 0, len(storeInvites))
@@ -121,7 +121,7 @@ func (a *incomingInviteAdapter) UpdateStatusForRecipientUserID(
 			return invites.ErrInviteNotFound
 		}
 
-		return err
+		return fmt.Errorf("repos: get incoming invite: %w", err)
 	}
 
 	argUserID := ""
@@ -133,7 +133,7 @@ func (a *incomingInviteAdapter) UpdateStatusForRecipientUserID(
 	}
 
 	if err := invites.ValidateUpdateAcceptedIdentity(string(status), argUserID, argHost, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("repos: validate update accepted identity: %w", err)
 	}
 
 	senderUserID, senderFQDNNormalized := invites.CoalesceAcceptedIdentity(argUserID, argHost, existing.SenderUserID, existing.SenderFQDNNormalized)
@@ -143,7 +143,7 @@ func (a *incomingInviteAdapter) UpdateStatusForRecipientUserID(
 			return invites.ErrInviteNotFound
 		}
 
-		return err
+		return fmt.Errorf("repos: update incoming invite: %w", err)
 	}
 
 	return nil
@@ -160,7 +160,7 @@ func (a *incomingInviteAdapter) FindAcceptedForSender(
 ) (*invitesincoming.IncomingInvite, error) {
 	storeInvites, err := a.s.ListIncomingInvites(ctx, recipientUserID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repos: list incoming invites: %w", err)
 	}
 
 	for _, s := range storeInvites {
@@ -190,7 +190,7 @@ func (a *incomingInviteAdapter) DeleteForRecipientUserID(
 			return invites.ErrInviteNotFound
 		}
 
-		return err
+		return fmt.Errorf("repos: delete incoming invite: %w", err)
 	}
 
 	return nil

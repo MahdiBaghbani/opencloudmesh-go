@@ -46,7 +46,7 @@ func (a *outgoingShareAdapter) Create(ctx context.Context, share *sharesoutgoing
 			return fmt.Errorf("share already exists: %w", store.ErrAlreadyExists)
 		}
 
-		return err
+		return fmt.Errorf("repos: create outgoing share: %w", err)
 	}
 
 	return nil
@@ -59,7 +59,7 @@ func (a *outgoingShareAdapter) GetByID(ctx context.Context, shareID string) (*sh
 			return nil, fmt.Errorf("share not found: %s", shareID)
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get outgoing share by id: %w", err)
 	}
 
 	return storeOutgoingShareToApp(s), nil
@@ -72,7 +72,7 @@ func (a *outgoingShareAdapter) GetByProviderID(ctx context.Context, providerID s
 			return nil, fmt.Errorf("share not found for providerId: %s", providerID)
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get outgoing share: %w", err)
 	}
 
 	return storeOutgoingShareToApp(s), nil
@@ -85,7 +85,7 @@ func (a *outgoingShareAdapter) GetByWebDAVID(ctx context.Context, webdavID strin
 			return nil, fmt.Errorf("share not found for webdavId: %s", webdavID)
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get outgoing share by webdav id: %w", err)
 	}
 
 	return storeOutgoingShareToApp(s), nil
@@ -98,7 +98,7 @@ func (a *outgoingShareAdapter) GetBySharedSecret(ctx context.Context, sharedSecr
 			return nil, fmt.Errorf("share not found for sharedSecret")
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get outgoing share by shared secret: %w", err)
 	}
 
 	return storeOutgoingShareToApp(s), nil
@@ -107,7 +107,7 @@ func (a *outgoingShareAdapter) GetBySharedSecret(ctx context.Context, sharedSecr
 func (a *outgoingShareAdapter) List(ctx context.Context) ([]*sharesoutgoing.OutgoingShare, error) {
 	storeShares, err := a.s.ListOutgoingShares(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repos: list outgoing shares: %w", err)
 	}
 
 	result := make([]*sharesoutgoing.OutgoingShare, 0, len(storeShares))
@@ -125,7 +125,7 @@ func (a *outgoingShareAdapter) Update(ctx context.Context, share *sharesoutgoing
 			return fmt.Errorf("share not found: %s", share.ShareID)
 		}
 
-		return err
+		return fmt.Errorf("repos: update outgoing share: %w", err)
 	}
 
 	return nil
