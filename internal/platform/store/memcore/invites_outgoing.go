@@ -7,6 +7,7 @@ package memcore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
@@ -32,7 +33,7 @@ func (c *Core) CreateOutgoingInvite(_ context.Context, invite *store.OutgoingInv
 	}
 
 	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("store: validate create invite status: %w", err)
 	}
 
 	c.outgoingInvites[invite.ID] = cloneOutgoingInvite(invite)
@@ -102,7 +103,7 @@ func (c *Core) UpdateOutgoingInvite(_ context.Context, invite *store.OutgoingInv
 	if err := invites.ValidateUpdateAcceptedIdentity(invite.Status,
 		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
 		existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("store: validate update accepted identity: %w", err)
 	}
 
 	invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized = invites.CoalesceAcceptedIdentity(
