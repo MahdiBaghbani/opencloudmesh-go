@@ -67,7 +67,7 @@ func (d *Driver) Init(ctx context.Context) error {
 
 	core, err := sqlitecore.Open(d.dataDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: open database: %w", err)
 	}
 
 	d.core = core
@@ -89,7 +89,11 @@ func (d *Driver) Init(ctx context.Context) error {
 
 // Close closes the database connection.
 func (d *Driver) Close() error {
-	return d.core.Close()
+	if err := d.core.Close(); err != nil {
+		return fmt.Errorf("store: close database: %w", err)
+	}
+
+	return nil
 }
 
 // ----------------------------------------------------------------------------
@@ -102,7 +106,7 @@ func (d *Driver) Close() error {
 // CreateOutgoingShare creates a new outgoing share.
 func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
 	if err := d.core.CreateOutgoingShare(ctx, share); err != nil {
-		return err
+		return fmt.Errorf("store: create outgoing share: %w", err)
 	}
 
 	d.logExportError(ctx, "CreateOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
@@ -112,28 +116,48 @@ func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingS
 
 // GetOutgoingShareByID retrieves an outgoing share by its local share id.
 func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareID string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShareByID(ctx, shareID)
+	share, err := d.core.GetOutgoingShareByID(ctx, shareID)
+	if err != nil {
+		return nil, fmt.Errorf("store: get outgoing share by id: %w", err)
+	}
+
+	return share, nil
 }
 
 // GetOutgoingShare retrieves an outgoing share by providerID.
 func (d *Driver) GetOutgoingShare(ctx context.Context, providerID string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShare(ctx, providerID)
+	share, err := d.core.GetOutgoingShare(ctx, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("store: get outgoing share: %w", err)
+	}
+
+	return share, nil
 }
 
 // GetOutgoingShareByWebDAVID retrieves an outgoing share by webdavID.
 func (d *Driver) GetOutgoingShareByWebDAVID(ctx context.Context, webdavID string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShareByWebDAVID(ctx, webdavID)
+	share, err := d.core.GetOutgoingShareByWebDAVID(ctx, webdavID)
+	if err != nil {
+		return nil, fmt.Errorf("store: get outgoing share by webdav id: %w", err)
+	}
+
+	return share, nil
 }
 
 // GetOutgoingShareBySharedSecret retrieves an outgoing share by shared secret.
 func (d *Driver) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShareBySharedSecret(ctx, sharedSecret)
+	share, err := d.core.GetOutgoingShareBySharedSecret(ctx, sharedSecret)
+	if err != nil {
+		return nil, fmt.Errorf("store: get outgoing share by shared secret: %w", err)
+	}
+
+	return share, nil
 }
 
 // UpdateOutgoingShare updates an existing outgoing share.
 func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
 	if err := d.core.UpdateOutgoingShare(ctx, share); err != nil {
-		return err
+		return fmt.Errorf("store: update outgoing share: %w", err)
 	}
 
 	d.logExportError(ctx, "UpdateOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
@@ -144,7 +168,7 @@ func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingS
 // DeleteOutgoingShare deletes an outgoing share.
 func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerID string) error {
 	if err := d.core.DeleteOutgoingShare(ctx, providerID); err != nil {
-		return err
+		return fmt.Errorf("store: delete outgoing share: %w", err)
 	}
 
 	d.logExportError(ctx, "DeleteOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
@@ -154,7 +178,12 @@ func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerID string) err
 
 // ListOutgoingShares returns all outgoing shares.
 func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, error) {
-	return d.core.ListOutgoingShares(ctx)
+	shares, err := d.core.ListOutgoingShares(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("store: list outgoing shares: %w", err)
+	}
+
+	return shares, nil
 }
 
 // IncomingShareStore implementation
@@ -162,7 +191,7 @@ func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare
 // CreateIncomingShare creates a new incoming share.
 func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
 	if err := d.core.CreateIncomingShare(ctx, share); err != nil {
-		return err
+		return fmt.Errorf("store: create incoming share: %w", err)
 	}
 
 	d.logExportError(ctx, "CreateIncomingShare", d.lockedExport(ctx, d.exportIncomingShares))
@@ -172,23 +201,38 @@ func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingS
 
 // GetIncomingShareByIDForRecipient retrieves an incoming share by shareID scoped to a recipient.
 func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*store.IncomingShare, error) {
-	return d.core.GetIncomingShareByIDForRecipient(ctx, shareID, recipientUserID)
+	share, err := d.core.GetIncomingShareByIDForRecipient(ctx, shareID, recipientUserID)
+	if err != nil {
+		return nil, fmt.Errorf("store: get incoming share by id for recipient: %w", err)
+	}
+
+	return share, nil
 }
 
 // GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerID.
 func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerID string) (*store.IncomingShare, error) {
-	return d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerID)
+	share, err := d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("store: get incoming share by provider key: %w", err)
+	}
+
+	return share, nil
 }
 
 // ListIncomingSharesByRecipient returns incoming shares for the given recipient user.
 func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*store.IncomingShare, error) {
-	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserID)
+	shares, err := d.core.ListIncomingSharesByRecipient(ctx, recipientUserID)
+	if err != nil {
+		return nil, fmt.Errorf("store: list incoming shares by recipient: %w", err)
+	}
+
+	return shares, nil
 }
 
 // UpdateIncomingShareStatusForRecipient updates the status of an incoming share, scoped to a recipient.
 func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, status string) error {
 	if err := d.core.UpdateIncomingShareStatusForRecipient(ctx, shareID, recipientUserID, status); err != nil {
-		return err
+		return fmt.Errorf("store: update incoming share status for recipient: %w", err)
 	}
 
 	d.logExportError(ctx, "UpdateIncomingShareStatusForRecipient", d.lockedExport(ctx, d.exportIncomingShares))
@@ -199,7 +243,7 @@ func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shar
 // DeleteIncomingShareForRecipient deletes an incoming share, scoped to a recipient.
 func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error {
 	if err := d.core.DeleteIncomingShareForRecipient(ctx, shareID, recipientUserID); err != nil {
-		return err
+		return fmt.Errorf("store: delete incoming share for recipient: %w", err)
 	}
 
 	d.logExportError(ctx, "DeleteIncomingShareForRecipient", d.lockedExport(ctx, d.exportIncomingShares))
@@ -212,7 +256,7 @@ func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareID st
 // CreateOutgoingInvite creates a new outgoing invite.
 func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
 	if err := d.core.CreateOutgoingInvite(ctx, invite); err != nil {
-		return err
+		return fmt.Errorf("store: create outgoing invite: %w", err)
 	}
 
 	d.logExportError(ctx, "CreateOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
@@ -222,18 +266,28 @@ func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 
 // GetOutgoingInvite retrieves an outgoing invite by id.
 func (d *Driver) GetOutgoingInvite(ctx context.Context, id string) (*store.OutgoingInvite, error) {
-	return d.core.GetOutgoingInvite(ctx, id)
+	invite, err := d.core.GetOutgoingInvite(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("store: get outgoing invite: %w", err)
+	}
+
+	return invite, nil
 }
 
 // GetOutgoingInviteByToken retrieves an outgoing invite by token.
 func (d *Driver) GetOutgoingInviteByToken(ctx context.Context, token string) (*store.OutgoingInvite, error) {
-	return d.core.GetOutgoingInviteByToken(ctx, token)
+	invite, err := d.core.GetOutgoingInviteByToken(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("store: get outgoing invite by token: %w", err)
+	}
+
+	return invite, nil
 }
 
 // UpdateOutgoingInvite updates an existing outgoing invite.
 func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
 	if err := d.core.UpdateOutgoingInvite(ctx, invite); err != nil {
-		return err
+		return fmt.Errorf("store: update outgoing invite: %w", err)
 	}
 
 	d.logExportError(ctx, "UpdateOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
@@ -244,7 +298,7 @@ func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 // DeleteOutgoingInvite deletes an outgoing invite by id.
 func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 	if err := d.core.DeleteOutgoingInvite(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("store: delete outgoing invite: %w", err)
 	}
 
 	d.logExportError(ctx, "DeleteOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
@@ -254,7 +308,12 @@ func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 
 // ListOutgoingInvites returns outgoing invites for a user.
 func (d *Driver) ListOutgoingInvites(ctx context.Context, userID string) ([]*store.OutgoingInvite, error) {
-	return d.core.ListOutgoingInvites(ctx, userID)
+	invites, err := d.core.ListOutgoingInvites(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("store: list outgoing invites: %w", err)
+	}
+
+	return invites, nil
 }
 
 // IncomingInviteStore implementation
@@ -262,7 +321,7 @@ func (d *Driver) ListOutgoingInvites(ctx context.Context, userID string) ([]*sto
 // CreateIncomingInvite creates a new incoming invite.
 func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
 	if err := d.core.CreateIncomingInvite(ctx, invite); err != nil {
-		return err
+		return fmt.Errorf("store: create incoming invite: %w", err)
 	}
 
 	d.logExportError(ctx, "CreateIncomingInvite", d.lockedExport(ctx, d.exportIncomingInvites))
@@ -272,12 +331,22 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 
 // GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
 func (d *Driver) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) (*store.IncomingInvite, error) {
-	return d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserID)
+	invite, err := d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserID)
+	if err != nil {
+		return nil, fmt.Errorf("store: get incoming invite for recipient: %w", err)
+	}
+
+	return invite, nil
 }
 
 // GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
 func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserID string) (*store.IncomingInvite, error) {
-	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserID)
+	invite, err := d.core.GetIncomingInviteByToken(ctx, token, recipientUserID)
+	if err != nil {
+		return nil, fmt.Errorf("store: get incoming invite by token: %w", err)
+	}
+
+	return invite, nil
 }
 
 // UpdateIncomingInviteStatusForRecipient updates the status of an incoming
@@ -285,7 +354,7 @@ func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, rec
 // acceptance when provided.
 func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error {
 	if err := d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, status, senderUserID, senderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("store: update incoming invite status for recipient: %w", err)
 	}
 
 	d.logExportError(ctx, "UpdateIncomingInviteStatusForRecipient", d.lockedExport(ctx, d.exportIncomingInvites))
@@ -296,7 +365,7 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id 
 // DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
 func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) error {
 	if err := d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserID); err != nil {
-		return err
+		return fmt.Errorf("store: delete incoming invite for recipient: %w", err)
 	}
 
 	d.logExportError(ctx, "DeleteIncomingInviteForRecipient", d.lockedExport(ctx, d.exportIncomingInvites))
@@ -306,7 +375,12 @@ func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string
 
 // ListIncomingInvites returns incoming invites for a recipient user.
 func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserID string) ([]*store.IncomingInvite, error) {
-	return d.core.ListIncomingInvites(ctx, recipientUserID)
+	invites, err := d.core.ListIncomingInvites(ctx, recipientUserID)
+	if err != nil {
+		return nil, fmt.Errorf("store: list incoming invites: %w", err)
+	}
+
+	return invites, nil
 }
 
 // Compile-time interface checks
@@ -363,7 +437,7 @@ func (d *Driver) lockedExport(ctx context.Context, fn func(context.Context) erro
 func (d *Driver) exportOutgoingShares(ctx context.Context) error {
 	shares, err := d.core.ListOutgoingShares(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: list outgoing shares: %w", err)
 	}
 
 	for _, share := range shares {
@@ -377,7 +451,7 @@ func (d *Driver) exportOutgoingShares(ctx context.Context) error {
 func (d *Driver) exportIncomingShares(ctx context.Context) error {
 	shares, err := d.core.ListAllIncomingShares(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: list all incoming shares: %w", err)
 	}
 
 	for _, share := range shares {
@@ -392,7 +466,7 @@ func (d *Driver) exportOutgoingInvites(ctx context.Context) error {
 	// Empty userID means all invites; see sqlitecore.ListOutgoingInvites.
 	invites, err := d.core.ListOutgoingInvites(ctx, "")
 	if err != nil {
-		return err
+		return fmt.Errorf("store: list outgoing invites: %w", err)
 	}
 
 	for _, invite := range invites {
@@ -406,7 +480,7 @@ func (d *Driver) exportOutgoingInvites(ctx context.Context) error {
 func (d *Driver) exportIncomingInvites(ctx context.Context) error {
 	invites, err := d.core.ListAllIncomingInvites(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("store: list all incoming invites: %w", err)
 	}
 
 	for _, invite := range invites {
