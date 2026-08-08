@@ -8,6 +8,8 @@ package service
 import "testing"
 
 func TestPathMatchesRoute(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		path    string
@@ -78,6 +80,8 @@ func TestPathMatchesRoute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := pathMatchesRoute(tt.path, tt.pattern)
 			if got != tt.want {
 				t.Errorf("pathMatchesRoute(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
@@ -87,6 +91,8 @@ func TestPathMatchesRoute(t *testing.T) {
 }
 
 func TestSessionAuthChecker_MatchesSessionAuthRequiredForPath(t *testing.T) {
+	t.Parallel()
+
 	opts := DefaultRouteOpts()
 	checker := NewSessionAuthChecker(opts)
 

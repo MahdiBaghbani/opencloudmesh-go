@@ -18,6 +18,7 @@ import (
 )
 
 func TestAcceptInviteRedirectRoundTrip(t *testing.T) {
+	t.Parallel()
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		ensureServiceConfig(cfg, "ui", map[string]any{
 			"wayf":          map[string]any{"enabled": true},
@@ -131,6 +132,7 @@ func assertLoginPageServesSafeRedirect(t *testing.T, client *http.Client, baseUR
 }
 
 func TestAcceptInviteRedirectRoundTrip_WithExternalBasePath(t *testing.T) {
+	t.Parallel()
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
 		ensureServiceConfig(cfg, "ui", map[string]any{

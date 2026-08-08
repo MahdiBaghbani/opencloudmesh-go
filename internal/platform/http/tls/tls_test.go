@@ -18,6 +18,8 @@ import (
 )
 
 func TestTLSManager_Off(t *testing.T) {
+	t.Parallel()
+
 	cfg := &config.TLSConfig{Mode: "off"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	mgr := tlspkg.NewTLSManager(cfg, logger)
@@ -33,6 +35,8 @@ func TestTLSManager_Off(t *testing.T) {
 }
 
 func TestTLSManager_Static_MissingFiles(t *testing.T) {
+	t.Parallel()
+
 	cfg := &config.TLSConfig{
 		Mode:     "static",
 		CertFile: "",
@@ -48,6 +52,7 @@ func TestTLSManager_Static_MissingFiles(t *testing.T) {
 }
 
 func TestTLSManager_SelfSigned_Generate(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	cfg := &config.TLSConfig{
@@ -84,6 +89,7 @@ func TestTLSManager_SelfSigned_Generate(t *testing.T) {
 }
 
 func TestTLSManager_SelfSigned_Reload(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	cfg := &config.TLSConfig{
@@ -112,6 +118,8 @@ func TestTLSManager_SelfSigned_Reload(t *testing.T) {
 }
 
 func TestTLSManager_InvalidMode(t *testing.T) {
+	t.Parallel()
+
 	cfg := &config.TLSConfig{Mode: "invalid"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	mgr := tlspkg.NewTLSManager(cfg, logger)
@@ -123,6 +131,8 @@ func TestTLSManager_InvalidMode(t *testing.T) {
 }
 
 func TestTLSManager_SelfSigned_EmptyDir_Fails(t *testing.T) {
+	t.Parallel()
+
 	cfg := &config.TLSConfig{
 		Mode:          "selfsigned",
 		SelfSignedDir: "",

@@ -32,7 +32,7 @@ func runRollbackSuite(t *testing.T, cases []rollbackCase) {
 	ctx := context.Background()
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) { tc.run(t, ctx) })
+		t.Run(tc.name, func(t *testing.T) { t.Parallel(); tc.run(t, ctx) })
 	}
 }
 

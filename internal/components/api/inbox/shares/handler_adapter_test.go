@@ -22,6 +22,8 @@ import (
 // HTTP rendering test (TestHandleGetDetail_RendersProtocolNameAndWebappArm,
 // in handler_detail_test.go) cannot cover.
 func TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	r := tsrepos.OpenJSON(t)

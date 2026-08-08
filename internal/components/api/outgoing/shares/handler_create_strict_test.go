@@ -34,6 +34,8 @@ func outgoingCreateBody(receiverHost, localPath string) string {
 }
 
 func TestHandleCreate_RejectsReceiverWithoutTokenExchange(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeReceiverTLSServer(t, []string{}, []string{})
 	defer srv.Close()
 
@@ -61,6 +63,8 @@ func TestHandleCreate_RejectsReceiverWithoutTokenExchange(t *testing.T) {
 }
 
 func TestHandleCreate_RejectsNilPeerOrigin(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 
@@ -98,6 +102,8 @@ func TestHandleCreate_RejectsNilPeerOrigin(t *testing.T) {
 }
 
 func TestHandleCreate_AbsoluteWebDAVReceiveURI(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount, captured := makeCapturingReceiverWithWebDAVReceive(
 		t,
 		[]string{"exchange-token"},
@@ -147,6 +153,8 @@ func TestHandleCreate_AbsoluteWebDAVReceiveURI(t *testing.T) {
 }
 
 func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeCapturingReceiverWithMismatchedEndpoint(
 		t,
 		[]string{"exchange-token"},
@@ -189,6 +197,8 @@ func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *test
 }
 
 func TestHandleCreate_RelativeWebDAVReceiveURIUsesBareUUID(t *testing.T) {
+	t.Parallel()
+
 	srv, _, captured := makeCapturingReceiverWithWebDAVReceive(
 		t,
 		[]string{"exchange-token"},
@@ -229,6 +239,8 @@ func TestHandleCreate_RelativeWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 }
 
 func TestHandleCreate_AbsentWebDAVReceiveURIUsesBareUUID(t *testing.T) {
+	t.Parallel()
+
 	srv, _, captured := makeCapturingReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 

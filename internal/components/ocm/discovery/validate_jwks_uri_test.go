@@ -13,6 +13,8 @@ import (
 )
 
 func TestValidateDiscoveryJwksUri(t *testing.T) {
+	t.Parallel()
+
 	const httpsOrigin = "https://peer.example.com"
 
 	httpSigDisc := func(jwksURI string) *spec.Discovery {
@@ -128,6 +130,8 @@ func TestValidateDiscoveryJwksUri(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := validateDiscoveryJwksUri(httpSigDisc(tt.jwksURI), tt.origin)
 
 			if tt.wantErr == "" {
@@ -164,6 +168,8 @@ func TestValidateDiscoveryJwksUri(t *testing.T) {
 }
 
 func TestValidateDiscoveryJwksUri_PresentWithoutHTTPSigCapability(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		JwksUri: "https://peer.example.com/custom/jwks",
 	}

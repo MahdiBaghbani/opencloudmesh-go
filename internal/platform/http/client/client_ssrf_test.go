@@ -18,6 +18,8 @@ import (
 )
 
 func TestClient_SSRFProtection(t *testing.T) {
+	t.Parallel()
+
 	client := outboundtestutil.NewStrictNone(nil)
 
 	tests := []struct {
@@ -66,6 +68,8 @@ func TestClient_SSRFProtection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := client.Get(ctx, tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
 				defer outboundtestutil.MustClose(t, resp.Body)
@@ -87,6 +91,8 @@ func TestClient_SSRFProtection(t *testing.T) {
 }
 
 func TestClient_SSRFOff(t *testing.T) {
+	t.Parallel()
+
 	cfg := outboundtestutil.StrictNoneOutboundConfig()
 	cfg.SSRF.Mode = "off"
 	client := httpclient.New(cfg, nil)
@@ -107,6 +113,8 @@ func TestClient_SSRFOff(t *testing.T) {
 }
 
 func TestClient_IPv6BracketHandling(t *testing.T) {
+	t.Parallel()
+
 	client := outboundtestutil.NewStrictNone(nil)
 
 	// Test that IPv6 with brackets is properly parsed and blocked
@@ -120,6 +128,8 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := client.Get(context.Background(), tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
 				defer outboundtestutil.MustClose(t, resp.Body)
@@ -137,6 +147,8 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 }
 
 func TestClient_UnresolvableHostBlocked(t *testing.T) {
+	t.Parallel()
+
 	client := outboundtestutil.NewStrictNone(nil)
 
 	// Use a domain that definitely doesn't exist
@@ -161,6 +173,8 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 // failure, not SSRF), while private/loopback/link-local/multicast IPs are
 // blocked with an SSRF-classified error.
 func TestIsAllowedIP(t *testing.T) {
+	t.Parallel()
+
 	cfg := outboundtestutil.StrictNoneOutboundConfig()
 	cfg.TimeoutMS = 500
 	cfg.ConnectTimeoutMS = 200
@@ -186,6 +200,8 @@ func TestIsAllowedIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := c.Get(ctx, tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
 				defer outboundtestutil.MustClose(t, resp.Body)
@@ -205,7 +221,10 @@ func TestIsAllowedIP(t *testing.T) {
 }
 
 func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
+	t.Parallel()
+
 	// Regression test: localhost:8080 must be blocked as localhost (not unresolvable)
+
 	client := outboundtestutil.NewStrictNone(nil)
 
 	tests := []struct {
@@ -220,6 +239,8 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := client.Get(context.Background(), tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
 				defer outboundtestutil.MustClose(t, resp.Body)
@@ -257,6 +278,8 @@ func (r *blockingResolver) LookupIPAddr(ctx context.Context, _ string) ([]net.IP
 }
 
 func TestContextAwareDNSCancellation(t *testing.T) {
+	t.Parallel()
+
 	cfg := outboundtestutil.StrictNoneOutboundConfig()
 	cfg.TimeoutMS = 10000 // long timeout so context cancellation fires first
 	cfg.ConnectTimeoutMS = 5000

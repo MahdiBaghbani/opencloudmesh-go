@@ -13,6 +13,8 @@ import (
 )
 
 func TestRoutePolicyProjections_DerivedFromRoutes(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	routes := service.Routes(opts)
 	authRows := service.DerivedAuthRows(opts)
@@ -87,6 +89,8 @@ func assertInventoryMetadata(t *testing.T, inventory []service.RouteRow) {
 }
 
 func TestRoutePolicyWiring_NoDuplicateAuthTruth(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	for _, path := range tsrouting.PublicSessionPaths(opts) {
 		if service.SessionAuthRequiredForPath(path, opts) {
@@ -102,6 +106,8 @@ func TestRoutePolicyWiring_NoDuplicateAuthTruth(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_ProductRoutesHavePolicyMetadata(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProductRoutes(opts) {
 		if row.SurfaceClass == "" {
@@ -119,6 +125,8 @@ func TestRoutePolicyWiring_ProductRoutesHavePolicyMetadata(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_SyntheticRowsHaveSurfaceClass(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.SyntheticRoutes(opts) {
 		if row.SurfaceClass == "" {
@@ -128,6 +136,8 @@ func TestRoutePolicyWiring_SyntheticRowsHaveSurfaceClass(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProductRoutes(opts) {
 		switch row.HandlerAuth { //nolint:exhaustive // test asserts only the httpsig case; other auth modes are covered by the default assertion
@@ -152,6 +162,8 @@ func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_ProtocolRoutesHavePeerTrustClass(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProtocolRoutes(opts) {
 		switch row.TrustClass { //nolint:exhaustive // test asserts only peer-required; TrustPeerNone is covered by the default error assertion
@@ -163,6 +175,8 @@ func TestRoutePolicyWiring_ProtocolRoutesHavePeerTrustClass(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_AuxAndUIExcludedFromProtocolTrust(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	for _, surface := range []service.SurfaceClass{service.SurfaceHelper, service.SurfaceUI} {
 		for _, row := range tsrouting.RoutesBySurface(opts, surface) {
@@ -178,6 +192,8 @@ func TestRoutePolicyWiring_AuxAndUIExcludedFromProtocolTrust(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_APIRoutesAreFirstPartySession(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.RoutesBySurface(opts, service.SurfaceAPI) {
 		if row.TrustClass != service.TrustPeerNone {
@@ -195,6 +211,8 @@ func TestRoutePolicyWiring_APIRoutesAreFirstPartySession(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_APIOutboundKinds(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 
 	found := make(map[service.OutboundProtocolKind]bool)
@@ -222,6 +240,8 @@ func TestRoutePolicyWiring_APIOutboundKinds(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_WebDAVUsesHandlerAuthNotSession(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.DevOpts()
 
 	rows := tsrouting.RoutesBySurface(opts, service.SurfaceWebDAV)
@@ -245,6 +265,8 @@ func TestRoutePolicyWiring_WebDAVUsesHandlerAuthNotSession(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_InviteAcceptDialogDistinctFromInviteAccepted(t *testing.T) {
+	t.Parallel()
+
 	opts := tsrouting.InviteAcceptEnabledOpts()
 
 	var uiAccept, ocmInvite *service.RouteRow

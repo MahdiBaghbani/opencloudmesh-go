@@ -39,6 +39,8 @@ func (r *hostStubResolver) ResolveFacts(host string) policy.Facts {
 }
 
 func TestHandleCreate_LegacyVoluntaryNoPeerCriterion_Returns201(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount, captured := makeCapturingReceiverTLSServer(t, []string{}, []string{})
 	defer srv.Close()
 
@@ -74,6 +76,8 @@ func TestHandleCreate_LegacyVoluntaryNoPeerCriterion_Returns201(t *testing.T) {
 }
 
 func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount, captured := makeCapturingReceiverTLSServer(t,
 		[]string{"exchange-token"},
 		[]string{spec.CriteriaMustExchangeToken},
@@ -128,6 +132,8 @@ func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
 }
 
 func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
+	t.Parallel()
+
 	matchedSrv, matchedPost, matchedCaptured := makeCapturingReceiverTLSServer(t, []string{}, []string{})
 	defer matchedSrv.Close()
 
@@ -210,6 +216,8 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 }
 
 func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeReceiverTLSServer(t, []string{}, []string{})
 	defer srv.Close()
 
@@ -263,6 +271,8 @@ func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testin
 }
 
 func TestHandleCreate_PeerForcedCriterion_ReceiverLacksExchangeToken_Rejects(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeReceiverTLSServer(t, []string{}, []string{spec.CriteriaMustExchangeToken})
 	defer srv.Close()
 
@@ -293,6 +303,8 @@ func TestHandleCreate_PeerForcedCriterion_ReceiverLacksExchangeToken_Rejects(t *
 }
 
 func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 
@@ -357,6 +369,8 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 // the local token endpoint is empty or missing. The create path must reject and
 // must not fall back to the legacy shared-secret path.
 func TestHandleCreate_StrictEmptyOrMissingLocalEndpoint_Rejects(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{spec.CriteriaMustExchangeToken})
 	defer srv.Close()
 
@@ -412,6 +426,8 @@ func TestHandleCreate_StrictEmptyOrMissingLocalEndpoint_Rejects(t *testing.T) {
 // strict create persists must-exchange-token in the stored share's
 // Requirements, mirroring the wire payload assertion in other strict tests.
 func TestHandleCreate_StrictPersistsMustExchangeTokenRequirement(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 

@@ -48,6 +48,8 @@ func mustCreateCAPEM(t *testing.T) []byte {
 }
 
 func TestBuildRootCAPool_NilWhenBothEmpty(t *testing.T) {
+	t.Parallel()
+
 	pool, err := tlspkg.BuildRootCAPool("", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -59,6 +61,7 @@ func TestBuildRootCAPool_NilWhenBothEmpty(t *testing.T) {
 }
 
 func TestBuildRootCAPool_FileOnly(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	caFile := filepath.Join(tmp, "ca.pem")
 
@@ -82,6 +85,7 @@ func TestBuildRootCAPool_FileOnly(t *testing.T) {
 }
 
 func TestBuildRootCAPool_DirOnly(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	caPath := filepath.Join(tmp, "ca.crt")
 
@@ -105,6 +109,7 @@ func TestBuildRootCAPool_DirOnly(t *testing.T) {
 }
 
 func TestBuildRootCAPool_Merged(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	caFile := filepath.Join(tmp, "ca1.pem")
 
@@ -139,6 +144,8 @@ func TestBuildRootCAPool_Merged(t *testing.T) {
 }
 
 func TestBuildRootCAPool_InvalidFile(t *testing.T) {
+	t.Parallel()
+
 	_, err := tlspkg.BuildRootCAPool("/nonexistent/path/ca.pem", "")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
@@ -146,6 +153,7 @@ func TestBuildRootCAPool_InvalidFile(t *testing.T) {
 }
 
 func TestBuildRootCAPool_InvalidPEM(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 
 	caFile := filepath.Join(tmp, "bad.pem")
@@ -160,6 +168,8 @@ func TestBuildRootCAPool_InvalidPEM(t *testing.T) {
 }
 
 func TestBuildRootCAPool_DirWithNonPEMFiles(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tmp, "readme.txt"), []byte("ignore me"), 0644); err != nil {
 		t.Fatal(err)

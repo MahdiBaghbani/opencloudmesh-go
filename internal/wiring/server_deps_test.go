@@ -21,6 +21,8 @@ import (
 )
 
 func TestBuildServerDeps_FailsWithoutSharedDeps(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -35,6 +37,8 @@ func TestBuildServerDeps_FailsWithoutSharedDeps(t *testing.T) {
 }
 
 func TestBuildServerDeps_FailsWithoutRealIP(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	d := &Deps{
@@ -53,6 +57,8 @@ func TestBuildServerDeps_FailsWithoutRealIP(t *testing.T) {
 }
 
 func TestBuildServerDeps_FailsWithoutAuthRepos(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	d := &Deps{
@@ -70,6 +76,8 @@ func TestBuildServerDeps_FailsWithoutAuthRepos(t *testing.T) {
 }
 
 func TestBuildServerDeps_SucceedsWithSharedDeps(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	d := &Deps{
@@ -93,6 +101,8 @@ func TestBuildServerDeps_SucceedsWithSharedDeps(t *testing.T) {
 }
 
 func TestBuildServerDeps_AuthGateDoesNotPanicOnProtectedRoute(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	d := &Deps{

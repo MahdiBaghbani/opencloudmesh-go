@@ -8,20 +8,26 @@ package modroot
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 // ModuleRoot returns the directory containing go.mod by walking up from the
-// current working directory.
+// immediate caller's source file.
+//
+// The lookup resolves the caller source path via runtime.Caller, so it is
+// independent of the process working directory. This keeps it safe when tests
+// use t.Parallel or otherwise mutate the process-global CWD (os.Chdir)
+// concurrently.
 func ModuleRoot(t *testing.T) string {
 	t.Helper()
 
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
+	_, file, _, ok := runtime.Caller(1)
+	if !ok {
+		t.Fatal("modroot: could not determine caller source file")
 	}
 
-	dir := wd
+	dir := filepath.Dir(file)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir

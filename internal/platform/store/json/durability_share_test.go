@@ -18,6 +18,7 @@ import (
 // The failure is injected by making the data directory read-only after Init,
 // mirroring the pattern used by TestJSONInviteSaveFailureRollback.
 func TestJSONShareSaveFailureRollback(t *testing.T) {
+	t.Parallel()
 	runRollbackSuite(t, []rollbackCase{
 		{"CreateOutgoingShare", testCreateOutgoingShareRollback},
 		{"UpdateOutgoingShare", testUpdateOutgoingShareRollback},

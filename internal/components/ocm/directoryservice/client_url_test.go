@@ -12,6 +12,8 @@ import (
 )
 
 func TestCollectAlgorithms(t *testing.T) {
+	t.Parallel()
+
 	keys := []VerificationKey{
 		{Algorithm: "Ed25519", Active: true},
 		{Algorithm: "RS256", Active: true},
@@ -35,6 +37,8 @@ func TestCollectAlgorithms(t *testing.T) {
 }
 
 func TestMapAlgorithm(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		input string
 		want  jose.SignatureAlgorithm
@@ -58,6 +62,7 @@ func TestMapAlgorithm(t *testing.T) {
 }
 
 func TestParsePublicKey(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 
 	pub, err := parsePublicKey(kp.pem)
@@ -71,6 +76,8 @@ func TestParsePublicKey(t *testing.T) {
 }
 
 func TestParsePublicKey_InvalidPEM(t *testing.T) {
+	t.Parallel()
+
 	_, err := parsePublicKey("not a pem")
 	if err == nil {
 		t.Fatal("expected error for invalid PEM")
@@ -78,6 +85,8 @@ func TestParsePublicKey_InvalidPEM(t *testing.T) {
 }
 
 func TestIsValidServerURL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		url  string
 		want bool
@@ -97,6 +106,8 @@ func TestIsValidServerURL(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.url, func(t *testing.T) {
+			t.Parallel()
+
 			got := isValidServerURL(tc.url)
 			if got != tc.want {
 				t.Errorf("isValidServerURL(%q) = %v, want %v", tc.url, got, tc.want)

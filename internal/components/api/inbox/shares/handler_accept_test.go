@@ -18,10 +18,12 @@ import (
 )
 
 func TestHandleAccept_Success(t *testing.T) {
+	t.Parallel()
 	runShareStatusTransition(t, "accept", "prov-accept", shares.ShareStatusAccepted)
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-cross", "sender.example.com")
 
@@ -38,6 +40,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
@@ -52,6 +55,7 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-idem", "sender.example.com")
 
@@ -72,6 +76,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-declined", "sender.example.com")
 
@@ -92,6 +97,7 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	router := newTestRouter(repo, nil)
 

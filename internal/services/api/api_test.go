@@ -19,6 +19,8 @@ import (
 )
 
 func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -29,6 +31,8 @@ func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
 }
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -43,6 +47,8 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -57,6 +63,8 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -71,6 +79,8 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -85,6 +95,8 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestService_HealthzEndpoint(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -114,6 +126,8 @@ func TestService_HealthzEndpoint(t *testing.T) {
 }
 
 func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -136,6 +150,8 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 }
 
 func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -157,6 +173,8 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -178,6 +196,8 @@ func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
+	t.Parallel()
+
 	var logBuf testLogBuffer
 
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))

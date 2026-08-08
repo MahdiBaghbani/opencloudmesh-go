@@ -14,6 +14,7 @@ import (
 )
 
 func TestCanonicalTargetURI_ConsistentWithAndWithoutURLScheme(t *testing.T) {
+	t.Parallel()
 	withScheme := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares?x=1", nil)
 	withScheme.Host = "example.com"
 
@@ -35,6 +36,7 @@ func TestCanonicalTargetURI_ConsistentWithAndWithoutURLScheme(t *testing.T) {
 }
 
 func TestBuildSignatureBase_RejectsCRLFInComponent(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("date", "Fri, 16 Jan 2026 13:37:00 GMT\r\nX-Injected: 1")
 

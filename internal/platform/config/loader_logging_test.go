@@ -13,7 +13,10 @@ import (
 )
 
 func TestLoggingConfig_DefaultsPerMode(t *testing.T) {
+	t.Parallel()
+
 	// Strict mode defaults to info level
+
 	strictCfg := StrictConfig()
 	if strictCfg.Logging.Level != "info" {
 		t.Errorf("expected strict mode logging.level 'info', got %q", strictCfg.Logging.Level)

@@ -15,6 +15,8 @@ import (
 )
 
 func TestNewOCMHandler_TokenExchangePath(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	c.TokenExchange.Path = "exchange"
 	raw := map[string]any{
@@ -41,6 +43,8 @@ func TestNewOCMHandler_TokenExchangePath(t *testing.T) {
 }
 
 func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 
 	h := newOCMHandler(c, nil, handlerResolveInputs(t, ""), testLogger())
@@ -52,7 +56,10 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 }
 
 func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
+	t.Parallel()
 	t.Run("non-nil code flow adds exchange-token", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 		c.TokenExchange.Path = "token"
 
@@ -76,7 +83,10 @@ func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
 }
 
 func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
+	t.Parallel()
 	t.Run("RequiresTokenExchange=true adds token-exchange criteria", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 		c.TokenExchange.Path = "token"
 
@@ -93,6 +103,8 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 	})
 
 	t.Run("empty criteria serializes as []", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 
 		h := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
@@ -123,6 +135,8 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 	})
 
 	t.Run("nil CodeFlow yields strict-off discovery", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 		in := handlerResolveInputs(t, "")
 		in.CodeFlow = nil

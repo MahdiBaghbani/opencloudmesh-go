@@ -21,6 +21,8 @@ import (
 )
 
 func TestBuild_SignaturePolicyWiredFromCodeFlow(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		requires bool
@@ -40,6 +42,8 @@ func TestBuild_SignaturePolicyWiredFromCodeFlow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := config.DevConfig()
 			cfg.Signature.KeyPath = filepath.Join(t.TempDir(), "signing.pem")
 

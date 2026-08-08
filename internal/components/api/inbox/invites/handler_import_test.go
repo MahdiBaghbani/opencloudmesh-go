@@ -23,6 +23,7 @@ import (
 )
 
 func TestHandleImport_Success(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
@@ -59,6 +60,7 @@ func TestHandleImport_Success(t *testing.T) {
 }
 
 func TestHandleImport_Idempotent(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
@@ -102,6 +104,7 @@ func TestHandleImport_Idempotent(t *testing.T) {
 }
 
 func TestHandleImport_InvalidInviteString(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
@@ -119,6 +122,7 @@ func TestHandleImport_InvalidInviteString(t *testing.T) {
 }
 
 func TestHandleImport_MissingInviteString(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
@@ -136,6 +140,7 @@ func TestHandleImport_MissingInviteString(t *testing.T) {
 }
 
 func TestHandleImport_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
@@ -153,6 +158,7 @@ func TestHandleImport_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	inviteStr := buildInviteString("shared-token")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)

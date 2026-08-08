@@ -15,11 +15,15 @@ import (
 )
 
 func TestMustClose_closesWithoutError(t *testing.T) {
+	t.Parallel()
+
 	body := io.NopCloser(nil)
 	tshttp.MustClose(t, body)
 }
 
 func TestMustEncodeJSON_writesPayload(t *testing.T) {
+	t.Parallel()
+
 	rec := httptest.NewRecorder()
 	tshttp.MustEncodeJSON(t, rec, map[string]string{"ok": "true"})
 
@@ -33,6 +37,8 @@ func TestMustEncodeJSON_writesPayload(t *testing.T) {
 }
 
 func TestMustMarshalJSON_returnsBytes(t *testing.T) {
+	t.Parallel()
+
 	got := tshttp.MustMarshalJSON(t, map[string]int{"n": 1})
 	if string(got) != "{\"n\":1}" {
 		t.Fatalf("got %q", string(got))
@@ -40,6 +46,8 @@ func TestMustMarshalJSON_returnsBytes(t *testing.T) {
 }
 
 func TestWriteJSON_writesPayload(t *testing.T) {
+	t.Parallel()
+
 	rec := httptest.NewRecorder()
 	tshttp.WriteJSON(rec, map[string]bool{"ok": true})
 

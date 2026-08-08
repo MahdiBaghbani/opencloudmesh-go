@@ -20,6 +20,8 @@ import (
 // WebDAV is the only supported receive protocol; ProtocolWebapp must be
 // rejected explicitly with ReasonProtocolMismatch before any discovery work.
 func TestDecideAccessAuth_WebappProtocolFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	client := NewClient(nil, &discovery.Client{}, nil, nil)
 
 	decision, err := client.DecideAccessAuth(AccessOptions{
@@ -48,6 +50,8 @@ func TestDecideAccessAuth_WebappProtocolFailsClosed(t *testing.T) {
 // Access must reject ProtocolWebapp before performing discovery or token
 // exchange; webapp is not a supported receive path on the access plane.
 func TestAccess_WebappProtocolFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	client := NewClient(nil, &discovery.Client{}, nil, nil)
 
 	_, err := client.Access(context.Background(), AccessOptions{

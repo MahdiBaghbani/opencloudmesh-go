@@ -20,6 +20,7 @@ import (
 )
 
 func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invA := createInviteForUser(t, repo, userAID, "token-a", "sender-a.example.com")
 	createInviteForUser(t, repo, userBID, "token-b", "sender-b.example.com")
@@ -50,6 +51,7 @@ func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
 }
 
 func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	createInviteForUser(t, repo, userAID, "token-a", "sender.example.com")
 
@@ -75,6 +77,7 @@ func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
 }
 
 func TestHandleList_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
@@ -88,6 +91,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleList_DoesNotLeakToken(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	createInviteForUser(t, repo, userAID, "super-secret-token-123", "sender.example.com")
 

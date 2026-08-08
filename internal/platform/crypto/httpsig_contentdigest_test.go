@@ -21,6 +21,8 @@ import (
 )
 
 func TestContentDigest(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"test": "data"}`)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", bytes.NewReader(body))
@@ -59,6 +61,8 @@ func TestContentDigest(t *testing.T) {
 }
 
 func TestVerifyContentDigest_MultiDigest(t *testing.T) {
+	t.Parallel()
+
 	body := httpsigTestBodyJSON
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	sha512Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA512(body))
@@ -72,6 +76,8 @@ func TestVerifyContentDigest_MultiDigest(t *testing.T) {
 }
 
 func TestVerifyContentDigest_MultiDigest_OneTampered(t *testing.T) {
+	t.Parallel()
+
 	body := httpsigTestBodyJSON
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	tampered := base64.StdEncoding.EncodeToString(sigalg.SumSHA512([]byte("wrong")))
@@ -85,6 +91,8 @@ func TestVerifyContentDigest_MultiDigest_OneTampered(t *testing.T) {
 }
 
 func TestVerifyContentDigest_UnknownPlusRecognizedRejected(t *testing.T) {
+	t.Parallel()
+
 	body := httpsigTestBodyJSON
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 
@@ -97,6 +105,8 @@ func TestVerifyContentDigest_UnknownPlusRecognizedRejected(t *testing.T) {
 }
 
 func TestVerifyContentDigest_OnlyUnknownAlgorithmsRejected(t *testing.T) {
+	t.Parallel()
+
 	body := httpsigTestBodyJSON
 	val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 
@@ -154,14 +164,18 @@ func runMissingHeaderRejectionCase(t *testing.T, header string) {
 }
 
 func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testing.T) {
+	t.Parallel()
 	runMissingHeaderRejectionCase(t, "Content-Digest")
 }
 
 func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testing.T) {
+	t.Parallel()
 	runMissingHeaderRejectionCase(t, "Content-Length")
 }
 
 func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	body := httpsigTestBodyJSON
@@ -187,6 +201,7 @@ func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T
 }
 
 func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -224,6 +239,7 @@ func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
 }
 
 func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -266,6 +282,8 @@ func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) 
 }
 
 func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	body := httpsigTestBodyJSON

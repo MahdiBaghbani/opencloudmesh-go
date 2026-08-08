@@ -53,6 +53,7 @@ func seedUser(t *testing.T, repo identity.PartyRepo, auth *identity.UserAuth, us
 }
 
 func TestAuthHandler_Login_Success(t *testing.T) {
+	t.Parallel()
 	handler, repo, _, auth := newTestAuthHandler(t)
 	user := seedUser(t, repo, auth, "alice", "secret123")
 
@@ -106,6 +107,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 }
 
 func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
+	t.Parallel()
 	handler, repo, _, auth := newTestAuthHandler(t)
 	seedUser(t, repo, auth, "alice", "secret123")
 
@@ -121,6 +123,7 @@ func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
 }
 
 func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
+	t.Parallel()
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	tests := []struct {
@@ -134,6 +137,7 @@ func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/login", bytes.NewBufferString(tt.body))
 			w := httptest.NewRecorder()
 			handler.Login(w, req)
@@ -146,6 +150,7 @@ func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
 }
 
 func TestAuthHandler_Login_MethodNotAllowed(t *testing.T) {
+	t.Parallel()
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/auth/login", nil)
@@ -158,6 +163,7 @@ func TestAuthHandler_Login_MethodNotAllowed(t *testing.T) {
 }
 
 func TestAuthHandler_Logout(t *testing.T) {
+	t.Parallel()
 	handler, repo, sessions, auth := newTestAuthHandler(t)
 	user := seedUser(t, repo, auth, "alice", "secret123")
 
@@ -185,6 +191,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 }
 
 func TestAuthHandler_Logout_NoSession(t *testing.T) {
+	t.Parallel()
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/logout", nil)
@@ -197,6 +204,7 @@ func TestAuthHandler_Logout_NoSession(t *testing.T) {
 }
 
 func TestAuthHandler_GetCurrentUser(t *testing.T) {
+	t.Parallel()
 	handler, repo, sessions, auth := newTestAuthHandler(t)
 	user := seedUser(t, repo, auth, "alice", "secret123")
 
@@ -236,6 +244,7 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 }
 
 func TestAuthHandler_GetCurrentUser_NoSession(t *testing.T) {
+	t.Parallel()
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/auth/me", nil)
@@ -248,6 +257,8 @@ func TestAuthHandler_GetCurrentUser_NoSession(t *testing.T) {
 }
 
 func TestExtractToken(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		setup func(*http.Request)
@@ -276,6 +287,7 @@ func TestExtractToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 			tt.setup(req)
 
@@ -288,6 +300,7 @@ func TestExtractToken(t *testing.T) {
 }
 
 func TestAuthHandler_Login_ResponseContentType(t *testing.T) {
+	t.Parallel()
 	handler, repo, _, auth := newTestAuthHandler(t)
 	seedUser(t, repo, auth, "alice", "secret123")
 

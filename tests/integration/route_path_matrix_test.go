@@ -20,8 +20,11 @@ import (
 )
 
 func TestRoutePathMatrix(t *testing.T) {
+	t.Parallel()
+
 	for _, variant := range tsrouting.MatrixVariants() {
 		t.Run(variant.Name, func(t *testing.T) {
+			t.Parallel()
 			ts := harness.StartTestServerWithConfig(t, matrixConfigPatch(variant))
 
 			opts := service.RouteOptsFromConfig(ts.Config)
@@ -36,6 +39,8 @@ func TestRoutePathMatrix(t *testing.T) {
 
 			for _, row := range rows {
 				t.Run(row.ID, func(t *testing.T) {
+					t.Parallel()
+
 					probePath := tsrouting.ProbePathFromRow(row)
 					method := tsrouting.ProbeMethodFromRow(row)
 					status := doProbe(t, ts.BaseURL, method, probePath, nil)
@@ -58,6 +63,8 @@ func TestRoutePathMatrix(t *testing.T) {
 }
 
 func TestRoutePathMatrix_TokenEndpointMatchesAggregate(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name              string
 		tokenPath         string
@@ -131,6 +138,7 @@ func TestRoutePathMatrix_TokenEndpointMatchesAggregate(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ts := harness.StartTestServerWithConfig(t, tc.patch)
 
 			opts := service.RouteOptsFromConfig(ts.Config)
@@ -179,6 +187,7 @@ func TestRoutePathMatrix_TokenEndpointMatchesAggregate(t *testing.T) {
 }
 
 func TestRoutePathMatrix_WayfAndAcceptInviteUnderBasePath(t *testing.T) {
+	t.Parallel()
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
 		ensureServiceConfig(cfg, "ui", map[string]any{
@@ -389,6 +398,7 @@ func doProbe(t *testing.T, baseURL, method, path string, body io.Reader) int {
 }
 
 func TestRoutePathMatrix_OCMProtocolRoutesSessionPublic(t *testing.T) {
+	t.Parallel()
 	ts := harness.StartTestServer(t)
 	opts := service.RouteOptsFromConfig(ts.Config)
 
@@ -415,6 +425,7 @@ func TestRoutePathMatrix_OCMProtocolRoutesSessionPublic(t *testing.T) {
 }
 
 func TestRoutePathMatrix_OCMAuxRoutesPublic(t *testing.T) {
+	t.Parallel()
 	ts := harness.StartTestServer(t)
 	opts := service.DefaultRouteOpts()
 
@@ -437,6 +448,7 @@ func TestRoutePathMatrix_OCMAuxRoutesPublic(t *testing.T) {
 }
 
 func TestRoutePathMatrix_WebDAVCompoundPrefixUnderBasePath(t *testing.T) {
+	t.Parallel()
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
 	})

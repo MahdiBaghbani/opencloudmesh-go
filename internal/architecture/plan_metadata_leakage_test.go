@@ -51,6 +51,7 @@ var planMetadataSelfSkip = map[string]bool{
 }
 
 func TestPlanMetadata_NoLeaks(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations, err := scanPlanMetadataLeaks(root)
@@ -64,6 +65,8 @@ func TestPlanMetadata_NoLeaks(t *testing.T) {
 }
 
 func TestFindPlanMetadataLeak_PositiveCoordinate(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		text string
@@ -77,6 +80,8 @@ func TestFindPlanMetadataLeak_PositiveCoordinate(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if leak := findPlanMetadataLeak(tc.text); leak == "" {
 				t.Fatalf("expected coordinate leak in %q", tc.text)
 			}
@@ -85,6 +90,8 @@ func TestFindPlanMetadataLeak_PositiveCoordinate(t *testing.T) {
 }
 
 func TestFindPlanMetadataLeak_NegativeLegitimate(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		text string
@@ -100,6 +107,8 @@ func TestFindPlanMetadataLeak_NegativeLegitimate(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if leak := findPlanMetadataLeak(tc.text); leak != "" {
 				t.Fatalf("expected no leak in %q, got %q", tc.text, leak)
 			}
@@ -108,6 +117,7 @@ func TestFindPlanMetadataLeak_NegativeLegitimate(t *testing.T) {
 }
 
 func TestScanFilePlanMetadataLeaks_PositiveAndSlog(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "leak.go")
 
@@ -145,6 +155,7 @@ func helper(log *slog.Logger) {
 }
 
 func TestScanFilePlanMetadataLeaks_NegativeRFC(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ok.go")
 

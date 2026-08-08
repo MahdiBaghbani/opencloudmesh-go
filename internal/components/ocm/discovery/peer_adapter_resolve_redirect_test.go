@@ -26,6 +26,8 @@ import (
 )
 
 func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksHTTPSDowngradeRedirect(t *testing.T) {
+	t.Parallel()
+
 	pub, _, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -88,6 +90,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksHTTPSDowngradeRedirec
 }
 
 func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksCrossHostRedirect(t *testing.T) {
+	t.Parallel()
+
 	var (
 		jwksURI string
 		srv     *httptest.Server

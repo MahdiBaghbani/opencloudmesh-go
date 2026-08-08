@@ -15,6 +15,7 @@ import (
 )
 
 func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingShares
 	ctx := context.Background()
 

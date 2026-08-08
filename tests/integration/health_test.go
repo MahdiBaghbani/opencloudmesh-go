@@ -32,6 +32,8 @@ func healthPathForConfig(t *testing.T, cfg *config.Config) string {
 }
 
 func TestHealthEndpoint(t *testing.T) {
+	t.Parallel()
+
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
@@ -67,6 +69,8 @@ func TestHealthEndpoint(t *testing.T) {
 // that prefix, so in-process startup must not falsely fail by probing the bare
 // root /api/healthz.
 func TestHealthEndpointWithExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
 	})
@@ -91,6 +95,8 @@ func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 // TestDiscoveryRemainsHostRootWithExternalBasePath verifies well-known discovery
 // stays at the host root when app routes mount under external_base_path.
 func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
 	})
@@ -139,6 +145,8 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 // local request target (localhost:<allocated port>) so local test traffic and
 // readiness probing keep working regardless of the advertised origin.
 func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.PublicOrigin = "https://advertised.example.com"
 	})
@@ -169,6 +177,8 @@ func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
 }
 
 func TestDiscoveryEndpoint(t *testing.T) {
+	t.Parallel()
+
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 

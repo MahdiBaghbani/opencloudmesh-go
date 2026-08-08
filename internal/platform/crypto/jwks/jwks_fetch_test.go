@@ -21,6 +21,7 @@ import (
 )
 
 func TestFetchURL(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -51,7 +52,10 @@ func TestFetchURL(t *testing.T) {
 }
 
 func TestFetchURL_Errors(t *testing.T) {
+	t.Parallel()
 	t.Run("404", func(t *testing.T) {
+		t.Parallel()
+
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 		}))
@@ -64,6 +68,8 @@ func TestFetchURL_Errors(t *testing.T) {
 	})
 
 	t.Run("invalid JSON", func(t *testing.T) {
+		t.Parallel()
+
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			tshttp.MustWrite(t, w, []byte(`{"keys":[`))
@@ -77,6 +83,8 @@ func TestFetchURL_Errors(t *testing.T) {
 	})
 
 	t.Run("empty key set", func(t *testing.T) {
+		t.Parallel()
+
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			tshttp.MustWrite(t, w, []byte(`{"keys":[]}`))
@@ -90,6 +98,8 @@ func TestFetchURL_Errors(t *testing.T) {
 	})
 
 	t.Run("nil client", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := jwks.FetchURL(context.Background(), nil, "https://example.com/jwks")
 		if !errors.Is(err, jwks.ErrNilHTTPClient) {
 			t.Fatalf("FetchURL() error = %v, want ErrNilHTTPClient", err)
@@ -97,6 +107,8 @@ func TestFetchURL_Errors(t *testing.T) {
 	})
 
 	t.Run("response too large", func(t *testing.T) {
+		t.Parallel()
+
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			tshttp.MustWrite(t, w, bytes.Repeat([]byte("a"), 64))

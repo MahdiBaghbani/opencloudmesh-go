@@ -16,6 +16,8 @@ import (
 )
 
 func TestRequirementWireValues(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		got  string
@@ -26,6 +28,8 @@ func TestRequirementWireValues(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if tc.got != tc.want {
 				t.Errorf("wire value = %q, want %q", tc.got, tc.want)
 			}
@@ -34,6 +38,8 @@ func TestRequirementWireValues(t *testing.T) {
 }
 
 func TestWebDAVHasRequirementUsesConstant(t *testing.T) {
+	t.Parallel()
+
 	p := &spec.WebDAVProtocol{
 		Requirements: []string{spec.RequirementMustExchangeToken},
 	}
@@ -47,6 +53,8 @@ func TestWebDAVHasRequirementUsesConstant(t *testing.T) {
 }
 
 func TestWebappHasRequirementUsesConstant(t *testing.T) {
+	t.Parallel()
+
 	p := &spec.WebappProtocol{
 		Requirements: []string{spec.RequirementMustExchangeToken},
 	}
@@ -75,9 +83,13 @@ var requirementWireLiterals = []string{
 }
 
 func TestRequirementClosedPathNoRawWireLiterals(t *testing.T) {
+	t.Parallel()
+
 	root := modroot.ModuleRoot(t)
 	for _, rel := range requirementClosedPathFiles {
 		t.Run(rel, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)

@@ -28,12 +28,17 @@ func strictSSRFCfg() *config.Config {
 }
 
 func TestOutboundOverride_AffectsSSRF(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer srv.Close()
+
+	t.Cleanup(func() { srv.Close() })
 
 	t.Run("OutboundOverride SSRF=off allows localhost request", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := wiring.Build(strictSSRFCfg(), tslog.DiscardLogger(), harnessBuildOpts())
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
@@ -53,6 +58,8 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 	})
 
 	t.Run("without OutboundOverride SSRF=strict blocks localhost request", func(t *testing.T) {
+		t.Parallel()
+
 		opts := harnessBuildOpts()
 		opts.OutboundOverride = nil
 
@@ -82,6 +89,8 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 }
 
 func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
@@ -92,6 +101,8 @@ func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
 }
 
 func TestOutbound_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 

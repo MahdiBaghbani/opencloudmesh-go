@@ -19,6 +19,7 @@ import (
 )
 
 func TestMirrorDriverSecretRedaction(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-mirror-redact-*")
 
 	ctx := context.Background()
@@ -56,6 +57,7 @@ func TestMirrorDriverSecretRedaction(t *testing.T) {
 // TestMirrorInviteExportOnInit verifies that Init exports both invite surfaces
 // to JSON and redacts invite tokens from exported files.
 func TestMirrorInviteExportOnInit(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-mirror-invite-*")
 
 	ctx := context.Background()

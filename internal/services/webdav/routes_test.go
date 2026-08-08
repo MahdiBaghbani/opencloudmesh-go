@@ -12,6 +12,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs(t *testing.T) {
+	t.Parallel()
+
 	specs := registeredRouteSpecs(service.DefaultRouteOpts())
 	if len(specs) != 1 {
 		t.Fatalf("expected 1 webdav route spec, got %d", len(specs))

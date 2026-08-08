@@ -18,9 +18,13 @@ import (
 )
 
 func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
+	t.Parallel()
+
 	httpCfg := tshttp.PermissiveConfig()
 
 	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 		}))
@@ -39,6 +43,8 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
+		t.Parallel()
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/.well-known/ocm" {
 				http.NotFound(w, r)
@@ -67,6 +73,8 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
+		t.Parallel()
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/.well-known/ocm" {
 				http.NotFound(w, r)

@@ -17,6 +17,8 @@ import (
 )
 
 func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if exchangeDiscoveryHandler(t, w, r, "token") {
 			return
@@ -48,6 +50,8 @@ func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 }
 
 func TestAccess_NilDiscoveryFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.NotFoundHandler())
 	t.Cleanup(srv.Close)
 	client := newExchangeAccessClient(t, srv)
@@ -73,6 +77,8 @@ func TestAccess_NilDiscoveryFailsClosed(t *testing.T) {
 }
 
 func TestAccess_NilShareFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if exchangeDiscoveryHandler(t, w, r, "token") {
 			return

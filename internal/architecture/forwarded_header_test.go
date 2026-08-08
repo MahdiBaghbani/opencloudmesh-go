@@ -17,6 +17,8 @@ import (
 )
 
 func TestNoDirectForwardedHeaderParsing(t *testing.T) {
+	t.Parallel()
+
 	forbidden := []string{"X-Forwarded-For", "X-Real-IP"}
 
 	allowedSubstrings := []string{

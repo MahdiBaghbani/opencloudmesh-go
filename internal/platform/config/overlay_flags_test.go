@@ -8,6 +8,8 @@ package config
 import "testing"
 
 func TestOverlayNetFlags(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	listen := ":9443"
 	origin := "https://peer.example"
@@ -33,6 +35,8 @@ func TestOverlayNetFlags(t *testing.T) {
 }
 
 func TestOverlayNetFlags_SkipsNilAndEmpty(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	beforeListen := cfg.ListenAddr
 	beforeOrigin := cfg.PublicOrigin
@@ -59,6 +63,8 @@ func TestOverlayNetFlags_SkipsNilAndEmpty(t *testing.T) {
 }
 
 func TestOverlayAdminFlags(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	username := "ops"
 	password := "hunter2"
@@ -78,6 +84,8 @@ func TestOverlayAdminFlags(t *testing.T) {
 }
 
 func TestOverlayAdminFlags_SkipsNilAndEmpty(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	beforeUser := cfg.Server.BootstrapAdmin.Username
 	beforePass := cfg.Server.BootstrapAdmin.Password
@@ -98,6 +106,8 @@ func TestOverlayAdminFlags_SkipsNilAndEmpty(t *testing.T) {
 }
 
 func TestOverlayLoggingFlags(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	level := "warn"
 
@@ -111,6 +121,8 @@ func TestOverlayLoggingFlags(t *testing.T) {
 }
 
 func TestOverlayLoggingFlags_SkipsNilAndEmpty(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	beforeLevel := cfg.Logging.Level
 	empty := ""
@@ -125,6 +137,8 @@ func TestOverlayLoggingFlags_SkipsNilAndEmpty(t *testing.T) {
 }
 
 func TestOverlayTokenFlags(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	path := "exchange/v1"
 
@@ -138,6 +152,8 @@ func TestOverlayTokenFlags(t *testing.T) {
 }
 
 func TestOverlayTokenFlags_SkipsNilAndEmpty(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	beforePath := cfg.TokenExchange.Path
 	empty := ""
@@ -152,6 +168,8 @@ func TestOverlayTokenFlags_SkipsNilAndEmpty(t *testing.T) {
 }
 
 func TestOverlayFlags_AllConcerns(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	listen := ":8080"
 	origin := "https://all.example"

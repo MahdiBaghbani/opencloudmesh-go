@@ -20,6 +20,8 @@ import (
 )
 
 func TestAppendixBCoveredComponents(t *testing.T) {
+	t.Parallel()
+
 	components := crypto.AppendixBCoveredComponents()
 
 	want := []string{"@method", "@target-uri", "content-digest", "content-length"}
@@ -35,6 +37,8 @@ func TestAppendixBCoveredComponents(t *testing.T) {
 }
 
 func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
+	t.Parallel()
+
 	sig := config.SignatureConfig{
 		Label:                 "customlabel",
 		CreatedMaxAgeSeconds:  120,
@@ -61,6 +65,8 @@ func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
 }
 
 func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		method string
@@ -83,6 +89,7 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			km := mustHTTPSigKeyManager(t)
 
 			opts := httpsigFixedOptions()
@@ -146,6 +153,7 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 }
 
 func TestAppendixB_VectorVerify_Negative(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()
@@ -199,6 +207,8 @@ func TestAppendixB_VectorVerify_Negative(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			cloned := req.Clone(req.Context())
 			for k, vals := range req.Header {
 				cloned.Header[k] = append([]string(nil), vals...)

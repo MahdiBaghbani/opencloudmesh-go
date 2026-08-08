@@ -17,6 +17,8 @@ import (
 // service.CoreServices. Lives in service_test to avoid an import cycle (wiring
 // imports service).
 func TestCoreServiceNamesMatchesCoreServices(t *testing.T) {
+	t.Parallel()
+
 	if !slices.Equal(wiring.CoreServiceNames(), service.CoreServices) {
 		t.Errorf(
 			"wiring.CoreServiceNames() = %v, want service.CoreServices %v",
@@ -29,6 +31,8 @@ func TestCoreServiceNamesMatchesCoreServices(t *testing.T) {
 // TestCoreServiceBuildersCoverDescriptors verifies every descriptor build key
 // has a wiring builder and that no orphan builders exist.
 func TestCoreServiceBuildersCoverDescriptors(t *testing.T) {
+	t.Parallel()
+
 	descs := service.Descriptors()
 
 	registered := make(map[service.BuildKey]struct{}, len(wiring.RegisteredBuildKeys()))

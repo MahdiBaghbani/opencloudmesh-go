@@ -15,6 +15,8 @@ import (
 // default: strict is durable sqlite under the default data dir, dev overlays
 // the ephemeral memory backend.
 func TestPersistencePresetDefaults(t *testing.T) {
+	t.Parallel()
+
 	presets := []struct {
 		name        string
 		fn          func() *Config
@@ -27,6 +29,8 @@ func TestPersistencePresetDefaults(t *testing.T) {
 
 	for _, p := range presets {
 		t.Run(p.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := p.fn()
 			if cfg.Persistence.Backend != p.wantBackend {
 				t.Errorf("%s preset: expected Backend=%q, got %q",
@@ -45,6 +49,8 @@ func TestPersistencePresetDefaults(t *testing.T) {
 // overrides the strict durable sqlite default with the ephemeral memory
 // backend and no data dir.
 func TestDevConfig_PersistenceMemoryOverlay(t *testing.T) {
+	t.Parallel()
+
 	cfg := DevConfig()
 
 	if cfg.Persistence.Backend != BackendMemory {

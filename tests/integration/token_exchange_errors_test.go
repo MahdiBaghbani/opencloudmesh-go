@@ -22,6 +22,8 @@ import (
 // signed by a peer that advertises JWKS so middleware verification succeeds
 // before handler validation runs.
 func TestTokenExchangeErrorResponses(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -32,10 +34,10 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 		Name: "token-errors",
 		Mode: "dev",
 	})
-	defer srv.Stop(t)
+	t.Cleanup(func() { srv.Stop(t) })
 
 	peer := startStrictCodeFlowReceiver(t)
-	defer peer.Close()
+	t.Cleanup(func() { peer.Close() })
 
 	tests := []struct {
 		name           string
@@ -77,6 +79,8 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			body := tt.data.Encode()
 
 			req, err := http.NewRequestWithContext(

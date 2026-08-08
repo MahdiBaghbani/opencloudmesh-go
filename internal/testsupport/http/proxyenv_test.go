@@ -56,8 +56,8 @@ func TestClearProxyEnv_RestoresAfterCleanup(t *testing.T) {
 	}
 }
 
-func TestClearProxyEnv_KeepsUnsetAfterCleanup(t *testing.T) {
-	for _, key := range tshttp.ProxyEnvKeys {
+func TestClearProxyEnv_KeepsUnsetAfterCleanup(t *testing.T) { //nolint:paralleltest // mutates process-global proxy env via os.Setenv/os.Unsetenv, incompatible with t.Parallel
+	for _, key := range tshttp.ProxyEnvKeys { //nolint:paralleltest // mutates process-global proxy env via os.Setenv/os.Unsetenv, incompatible with t.Parallel
 		t.Run(key, func(t *testing.T) {
 			origVal, origSet := os.LookupEnv(key)
 

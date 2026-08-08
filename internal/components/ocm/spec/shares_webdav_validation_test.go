@@ -11,6 +11,8 @@ import (
 )
 
 func TestWebDAVRequiresURI(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{SharedSecret: "s", Permissions: []string{"read"}, Requirements: []string{RequirementMustExchangeToken}}
 
 	errs := ValidateWebDAVProtocol(p)
@@ -20,6 +22,8 @@ func TestWebDAVRequiresURI(t *testing.T) {
 }
 
 func TestWebDAVRequiresSharedSecret(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{URI: "u", Permissions: []string{"read"}, Requirements: []string{RequirementMustExchangeToken}}
 
 	errs := ValidateWebDAVProtocol(p)
@@ -29,6 +33,8 @@ func TestWebDAVRequiresSharedSecret(t *testing.T) {
 }
 
 func TestWebDAVRequiresPermissions(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{URI: "u", SharedSecret: "s", Requirements: []string{RequirementMustExchangeToken}}
 
 	errs := ValidateWebDAVProtocol(p)
@@ -38,6 +44,8 @@ func TestWebDAVRequiresPermissions(t *testing.T) {
 }
 
 func TestWebDAVAcceptsRemoteAccessTypes(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"uri":"u","sharedSecret":"s","permissions":["read"],"accessTypes":["remote"],"requirements":["must-exchange-token"]}`
 
 	var p WebDAVProtocol
@@ -55,6 +63,8 @@ func TestWebDAVAcceptsRemoteAccessTypes(t *testing.T) {
 }
 
 func TestWebDAVRejectsUnsupportedAccessTypes(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"uri":"u","sharedSecret":"s","permissions":["read"],"accessTypes":["datatx"],"requirements":["must-exchange-token"]}`
 
 	var p WebDAVProtocol
@@ -75,6 +85,8 @@ func TestWebDAVRejectsUnsupportedAccessTypes(t *testing.T) {
 }
 
 func TestWebDAVAcceptsMissingAccessTypesAsRemote(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{
 		URI:          "u",
 		SharedSecret: "s",
@@ -87,6 +99,8 @@ func TestWebDAVAcceptsMissingAccessTypesAsRemote(t *testing.T) {
 }
 
 func TestWebDAVRejectsUnsupportedPermissions(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{
 		URI:          "u",
 		SharedSecret: "s",
@@ -107,6 +121,8 @@ func TestWebDAVRejectsUnsupportedPermissions(t *testing.T) {
 }
 
 func TestWebDAVRejectsUnknownRequirement(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{
 		URI:          "u",
 		SharedSecret: "s",
@@ -121,6 +137,8 @@ func TestWebDAVRejectsUnknownRequirement(t *testing.T) {
 }
 
 func TestValidateWebDAVProtocol_RejectsEmptyRequirements(t *testing.T) {
+	t.Parallel()
+
 	validShape := func() *WebDAVProtocol {
 		return &WebDAVProtocol{
 			URI:          "u",
@@ -150,16 +168,22 @@ func TestValidateWebDAVProtocol_RejectsEmptyRequirements(t *testing.T) {
 	}
 
 	t.Run("nil requirements", func(t *testing.T) {
+		t.Parallel()
+
 		p := validShape()
 		p.Requirements = nil
 		assertRequiredRequirements(t, ValidateWebDAVProtocol(p))
 	})
 	t.Run("empty requirements", func(t *testing.T) {
+		t.Parallel()
+
 		p := validShape()
 		p.Requirements = []string{}
 		assertRequiredRequirements(t, ValidateWebDAVProtocol(p))
 	})
 	t.Run("must-exchange-token accepted", func(t *testing.T) {
+		t.Parallel()
+
 		p := validShape()
 
 		p.Requirements = []string{RequirementMustExchangeToken}

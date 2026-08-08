@@ -16,6 +16,8 @@ import (
 )
 
 func TestCriteriaWireValues(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		got  string
@@ -29,6 +31,8 @@ func TestCriteriaWireValues(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if tc.got != tc.want {
 				t.Errorf("wire value = %q, want %q", tc.got, tc.want)
 			}
@@ -37,6 +41,8 @@ func TestCriteriaWireValues(t *testing.T) {
 }
 
 func TestDiscoveryHelpersUseCriteriaConstants(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Criteria: []string{spec.CriteriaMustUseHTTPSig, spec.CriteriaMustExchangeToken},
 	}
@@ -70,9 +76,13 @@ var criteriaWireLiterals = []string{
 }
 
 func TestCriteriaClosedPathNoRawWireLiterals(t *testing.T) {
+	t.Parallel()
+
 	root := modroot.ModuleRoot(t)
 	for _, rel := range criteriaClosedPathFiles {
 		t.Run(rel, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)

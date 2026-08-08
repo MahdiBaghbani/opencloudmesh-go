@@ -22,6 +22,8 @@ import (
 )
 
 func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/test", nil)
@@ -60,6 +62,8 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectPaths(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 
 	km := mustHTTPSigKeyManager(t)
@@ -124,6 +128,7 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/test", nil)
 			req.Header.Set("Date", httpsigStandardDate)
 
@@ -153,6 +158,8 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsMissingKeyIDBeforeFetch(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
@@ -187,6 +194,8 @@ func TestVerifyRequest_RejectsMissingKeyIDBeforeFetch(t *testing.T) {
 }
 
 func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
@@ -213,6 +222,8 @@ func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 }
 
 func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
@@ -243,8 +254,11 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 }
 
 func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
+	t.Parallel()
+
 	// The OCM minimum is an at-least set: a signature that covers date in
 	// addition to the mandatory date-free set is accepted, not rejected.
+
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -296,6 +310,8 @@ func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
 }
 
 func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
@@ -328,6 +344,8 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsJWKHeaderAlgMismatch(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/test", nil)

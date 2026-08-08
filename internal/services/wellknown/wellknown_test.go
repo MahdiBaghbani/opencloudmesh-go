@@ -40,6 +40,8 @@ func signatureMiddlewareForTest(
 	)
 }
 func TestNew_SucceedsWithResolveInputs(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
 	}
@@ -56,6 +58,8 @@ func TestNew_SucceedsWithResolveInputs(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	m := map[string]any{
@@ -70,6 +74,8 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 }
 
 func TestNew_RejectsUnknownOCMProviderKeys(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := map[string]any{
@@ -89,6 +95,8 @@ func TestNew_RejectsUnknownOCMProviderKeys(t *testing.T) {
 }
 
 func TestNew_RejectsInvalidProviderConfig(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := map[string]any{
@@ -102,6 +110,8 @@ func TestNew_RejectsInvalidProviderConfig(t *testing.T) {
 }
 
 func TestService_HandlerReturnsValidResponse(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
 	}
@@ -122,6 +132,8 @@ func TestService_HandlerReturnsValidResponse(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
@@ -138,6 +150,8 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestService_TrailingSlashPath(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
@@ -158,6 +172,8 @@ func TestService_TrailingSlashPath(t *testing.T) {
 }
 
 func TestService_PercentEncodedPath(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
@@ -179,6 +195,8 @@ func TestService_PercentEncodedPath(t *testing.T) {
 }
 
 func TestService_APIVersionPinned(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
@@ -226,6 +244,8 @@ func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
 }
 
 func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://nc.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)

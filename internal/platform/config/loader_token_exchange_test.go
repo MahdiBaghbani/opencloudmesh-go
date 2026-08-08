@@ -13,6 +13,8 @@ import (
 )
 
 func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
+	t.Parallel()
+
 	strictCfg := StrictConfig()
 	if strictCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected strict mode token_exchange.path 'token', got %q", strictCfg.TokenExchange.Path)

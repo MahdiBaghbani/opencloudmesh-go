@@ -132,7 +132,7 @@ func newFallbackServer(t *testing.T, tt fallbackAccessCase, webdavHits, tokenHit
 	}))
 }
 
-func TestAccess_OptionalExchangeFallback(t *testing.T) {
+func TestAccess_OptionalExchangeFallback(t *testing.T) { //nolint:paralleltest // subtests call slog.SetDefault, mutating process-global default logger
 	const (
 		sharedSecret    = "fallback-shared-secret"
 		fallbackWarning = "optional token exchange failed; falling back to legacy shared-secret access"
@@ -195,7 +195,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests call slog.SetDefault via runFallbackCase, mutating process-global default logger
 		t.Run(tt.name, func(t *testing.T) {
 			runFallbackCase(t, tt, sharedSecret, fallbackWarning, peerOAuthErrors)
 		})

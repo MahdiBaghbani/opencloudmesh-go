@@ -13,6 +13,8 @@ import (
 )
 
 func TestPadCoord(t *testing.T) {
+	t.Parallel()
+
 	b := []byte{0x01, 0x02, 0x03}
 
 	got := crypto.PadCoord(b, 3)

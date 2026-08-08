@@ -11,6 +11,8 @@ import (
 )
 
 func TestProtocolAcceptsMultiWithWebDAV(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"name":"multi","webdav":{"uri":"u","sharedSecret":"s","permissions":["read"]}}`
 
 	var p Protocol
@@ -40,6 +42,8 @@ func TestProtocolAcceptsMultiWithWebDAV(t *testing.T) {
 }
 
 func TestProtocolAcceptsNamedWebDAV(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"name":"webdav","webdav":{"uri":"u","sharedSecret":"s","permissions":["read"]}}`
 
 	var p Protocol
@@ -57,6 +61,8 @@ func TestProtocolAcceptsNamedWebDAV(t *testing.T) {
 }
 
 func TestProtocolRejectsMissingName(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"webdav":{"uri":"u","sharedSecret":"s","permissions":["read"]}}`
 
 	var p Protocol
@@ -70,6 +76,8 @@ func TestProtocolRejectsMissingName(t *testing.T) {
 }
 
 func TestProtocolRejectsUnknownProtocolArm(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"name":"multi","webdav":{"uri":"u","sharedSecret":"s","permissions":["read"]},"futureArm":{"uri":"u2"}}`
 
 	var p Protocol
@@ -113,6 +121,8 @@ func TestProtocolRejectsUnknownProtocolArm(t *testing.T) {
 }
 
 func TestProtocolArmsAllowWebapp(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"name":"multi","webapp":{"uri":"u","targets":["blank"],"permissions":["view"],"requirements":["must-exchange-token"],"sharedSecret":"s"}}`
 
 	var raw map[string]json.RawMessage
@@ -126,6 +136,8 @@ func TestProtocolArmsAllowWebapp(t *testing.T) {
 }
 
 func TestProtocolArmsRejectUnknownAlongsideWebapp(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"name":"multi","webapp":{"uri":"u"},"futureArm":{"uri":"u2"}}`
 
 	var raw map[string]json.RawMessage
@@ -139,6 +151,8 @@ func TestProtocolArmsRejectUnknownAlongsideWebapp(t *testing.T) {
 }
 
 func TestProtocolShapeAdmitsMultiWithWebappOnly(t *testing.T) {
+	t.Parallel()
+
 	p := Protocol{
 		Name:   "multi",
 		Webapp: &WebappProtocol{URI: "u"},
@@ -149,6 +163,8 @@ func TestProtocolShapeAdmitsMultiWithWebappOnly(t *testing.T) {
 }
 
 func TestProtocolShapeRejectsMultiWithNoArms(t *testing.T) {
+	t.Parallel()
+
 	p := Protocol{Name: "multi"}
 	if err := ValidateProtocolShape(p); err == nil {
 		t.Fatal("expected a validation error for multi with no arms")
@@ -156,7 +172,10 @@ func TestProtocolShapeRejectsMultiWithNoArms(t *testing.T) {
 }
 
 func TestProtocolShapePreservesNamedWebDAVRequirement(t *testing.T) {
+	t.Parallel()
+
 	// name="webdav" must still require a webdav arm even though webapp exists.
+
 	p := Protocol{Name: "webdav", Webapp: &WebappProtocol{URI: "u"}}
 	if err := ValidateProtocolShape(p); err == nil {
 		t.Fatal("expected named webdav shape to require a webdav arm")

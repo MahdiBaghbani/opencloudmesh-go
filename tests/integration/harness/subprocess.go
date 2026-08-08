@@ -81,14 +81,19 @@ func findProjectRoot(t *testing.T) string {
 }
 
 // FindProjectRoot finds the project root by looking for go.mod.
+//
+// The lookup resolves the immediate caller's source file via runtime.Caller,
+// so it is independent of the process working directory and safe for
+// t.Parallel use.
 func FindProjectRoot(t *testing.T) string {
 	t.Helper()
 
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
+	_, file, _, ok := runtime.Caller(1)
+	if !ok {
+		t.Fatal("harness: could not determine caller source file")
 	}
 
+	dir := filepath.Dir(file)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir
@@ -337,9 +342,10 @@ func (s *SubprocessServer) syncLog() {
 }
 
 // subprocessChdirMu serializes the working-directory switch used while loading
-// a subprocess config. The integration tests run serially (no t.Parallel), but
-// os.Chdir is process-global, so this guards against concurrent harness callers
-// corrupting each other's view of the working directory.
+// a subprocess config. Integration subtests now run in parallel (t.Parallel),
+// and os.Chdir is process-global, so this mutex serializes the config-load
+// chdir window so concurrent parallel harness callers do not corrupt each
+// other's working directory.
 var subprocessChdirMu sync.Mutex
 
 // loadEffectiveSubprocessConfig loads the fully rendered config from the written
@@ -389,10 +395,10 @@ func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, 
 // scrubParentConfigEnv temporarily unsets every OCM_CONFIG_* environment
 // variable in the current process that the harness blocklists, so a parent-side
 // config.Load cannot be influenced by ambient test-runner values. It returns a
-// restore function that re-applies the prior values. Callers must hold
-// subprocessChdirMu while scrubbing and restoring so concurrent harness callers
-// do not race on the process environment; the harness runs serially, but
-// os.Setenv/Unsetenv are process-global and shared with the chdir guard.
+// restore function that re-applies the prior values. The harness now runs
+// integration subtests in parallel, and os.Setenv/Unsetenv are process-global,
+// so callers must hold subprocessChdirMu while scrubbing and restoring to
+// avoid racing on the process environment.
 //
 // The parent scrub uses the same hermeticEnvBlocklist as the child-side
 // scrubSubprocessEnv so the two stay in sync: any OCM_CONFIG_* knob added to

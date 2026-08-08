@@ -15,6 +15,8 @@ import (
 )
 
 func TestUserAuth_HashAndVerify(t *testing.T) {
+	t.Parallel()
+
 	auth := identity.NewUserAuthFast() // Fast params for tests
 
 	password := "secret123"
@@ -46,6 +48,8 @@ func TestUserAuth_HashAndVerify(t *testing.T) {
 }
 
 func TestUserAuth_Authenticate(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 	ctx := context.Background()

@@ -27,6 +27,8 @@ func testLog() *slog.Logger {
 }
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 
 	svc, err := New(testWebDAVInputs(t), m, testLog())
@@ -40,6 +42,8 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 }
 
 func TestNew_UsesMinimalInputs(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 
 	svc, err := New(testWebDAVInputs(t), m, testLog())
@@ -58,6 +62,7 @@ func TestNew_UsesMinimalInputs(t *testing.T) {
 }
 
 func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingShares
 
 	strictShare := &sharesoutgoing.OutgoingShare{
@@ -102,6 +107,7 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 // fork at the service layer: a non-strict share (Requirements omit
 // must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
 func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	filePath := filepath.Join(dir, "hello.txt")
@@ -150,6 +156,8 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testWebDAVInputs(t), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -161,6 +169,8 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testWebDAVInputs(t), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -172,6 +182,8 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testWebDAVInputs(t), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -187,6 +199,8 @@ func TestService_Close(t *testing.T) {
 // Handler, Close) and config handling.
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
+	t.Parallel()
+
 	var logBuf testLogBuffer
 
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))

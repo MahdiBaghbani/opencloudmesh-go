@@ -16,6 +16,8 @@ import (
 )
 
 func TestOptions_HarnessBootstrapSucceeds(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -27,6 +29,8 @@ func TestOptions_HarnessBootstrapSucceeds(t *testing.T) {
 }
 
 func TestOptions_ProductionBootstrapSucceeds(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})

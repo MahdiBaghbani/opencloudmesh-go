@@ -31,7 +31,10 @@ import (
 )
 
 func TestCryptoSkip_GatesDeps(t *testing.T) {
+	t.Parallel()
 	t.Run("SkipCrypto=true fails when code flow requires HTTP signatures", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := config.DevConfig()
 
 		opts := harnessBuildOpts()
@@ -49,6 +52,8 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 	})
 
 	t.Run("SkipCrypto=true succeeds when code flow does not require HTTP signatures", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := config.DevConfig()
 		falseVal := false
 		cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = &falseVal
@@ -75,6 +80,8 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 	})
 
 	t.Run("SkipCrypto=false with crypto enabled produces non-nil Signer", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := config.DevConfig()
 
 		opts := harnessBuildOpts()
@@ -97,6 +104,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 }
 
 func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 	keyPath := filepath.Join(dir, "signing.pem")
@@ -172,6 +180,8 @@ key_path = %q
 }
 
 func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), toBuildOpts(tswiring.IETFWireOptions))
@@ -193,6 +203,8 @@ func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
 }
 
 func TestBuild_APIOutgoingHandlerTokenEndpointMatchesDiscoveryResolve(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	// Set the production discovery provider path under wellknown.ocmprovider
 	// and a different aggregate route path under ocm. The wiring must use the
@@ -274,6 +286,8 @@ func TestBuild_APIOutgoingHandlerTokenEndpointMatchesDiscoveryResolve(t *testing
 }
 
 func TestBuild_DefaultSignatureInputIncludesOCMTag(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	opts := harnessBuildOpts()
 	opts.SkipCrypto = false

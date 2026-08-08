@@ -18,6 +18,7 @@ import (
 )
 
 func TestJSONIncomingInviteRecipientScope(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-json-incoming-invite-*")
 
 	ctx := context.Background()
@@ -95,6 +96,8 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 // not identity validation would have passed, because the recipient scope gate
 // always runs first.
 func TestJSONIncomingInviteUpdateRecipientGateBeforeValidation(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 
@@ -139,6 +142,8 @@ func TestJSONIncomingInviteUpdateRecipientGateBeforeValidation(t *testing.T) {
 // TestJSONListIncomingInvitesRecipientScope ensures ListIncomingInvites always
 // uses exact recipient matching: empty or wrong recipientUserID yields no results.
 func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 
@@ -237,6 +242,7 @@ func runCreateConflictingShareCase(
 // outgoing share with a ShareID already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingShareCreateConflictingShareID(t *testing.T) {
+	t.Parallel()
 	runCreateConflictingShareCase(
 		t,
 		"ShareID",
@@ -310,6 +316,7 @@ func runUpdateConflictingShareCase(
 // outgoing share to a ShareID already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingShareID(t *testing.T) {
+	t.Parallel()
 	runUpdateConflictingShareCase(
 		t,
 		"ShareID",
@@ -336,6 +343,7 @@ func TestJSONOutgoingShareUpdateConflictingShareID(t *testing.T) {
 // outgoing share with a WebDAVID already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingShareCreateConflictingWebDAVID(t *testing.T) {
+	t.Parallel()
 	runCreateConflictingShareCase(
 		t,
 		"WebDAVID",
@@ -358,6 +366,7 @@ func TestJSONOutgoingShareCreateConflictingWebDAVID(t *testing.T) {
 // outgoing share to a WebDAVID already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingWebDAVID(t *testing.T) {
+	t.Parallel()
 	runUpdateConflictingShareCase(
 		t,
 		"WebDAVID",
@@ -384,6 +393,8 @@ func TestJSONOutgoingShareUpdateConflictingWebDAVID(t *testing.T) {
 // outgoing invite with a Token already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 
@@ -423,6 +434,8 @@ func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 // outgoing invite to a Token already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 

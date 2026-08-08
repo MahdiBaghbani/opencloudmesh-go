@@ -19,6 +19,8 @@ import (
 )
 
 func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
+	t.Parallel()
+
 	groups := GetMountSpecs()
 	if len(groups) == 0 {
 		t.Fatal("expected derived route groups")
@@ -91,6 +93,8 @@ func (t *orderTrackingService) Close() error {
 }
 
 func TestRoutesMountOrder(t *testing.T) {
+	t.Parallel()
+
 	var mountOrder []string
 
 	srv := newOrderTrackingServer(t, &mountOrder, nil)
@@ -106,6 +110,8 @@ func TestRoutesMountOrder(t *testing.T) {
 }
 
 func TestRoutesShutdownOrder(t *testing.T) {
+	t.Parallel()
+
 	var closeOrder []string
 
 	srv := newOrderTrackingServer(t, nil, &closeOrder)

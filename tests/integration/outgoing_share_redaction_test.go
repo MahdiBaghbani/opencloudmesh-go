@@ -35,6 +35,8 @@ import (
 // The secret is still forwarded to the remote receiver inside the WebDAV protocol
 // payload, but it must not be echoed back to the browser.
 func TestOutgoingShareResponseRedactsSharedSecret(t *testing.T) {
+	t.Parallel()
+
 	receiver, captured := makeCapturingReceiverTLSServerForRedaction(t, []string{"exchange-token"}, []string{})
 	defer receiver.Close()
 

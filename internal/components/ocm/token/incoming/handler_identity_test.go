@@ -23,6 +23,7 @@ import (
 )
 
 func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 
@@ -79,6 +80,8 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin)
 
 			share := &sharesoutgoing.OutgoingShare{
@@ -124,6 +127,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 // receiver host and the exchange succeeds. An empty scheme would preserve :443
 // and cause an invalid_client mismatch.
 func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "")
@@ -157,6 +161,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 }
 
 func TestHandler_NilCodeFlowReturns501(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 
@@ -191,6 +196,7 @@ func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -228,6 +234,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")

@@ -20,6 +20,8 @@ import (
 
 // TestTwoInstanceDiscovery verifies that two instances can discover each other.
 func TestTwoInstanceDiscovery(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -66,6 +68,8 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 // Dev instances expose OCM discovery but not inviteAcceptDialog, so the helper returns a
 // reason-coded failure after successful upstream discovery.
 func TestTwoInstanceCrossDiscovery(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -122,6 +126,8 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 // TestSSRFBlockingWithIPLiterals verifies SSRF protection blocks private IPs.
 // This test uses IP literals to avoid DNS lookups and ensure no external network access.
 func TestSSRFBlockingWithIPLiterals(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -133,7 +139,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		Name: "ssrf-test",
 		Mode: "strict",
 	})
-	defer srv.Stop(t)
+	t.Cleanup(func() { srv.Stop(t) })
 
 	// Try to discover private IPs - should be blocked by SSRF protection with 403
 	privateIPs := []string{
@@ -147,7 +153,10 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 
 	for _, privateIP := range privateIPs {
 		t.Run(privateIP, func(t *testing.T) {
+			t.Parallel()
+
 			// Use base= parameter (not peer=)
+
 			discoverURL := srv.BaseURL + "/ocm-aux/discover?base=" + privateIP
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
@@ -195,6 +204,8 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 // strict mode, the target in dev mode. The discover helper
 // may still return no_invite_accept_dialog after upstream discovery succeeds.
 func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -368,6 +379,8 @@ func noProxyClient(client *http.Client) *http.Client {
 // private-destination discover request is blocked (403) when no explicit
 // route policy allowance is present, so the positive test is not vacuously green.
 func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -427,6 +440,8 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 
 // TestHealthEndpointSubprocess verifies health endpoint works via subprocess.
 func TestHealthEndpointSubprocess(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

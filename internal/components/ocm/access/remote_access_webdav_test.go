@@ -44,6 +44,8 @@ func sharedSecretDiscoveryHandler(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func TestAccess_SharedSecretSuccess(t *testing.T) {
+	t.Parallel()
+
 	var webdavHits atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

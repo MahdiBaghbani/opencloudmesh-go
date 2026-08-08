@@ -14,7 +14,10 @@ import (
 )
 
 func TestClient_DoPreservesInterface(t *testing.T) {
+	t.Parallel()
+
 	// Verify Do() still works with the standard http.Request interface
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

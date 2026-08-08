@@ -18,6 +18,8 @@ import (
 // The global tier also covers the http-sig knob; platform and instance tiers do
 // not carry it because per-peer http-sig overrides were removed.
 func TestPeerMapping_OverlayTruthTable(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	trueVal := true
 
@@ -61,6 +63,8 @@ func TestPeerMapping_OverlayTruthTable(t *testing.T) {
 			for _, st := range states {
 				name := field + "/" + tier.name + "/" + st.name
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
 					global := policy.NewCodeFlow()
 
 					var cfg config.PeerMappingConfig

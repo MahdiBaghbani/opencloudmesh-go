@@ -13,6 +13,8 @@ import (
 )
 
 func TestNormalizePublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -40,6 +42,8 @@ func TestNormalizePublicOrigin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := instanceid.NormalizePublicOrigin(tt.input)
 			if tt.wantErr {
 				if err == nil {
@@ -61,6 +65,8 @@ func TestNormalizePublicOrigin(t *testing.T) {
 }
 
 func TestLocalIdentityUsesNormalizePublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	const origin = "https://EXAMPLE.COM:9200/"
 
 	normalized, err := instanceid.NormalizePublicOrigin(origin)
@@ -79,6 +85,8 @@ func TestLocalIdentityUsesNormalizePublicOrigin(t *testing.T) {
 }
 
 func TestProviderFQDN(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -102,6 +110,8 @@ func TestProviderFQDN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := instanceid.ProviderFQDN(tt.input)
 			if tt.wantErr {
 				if err == nil {
@@ -123,6 +133,8 @@ func TestProviderFQDN(t *testing.T) {
 }
 
 func TestHostname(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -145,6 +157,8 @@ func TestHostname(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := instanceid.Hostname(tt.input)
 			if tt.wantErr {
 				if err == nil {

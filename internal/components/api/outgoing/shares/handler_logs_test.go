@@ -22,6 +22,8 @@ import (
 )
 
 func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		authorization string
@@ -41,6 +43,7 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv, postCount := makeReceiverTLSServer(t,
 				[]string{"exchange-token"},
 				[]string{"must-exchange-token"},

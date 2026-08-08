@@ -18,10 +18,12 @@ import (
 )
 
 func TestHandleDecline_Success(t *testing.T) {
+	t.Parallel()
 	runShareStatusTransition(t, "decline", "prov-decline", shares.ShareStatusDeclined)
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-cross-dec", "sender.example.com")
 
@@ -38,6 +40,7 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_ConflictForAcceptedShare(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-acc-dec", "sender.example.com")
 

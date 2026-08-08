@@ -13,6 +13,8 @@ import (
 )
 
 func TestDiscoveryCriteria_OnlySpecDefinedValues(t *testing.T) {
+	t.Parallel()
+
 	known := make(map[string]struct{}, len(spec.KnownCriteria()))
 	for _, c := range spec.KnownCriteria() {
 		known[c] = struct{}{}
@@ -46,6 +48,8 @@ func TestDiscoveryCriteria_OnlySpecDefinedValues(t *testing.T) {
 // advertised iff must-invite enforcement is enabled (the default), and is
 // omitted under the explicit opt-out.
 func TestDiscoveryCriteria_MustInviteFollowsEnforcement(t *testing.T) {
+	t.Parallel()
+
 	baseParams := discovery.BuildParams{
 		EndPoint:             "https://example.org/ocm",
 		WebDAVRoot:           "/webdav/ocm/",

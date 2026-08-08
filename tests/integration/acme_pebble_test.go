@@ -34,6 +34,7 @@ import (
 // local Pebble server. Skipped by default; set OCM_ACME_PEBBLE_E2E=1 and
 // have Pebble + challtestsrv running.
 func TestACME_PebbleE2E(t *testing.T) {
+	t.Parallel()
 	minicaPEM := requirePebbleMinica(t)
 	probePebbleDirectory(t)
 

@@ -38,56 +38,28 @@ it conform.
 `.golangci.yml` enables `nolintlint` with `require-explanation: true` and
 `require-specific: true`.
 
-As of the standing inventory, the repository retains 342 `//nolint`
-directives: 222 under `internal/`, 119 under `tests/`, and 1 under `cmd/`.
+As of the standing inventory, the repository retains 370 `//nolint`
+directives: 256 under `internal/`, 111 under `tests/`, and 3 under `cmd/`.
 Suppressions are spread across production and test packages rather than
 clustered in one tree; the largest single-package concentration is
-`tests/integration` (116 directives in 30 files). All are governed by
+`tests/integration` (108 directives in 33 files). All are governed by
 `nolintlint` with `require-explanation` and `require-specific` (each
 directive names a specific linter and carries a rationale), so the standing
 set is auditable rather than tacit.
 
 ## Disabled linters (global)
 
-Eighteen linters are disabled globally in `.golangci.yml`. Two of them
-need a narrative rationale beyond their inline config comment; the entries
-below document those two. The remaining sixteen disabled linters carry
+Seventeen linters are disabled globally in `.golangci.yml`. One of them
+needs a narrative rationale beyond its inline config comment; the entry
+below documents that linter. The remaining sixteen disabled linters carry
 their rationale as inline comments in `.golangci.yml`.
 Unlike the gosec global excludes (which run the linter and suppress accepted
-findings), these two do not run at all. Each entry states whether the
+findings), this one does not run at all. The entry states whether the
 disable is structural (needs an architectural change to turn on), deferred
 (has a concrete burn-down trigger), or permanent (a deliberate style choice
 with no burn-down trigger). None of these are "too noisy" or "will fix
 later" waivers; both phrases are banned by the Refactor-first suppressions
 section above.
-
-### paralleltest - structural
-
-`paralleltest` is globally disabled because the integration harness
-mutates process-global state that `t.Parallel` cannot isolate. The
-subprocess config-loading path takes a process-wide chdir lock and scrubs
-parent environment variables:
-
-- `tests/integration/harness/subprocess.go:341-345` - `subprocessChdirMu`
-  serializes a process-global `os.Chdir`; the mutex is taken at
-  `subprocess.go:366-367` for the config-load window.
-- `tests/integration/harness/subprocess.go:377,381` - the parent changes
-  directory into the per-test data directory (`os.Chdir(dataDir)`) and
-  restores the prior directory (`os.Chdir(prevDir)`) around the
-  config-load window.
-- `tests/integration/harness/subprocess.go:397,414,426` -
-  `scrubParentConfigEnv` unsets and later restores blocklisted
-  `OCM_CONFIG_*` variables via `os.Setenv` / `os.Unsetenv`.
-
-`t.Parallel` would run sibling tests concurrently while this process-global
-chdir and env scrub is in flight, so they would observe the wrong working
-directory and environment. Burn-down trigger: subprocess config loading no
-longer mutates the parent process working directory or environment (for
-example by isolating config loading to the child process only). There is no
-`tests/integration` path exclusion; the disable is global because the
-constraint is the harness, not a per-file waiver. This is not analogous to
-gosec: gosec is enabled with an audited exclude inventory, while
-`paralleltest` is fully off.
 
 ### err113 - deferred
 
@@ -122,6 +94,61 @@ same file) is placed after that struct's declaration, and that a struct's
 exported methods come before its non-exported methods. Alphabetical sorting and
 standalone-function ordering are off by default. The team adopted this ordering
 convention, reversing the prior permanent-disable decision.
+
+## Test parallelism (paralleltest)
+
+`paralleltest` is enabled across the project. Every test function and
+table-driven range loop must call `t.Parallel()` so tests run concurrently.
+
+A test that cannot run in parallel carries a specific `//nolint:paralleltest`
+with an ASCII reason. The standing set is 32 directives, each verified
+empirically: the directive was removed and the `paralleltest` finding
+confirmed at its exact line before the directive was restored. They fall
+into six categories, all backed by a real process-global or shared-state
+hazard: 17 tests use `t.Setenv` (1 calls it directly; 16 reach it through a
+helper - `loadJwksURITOML` or `loadTLSPathConfig`), which mutates
+process-global env and panics with `t.Parallel` by Go runtime design; 3
+tests call `t.Chdir` directly, which mutates process-global cwd the same
+way; 3 table-driven range loops run subtests against a parent that has
+already mutated process-global env or cwd, so the subtests share the mutated
+baseline; 6 directives across 3 tests serialize subtests that call
+`slog.SetDefault`, mutating the process-global default logger; 2 directives
+(test function and range loop) serialize one test that mutates
+process-global proxy env via raw `os.Setenv`/`os.Unsetenv`, which
+`paralleltest` does not detect because it only recognizes `t.Setenv` and
+`t.Chdir`; and 1 test mutates a package-level wiring hook restored in
+`t.Cleanup`. Each directive names the specific shared resource.
+
+`paralleltest` does not flag a test merely because it calls `t.Setenv` or
+`t.Chdir` indirectly through a subtest closure, so those tests need no
+directive; a directive is added only where `paralleltest` actually reports a
+missing `t.Parallel()` and the test genuinely cannot run concurrently.
+Earlier bulk passes over-applied directives to tests `paralleltest` does not
+flag; an empirical pass removed 115 such redundant directives, leaving 26
+honest suppressions at the time; later race-hazard fixes serialized the
+`slog.SetDefault` and raw proxy-env tests, bringing the standing set to the
+32 directives above.
+
+One avoidable `t.Chdir` suppression was refactored instead of suppressed:
+`TestBootstrapAdmin_WritesGeneratedPasswordFile` now sets an absolute
+`Server.BootstrapAdmin.CredentialFile` and runs in parallel with no nolint.
+
+Root-cause hardening: `internal/testsupport/modroot/modroot.go` `ModuleRoot`
+and `tests/integration/harness/subprocess.go` `FindProjectRoot` previously
+resolved the module root via `os.Getwd()` (process-global CWD), which raced
+with the integration harness `os.Chdir` when subtests ran in parallel. Both
+now resolve the caller's source file via `runtime.Caller` and walk up to
+`go.mod`, making them CWD-independent and parallel-safe. This repo does not
+build with `-trimpath`, so `runtime.Caller` returns absolute paths.
+
+Note: the integration harness (`tests/integration/harness/subprocess.go`
+`loadEffectiveSubprocessConfig`) still mutates process-global `os.Chdir`
+and `os.Setenv` under `subprocessChdirMu` for config loading; the
+CWD-independent module-root resolution above removes the parallel race this
+previously caused, so integration subtests can run in parallel. A future
+burn-down is to isolate subprocess config loading to the child process only
+(no parent `os.Chdir`/`os.Setenv`), which would let the remaining
+`t.Setenv`/`t.Chdir` integration tests drop their nolints too.
 
 ## Error wrapping (wrapcheck)
 
@@ -180,7 +207,6 @@ linters:
     - exhaustruct
     - noinlineerr
     - varnamelen
-    - paralleltest
     - err113
     - lll
     - testpackage

@@ -13,7 +13,10 @@ import (
 )
 
 func TestClearRawPath(t *testing.T) {
+	t.Parallel()
+
 	// Track what RawPath the inner handler sees
+
 	var seenRawPath string
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +51,8 @@ func TestClearRawPath(t *testing.T) {
 }
 
 func TestClearRawPath_PreservesOtherURLFields(t *testing.T) {
+	t.Parallel()
+
 	var seenPath, seenQuery string
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

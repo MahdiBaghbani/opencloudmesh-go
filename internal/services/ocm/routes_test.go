@@ -13,6 +13,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	specs := registeredRouteSpecs(opts)
@@ -48,6 +50,8 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 // registered as a public, unauthenticated GET discovery route alongside the
 // existing protocol specs, and that it advertises the "jwks" discovery field.
 func TestRegisteredRouteSpecs_JWKSDiscoveryRoute(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	specs := registeredRouteSpecs(opts)
@@ -96,6 +100,8 @@ func TestRegisteredRouteSpecs_JWKSDiscoveryRoute(t *testing.T) {
 }
 
 func TestRegisteredRouteSpecs_ProtocolPostInvariants(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	var postRows []service.RouteSpec
@@ -135,6 +141,8 @@ func TestRegisteredRouteSpecs_ProtocolPostInvariants(t *testing.T) {
 }
 
 func TestRegisteredRouteSpecs_CustomTokenPath(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	opts.TokenExchangePath = "exchange"
 	specs := registeredRouteSpecs(opts)

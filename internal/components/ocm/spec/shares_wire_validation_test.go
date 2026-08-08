@@ -10,6 +10,8 @@ import (
 )
 
 func TestWebDAVProtocolWire_AcceptsEmptyRequirements(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{
 		URI:          "u",
 		SharedSecret: "s",
@@ -21,6 +23,8 @@ func TestWebDAVProtocolWire_AcceptsEmptyRequirements(t *testing.T) {
 }
 
 func TestWebDAVProtocolWire_RejectsUnknownRequirement(t *testing.T) {
+	t.Parallel()
+
 	p := &WebDAVProtocol{
 		URI:          "u",
 		SharedSecret: "s",
@@ -41,6 +45,8 @@ func TestWebDAVProtocolWire_RejectsUnknownRequirement(t *testing.T) {
 }
 
 func TestWebappProtocolWire_RejectsMustUseMFAWithGapNote(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Requirements = []string{RequirementMustExchangeToken, RequirementMustUseMFA}
 	errs := ValidateWebappProtocolWire(p)
@@ -63,6 +69,8 @@ func TestWebappProtocolWire_RejectsMustUseMFAWithGapNote(t *testing.T) {
 }
 
 func TestWebappProtocolWire_RequiresMustExchangeToken(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Requirements = nil
 

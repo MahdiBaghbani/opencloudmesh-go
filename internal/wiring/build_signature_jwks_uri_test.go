@@ -20,6 +20,8 @@ import (
 // check deferred from config.Load runs in wiring.Build and fails fast before
 // services start, once the discovery endpoint authority is resolved.
 func TestBuild_RejectsCrossAuthorityJwksURIOverride(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.Signature.JwksURI = "https://other.example.com/jwks.json"
 
@@ -36,6 +38,8 @@ func TestBuild_RejectsCrossAuthorityJwksURIOverride(t *testing.T) {
 // TestBuild_AcceptsSameAuthorityJwksURIOverride confirms a same-authority
 // override passes the deferred wiring-level check.
 func TestBuild_AcceptsSameAuthorityJwksURIOverride(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.Signature.JwksURI = cfg.PublicOrigin + "/custom/jwks.json"
 
@@ -52,6 +56,8 @@ func TestBuild_AcceptsSameAuthorityJwksURIOverride(t *testing.T) {
 // TestBuild_EmptyJwksURIOverrideDoesNotFailBuild confirms the deferred check
 // is a no-op when no override is configured.
 func TestBuild_EmptyJwksURIOverrideDoesNotFailBuild(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())

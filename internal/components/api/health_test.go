@@ -15,6 +15,7 @@ import (
 )
 
 func TestHealthHandler(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/healthz", nil)
 	w := httptest.NewRecorder()
 

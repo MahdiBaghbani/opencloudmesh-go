@@ -20,6 +20,7 @@ import (
 )
 
 func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 
 	share := &sharesincoming.IncomingShare{
@@ -77,6 +78,7 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 }
 
 func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
@@ -150,6 +152,7 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 // Legacy rows (no protocol name, no webapp data) emit an empty name and omit
 // the webapp arm; that case is covered by TestHandleGetDetail_OwnShareReturns200.
 func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 

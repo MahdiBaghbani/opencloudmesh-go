@@ -14,6 +14,7 @@ import (
 )
 
 func TestMemoryDriver(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-memory-*")
 
 	cfg := &store.DriverConfig{

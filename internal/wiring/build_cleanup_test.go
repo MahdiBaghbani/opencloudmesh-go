@@ -17,7 +17,7 @@ import (
 	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 )
 
-func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
+func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) { //nolint:paralleltest // mutates package-level wireSharedDepsHook and closePersistenceOnBootstrapFailure hooks restored in t.Cleanup
 	var closeCalled atomic.Bool
 
 	oldClose := closePersistenceOnBootstrapFailure
@@ -53,6 +53,8 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 }
 
 func TestWireSharedDeps_RejectsNilPersistence(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	_, err := wireSharedDeps(cfg, tslog.DiscardLogger(), BuildOpts{}, nil)

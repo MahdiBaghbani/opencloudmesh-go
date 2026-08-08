@@ -54,6 +54,8 @@ func corpPolicy(suffixes, cidrs []string, ports []int) config.SSRFRoutePolicyCon
 // (CIDR, port, allow_ip_literals) pass. Uses a local test server so the result
 // is fully deterministic and does not depend on any network dial to fail.
 func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -102,6 +104,8 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 // written with a leading dot (e.g. ".internal") are normalized before matching
 // so that "service.internal" is correctly allowed.
 func TestRoutePolicy_LeadingDotSuffixNormalized(t *testing.T) {
+	t.Parallel()
+
 	resolver := &fixedResolver{entries: map[string][]net.IPAddr{
 		"service.internal": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
@@ -131,6 +135,8 @@ func TestRoutePolicy_LeadingDotSuffixNormalized(t *testing.T) {
 // TestRoutePolicy_PrivateHostDeniedWhenSuffixFails verifies that a private IP
 // is blocked when the hostname does not match any allowed suffix.
 func TestRoutePolicy_PrivateHostDeniedWhenSuffixFails(t *testing.T) {
+	t.Parallel()
+
 	resolver := &fixedResolver{entries: map[string][]net.IPAddr{
 		"other.noncorp.example": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
@@ -160,6 +166,8 @@ func TestRoutePolicy_PrivateHostDeniedWhenSuffixFails(t *testing.T) {
 // TestRoutePolicy_PrivateHostDeniedWhenCIDRFails verifies that a private IP is
 // blocked when the resolved address is not in any allowed CIDR.
 func TestRoutePolicy_PrivateHostDeniedWhenCIDRFails(t *testing.T) {
+	t.Parallel()
+
 	resolver := &fixedResolver{entries: map[string][]net.IPAddr{
 		"internal.corp.example": {{IP: net.ParseIP("192.168.1.50")}}, // 192.168 not in 10.0.0.0/8
 	}}
@@ -189,6 +197,8 @@ func TestRoutePolicy_PrivateHostDeniedWhenCIDRFails(t *testing.T) {
 // TestRoutePolicy_PrivateHostDeniedWhenPortFails verifies that the same
 // hostname is denied when the destination port is not in the allowed ports list.
 func TestRoutePolicy_PrivateHostDeniedWhenPortFails(t *testing.T) {
+	t.Parallel()
+
 	resolver := &fixedResolver{entries: map[string][]net.IPAddr{
 		"internal.corp.example": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
@@ -219,6 +229,8 @@ func TestRoutePolicy_PrivateHostDeniedWhenPortFails(t *testing.T) {
 // TestRoutePolicy_PrivateHostDeniedWhenAllowedPortsEmpty verifies that private
 // route evaluation fails closed when a route policy omits AllowedPorts.
 func TestRoutePolicy_PrivateHostDeniedWhenAllowedPortsEmpty(t *testing.T) {
+	t.Parallel()
+
 	resolver := &fixedResolver{entries: map[string][]net.IPAddr{
 		"internal.corp.example": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
@@ -249,6 +261,8 @@ func TestRoutePolicy_PrivateHostDeniedWhenAllowedPortsEmpty(t *testing.T) {
 // when a hostname resolves to both a public IP and a private IP that does not
 // satisfy the CIDR rule, the whole request is blocked.
 func TestRoutePolicy_MixedResolvedIPsFailClosed(t *testing.T) {
+	t.Parallel()
+
 	resolver := &fixedResolver{entries: map[string][]net.IPAddr{
 		"mixed.corp.example": {
 			{IP: net.ParseIP("1.2.3.4")},     // public: would pass on its own
@@ -281,6 +295,8 @@ func TestRoutePolicy_MixedResolvedIPsFailClosed(t *testing.T) {
 // TestRoutePolicy_PrivateIPLiteralBlockedByDefault verifies that a private IP
 // literal is blocked in strict mode when allow_ip_literals is false (default).
 func TestRoutePolicy_PrivateIPLiteralBlockedByDefault(t *testing.T) {
+	t.Parallel()
+
 	cfg := outboundtestutil.StrictShortTimeoutConfig()
 	cfg.SSRF.RoutePolicy = "corp"
 	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
@@ -306,6 +322,8 @@ func TestRoutePolicy_PrivateIPLiteralBlockedByDefault(t *testing.T) {
 // literal is allowed when allow_ip_literals=true, the IP is in the CIDR, and
 // the port is permitted. The request fails with a connection error, not SSRF.
 func TestRoutePolicy_PrivateIPLiteralAllowedWithPolicy(t *testing.T) {
+	t.Parallel()
+
 	cfg := outboundtestutil.StrictShortTimeoutConfig()
 	cfg.SSRF.RoutePolicy = "corp"
 	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{

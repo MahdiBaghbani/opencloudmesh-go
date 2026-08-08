@@ -105,7 +105,10 @@ func generateTestCert(t *testing.T, dir string) {
 }
 
 func TestACME_TwoListeners(t *testing.T) {
+	t.Parallel()
+
 	// Pre-populate cert so Init() takes the fast path (zero network calls).
+
 	storageDir := t.TempDir()
 	generateTestCert(t, storageDir)
 
@@ -260,6 +263,8 @@ func shutdownAndDrainStart(t *testing.T, srv *Server, startErr <-chan error) {
 }
 
 func TestACME_MissingPorts(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.TLS.Mode = "acme"
 	cfg.ListenAddr = "127.0.0.1:0"
@@ -293,6 +298,7 @@ func TestACME_MissingPorts(t *testing.T) {
 }
 
 func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
+	t.Parallel()
 	storageDir := t.TempDir()
 	generateTestCert(t, storageDir)
 

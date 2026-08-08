@@ -20,6 +20,8 @@ import (
 // outgoing invite, Bob imports and accepts it, Bob notifies Alice via
 // POST /ocm/invite-accepted, and both sides record accepted state.
 func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

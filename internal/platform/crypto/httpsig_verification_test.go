@@ -18,6 +18,8 @@ import (
 )
 
 func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
@@ -40,6 +42,8 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 }
 
 func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
+	t.Parallel()
+
 	km1 := crypto.NewKeyManager("", "https://example.com")
 	km2 := crypto.NewKeyManager("", "https://attacker.com")
 
@@ -83,6 +87,7 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 }
 
 func TestRFC9421_VerifyTamperedKeyIDRejected(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -130,6 +135,8 @@ func TestRFC9421_VerifyTamperedKeyIDRejected(t *testing.T) {
 }
 
 func TestHasSignatureHeaders(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 
 	tests := []struct {
@@ -145,6 +152,8 @@ func TestHasSignatureHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)

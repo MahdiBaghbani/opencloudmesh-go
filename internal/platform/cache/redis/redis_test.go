@@ -17,7 +17,10 @@ import (
 )
 
 func TestNew_FailFastUnreachable(t *testing.T) {
+	t.Parallel()
+
 	// Test that New() fails fast when Redis is unreachable
+
 	cfg := &redis.Config{
 		Addr:        "localhost:59999", // Unlikely to have Redis running here
 		DialTimeout: 100 * time.Millisecond,
@@ -33,6 +36,8 @@ func TestNew_FailFastUnreachable(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
+	t.Parallel()
+
 	cfg := redis.DefaultConfig()
 
 	if cfg.Addr != "localhost:6379" {
@@ -49,7 +54,10 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestIncrement_ResetAt(t *testing.T) {
+	t.Parallel()
+
 	// Start miniredis server
+
 	s := miniredis.RunT(t)
 
 	cfg := &redis.Config{
@@ -105,6 +113,7 @@ func TestIncrement_ResetAt(t *testing.T) {
 }
 
 func TestIncrement_CounterValue(t *testing.T) {
+	t.Parallel()
 	s := miniredis.RunT(t)
 
 	cfg := &redis.Config{
@@ -144,6 +153,7 @@ func TestIncrement_CounterValue(t *testing.T) {
 }
 
 func TestSetGetDelete(t *testing.T) {
+	t.Parallel()
 	s := miniredis.RunT(t)
 
 	cfg := &redis.Config{
@@ -203,6 +213,7 @@ func TestSetGetDelete(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
+	t.Parallel()
 	s := miniredis.RunT(t)
 
 	cfg := &redis.Config{

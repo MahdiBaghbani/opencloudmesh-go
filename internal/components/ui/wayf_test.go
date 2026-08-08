@@ -17,6 +17,8 @@ import (
 )
 
 func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
+	t.Parallel()
+
 	id, err := localidentity.Derive("https://cloud.example.com:443", "")
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
@@ -50,6 +52,8 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 }
 
 func TestWayf_ReadsTokenFromQuery(t *testing.T) {
+	t.Parallel()
+
 	handler, err := ui.NewHandler("", "alice.example.com")
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
@@ -70,6 +74,8 @@ func TestWayf_ReadsTokenFromQuery(t *testing.T) {
 }
 
 func TestWayf_NonDefaultPortPreservedInProviderDomain(t *testing.T) {
+	t.Parallel()
+
 	id, err := localidentity.Derive("https://cloud.example.com:9200", "")
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
@@ -95,6 +101,8 @@ func TestWayf_NonDefaultPortPreservedInProviderDomain(t *testing.T) {
 }
 
 func TestNewHandler_UsesValidatedExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	id, err := localidentity.Derive("https://cloud.example.com", "/ocm")
 	if err != nil {
 		t.Fatalf("Derive: %v", err)

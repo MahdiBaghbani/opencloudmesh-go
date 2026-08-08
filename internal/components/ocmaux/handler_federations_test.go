@@ -23,6 +23,8 @@ import (
 )
 
 func TestHandleFederations_NilTrustGroupManager(t *testing.T) {
+	t.Parallel()
+
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/federations", nil)
@@ -44,6 +46,8 @@ func TestHandleFederations_NilTrustGroupManager(t *testing.T) {
 }
 
 func TestHandleFederations_EmptyTrustGroups(t *testing.T) {
+	t.Parallel()
+
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
 	h := ocmaux.NewAuxHandler(mgr, nil, testLogger())
 
@@ -66,6 +70,8 @@ func TestHandleFederations_EmptyTrustGroups(t *testing.T) {
 }
 
 func TestHandleFederations_WithServers(t *testing.T) {
+	t.Parallel()
+
 	var serverURL string
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +176,8 @@ func TestHandleFederations_WithServers(t *testing.T) {
 }
 
 func TestHandleFederations_DiscoveryFailureKeepsServerWithStatus(t *testing.T) {
+	t.Parallel()
+
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	}))
@@ -257,6 +265,8 @@ func TestHandleFederations_DiscoveryFailureKeepsServerWithStatus(t *testing.T) {
 }
 
 func TestHandleFederations_NoDiscoveryClient(t *testing.T) {
+	t.Parallel()
+
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
 	mgr.AddTrustGroup(&peertrust.TrustGroupConfig{
 		TrustGroupID: "tg1",
@@ -307,6 +317,8 @@ func TestHandleFederations_NoDiscoveryClient(t *testing.T) {
 }
 
 func TestHandleFederations_MethodNotAllowed(t *testing.T) {
+	t.Parallel()
+
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/federations", nil)

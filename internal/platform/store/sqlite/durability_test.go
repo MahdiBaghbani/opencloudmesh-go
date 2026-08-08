@@ -16,6 +16,7 @@ import (
 )
 
 func TestSQLiteDriverSurvivesRestart(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-sqlite-restart-*")
 
 	ctx := context.Background()

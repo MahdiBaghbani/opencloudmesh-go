@@ -20,6 +20,8 @@ import (
 )
 
 func TestSlogKeysAreSnakeCase(t *testing.T) {
+	t.Parallel()
+
 	packagesToScan := []string{
 		"internal/services/ocm",
 		"internal/components/webdav",

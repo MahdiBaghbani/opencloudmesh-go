@@ -29,7 +29,8 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 		t.Error("proxy must not be reached for SSRF-blocked destinations")
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer proxy.Close()
+
+	t.Cleanup(func() { proxy.Close() })
 
 	t.Setenv("REQUEST_METHOD", "")
 	t.Setenv("HTTP_PROXY", proxy.URL)
@@ -53,7 +54,7 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 		"http://127.0.0.1/resource",
 	}
 
-	for _, target := range privateTargets {
+	for _, target := range privateTargets { //nolint:paralleltest // parent uses t.Setenv for proxy env; subtests share configured client
 		t.Run(target, func(t *testing.T) {
 			resp, err := c.Get(context.Background(), target) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {

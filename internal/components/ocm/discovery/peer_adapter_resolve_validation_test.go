@@ -22,6 +22,8 @@ import (
 )
 
 func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
+	t.Parallel()
+
 	pub, _, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -82,6 +84,8 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 // production adapter constructor to a bounded, non-zero JWKS cache and fetch
 // policy so this path never regresses to unbounded fetch.
 func TestNewPeerDiscoveryAdapter_JWKSResolverOptionsAreBoundedAndNonZero(t *testing.T) {
+	t.Parallel()
+
 	outboundCfg := &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
@@ -114,6 +118,8 @@ func TestNewPeerDiscoveryAdapter_JWKSResolverOptionsAreBoundedAndNonZero(t *test
 }
 
 func TestPeerDiscoveryAdapter_ResolveVerificationKey_MissingJwksUri(t *testing.T) {
+	t.Parallel()
+
 	var srv *httptest.Server
 
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -162,6 +168,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_MissingJwksUri(t *testing.T
 }
 
 func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksInvalidAdvertisedJwksUri(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		jwksURI string
@@ -174,6 +182,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksInvalidAdvertisedJwks
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			var (
 				jwksURI string
 				srv     *httptest.Server

@@ -13,6 +13,8 @@ import (
 )
 
 func TestMountSpecs_FromDerivedProjection(t *testing.T) {
+	t.Parallel()
+
 	groups := GetMountSpecs()
 	if len(groups) == 0 {
 		t.Fatal("expected derived route groups")
@@ -20,6 +22,8 @@ func TestMountSpecs_FromDerivedProjection(t *testing.T) {
 }
 
 func TestPathMatchesPrefix_ViaServiceProjection(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	cases := []struct {

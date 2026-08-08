@@ -29,6 +29,8 @@ import (
 )
 
 func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
+	t.Parallel()
+
 	var (
 		srv     *httptest.Server
 		km      *crypto.KeyManager
@@ -102,6 +104,8 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 }
 
 func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T) {
+	t.Parallel()
+
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -167,6 +171,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 }
 
 func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *testing.T) {
+	t.Parallel()
+
 	pub, _, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -241,6 +247,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 }
 
 func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t *testing.T) {
+	t.Parallel()
+
 	pub, _, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)

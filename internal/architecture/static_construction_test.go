@@ -14,6 +14,7 @@ import (
 )
 
 func TestNoProductionDynamicServiceConstruction(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 
@@ -28,6 +29,7 @@ func TestNoProductionDynamicServiceConstruction(t *testing.T) {
 }
 
 func TestNoProductionDynamicInterceptorConstruction(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 

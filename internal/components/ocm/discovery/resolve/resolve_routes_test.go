@@ -19,6 +19,8 @@ import (
 )
 
 func TestResolve_ProjectsFromRouteInventory(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
@@ -56,6 +58,8 @@ func TestResolve_ProjectsFromRouteInventory(t *testing.T) {
 }
 
 func TestResolve_InviteAcceptIndependentFromWAYF(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",

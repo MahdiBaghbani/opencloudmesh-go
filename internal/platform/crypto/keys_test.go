@@ -15,6 +15,7 @@ import (
 )
 
 func TestKeyManager_LoadOrGenerate(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	keyPath := filepath.Join(tmpDir, "signing.pem")
 
@@ -51,6 +52,8 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 }
 
 func TestKeyManager_StableKeyID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		publicOrigin  string
 		expectedKeyID string
@@ -66,6 +69,8 @@ func TestKeyManager_StableKeyID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.publicOrigin, func(t *testing.T) {
+			t.Parallel()
+
 			km := crypto.NewKeyManager("", tt.publicOrigin)
 			if km.GetKeyID() != tt.expectedKeyID {
 				t.Errorf("expected keyId %q, got %q", tt.expectedKeyID, km.GetKeyID())
@@ -75,6 +80,8 @@ func TestKeyManager_StableKeyID(t *testing.T) {
 }
 
 func TestKeyManager_KeyIDUsesProviderDomain(t *testing.T) {
+	t.Parallel()
+
 	id, err := localidentity.Derive("https://cloud.example.org:443", "")
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
@@ -89,6 +96,8 @@ func TestKeyManager_KeyIDUsesProviderDomain(t *testing.T) {
 }
 
 func TestKeyManager_JWKS(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -105,6 +114,8 @@ func TestKeyManager_JWKS(t *testing.T) {
 }
 
 func TestKeyManager_Sign(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
@@ -123,6 +134,8 @@ func TestKeyManager_Sign(t *testing.T) {
 }
 
 func TestParsePublicKeyPEM(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate failed: %v", err)

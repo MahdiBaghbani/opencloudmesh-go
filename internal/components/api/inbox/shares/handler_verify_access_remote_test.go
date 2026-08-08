@@ -25,6 +25,7 @@ import (
 )
 
 func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-ok", "sender.example.com", "hello.txt")
 
@@ -77,6 +78,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-fail", "sender.example.com", "missing.txt")
 
@@ -145,6 +147,7 @@ func assertVerifyAccessError(t *testing.T, providerLabel string, accessErr error
 }
 
 func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
+	t.Parallel()
 	assertVerifyAccessError(
 		t,
 		"prov-va-signature",
@@ -155,6 +158,7 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) {
+	t.Parallel()
 	assertVerifyAccessError(
 		t,
 		"prov-va-disabled",
@@ -165,6 +169,7 @@ func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T
 }
 
 func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-big", "sender.example.com", "big.bin")
 
@@ -208,6 +213,7 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
 
@@ -251,6 +257,7 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	router := newTestRouterWithAccess(repo, nil, nil)
 

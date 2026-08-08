@@ -37,6 +37,8 @@ func mustEncodeJSON(t *testing.T, w http.ResponseWriter, v any) {
 }
 
 func TestHandleDiscover_BareHostSuccess(t *testing.T) {
+	t.Parallel()
+
 	var serverURL string
 
 	discServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +80,8 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 }
 
 func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
+	t.Parallel()
+
 	var serverURL string
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +121,8 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 }
 
 func TestHandleDiscover_SSRFBlockedFriendlyResponse(t *testing.T) {
+	t.Parallel()
+
 	httpCfg := tshttp.PermissiveConfig()
 	httpCfg.SSRF.Mode = "strict"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
@@ -153,6 +159,8 @@ func TestHandleDiscover_SSRFBlockedFriendlyResponse(t *testing.T) {
 }
 
 func TestHandleDiscover_DNSFailureReason(t *testing.T) {
+	t.Parallel()
+
 	httpCfg := tshttp.PermissiveConfig()
 	httpCfg.SSRF.Mode = "strict"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
@@ -182,6 +190,8 @@ func TestHandleDiscover_DNSFailureReason(t *testing.T) {
 }
 
 func TestHandleDiscover_InvalidURLReason(t *testing.T) {
+	t.Parallel()
+
 	h := NewAuxHandler(nil, nil, discoverTestLogger())
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=ftp://example.com", nil)
@@ -203,6 +213,8 @@ func TestHandleDiscover_InvalidURLReason(t *testing.T) {
 }
 
 func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
+	t.Parallel()
+
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}))
@@ -235,6 +247,8 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 }
 
 func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
+	t.Parallel()
+
 	var serverURL string
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

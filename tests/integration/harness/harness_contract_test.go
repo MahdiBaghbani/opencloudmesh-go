@@ -16,6 +16,8 @@ import (
 )
 
 func TestSubprocessConfig_needsSecureTransport(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		mode string
@@ -28,6 +30,8 @@ func TestSubprocessConfig_needsSecureTransport(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := needsSecureTransport(tc.mode)
 			if got != tc.want {
 				t.Fatalf("needsSecureTransport(%q) = %v, want %v", tc.mode, got, tc.want)
@@ -37,6 +41,8 @@ func TestSubprocessConfig_needsSecureTransport(t *testing.T) {
 }
 
 func TestSubprocessConfig_extraTLSMode(t *testing.T) {
+	t.Parallel()
+
 	mode, hasTable := extraTLSMode(`[tls]
 mode = "off"
 `)
@@ -59,6 +65,8 @@ mode = "off"
 }
 
 func TestSubprocessConfig_extraDefinesPublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	if !extraDefinesPublicOrigin(`public_origin = "http://example.test"`) {
 		t.Fatal("expected root public_origin to be detected")
 	}
@@ -71,7 +79,10 @@ public_origin = "http://ignored.test"
 }
 
 func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
+	t.Parallel()
 	t.Run("dev mode uses tls off", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := generateTOMLConfig("test", 8080, "/tmp", "dev", false, "", "", "", "")
 		if !strings.Contains(cfg, `mode = "off"`) {
 			t.Fatalf("expected tls off in generated config:\n%s", cfg)
@@ -83,6 +94,8 @@ func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 	})
 
 	t.Run("strict mode uses selfsigned tls", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := generateTOMLConfig("test", 8443, "/tmp", "strict", false, "", "", "", "")
 		if !strings.Contains(cfg, `mode = "selfsigned"`) {
 			t.Fatalf("expected selfsigned TLS in generated config:\n%s", cfg)
@@ -90,6 +103,8 @@ func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 	})
 
 	t.Run("extra tls table overrides preset block", func(t *testing.T) {
+		t.Parallel()
+
 		extra := `[tls]
 mode = "off"
 `

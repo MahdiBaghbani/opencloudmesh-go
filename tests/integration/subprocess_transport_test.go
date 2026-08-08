@@ -27,6 +27,8 @@ import (
 // With the fix the harness loads the rendered config.toml, sees tls.mode =
 // selfsigned, and uses https for both BaseURL and the readiness probe.
 func TestSubprocessTransportFollowsExtraConfigTLS(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -76,6 +78,8 @@ mode = "selfsigned"
 // ExtraConfig makes the listener serve HTTPS; the advertised endPoint from
 // /.well-known/ocm must then be https, matching the listener it points at.
 func TestSubprocessDiscoveryFollowsExtraConfigTLS(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

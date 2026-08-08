@@ -20,6 +20,7 @@ import (
 )
 
 func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 

@@ -16,6 +16,8 @@ import (
 )
 
 func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
+	t.Parallel()
+
 	discServer := newTestDiscoveryServer()
 	defer discServer.Close()
 
@@ -46,6 +48,8 @@ func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
 }
 
 func TestBuildWebDAVURL_AbsoluteURIMismatchedHost(t *testing.T) {
+	t.Parallel()
+
 	discServer := newTestDiscoveryServer()
 	defer discServer.Close()
 
@@ -90,6 +94,8 @@ func TestBuildWebDAVURL_AbsoluteURIMismatchedHost(t *testing.T) {
 }
 
 func TestBuildWebDAVURL_AbsoluteURIParseError(t *testing.T) {
+	t.Parallel()
+
 	discServer := newTestDiscoveryServer()
 	defer discServer.Close()
 

@@ -73,6 +73,8 @@ func noHTTPSigDiscovery() *spec.Discovery {
 // would panic; the test passing means no discovery occurred. It also confirms
 // the POST targets the supplied discovery endpoint joined with the path.
 func TestSendResolved_DoesNotDiscover(t *testing.T) {
+	t.Parallel()
+
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
@@ -109,6 +111,8 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 }
 
 func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
+	t.Parallel()
+
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 
@@ -134,6 +138,8 @@ func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
 }
 
 func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
+	t.Parallel()
+
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 
@@ -159,6 +165,8 @@ func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 }
 
 func TestSendResolved_SignerSignsShares(t *testing.T) {
+	t.Parallel()
+
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
@@ -185,6 +193,8 @@ func TestSendResolved_SignerSignsShares(t *testing.T) {
 }
 
 func TestSendResolved_PeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
@@ -211,6 +221,8 @@ func TestSendResolved_PeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
 }
 
 func TestSendResolved_NoSignerPeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 

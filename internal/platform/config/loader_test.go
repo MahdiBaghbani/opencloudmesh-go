@@ -13,6 +13,8 @@ import (
 )
 
 func TestConfig_Redacted(t *testing.T) {
+	t.Parallel()
+
 	cfg := &Config{
 		Mode:         "strict",
 		PublicOrigin: "https://example.com",

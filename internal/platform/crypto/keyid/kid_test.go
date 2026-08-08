@@ -12,6 +12,8 @@ import (
 )
 
 func TestBuildKid(t *testing.T) {
+	t.Parallel()
+
 	got := keyid.BuildKid("example.com", "key1")
 	if got != "example.com#key1" {
 		t.Fatalf("BuildKid = %q", got)
@@ -19,6 +21,8 @@ func TestBuildKid(t *testing.T) {
 }
 
 func TestParseKid_HostFragment(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := keyid.ParseKid("example.com#key1")
 	if err != nil {
 		t.Fatalf("ParseKid: %v", err)
@@ -30,6 +34,8 @@ func TestParseKid_HostFragment(t *testing.T) {
 }
 
 func TestKidFromPublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	got, err := keyid.KidFromPublicOrigin("https://example.com:9200", "key1")
 	if err != nil {
 		t.Fatalf("KidFromPublicOrigin: %v", err)
@@ -41,6 +47,8 @@ func TestKidFromPublicOrigin(t *testing.T) {
 }
 
 func TestParseKid_AbsoluteURI(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := keyid.ParseKid("https://example.com/ocm#key-1")
 	if err != nil {
 		t.Fatalf("ParseKid: %v", err)
@@ -56,12 +64,16 @@ func TestParseKid_AbsoluteURI(t *testing.T) {
 }
 
 func TestParseKid_RejectsPathfulHostFragment(t *testing.T) {
+	t.Parallel()
+
 	if _, err := keyid.ParseKid("example.com/ocm#key1"); err == nil {
 		t.Fatal("expected pathful host#fragment to be rejected")
 	}
 }
 
 func TestCanonicalJWKSAuthority(t *testing.T) {
+	t.Parallel()
+
 	hostFrag, err := keyid.ParseKid("Example.COM:443#key1")
 	if err != nil {
 		t.Fatalf("ParseKid: %v", err)

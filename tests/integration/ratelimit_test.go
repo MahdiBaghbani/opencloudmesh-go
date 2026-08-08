@@ -16,6 +16,8 @@ import (
 )
 
 func TestRateLimitOcmauxDiscover(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -95,6 +97,8 @@ profile = "discover"
 }
 
 func TestRateLimitAPILogin(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

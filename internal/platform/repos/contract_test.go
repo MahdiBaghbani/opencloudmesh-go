@@ -19,8 +19,12 @@ import (
 // must match its observable behavior on every operation including list
 // operations and recipient-scoped access.
 func TestRepoContract(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range tsrepos.OpenTestRepos() {
 		t.Run(tt.Name, func(t *testing.T) {
+			t.Parallel()
+
 			r := tt.Open(t)
 			defer tshttp.MustClose(t, r)
 
@@ -36,10 +40,14 @@ func TestRepoContract(t *testing.T) {
 // type-assertion in newStoreRepos); this test makes that assertion visible
 // and also smoke-tests each list operation to confirm it is wired correctly.
 func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
+
 			// repos.New internally type-asserts drv.(fullStore); failure here
 			// means the driver is missing at least one store interface.
 			r := tsrepos.OpenDurable(t, ctx, backend)
@@ -88,8 +96,12 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 // id and normalized host coalesce from the stored row so a partial write cannot
 // erase them, and the raw provider FQDN is not overwritten by the empty payload.
 func TestOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range tsrepos.OpenTestRepos() {
 		t.Run(tt.Name, func(t *testing.T) {
+			t.Parallel()
+
 			r := tt.Open(t)
 			defer tshttp.MustClose(t, r)
 
@@ -104,8 +116,12 @@ func TestOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T) {
 // and normalized host coalesce from the stored row so a partial write cannot
 // erase them, and the raw sender FQDN is not overwritten by the empty payload.
 func TestIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range tsrepos.OpenTestRepos() {
 		t.Run(tt.Name, func(t *testing.T) {
+			t.Parallel()
+
 			r := tt.Open(t)
 			defer tshttp.MustClose(t, r)
 

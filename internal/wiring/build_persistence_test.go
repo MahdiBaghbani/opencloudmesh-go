@@ -30,7 +30,7 @@ func assertMemoryBackedTokenStore(t *testing.T, d *wiring.Deps) {
 	}
 }
 
-func TestPersistence_MemoryBackend(t *testing.T) {
+func TestPersistence_MemoryBackend(t *testing.T) { //nolint:paralleltest // uses t.Chdir, which mutates process-global cwd and is incompatible with t.Parallel
 	// Run from a fresh working directory so the memory backend can prove it
 	// never touches the strict preset's CWD-relative data dir.
 	t.Chdir(t.TempDir())
@@ -83,6 +83,8 @@ func TestPersistence_MemoryBackend(t *testing.T) {
 }
 
 func TestPersistence_JSONBackend(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.Persistence.Backend = config.BackendJSON
 	cfg.Persistence.DataDir = t.TempDir()
@@ -121,6 +123,8 @@ func TestPersistence_JSONBackend(t *testing.T) {
 }
 
 func TestPersistence_RejectsUnknownBackend(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.Persistence.Backend = "bogus-not-a-backend"
 

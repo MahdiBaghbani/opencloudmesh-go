@@ -20,6 +20,8 @@ import (
 )
 
 func TestAccess_PrefetchSingleDiscover(t *testing.T) {
+	t.Parallel()
+
 	const exchangedToken = "exchanged-access-token"
 
 	var discoverCount atomic.Int32

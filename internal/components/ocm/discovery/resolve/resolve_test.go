@@ -23,6 +23,8 @@ import (
 )
 
 func TestResolve_AppliesServiceLocalDefaults(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.Resolve(c, nil, resolve.ResolveInputs{})
 
@@ -32,6 +34,8 @@ func TestResolve_AppliesServiceLocalDefaults(t *testing.T) {
 }
 
 func TestResolve_DerivesEndPointAndWebDAVRoot(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
@@ -54,6 +58,8 @@ func TestResolve_DerivesEndPointAndWebDAVRoot(t *testing.T) {
 }
 
 func TestResolve_SkipsEndPointDerivationWithoutPublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity: localidentity.Identity{ExternalBasePath: "/ocm"},
@@ -72,6 +78,8 @@ func TestResolve_SkipsEndPointDerivationWithoutPublicOrigin(t *testing.T) {
 }
 
 func TestResolve_RawConfigWinsOverDerivationForWebDAVRoot(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{
 		WebDAVRoot: "/explicit/dav/",
 	}
@@ -95,6 +103,8 @@ func TestResolve_RawConfigWinsOverDerivationForWebDAVRoot(t *testing.T) {
 }
 
 func TestResolve_TokenEndPointDefault(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
@@ -109,6 +119,8 @@ func TestResolve_TokenEndPointDefault(t *testing.T) {
 }
 
 func TestResolve_DerivesInviteAcceptDialogFromRouteInventory(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
@@ -126,6 +138,8 @@ func TestResolve_DerivesInviteAcceptDialogFromRouteInventory(t *testing.T) {
 }
 
 func TestResolve_SkipsInviteAcceptDialogWithoutPublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity: localidentity.Identity{ExternalBasePath: "/ocm"},
@@ -146,6 +160,8 @@ func TestResolve_SkipsInviteAcceptDialogWithoutPublicOrigin(t *testing.T) {
 // signature.jwks_uri override flows from ResolveInputs.JwksURIOverride into
 // discovery.BuildParams.JwksURI unchanged.
 func TestResolve_ThreadsJwksURIOverrideIntoBuildParams(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity:   tslocalid.MustTestIdentity(t, "https://cloud.example.com", ""),
@@ -164,6 +180,8 @@ func TestResolve_ThreadsJwksURIOverrideIntoBuildParams(t *testing.T) {
 // override falls back to the route-inventory-derived local default
 // (<endPoint>/jwks) rather than leaving BuildParams.JwksURI empty.
 func TestResolve_EmptyJwksURIOverrideDerivesFromRouteInventory(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", ""),
@@ -181,6 +199,8 @@ func TestResolve_EmptyJwksURIOverrideDerivesFromRouteInventory(t *testing.T) {
 // that without Origin (so no route projection is possible either) and an
 // empty override, BuildParams.JwksURI stays empty.
 func TestResolve_EmptyJwksURIOverrideAndNoOriginLeavesBuildParamsEmpty(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := resolve.ResolveInputs{
 		LocalIdentity: localidentity.Identity{},
@@ -204,6 +224,8 @@ func newPeerMappingResolver(t *testing.T, cfg *config.PeerMappingConfig, scope c
 // compatibility scope, the global peer_compat knobs still affect the local
 // discovery document.
 func TestResolve_GlobalScope_AppliesGlobalKnobs(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := &config.PeerMappingConfig{
 		RequiresTokenExchangeRequirement: &falseVal,
@@ -224,6 +246,8 @@ func TestResolve_GlobalScope_AppliesGlobalKnobs(t *testing.T) {
 // scoped compatibility scope, global peer_compat knobs are not leaked to
 // unmapped hosts in the discovery document.
 func TestResolve_ScopedScope_KnobsDoNotLeakToUnmappedHost(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := &config.PeerMappingConfig{
 		RequiresTokenExchangeRequirement: &falseVal,
@@ -244,6 +268,8 @@ func TestResolve_ScopedScope_KnobsDoNotLeakToUnmappedHost(t *testing.T) {
 // compatibility scope, peer_compat knobs still apply when the local host is
 // explicitly mapped.
 func TestResolve_ScopedScope_KnobsApplyToMappedHost(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := &config.PeerMappingConfig{
 		RequiresTokenExchangeRequirement: &falseVal,
@@ -266,6 +292,7 @@ func TestResolve_ScopedScope_KnobsApplyToMappedHost(t *testing.T) {
 // TestResolve_ProtocolRolesInDiscoveryDocument verifies that the resolved
 // discovery document emits the webdav and webdav-receive protocol roles.
 func TestResolve_ProtocolRolesInDiscoveryDocument(t *testing.T) {
+	t.Parallel()
 	in := resolve.ResolveInputs{
 		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 		RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
@@ -292,6 +319,8 @@ func TestResolve_ProtocolRolesInDiscoveryDocument(t *testing.T) {
 // advertise flags flow through Resolve into the built discovery document
 // criteria (not only BuildParams).
 func TestResolve_ThreadsAdvertiseFlagsIntoCriteria(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                string
 		advertiseDenylist   bool
@@ -332,6 +361,7 @@ func TestResolve_ThreadsAdvertiseFlagsIntoCriteria(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			in := resolve.ResolveInputs{
 				LocalIdentity:       tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 				RouteOpts:           service.RouteOpts{ExternalBasePath: "/ocm"},

@@ -13,6 +13,8 @@ import (
 )
 
 func TestNewTransport_MaxConnsAndResponseHeaderTimeout(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.OutboundHTTPConfigStrict()
 	c := New(&cfg, nil)
 

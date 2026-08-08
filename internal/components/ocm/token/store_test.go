@@ -13,6 +13,8 @@ import (
 )
 
 func TestMemoryTokenStore_CleanExpired(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := NewMemoryTokenStore()
 	now := time.Now()

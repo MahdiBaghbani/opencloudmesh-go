@@ -18,6 +18,8 @@ import (
 )
 
 func TestBootstrap_Run(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -68,6 +70,8 @@ func TestBootstrap_Run(t *testing.T) {
 }
 
 func TestBootstrap_CreateProbeUser(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -108,6 +112,8 @@ func TestBootstrap_CreateProbeUser(t *testing.T) {
 }
 
 func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -158,6 +164,8 @@ func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 }
 
 func TestBootstrap_EnsureSuperAdmin_AutoGenPassword(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 
@@ -205,6 +213,8 @@ func TestBootstrap_EnsureSuperAdmin_AutoGenPassword(t *testing.T) {
 }
 
 func TestSuperAdmin_CannotBeDeleted(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -231,6 +241,8 @@ func TestSuperAdmin_CannotBeDeleted(t *testing.T) {
 }
 
 func TestSuperAdmin_CannotBeDemoted(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -267,6 +279,8 @@ func TestSuperAdmin_CannotBeDemoted(t *testing.T) {
 }
 
 func TestSuperAdmin_UsernameCanBeRenamed(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))

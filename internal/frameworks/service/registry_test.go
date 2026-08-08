@@ -14,6 +14,8 @@ import (
 // services exactly reconstruct CoreServices in order. This prevents silent drift
 // when the core service set changes.
 func TestAppServicesMatchCoreServicesMinusRoot(t *testing.T) {
+	t.Parallel()
+
 	if !slices.Contains(CoreServices, RootService) {
 		t.Fatalf("RootService %q is not present in CoreServices %v", RootService, CoreServices)
 	}
@@ -45,11 +47,15 @@ func TestAppServicesMatchCoreServicesMinusRoot(t *testing.T) {
 // TestDescriptorsDerivedViews verifies CoreServices stay aligned with the
 // canonical descriptor table.
 func TestDescriptorsDerivedViews(t *testing.T) {
+	t.Parallel()
 	assertDescriptorsMatchCoreServicesMetadata(t)
 }
 
 func TestCheckServiceNames(t *testing.T) {
+	t.Parallel()
 	t.Run("all valid", func(t *testing.T) {
+		t.Parallel()
+
 		unknown, allowed := CheckServiceNames(CoreServices)
 		if unknown != nil {
 			t.Fatalf("unknown = %v, want nil", unknown)
@@ -61,6 +67,8 @@ func TestCheckServiceNames(t *testing.T) {
 	})
 
 	t.Run("unknown names rejected", func(t *testing.T) {
+		t.Parallel()
+
 		names := []string{"ocm", "bogus", "api", "also-bad"}
 
 		unknown, allowed := CheckServiceNames(names)

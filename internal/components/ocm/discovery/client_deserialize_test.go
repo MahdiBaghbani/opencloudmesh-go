@@ -21,6 +21,7 @@ import (
 )
 
 func TestClientDiscover_DeserializesTypedReceiveRoles(t *testing.T) {
+	t.Parallel()
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
@@ -100,6 +101,8 @@ func inlineKeyDiscoveryPayload(serverURL, shape, apiVersion string) map[string]a
 }
 
 func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		shape      string
@@ -113,6 +116,8 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var server *httptest.Server
 
 			server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

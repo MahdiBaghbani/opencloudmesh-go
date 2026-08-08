@@ -21,6 +21,8 @@ import (
 // code flow leaves webdav requirements empty when the receiver does not force
 // token exchange.
 func TestOutgoing_LegacyVoluntary_EmptyRequirements(t *testing.T) {
+	t.Parallel()
+
 	srv, postCount, captured := makeCapturingReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 

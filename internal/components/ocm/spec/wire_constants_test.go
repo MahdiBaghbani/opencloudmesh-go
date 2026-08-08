@@ -115,6 +115,7 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 }
 
 func TestWireConstantsOwnedBySpec(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations, err := scanRawWireLiterals(root, wireLiteralSetAsMap(), wireLiteralAllowlist)

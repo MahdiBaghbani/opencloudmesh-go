@@ -93,6 +93,8 @@ func (m *mockCache) Reset(ctx context.Context, key string) error {
 }
 
 func TestNew_CreatesMiddleware(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockCache{counter: newMockCounter()}
 	realIP := realip.NewTrustedProxies(nil)
 	in := Inputs{
@@ -114,6 +116,8 @@ func TestNew_CreatesMiddleware(t *testing.T) {
 }
 
 func TestNew_FailsWithoutCache(t *testing.T) {
+	t.Parallel()
+
 	realIP := realip.NewTrustedProxies(nil)
 	in := Inputs{KeyFunc: realIP.GetClientIPString}
 
@@ -128,6 +132,8 @@ func TestNew_FailsWithoutCache(t *testing.T) {
 }
 
 func TestNew_FailsWithoutKeyFunc(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockCache{counter: newMockCounter()}
 	in := Inputs{Cache: mock}
 
@@ -142,6 +148,8 @@ func TestNew_FailsWithoutKeyFunc(t *testing.T) {
 }
 
 func TestConfigApplyDefaults(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    Config
@@ -180,6 +188,8 @@ func TestConfigApplyDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := tt.input
 			c.ApplyDefaults()
 
@@ -195,6 +205,8 @@ func TestConfigApplyDefaults(t *testing.T) {
 }
 
 func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
+	t.Parallel()
+
 	counter := newMockCounter()
 	logger := slog.New(slog.DiscardHandler)
 
@@ -224,6 +236,8 @@ func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
 }
 
 func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
+	t.Parallel()
+
 	counter := newMockCounter()
 	logger := slog.New(slog.DiscardHandler)
 
@@ -291,6 +305,8 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 }
 
 func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
+	t.Parallel()
+
 	counter := newMockCounter()
 	logger := slog.New(slog.DiscardHandler)
 
@@ -344,6 +360,8 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 }
 
 func TestLimiter_AllowsOnCacheError(t *testing.T) {
+	t.Parallel()
+
 	counter := newMockCounter()
 	counter.errOnInc = context.DeadlineExceeded // Simulate cache error
 	logger := slog.New(slog.DiscardHandler)
@@ -372,6 +390,8 @@ func TestLimiter_AllowsOnCacheError(t *testing.T) {
 }
 
 func TestWithKeyFunc(t *testing.T) {
+	t.Parallel()
+
 	counter := newMockCounter()
 	logger := slog.New(slog.DiscardHandler)
 
@@ -408,6 +428,8 @@ func TestWithKeyFunc(t *testing.T) {
 }
 
 func TestNew_WithInputs(t *testing.T) {
+	t.Parallel()
+
 	counter := newMockCounter()
 	mockCacheInstance := &mockCache{counter: counter}
 	realIPExtractor := realip.NewTrustedProxies(nil)

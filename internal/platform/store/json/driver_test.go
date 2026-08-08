@@ -25,6 +25,7 @@ func newJSONDriver(t *testing.T) store.Driver {
 }
 
 func TestJSONDriver(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-json-*")
 
 	cfg := &store.DriverConfig{
@@ -36,6 +37,7 @@ func TestJSONDriver(t *testing.T) {
 }
 
 func TestJSONDriverAtomicWrite(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-json-atomic-*")
 
 	ctx := context.Background()

@@ -24,6 +24,8 @@ import (
 )
 
 func TestNewTestClient_returnsNonNilClient(t *testing.T) {
+	t.Parallel()
+
 	client := tsdiscovery.NewTestClient(t)
 	if client == nil {
 		t.Fatal("NewTestClient returned nil")
@@ -31,7 +33,10 @@ func TestNewTestClient_returnsNonNilClient(t *testing.T) {
 }
 
 func TestNewTestClient_WithCache(t *testing.T) {
+	t.Parallel()
 	t.Run("default uses real cache", func(t *testing.T) {
+		t.Parallel()
+
 		client := tsdiscovery.NewTestClient(t)
 		if client.IsNoopCache() {
 			t.Fatal("expected default cache, got NoopCache")
@@ -39,6 +44,8 @@ func TestNewTestClient_WithCache(t *testing.T) {
 	})
 
 	t.Run("WithCache wires NoopCache", func(t *testing.T) {
+		t.Parallel()
+
 		client := tsdiscovery.NewTestClient(t, tsdiscovery.WithCache(cache.NewNoopCache()))
 		if !client.IsNoopCache() {
 			t.Fatal("expected NoopCache when WithCache is set")
@@ -47,6 +54,8 @@ func TestNewTestClient_WithCache(t *testing.T) {
 }
 
 func TestNewTestClient_WithHTTPClient(t *testing.T) {
+	t.Parallel()
+
 	const pem = "-----BEGIN PUBLIC KEY-----\ntest-body\n-----END PUBLIC KEY-----"
 
 	doc := tsdiscovery.InlineKeyDiscoveryDoc(t, pem)
@@ -54,6 +63,8 @@ func TestNewTestClient_WithHTTPClient(t *testing.T) {
 	baseURL := strings.TrimSuffix(srv.URL, "/")
 
 	t.Run("default permissive client discovers", func(t *testing.T) {
+		t.Parallel()
+
 		client := tsdiscovery.NewTestClient(t)
 		if _, err := client.Discover(context.Background(), baseURL); err != nil {
 			t.Fatalf("Discover() error = %v, want nil", err)
@@ -61,6 +72,8 @@ func TestNewTestClient_WithHTTPClient(t *testing.T) {
 	})
 
 	t.Run("strict client blocks httptest host", func(t *testing.T) {
+		t.Parallel()
+
 		strictClient := httpclient.New(tshttp.StrictNoneOutboundConfig(), nil)
 		client := tsdiscovery.NewTestClient(t, tsdiscovery.WithHTTPClient(strictClient))
 
@@ -76,6 +89,8 @@ func TestNewTestClient_WithHTTPClient(t *testing.T) {
 }
 
 func TestInlineKeyDiscoveryDoc_singularPublicKeyPEM(t *testing.T) {
+	t.Parallel()
+
 	const (
 		pem       = "-----BEGIN PUBLIC KEY-----\ntest-body\n-----END PUBLIC KEY-----"
 		wantKeyID = "https://peer.example.com/ocm#test-key"
@@ -115,6 +130,8 @@ func TestInlineKeyDiscoveryDoc_singularPublicKeyPEM(t *testing.T) {
 }
 
 func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
+	t.Parallel()
+
 	const pem = "-----BEGIN PUBLIC KEY-----\ntest-body\n-----END PUBLIC KEY-----"
 
 	doc := tsdiscovery.InlineKeyDiscoveryDoc(t, pem)

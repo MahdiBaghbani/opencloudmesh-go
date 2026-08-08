@@ -35,9 +35,12 @@ func envMap(env []string) map[string]string {
 // every OCM_CONFIG_* variable the harness blocklists, in both "KEY=VALUE" and
 // bare "KEY" forms, while preserving unrelated environment variables.
 func TestScrubSubprocessEnvRemovesBlocklistedVars(t *testing.T) {
+	t.Parallel()
+
 	// Build an input env that includes every blocklisted var plus unrelated
 	// vars the binary still needs. Include both "KEY=VALUE" and bare "KEY"
 	// forms so the helper's handling of both is exercised.
+
 	input := make([]string, 0, len(hermeticEnvBlocklist)+4)
 	for _, k := range hermeticEnvBlocklist {
 		input = append(input, k+"=ambient-leak")
@@ -93,6 +96,8 @@ func TestScrubSubprocessEnvRemovesBlocklistedVars(t *testing.T) {
 // realistic env slice only removes blocklisted keys and leaves the relative
 // order of the remaining entries intact.
 func TestScrubSubprocessEnvPreservesAllNonBlocklisted(t *testing.T) {
+	t.Parallel()
+
 	input := []string{
 		"PATH=/usr/bin",
 		"OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK=true",
@@ -123,6 +128,8 @@ func TestScrubSubprocessEnvPreservesAllNonBlocklisted(t *testing.T) {
 // TestScrubSubprocessEnvEmptyAndNoop asserts the helper handles empty input and
 // input with nothing to scrub without mutating beyond a copy.
 func TestScrubSubprocessEnvEmptyAndNoop(t *testing.T) {
+	t.Parallel()
+
 	if got := scrubSubprocessEnv(nil); len(got) != 0 {
 		t.Errorf("scrubSubprocessEnv(nil) = %v, want empty slice", got)
 	}
@@ -144,6 +151,8 @@ func TestScrubSubprocessEnvEmptyAndNoop(t *testing.T) {
 // TestHermeticEnvBlocklistContainsUseEnvFallback asserts the env-proxy
 // fallback knob remains in the blocklist, guarding the hermetic contract.
 func TestHermeticEnvBlocklistContainsUseEnvFallback(t *testing.T) {
+	t.Parallel()
+
 	want := "OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK"
 	if slices.Contains(hermeticEnvBlocklist, want) {
 		return
@@ -165,7 +174,7 @@ func TestHermeticEnvBlocklistContainsUseEnvFallback(t *testing.T) {
 // the restore callback returns. The original process environment is always
 // restored via t.Cleanup, even on failure, so the test cannot leak state into
 // later tests in this package.
-func TestScrubParentConfigEnvRestoresBlocklistedVars(t *testing.T) {
+func TestScrubParentConfigEnvRestoresBlocklistedVars(t *testing.T) { //nolint:paralleltest // uses t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	const sentinel = "ambient-from-runner"
 
 	// Snapshot the original value of every blocklisted var so the test can

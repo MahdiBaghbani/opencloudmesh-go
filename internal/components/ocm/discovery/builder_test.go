@@ -30,6 +30,8 @@ func sortedProtocolKeys(protocols spec.Protocols) []string {
 }
 
 func TestBuildDiscovery_DisabledWhenNoEndPoint(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{Provider: "OpenCloudMesh"}, nil)
 	if disc.Enabled {
 		t.Error("expected Enabled=false when endPoint is empty")
@@ -37,6 +39,8 @@ func TestBuildDiscovery_DisabledWhenNoEndPoint(t *testing.T) {
 }
 
 func TestBuildDiscovery_DisabledWhenInvalidEndPoint(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{EndPoint: "://invalid-url"}, nil)
 	if disc.Enabled {
 		t.Error("expected Enabled=false for invalid URL")
@@ -44,6 +48,8 @@ func TestBuildDiscovery_DisabledWhenInvalidEndPoint(t *testing.T) {
 }
 
 func TestBuildDiscovery_EnabledWithProjectedPaths(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "https://example.com/myapp/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -64,6 +70,8 @@ func TestBuildDiscovery_EnabledWithProjectedPaths(t *testing.T) {
 }
 
 func TestBuildDiscovery_TokenExchangeUsesProjectedEndpoint(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:             "https://example.com/app/ocm",
 		TokenEndPoint:        "https://example.com/app/ocm/exchange",
@@ -80,6 +88,8 @@ func TestBuildDiscovery_TokenExchangeUsesProjectedEndpoint(t *testing.T) {
 }
 
 func TestBuildDiscovery_CriteriaUseIETFStrings(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:               "https://example.com/ocm",
 		WebDAVRoot:             "/webdav/ocm/",
@@ -100,6 +110,8 @@ func TestBuildDiscovery_CriteriaUseIETFStrings(t *testing.T) {
 }
 
 func TestBuildDiscovery_OmitsTokenExchangeWhenEndpointEmpty(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:              "https://example.com/ocm",
 		WebDAVRoot:            "/webdav/ocm/",
@@ -121,6 +133,8 @@ func TestBuildDiscovery_OmitsTokenExchangeWhenEndpointEmpty(t *testing.T) {
 }
 
 func TestBuildDiscovery_InviteAcceptIndependentFromWAYF(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:           "https://example.com/ocm",
 		WebDAVRoot:         "/webdav/ocm/",
@@ -138,6 +152,8 @@ func TestBuildDiscovery_InviteAcceptIndependentFromWAYF(t *testing.T) {
 }
 
 func TestBuildDiscovery_InvitesCapabilityFromRouteFlag(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:       "https://example.com/ocm",
 		WebDAVRoot:     "/webdav/ocm/",
@@ -150,6 +166,8 @@ func TestBuildDiscovery_InvitesCapabilityFromRouteFlag(t *testing.T) {
 }
 
 func TestBuildDiscovery_InviteWAYFFromRouteFlag(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:    "https://example.com/ocm",
 		WebDAVRoot:  "/webdav/ocm/",
@@ -162,6 +180,8 @@ func TestBuildDiscovery_InviteWAYFFromRouteFlag(t *testing.T) {
 }
 
 func TestBuildDiscovery_AdvertiseHTTPSigWithoutInlinePublicKeys(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:         "https://example.com/ocm",
 		WebDAVRoot:       "/webdav/ocm/",
@@ -183,6 +203,8 @@ func TestBuildDiscovery_AdvertiseHTTPSigWithoutInlinePublicKeys(t *testing.T) {
 }
 
 func TestBuildDiscovery_APIVersion140(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "https://example.com/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -193,6 +215,8 @@ func TestBuildDiscovery_APIVersion140(t *testing.T) {
 }
 
 func TestBuildDiscovery_ProtocolInventory(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:         "https://example.com/ocm",
 		WebDAVRoot:       "/webdav/ocm/",
@@ -210,6 +234,8 @@ func TestBuildDiscovery_ProtocolInventory(t *testing.T) {
 }
 
 func TestBuildDiscovery_DisabledWhenRelativePathEndPoint(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -220,6 +246,8 @@ func TestBuildDiscovery_DisabledWhenRelativePathEndPoint(t *testing.T) {
 }
 
 func TestBuildDiscovery_DisabledWhenNoScheme(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "//example.com/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -230,6 +258,8 @@ func TestBuildDiscovery_DisabledWhenNoScheme(t *testing.T) {
 }
 
 func TestBuildDiscovery_DisabledWhenNoHost(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "https:///ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -240,6 +270,8 @@ func TestBuildDiscovery_DisabledWhenNoHost(t *testing.T) {
 }
 
 func TestBuildDiscovery_DisabledWhenEndPointNotAbsolute(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -250,6 +282,8 @@ func TestBuildDiscovery_DisabledWhenEndPointNotAbsolute(t *testing.T) {
 }
 
 func TestBuildDiscovery_StrictDocument(t *testing.T) {
+	t.Parallel()
+
 	webdavRoot := "/webdav/ocm/"
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:               "https://example.com/ocm",

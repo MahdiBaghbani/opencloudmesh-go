@@ -23,6 +23,8 @@ import (
 )
 
 func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginBase(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected HTTP request on cache hit: %s", r.URL.Path)
 	}))
@@ -59,6 +61,8 @@ func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginB
 }
 
 func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
+	t.Parallel()
+
 	var fetchCount int
 
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
@@ -122,6 +126,8 @@ func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 }
 
 func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
+	t.Parallel()
+
 	var server *httptest.Server
 
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,6 +165,8 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 }
 
 func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
+	t.Parallel()
+
 	callCount := 0
 
 	var server *httptest.Server

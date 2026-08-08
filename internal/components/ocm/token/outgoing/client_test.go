@@ -29,6 +29,8 @@ func (s *unsignedMockSigner) Sign(_ *http.Request) error {
 }
 
 func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
+	t.Parallel()
+
 	var hits atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +74,8 @@ func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 }
 
 func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
+	t.Parallel()
+
 	var hits atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +117,8 @@ func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
 }
 
 func TestClient_Exchange_403FailClosed(t *testing.T) {
+	t.Parallel()
+
 	var hits atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

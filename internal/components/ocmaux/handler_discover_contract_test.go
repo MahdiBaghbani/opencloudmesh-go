@@ -22,6 +22,8 @@ import (
 )
 
 func TestHandleDiscover_MissingBase(t *testing.T) {
+	t.Parallel()
+
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover", nil)
@@ -43,6 +45,8 @@ func TestHandleDiscover_MissingBase(t *testing.T) {
 }
 
 func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
+	t.Parallel()
+
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=https://example.com", nil)
@@ -67,6 +71,8 @@ func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 }
 
 func TestHandleDiscover_Success(t *testing.T) {
+	t.Parallel()
+
 	var serverURL string
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -129,6 +135,8 @@ func TestHandleDiscover_Success(t *testing.T) {
 }
 
 func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
+	t.Parallel()
+
 	var serverURL string
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +197,8 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 }
 
 func TestHandleDiscover_MethodNotAllowed(t *testing.T) {
+	t.Parallel()
+
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/discover?base=https://example.com", nil)
@@ -201,6 +211,8 @@ func TestHandleDiscover_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
+	t.Parallel()
+
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	}))

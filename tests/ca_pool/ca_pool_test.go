@@ -46,6 +46,7 @@ const (
 // tls_root_ca_file connects to an HTTPS server whose certificate is signed
 // by that CA, without InsecureSkipVerify.
 func TestOutboundClient_WithRootCA(t *testing.T) {
+	t.Parallel()
 	testDir := getTestDir(t)
 	caFile := filepath.Join(testDir, caCertAsset)
 	caKeyFile := filepath.Join(testDir, caKeyAsset)

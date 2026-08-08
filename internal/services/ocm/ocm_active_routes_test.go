@@ -64,6 +64,7 @@ func expectedOCMPostPaths(t *testing.T) []string {
 }
 
 func TestActiveOCMRoutes(t *testing.T) {
+	t.Parallel()
 	rows := activeOCMPostRouteRows(t)
 
 	got := make([]string, 0, len(rows))
@@ -80,6 +81,8 @@ func TestActiveOCMRoutes(t *testing.T) {
 }
 
 func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
@@ -89,6 +92,8 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 
 	for _, mountedPath := range expectedOCMPostPaths(t) {
 		t.Run(mountedPath, func(t *testing.T) {
+			t.Parallel()
+
 			contentType := "application/json"
 			body := []byte(`{"shareWith":"user@remote.example","name":"test","providerId":"provider-123","owner":"owner@local.example","sender":"sender@remote.example","shareType":"user","resourceType":"file","protocol":{"name":"webdav"}}`)
 
@@ -119,6 +124,8 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 }
 
 func TestOCMRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
@@ -147,6 +154,8 @@ func TestOCMRequestBodyLimit(t *testing.T) {
 }
 
 func TestService_RoutingSmoke(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -166,6 +175,8 @@ func TestService_RoutingSmoke(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			svc.Handler().ServeHTTP(w, req)

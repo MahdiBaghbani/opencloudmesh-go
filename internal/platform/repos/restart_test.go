@@ -26,10 +26,13 @@ import (
 // repos.New -> Close -> repos.New cycle and that adapter-level invite lookups
 // work after reopen. Memory is intentionally excluded (no durable restart).
 func TestDurableRepos_InviteRestart(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
 			cfg := config.PersistenceConfig{
 				Backend: backend,
 				DataDir: t.TempDir(),
@@ -44,7 +47,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 // preset's CWD-relative data dir must be created on demand and the seeded
 // invites must survive a restart. Without the MkdirAll in sqlitecore.Open,
 // the first repos.New fails because .ocm/data does not exist.
-func TestStrictPresetPersistence_DataDirSurvivesRestart(t *testing.T) {
+func TestStrictPresetPersistence_DataDirSurvivesRestart(t *testing.T) { //nolint:paralleltest // uses t.Chdir, which mutates process-global cwd and is incompatible with t.Parallel
 	root := t.TempDir()
 	t.Chdir(root)
 

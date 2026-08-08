@@ -13,6 +13,7 @@ import (
 )
 
 func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
@@ -33,6 +34,7 @@ func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_FederationIDUnknownField_Fails(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
@@ -57,6 +59,7 @@ func TestLoadTrustGroupConfig_FederationIDUnknownField_Fails(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_TrailingJSONRejected(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
@@ -77,6 +80,8 @@ func TestLoadTrustGroupConfig_TrailingJSONRejected(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_MissingFile(t *testing.T) {
+	t.Parallel()
+
 	_, err := LoadTrustGroupConfig("/nonexistent/path/trust-group.json")
 	if err == nil {
 		t.Fatal("expected error for missing file")
@@ -84,6 +89,7 @@ func TestLoadTrustGroupConfig_MissingFile(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_InvalidVerification(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
@@ -104,6 +110,7 @@ func TestLoadTrustGroupConfig_InvalidVerification(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_ValidVerification(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
@@ -124,6 +131,8 @@ func TestLoadTrustGroupConfig_ValidVerification(t *testing.T) {
 }
 
 func TestPolicyConfig_HasDenylist(t *testing.T) {
+	t.Parallel()
+
 	if (&PolicyConfig{}).HasDenylist() {
 		t.Error("empty PolicyConfig should not HasDenylist")
 	}
@@ -134,6 +143,8 @@ func TestPolicyConfig_HasDenylist(t *testing.T) {
 }
 
 func TestPolicyConfig_HasAllowlist(t *testing.T) {
+	t.Parallel()
+
 	if (&PolicyConfig{}).HasAllowlist() {
 		t.Error("empty PolicyConfig should not HasAllowlist")
 	}

@@ -25,6 +25,8 @@ import (
 )
 
 func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
+	t.Parallel()
+
 	recorder := newRecordingHandler()
 	logger := slog.New(recorder)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -116,6 +118,8 @@ func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 }
 
 func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
+	t.Parallel()
+
 	recorder := newRecordingHandler()
 	logger := slog.New(recorder)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -161,6 +165,8 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 }
 
 func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -190,6 +196,8 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 }
 
 func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -238,6 +246,8 @@ func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
 }
 
 func TestNormalizeBasePath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		input   string
@@ -256,6 +266,8 @@ func TestNormalizeBasePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := normalizeBasePath(tt.input)
 			if tt.wantErr {
 				if err == nil {
@@ -277,6 +289,8 @@ func TestNormalizeBasePath(t *testing.T) {
 }
 
 func TestAuthGate_InvalidBasePathFallsBackToEmpty(t *testing.T) {
+	t.Parallel()
+
 	recorder := newRecordingHandler()
 	logger := slog.New(recorder)
 

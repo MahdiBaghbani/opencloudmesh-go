@@ -23,6 +23,7 @@ import (
 )
 
 func TestHandleCreate_Unauthenticated_Returns401(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, failCurrentUser())
 
 	body := `{"receiverDomain":"example.com","shareWith":"user@example.com","localPath":"/tmp/test.txt","permissions":["read"]}`
@@ -39,6 +40,8 @@ func TestHandleCreate_Unauthenticated_Returns401(t *testing.T) {
 }
 
 func TestHandleCreate_MissingFields(t *testing.T) {
+	t.Parallel()
+
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
 	handler := newTestHandler(t, testCurrentUser(user))
 
@@ -54,6 +57,7 @@ func TestHandleCreate_MissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 
@@ -69,6 +73,8 @@ func TestHandleCreate_MissingFields(t *testing.T) {
 }
 
 func TestHandleCreate_FileNotFound(t *testing.T) {
+	t.Parallel()
+
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
 	handler := newTestHandler(t, testCurrentUser(user))
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -93,6 +99,8 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 }
 
 func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
+	t.Parallel()
+
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
 	handler := newTestHandler(t, testCurrentUser(user))
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -135,6 +143,8 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 }
 
 func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
+	t.Parallel()
+
 	user := &identity.User{ID: "user-uuid-123", Username: "alice", Email: "alice@example.org"}
 	repo := tsrepos.OpenMemory(t).OutgoingShares
 
@@ -199,6 +209,8 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 }
 
 func TestHandleCreate_MethodNotAllowed(t *testing.T) {
+	t.Parallel()
+
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
 	handler := newTestHandler(t, testCurrentUser(user))
 
@@ -213,6 +225,8 @@ func TestHandleCreate_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
+	t.Parallel()
+
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
 	handler := newTestHandler(t, testCurrentUser(user))
 

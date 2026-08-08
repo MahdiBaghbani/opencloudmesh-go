@@ -22,6 +22,8 @@ import (
 // TestTokenExchangeWithPerServiceConfig tests that the [http.services.*] TOML shape works.
 // Verifies the per-service config model is functional end-to-end.
 func TestTokenExchangeWithPerServiceConfig(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -46,9 +48,10 @@ path = "auth/exchange"
 path = "auth/exchange"
 `,
 	})
-	defer srv.Stop(t)
+	t.Cleanup(func() { srv.Stop(t) })
 
 	t.Run("DiscoveryShowsCustomProvider", func(t *testing.T) {
+		t.Parallel()
 		disc := getDiscoveryTokenInfo(t, srv.BaseURL)
 
 		// Provider should be overridden by per-service config
@@ -63,6 +66,7 @@ path = "auth/exchange"
 	})
 
 	t.Run("PerServicePathRoutesToHandler", func(t *testing.T) {
+		t.Parallel()
 		tokenPath := requireTokenPath(t, service.RouteOpts{TokenExchangePath: "auth/exchange"}, "/ocm/auth/exchange")
 
 		// POST to aggregate path should route to handler (not 404)
@@ -174,6 +178,8 @@ func assertTokenRouteHandled(t *testing.T, status int, body []byte, tokenPath st
 
 // TestTokenExchangeNestedPath tests that a custom nested path (token/v2) routes correctly.
 func TestTokenExchangeNestedPath(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -192,9 +198,10 @@ path = "token/v2"
 path = "token/v2"
 `,
 	})
-	defer srv.Stop(t)
+	t.Cleanup(func() { srv.Stop(t) })
 
 	t.Run("DiscoveryAdvertisesNestedPath", func(t *testing.T) {
+		t.Parallel()
 		disc := getDiscoveryTokenInfo(t, srv.BaseURL)
 
 		// tokenEndPoint should end with /ocm/token/v2
@@ -204,6 +211,7 @@ path = "token/v2"
 	})
 
 	t.Run("NestedPathRoutesToHandler", func(t *testing.T) {
+		t.Parallel()
 		tokenPath := requireTokenPath(t, service.RouteOpts{TokenExchangePath: "token/v2"}, "/ocm/token/v2")
 
 		// POST to aggregate path should route to handler (not 404)
@@ -212,6 +220,8 @@ path = "token/v2"
 	})
 
 	t.Run("DefaultPathReturns404", func(t *testing.T) {
+		t.Parallel()
+
 		defaultPath, ok := tsrouting.OCMTokenFullPath(service.DefaultRouteOpts())
 		if !ok {
 			t.Fatal("Routes(opts) missing default token endpoint")

@@ -17,6 +17,7 @@ import (
 )
 
 func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	ctx := context.Background()
 
@@ -64,6 +65,7 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 }
 
 func TestIncomingRepository_RecipientScoping(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	ctx := context.Background()
 
@@ -131,6 +133,8 @@ func TestIncomingRepository_RecipientScoping(t *testing.T) {
 }
 
 func TestWebDAVProtocol_HasRequirement(t *testing.T) {
+	t.Parallel()
+
 	p := &spec.WebDAVProtocol{
 		URI:          "abc123",
 		Permissions:  []string{"read"},

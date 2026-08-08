@@ -51,6 +51,8 @@ func sendTestInviteAccepted(t *testing.T, poster incoming.InviteAcceptedPoster) 
 }
 
 func TestSendInviteAccepted_OKWithIdentity(t *testing.T) {
+	t.Parallel()
+
 	result, err := sendTestInviteAccepted(t, &stubPoster{
 		status: http.StatusCreated,
 		body:   `{"userID":"sender-user@sender.example","email":"s@example","name":"Sender"}`,
@@ -69,6 +71,8 @@ func TestSendInviteAccepted_OKWithIdentity(t *testing.T) {
 }
 
 func TestSendInviteAccepted_RejectsEmptyUserIDOn200(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []int{http.StatusOK, http.StatusCreated} {
 		_, err := sendTestInviteAccepted(t, &stubPoster{status: status, body: `{"status":"ok"}`})
 		if err == nil {
@@ -82,6 +86,8 @@ func TestSendInviteAccepted_RejectsEmptyUserIDOn200(t *testing.T) {
 }
 
 func TestSendInviteAccepted_ConflictWithIdentityIsIdempotentSuccess(t *testing.T) {
+	t.Parallel()
+
 	result, err := sendTestInviteAccepted(t, &stubPoster{
 		status: http.StatusConflict,
 		body:   `{"userID":"sender-user@sender.example","email":"s@example","name":"Sender"}`,
@@ -100,6 +106,8 @@ func TestSendInviteAccepted_ConflictWithIdentityIsIdempotentSuccess(t *testing.T
 }
 
 func TestSendInviteAccepted_ConflictWithoutIdentityIsError(t *testing.T) {
+	t.Parallel()
+
 	bodies := []string{
 		``,                      // bodyless
 		`{"status":"conflict"}`, // empty userID
@@ -115,6 +123,8 @@ func TestSendInviteAccepted_ConflictWithoutIdentityIsError(t *testing.T) {
 }
 
 func TestSendInviteAccepted_RejectedStatusIsError(t *testing.T) {
+	t.Parallel()
+
 	_, err := sendTestInviteAccepted(t, &stubPoster{status: http.StatusBadGateway, body: "upstream down"})
 	if err == nil {
 		t.Fatal("expected error for 502, got nil")

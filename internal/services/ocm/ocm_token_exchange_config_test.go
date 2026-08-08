@@ -20,6 +20,8 @@ import (
 )
 
 func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
+	t.Parallel()
+
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
 		TokenExchange: config.TokenExchangeConfig{
@@ -50,6 +52,8 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 }
 
 func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
+	t.Parallel()
+
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
 		TokenExchange: config.TokenExchangeConfig{

@@ -6,12 +6,12 @@
 package address
 
 import (
-	"encoding/base64"
-	"strings"
 	"testing"
 )
 
 func TestParse(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		addr     string
@@ -89,6 +89,8 @@ func TestParse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			id, prov, err := Parse(tt.addr)
 			if tt.wantErr {
 				if err == nil {
@@ -119,6 +121,8 @@ func TestParse(t *testing.T) {
 // identifier separated by the last "@", and the provider MUST NOT contain a
 // scheme or path.
 func TestParse_IETF_OCMAddressConformance(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		addr     string
@@ -191,6 +195,8 @@ func TestParse_IETF_OCMAddressConformance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			id, prov, err := Parse(tt.addr)
 			if tt.wantErr {
 				if err == nil {
@@ -210,286 +216,6 @@ func TestParse_IETF_OCMAddressConformance(t *testing.T) {
 
 			if prov != tt.wantProv {
 				t.Errorf("Parse(%q) provider = %q, want %q", tt.addr, prov, tt.wantProv)
-			}
-		})
-	}
-}
-
-func TestEncodeFederatedOpaqueID(t *testing.T) {
-	tests := []struct {
-		name   string
-		userID string
-		idp    string
-	}{
-		{
-			name:   "simple username",
-			userID: "alice",
-			idp:    "example.org",
-		},
-		{
-			name:   "uuid user id",
-			userID: "550e8400-e29b-41d4-a716-446655440000",
-			idp:    "provider.net:9200",
-		},
-		{
-			name:   "unknown placeholder",
-			userID: "unknown",
-			idp:    "localhost:9200",
-		},
-		{
-			name:   "url-safe alphabet user id",
-			userID: "???",
-			idp:    "example.org",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			encoded := EncodeFederatedOpaqueID(tt.userID, tt.idp)
-
-			if strings.Contains(encoded, "=") {
-				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains padding '='", tt.userID, tt.idp, encoded)
-			}
-
-			if strings.ContainsAny(encoded, "+/") {
-				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains standard base64 alphabet '+' or '/'", tt.userID, tt.idp, encoded)
-			}
-
-			gotUserID, gotIDP, ok := DecodeFederatedOpaqueID(encoded)
-			if !ok {
-				t.Fatalf("DecodeFederatedOpaqueID(%q) failed", encoded)
-			}
-
-			if gotUserID != tt.userID {
-				t.Errorf("round-trip userID = %q, want %q", gotUserID, tt.userID)
-			}
-
-			if gotIDP != tt.idp {
-				t.Errorf("round-trip idp = %q, want %q", gotIDP, tt.idp)
-			}
-		})
-	}
-}
-
-func TestDecodeFederatedOpaqueID_AcceptsPaddedAndUnpaddedBase64url(t *testing.T) {
-	payload := "alice@example.org"
-	for _, enc := range []*base64.Encoding{base64.URLEncoding, base64.RawURLEncoding} {
-		encoded := enc.EncodeToString([]byte(payload))
-
-		userID, idp, ok := DecodeFederatedOpaqueID(encoded)
-		if !ok {
-			t.Errorf("DecodeFederatedOpaqueID(%q) failed", encoded)
-
-			continue
-		}
-
-		if userID != "alice" || idp != "example.org" {
-			t.Errorf("DecodeFederatedOpaqueID(%q) = (%q, %q), want (%q, %q)", encoded, userID, idp, "alice", "example.org")
-		}
-	}
-}
-
-func TestDecodeFederatedOpaqueID(t *testing.T) {
-	tests := []struct {
-		name       string
-		encoded    string
-		wantUserID string
-		wantIDP    string
-		wantOK     bool
-	}{
-		{
-			name:       "padded base64url accepted on decode",
-			encoded:    base64.URLEncoding.EncodeToString([]byte("alice@example.org")),
-			wantUserID: "alice",
-			wantIDP:    "example.org",
-			wantOK:     true,
-		},
-		{
-			name:       "unpadded base64url (RFC 4648 Section 5)",
-			encoded:    base64.RawURLEncoding.EncodeToString([]byte("bob@provider.net")),
-			wantUserID: "bob",
-			wantIDP:    "provider.net",
-			wantOK:     true,
-		},
-		{
-			name:       "standard base64",
-			encoded:    base64.StdEncoding.EncodeToString([]byte("carol@host.example")),
-			wantUserID: "carol",
-			wantIDP:    "host.example",
-			wantOK:     true,
-		},
-		{
-			// 0xFF yields '/' in standard base64, so URLEncoding and RawURLEncoding
-			// reject the string and the lenient decoder reaches StdEncoding.
-			name:       "standard base64 with slash",
-			encoded:    base64.StdEncoding.EncodeToString([]byte("\xffalice@example.org")),
-			wantUserID: "\xffalice",
-			wantIDP:    "example.org",
-			wantOK:     true,
-		},
-		{
-			name:       "uuid user id with port in idp",
-			encoded:    base64.URLEncoding.EncodeToString([]byte("550e8400-e29b-41d4-a716-446655440000@provider.net:9200")),
-			wantUserID: "550e8400-e29b-41d4-a716-446655440000",
-			wantIDP:    "provider.net:9200",
-			wantOK:     true,
-		},
-		{
-			name:       "email-like user id (last-@ split)",
-			encoded:    base64.URLEncoding.EncodeToString([]byte("alice@mail.org@provider.net")),
-			wantUserID: "alice@mail.org",
-			wantIDP:    "provider.net",
-			wantOK:     true,
-		},
-		{
-			name:    "invalid base64",
-			encoded: "not-valid-base64!!!",
-			wantOK:  false,
-		},
-		{
-			name:    "valid base64 but no @ in payload",
-			encoded: base64.URLEncoding.EncodeToString([]byte("noatsign")),
-			wantOK:  false,
-		},
-		{
-			name:    "valid base64 but payload starts with @",
-			encoded: base64.URLEncoding.EncodeToString([]byte("@provider.net")),
-			wantOK:  false,
-		},
-		{
-			name:    "valid base64 but payload ends with @",
-			encoded: base64.URLEncoding.EncodeToString([]byte("alice@")),
-			wantOK:  false,
-		},
-		{
-			name:    "empty string",
-			encoded: "",
-			wantOK:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			userID, idp, ok := DecodeFederatedOpaqueID(tt.encoded)
-			if ok != tt.wantOK {
-				t.Fatalf("DecodeFederatedOpaqueID(%q) ok = %v, want %v", tt.encoded, ok, tt.wantOK)
-			}
-
-			if !tt.wantOK {
-				return
-			}
-
-			if userID != tt.wantUserID {
-				t.Errorf("DecodeFederatedOpaqueID(%q) userID = %q, want %q", tt.encoded, userID, tt.wantUserID)
-			}
-
-			if idp != tt.wantIDP {
-				t.Errorf("DecodeFederatedOpaqueID(%q) idp = %q, want %q", tt.encoded, idp, tt.wantIDP)
-			}
-		})
-	}
-}
-
-func TestEncodeDecode_RoundTrip(t *testing.T) {
-	tests := []struct {
-		name   string
-		userID string
-		idp    string
-	}{
-		{name: "simple", userID: "alice", idp: "example.org"},
-		{name: "uuid", userID: "550e8400-e29b-41d4-a716-446655440000", idp: "provider.net:9200"},
-		{name: "unknown placeholder", userID: "unknown", idp: "localhost:9200"},
-		{name: "special chars in user", userID: "user+tag", idp: "host.example"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			encoded := EncodeFederatedOpaqueID(tt.userID, tt.idp)
-
-			gotUserID, gotIDP, ok := DecodeFederatedOpaqueID(encoded)
-			if !ok {
-				t.Fatalf("DecodeFederatedOpaqueID(EncodeFederatedOpaqueID(%q, %q)) failed", tt.userID, tt.idp)
-			}
-
-			if gotUserID != tt.userID {
-				t.Errorf("round-trip userID = %q, want %q", gotUserID, tt.userID)
-			}
-
-			if gotIDP != tt.idp {
-				t.Errorf("round-trip idp = %q, want %q", gotIDP, tt.idp)
-			}
-		})
-	}
-}
-
-func TestLooksLikeBase64(t *testing.T) {
-	tests := []struct {
-		name string
-		s    string
-		want bool
-	}{
-		{name: "standard base64 padded", s: "dXNlcg==", want: true},
-		{name: "base64url with underscore", s: "dXNlckBpZHA_", want: true},
-		{name: "base64url with hyphen", s: "abc-def_ghi", want: true},
-		{name: "alphanumeric only", s: "abc123XYZ", want: true},
-		{name: "standard base64 with plus and slash", s: "abc+def/ghi=", want: true},
-		{name: "email address (contains @)", s: "alice@example.org", want: false},
-		{name: "string with spaces", s: "abc def", want: false},
-		{name: "string with dot", s: "alice.bob", want: false},
-		{name: "string with colon", s: "host:9200", want: false},
-		{name: "empty string", s: "", want: false},
-		{name: "string with exclamation", s: "hello!", want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := LooksLikeBase64(tt.s)
-			if got != tt.want {
-				t.Errorf("LooksLikeBase64(%q) = %v, want %v", tt.s, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFormatOutgoingOCMAddressFromUserID(t *testing.T) {
-	tests := []struct {
-		name     string
-		userID   string
-		provider string
-	}{
-		{name: "simple", userID: "alice", provider: "example.org"},
-		{name: "uuid with port", userID: "550e8400-e29b-41d4-a716-446655440000", provider: "provider.net:9200"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			addr := FormatOutgoingOCMAddressFromUserID(tt.userID, tt.provider)
-
-			identifier, prov, err := Parse(addr)
-			if err != nil {
-				t.Fatalf("Parse(%q) error: %v", addr, err)
-			}
-
-			if prov != tt.provider {
-				t.Errorf("provider = %q, want %q", prov, tt.provider)
-			}
-
-			wantIdentifier := EncodeFederatedOpaqueID(tt.userID, tt.provider)
-			if identifier != wantIdentifier {
-				t.Errorf("identifier = %q, want %q", identifier, wantIdentifier)
-			}
-
-			gotUserID, gotIDP, ok := DecodeFederatedOpaqueID(identifier)
-			if !ok {
-				t.Fatalf("DecodeFederatedOpaqueID(%q) failed", identifier)
-			}
-
-			if gotUserID != tt.userID {
-				t.Errorf("round-trip userID = %q, want %q", gotUserID, tt.userID)
-			}
-
-			if gotIDP != tt.provider {
-				t.Errorf("round-trip idp = %q, want %q", gotIDP, tt.provider)
 			}
 		})
 	}

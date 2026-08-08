@@ -40,6 +40,8 @@ func writePersistedJSON(t *testing.T, dir, filename string, data any) {
 // so the mutated local copy does not affect the stored record before Update is
 // called; the driver must still derive and remove all old keys.
 func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 
@@ -148,6 +150,8 @@ func assertRebuildRejectsDuplicateOutgoingShares(t *testing.T, shares map[string
 // fails when persisted outgoing-share data contains two records with the same
 // WebDAVID.
 func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().Unix()
 	shares := map[string]*store.OutgoingShare{
 		"provider-a": {
@@ -172,6 +176,8 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) {
 // TestJSONRebuildRejectsDuplicateOutgoingShareID verifies that Init fails when
 // persisted outgoing-share data contains two records with the same ShareID.
 func TestJSONRebuildRejectsDuplicateOutgoingShareID(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().Unix()
 	shares := map[string]*store.OutgoingShare{
 		"provider-x": {
@@ -196,6 +202,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareID(t *testing.T) {
 // TestJSONRebuildRejectsDuplicateOutgoingInviteToken verifies that Init fails
 // when persisted outgoing-invite data contains two records with the same Token.
 func TestJSONRebuildRejectsDuplicateOutgoingInviteToken(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	if merr := os.MkdirAll(tempDir, 0700); merr != nil {

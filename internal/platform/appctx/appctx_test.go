@@ -13,6 +13,8 @@ import (
 )
 
 func TestWithLogger_And_LoggerFromContext(t *testing.T) {
+	t.Parallel()
+
 	buf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(buf, nil))
 
@@ -30,6 +32,8 @@ func TestWithLogger_And_LoggerFromContext(t *testing.T) {
 }
 
 func TestLoggerFromContext_NoLogger(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	got, ok := LoggerFromContext(ctx)
@@ -43,7 +47,10 @@ func TestLoggerFromContext_NoLogger(t *testing.T) {
 }
 
 func TestLoggerFromContext_NilLogger(t *testing.T) {
+	t.Parallel()
+
 	// Create a context with a nil logger stored
+
 	ctx := context.WithValue(context.Background(), loggerKey{}, (*slog.Logger)(nil))
 
 	got, ok := LoggerFromContext(ctx)
@@ -57,6 +64,8 @@ func TestLoggerFromContext_NilLogger(t *testing.T) {
 }
 
 func TestGetLogger_WithLogger(t *testing.T) {
+	t.Parallel()
+
 	buf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(buf, nil))
 
@@ -69,6 +78,8 @@ func TestGetLogger_WithLogger(t *testing.T) {
 }
 
 func TestGetLogger_WithoutLogger(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	got := GetLogger(ctx)
@@ -83,8 +94,11 @@ func TestGetLogger_WithoutLogger(t *testing.T) {
 }
 
 func TestGetLogger_NilContext(t *testing.T) {
+	t.Parallel()
+
 	// GetLogger should handle nil context gracefully
 	// Note: context.Background() is used as fallback behavior test
+
 	ctx := context.Background()
 
 	got := GetLogger(ctx)
@@ -94,6 +108,8 @@ func TestGetLogger_NilContext(t *testing.T) {
 }
 
 func TestLogger_ActuallyLogs(t *testing.T) {
+	t.Parallel()
+
 	buf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(buf, nil))
 

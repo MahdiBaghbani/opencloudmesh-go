@@ -23,6 +23,8 @@ import (
 )
 
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 
 	h := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
@@ -41,6 +43,8 @@ func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 }
 
 func TestNewOCMHandler_EnabledWithProjectedPaths(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{
 		WebDAVRoot: "/webdav/ocm/",
 	}
@@ -85,6 +89,8 @@ func TestNewOCMHandler_EnabledWithProjectedPaths(t *testing.T) {
 }
 
 func TestNewOCMHandler_WithKeyManager(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 
 	km := crypto.NewKeyManager("", "https://example.com")
@@ -109,7 +115,10 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 }
 
 func TestNewOCMHandler_Criteria(t *testing.T) {
+	t.Parallel()
 	t.Run("default criteria include token exchange", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 
 		h := newOCMHandler(c, nil, handlerResolveInputs(t, ""), testLogger())
@@ -129,7 +138,10 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 }
 
 func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
+	t.Parallel()
 	t.Run("derives inviteAcceptDialog when invite accept route active", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
@@ -148,6 +160,8 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	})
 
 	t.Run("explicit invite_accept_dialog overrides auto-derivation", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{
 			InviteAcceptDialog: "https://custom.example.com/accept",
 		}
@@ -172,6 +186,8 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	})
 
 	t.Run("no derivation when invite accept route inactive", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
@@ -188,7 +204,10 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 }
 
 func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
+	t.Parallel()
 	t.Run("enabled when WAYF route active", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 		in := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
@@ -208,6 +227,8 @@ func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 	})
 
 	t.Run("absent when WAYF route inactive", func(t *testing.T) {
+		t.Parallel()
+
 		c := &resolve.ProviderConfig{}
 		in := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
@@ -227,6 +248,8 @@ func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 }
 
 func TestNewOCMHandler_TruthfulCapabilitySet(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	in := handlerResolveInputs(t, "")
 

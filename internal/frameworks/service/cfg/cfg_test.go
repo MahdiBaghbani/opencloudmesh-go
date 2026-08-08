@@ -22,6 +22,8 @@ func (c *testConfig) ApplyDefaults() {
 }
 
 func TestDecode_Basic(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name":    "test-service",
 		"port":    9000,
@@ -47,6 +49,8 @@ func TestDecode_Basic(t *testing.T) {
 }
 
 func TestDecode_ApplyDefaults(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name": "test-service",
 	}
@@ -62,6 +66,8 @@ func TestDecode_ApplyDefaults(t *testing.T) {
 }
 
 func TestDecodeWithUnused_ReportsUnusedKeys(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name":        "test-service",
 		"port":        9000,
@@ -96,6 +102,8 @@ func TestDecodeWithUnused_ReportsUnusedKeys(t *testing.T) {
 }
 
 func TestDecodeWithUnused_NoUnusedKeys(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name": "test-service",
 		"port": 9000,
@@ -114,6 +122,8 @@ func TestDecodeWithUnused_NoUnusedKeys(t *testing.T) {
 }
 
 func TestDecodeWithUnused_ApplyDefaults(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name": "test-service",
 	}
@@ -131,6 +141,8 @@ func TestDecodeWithUnused_ApplyDefaults(t *testing.T) {
 }
 
 func TestMustDecodeStrict_FailsOnUnusedKeys(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name":        "test-service",
 		"unknown_key": "value",
@@ -150,6 +162,8 @@ func TestMustDecodeStrict_FailsOnUnusedKeys(t *testing.T) {
 }
 
 func TestMustDecodeStrict_PassesWithNoUnusedKeys(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name":    "test-service",
 		"port":    9000,
@@ -169,6 +183,8 @@ func TestMustDecodeStrict_PassesWithNoUnusedKeys(t *testing.T) {
 }
 
 func TestMustDecodeStrict_ApplyDefaults(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]any{
 		"name": "test-service",
 	}

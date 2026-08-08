@@ -8,6 +8,8 @@ package peerorigin
 import "testing"
 
 func TestResolve_StrictDefaultIsHTTPS(t *testing.T) {
+	t.Parallel()
+
 	r := NewResolver(false)
 
 	decision := r.Resolve("peer.example.com")
@@ -29,6 +31,8 @@ func TestResolve_StrictDefaultIsHTTPS(t *testing.T) {
 }
 
 func TestResolve_DevFlagHonorsExplicitHTTPSPeerInput(t *testing.T) {
+	t.Parallel()
+
 	r := NewResolver(true)
 
 	decision := r.Resolve("https://strict.example.com:8443")
@@ -46,6 +50,8 @@ func TestResolve_DevFlagHonorsExplicitHTTPSPeerInput(t *testing.T) {
 }
 
 func TestResolve_DevFlagAllowsHTTPForEveryPeer(t *testing.T) {
+	t.Parallel()
+
 	r := NewResolver(true)
 
 	first := r.Resolve("first.example.com")
@@ -72,6 +78,8 @@ func TestResolve_DevFlagAllowsHTTPForEveryPeer(t *testing.T) {
 }
 
 func TestResolve_EmptyInputResolvesToZeroDecision(t *testing.T) {
+	t.Parallel()
+
 	r := NewResolver(true)
 
 	decision := r.Resolve("")
@@ -81,6 +89,8 @@ func TestResolve_EmptyInputResolvesToZeroDecision(t *testing.T) {
 }
 
 func TestResolve_NilResolverIsStrict(t *testing.T) {
+	t.Parallel()
+
 	var r *Resolver
 
 	decision := r.Resolve("peer.example.com")
@@ -94,6 +104,8 @@ func TestResolve_NilResolverIsStrict(t *testing.T) {
 }
 
 func TestIsAbsoluteURIAllowed_EnforcesHTTPGate(t *testing.T) {
+	t.Parallel()
+
 	strict := NewResolver(false)
 
 	if strict.IsAbsoluteURIAllowed(
@@ -128,6 +140,8 @@ func TestIsAbsoluteURIAllowed_EnforcesHTTPGate(t *testing.T) {
 }
 
 func TestIsAbsoluteURIAllowed_AuthorityMismatchRejected(t *testing.T) {
+	t.Parallel()
+
 	r := NewResolver(true)
 
 	if r.IsAbsoluteURIAllowed(
@@ -139,6 +153,8 @@ func TestIsAbsoluteURIAllowed_AuthorityMismatchRejected(t *testing.T) {
 }
 
 func TestIsAbsoluteURIAllowed_RejectsUnparsableOrNonHTTPScheme(t *testing.T) {
+	t.Parallel()
+
 	r := NewResolver(true)
 
 	if r.IsAbsoluteURIAllowed("://not-a-valid-url", "peer.example.com") {

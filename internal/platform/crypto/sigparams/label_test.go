@@ -12,6 +12,8 @@ import (
 )
 
 func TestSignatureLabelOCM(t *testing.T) {
+	t.Parallel()
+
 	if sigparams.SignatureLabelOCM != "ocm" {
 		t.Fatalf("SignatureLabelOCM = %q, want %q", sigparams.SignatureLabelOCM, "ocm")
 	}

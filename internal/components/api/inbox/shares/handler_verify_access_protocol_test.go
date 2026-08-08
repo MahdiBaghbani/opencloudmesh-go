@@ -59,6 +59,7 @@ func runVerifyAccess(t *testing.T, repo sharesincoming.IncomingShareRepo, user *
 }
 
 func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-webdav", "sender.example.com", "file.txt")
 
@@ -84,6 +85,8 @@ func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_PassesEmptySubPath(t *testing.T) {
+	t.Parallel()
+
 	var gotSubPath string
 
 	repo := tsrepos.OpenMemory(t).IncomingShares
@@ -118,6 +121,7 @@ func TestHandleVerifyAccess_PassesEmptySubPath(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolAndPopulatesShareInfo(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp", "sender.example.com", "webapp-file.txt")
 
@@ -171,6 +175,7 @@ func assertWebappShareInfo(t *testing.T, got *access.ShareInfo, share *sharesinc
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 
 	share := &sharesincoming.IncomingShare{
@@ -219,6 +224,7 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByProtocolName(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 
 	share := &sharesincoming.IncomingShare{

@@ -8,6 +8,8 @@ package address
 import "testing"
 
 func TestNormalizedProviderFrom(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		addr        string
@@ -27,6 +29,8 @@ func TestNormalizedProviderFrom(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := NormalizedProviderFrom(tt.addr, tt.scheme)
 			if tt.expectError {
 				if err == nil {

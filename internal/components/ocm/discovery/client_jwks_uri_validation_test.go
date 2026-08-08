@@ -18,6 +18,7 @@ import (
 )
 
 func TestClientDiscover_AcceptsCustomJwksUri(t *testing.T) {
+	t.Parallel()
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"capabilities": []string{"http-sig"},
@@ -42,6 +43,7 @@ func TestClientDiscover_AcceptsCustomJwksUri(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsRelativeJwksUri(t *testing.T) {
+	t.Parallel()
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"capabilities": []string{"http-sig"},
@@ -65,6 +67,8 @@ func TestClientDiscover_RejectsRelativeJwksUri(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsCrossAuthorityJwksUri(t *testing.T) {
+	t.Parallel()
+
 	const crossAuthorityURI = "https://other.example.com/jwks"
 
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
@@ -95,6 +99,7 @@ func TestClientDiscover_RejectsCrossAuthorityJwksUri(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsJwksUriWithCredentials(t *testing.T) {
+	t.Parallel()
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"capabilities": []string{"http-sig"},
@@ -123,6 +128,8 @@ func TestClientDiscover_RejectsJwksUriWithCredentials(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsJwksUriWithFragment(t *testing.T) {
+	t.Parallel()
+
 	var jwksURI string
 
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
@@ -154,6 +161,8 @@ func TestClientDiscover_RejectsJwksUriWithFragment(t *testing.T) {
 }
 
 func TestClientDiscover_JwksUriSurvivesCacheRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	var fetchCount int
 
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {

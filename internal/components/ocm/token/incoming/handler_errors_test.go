@@ -23,6 +23,8 @@ import (
 )
 
 func TestHandler_InvalidCode(t *testing.T) {
+	t.Parallel()
+
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
@@ -32,6 +34,7 @@ func TestHandler_InvalidCode(t *testing.T) {
 }
 
 func TestHandler_ClientMismatch(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -75,6 +78,8 @@ func TestHandler_ClientMismatch(t *testing.T) {
 }
 
 func TestHandler_NormalizeError_InvalidClient(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		providerID   string
@@ -103,6 +108,7 @@ func TestHandler_NormalizeError_InvalidClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 			tokenStore := token.NewMemoryTokenStore()
 			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -151,6 +157,7 @@ func TestHandler_NormalizeError_InvalidClient(t *testing.T) {
 }
 
 func TestHandler_NormalizeError_NoRawFallback(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -199,6 +206,8 @@ func TestHandler_NormalizeError_NoRawFallback(t *testing.T) {
 }
 
 func TestTokenStore_Expiration(t *testing.T) {
+	t.Parallel()
+
 	store := token.NewMemoryTokenStore()
 	ctx := context.Background()
 
@@ -222,6 +231,8 @@ func TestTokenStore_Expiration(t *testing.T) {
 }
 
 func TestGenerateAccessToken(t *testing.T) {
+	t.Parallel()
+
 	token1, err := token.GenerateAccessToken()
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)

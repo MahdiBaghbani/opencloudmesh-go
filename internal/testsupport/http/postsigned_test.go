@@ -17,6 +17,8 @@ import (
 )
 
 func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
+	t.Parallel()
+
 	var (
 		gotMethod      string
 		gotContentType string
@@ -88,6 +90,8 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 }
 
 func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
+	t.Parallel()
+
 	const wantBody = `{"echo":true}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -130,6 +134,8 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 }
 
 func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
+	t.Parallel()
+
 	var callCount int
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +211,8 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 }
 
 func TestPostSignedJSONStatusBody_ReturnsStatusAndBody(t *testing.T) {
+	t.Parallel()
+
 	const wantBody = `{"received":true}`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -241,6 +249,8 @@ func TestPostSignedJSONStatusBody_ReturnsStatusAndBody(t *testing.T) {
 }
 
 func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
@@ -280,6 +290,8 @@ func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
 }
 
 func TestPostSignedJSONDecode_NilOutDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
@@ -313,6 +325,8 @@ func TestPostSignedJSONDecode_NilOutDoesNotPanic(t *testing.T) {
 }
 
 func TestPostSignedJSONDecode_EmptyBodyDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)

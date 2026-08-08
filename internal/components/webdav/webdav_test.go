@@ -20,6 +20,8 @@ import (
 )
 
 func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 	share := seedShare(t, repo)
@@ -38,6 +40,8 @@ func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 }
 
 func TestValidateCredential_AcceptsSharedSecretForNonStrict(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 	share := seedShare(t, repo)
@@ -51,6 +55,8 @@ func TestValidateCredential_AcceptsSharedSecretForNonStrict(t *testing.T) {
 }
 
 func TestValidateCredential_RejectsSharedSecretForStrict(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 	share := seedShareWithRequirements(t, repo, "share-1", []string{spec.RequirementMustExchangeToken})
@@ -64,6 +70,8 @@ func TestValidateCredential_RejectsSharedSecretForStrict(t *testing.T) {
 }
 
 func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 	share := seedShare(t, repo)
@@ -82,6 +90,8 @@ func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 }
 
 func TestValidateCredential_RejectsUnknownToken(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 	share := seedShare(t, repo)
@@ -95,6 +105,8 @@ func TestValidateCredential_RejectsUnknownToken(t *testing.T) {
 }
 
 func TestExtractCredential_BearerOnly(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer my-token")
 
@@ -105,6 +117,8 @@ func TestExtractCredential_BearerOnly(t *testing.T) {
 }
 
 func TestExtractCredential_RejectsBasic(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
 
@@ -114,6 +128,8 @@ func TestExtractCredential_RejectsBasic(t *testing.T) {
 }
 
 func TestExtractCredential_RejectsDigest(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Digest username=alice")
 
@@ -136,6 +152,8 @@ func assertBearerWWWAuthenticate(t *testing.T, w *httptest.ResponseRecorder) {
 }
 
 func TestServeHTTP_MissingAuthBearerOnlyChallenge(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	_ = seedShare(t, repo)
 	handler := NewHandler(repo, newMockTokenStore(), nil)
@@ -152,6 +170,7 @@ func TestServeHTTP_MissingAuthBearerOnlyChallenge(t *testing.T) {
 }
 
 func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	filePath := filepath.Join(dir, "hello.txt")
@@ -185,6 +204,7 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 }
 
 func TestServeHTTP_BearerServesFileAtResourceRoot(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	filePath := filepath.Join(dir, "hello.txt")
@@ -222,6 +242,7 @@ func TestServeHTTP_BearerServesFileAtResourceRoot(t *testing.T) {
 }
 
 func TestServeHTTP_BearerServesFileForNonBasenameRequest(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	filePath := filepath.Join(dir, "hello.txt")
@@ -259,6 +280,8 @@ func TestServeHTTP_BearerServesFileForNonBasenameRequest(t *testing.T) {
 }
 
 func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	_ = seedShare(t, repo)
 	handler := NewHandler(repo, newMockTokenStore(), nil)
@@ -277,6 +300,8 @@ func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 }
 
 func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	_ = seedShare(t, repo)
 
@@ -304,6 +329,8 @@ func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 }
 
 func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
+	t.Parallel()
+
 	repo := newMockOutgoingShareRepo()
 	share := seedShare(t, repo)
 
@@ -330,6 +357,7 @@ func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 // fork at the HTTP layer: a non-strict share (Requirements omit
 // must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
 func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	filePath := filepath.Join(dir, "hello.txt")

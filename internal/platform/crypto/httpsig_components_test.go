@@ -18,6 +18,7 @@ import (
 )
 
 func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -51,6 +52,7 @@ func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
 }
 
 func TestSignRequest_CoversAllComponentsOnNonEmptyBody(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -77,6 +79,7 @@ func TestSignRequest_CoversAllComponentsOnNonEmptyBody(t *testing.T) {
 }
 
 func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -105,6 +108,8 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/ocm/discovery", nil)
 			if err != nil {
 				t.Fatal(err)
@@ -153,6 +158,7 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 }
 
 func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	// Verifier uses the default/config component policy, which defaults to

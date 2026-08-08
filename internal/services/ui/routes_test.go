@@ -12,6 +12,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs_BaseRoutes(t *testing.T) {
+	t.Parallel()
+
 	specs := registeredRouteSpecs(service.DefaultRouteOpts())
 	baseCount := 0
 
@@ -27,6 +29,8 @@ func TestRegisteredRouteSpecs_BaseRoutes(t *testing.T) {
 }
 
 func TestRegisteredRouteSpecs_WayfAndAcceptInviteSeparate(t *testing.T) {
+	t.Parallel()
+
 	enabled := service.RouteOpts{
 		WayfEnabled:         true,
 		InviteAcceptEnabled: true,

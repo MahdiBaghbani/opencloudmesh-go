@@ -20,6 +20,8 @@ import (
 )
 
 func TestClient_Exchange_NoSignerRejected(t *testing.T) {
+	t.Parallel()
+
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
@@ -36,6 +38,8 @@ func TestClient_Exchange_NoSignerRejected(t *testing.T) {
 }
 
 func TestClient_Exchange_WithSigner(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -77,5 +81,6 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 }
 
 func TestClient_Exchange_SignsWhenReceiverAdvertisesHTTPSig(t *testing.T) {
+	t.Parallel()
 	runExchangeSignatureCase(t, true, "local.example.com", httpSigDiscovery(), "signed-token")
 }

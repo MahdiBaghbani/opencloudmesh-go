@@ -20,6 +20,8 @@ import (
 )
 
 func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
+	t.Parallel()
+
 	got := harness.IntegrationBuildOpts()
 
 	want := toBuildOpts(tswiring.HarnessWireOptions)
@@ -29,6 +31,8 @@ func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
 }
 
 func TestFixtures_IETFWireOptionsMatchIntegrationHarness(t *testing.T) {
+	t.Parallel()
+
 	got := harness.IETFIntegrationBuildOpts()
 
 	want := toBuildOpts(tswiring.IETFWireOptions)
@@ -42,6 +46,8 @@ func TestFixtures_IETFWireOptionsMatchIntegrationHarness(t *testing.T) {
 }
 
 func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
+	t.Parallel()
+
 	fixture := tswiring.HarnessWireOptions
 	if !fixture.FastAuth || fixture.SkipCrypto || !fixture.SkipPeerTrust ||
 		!fixture.SkipDiscoveryCache {
@@ -54,6 +60,8 @@ func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
 }
 
 func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})
@@ -67,6 +75,8 @@ func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
 }
 
 func TestFixtures_RoutePolicyPublicPaths(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	opts := tswiring.RouteOptsForConfig(cfg)
 	want := tsrouting.PublicSessionPaths(opts)

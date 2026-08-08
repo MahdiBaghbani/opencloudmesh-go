@@ -13,6 +13,8 @@ import (
 )
 
 func TestBackendListsDerivedFromAllBackends(t *testing.T) {
+	t.Parallel()
+
 	all := AllBackends()
 
 	openNames := make([]string, len(OpenTestRepos()))

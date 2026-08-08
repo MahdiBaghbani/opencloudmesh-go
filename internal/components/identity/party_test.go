@@ -15,6 +15,8 @@ import (
 )
 
 func TestMemoryPartyRepo_CRUD(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -94,6 +96,8 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_DuplicateUsername(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -111,6 +115,8 @@ func TestMemoryPartyRepo_DuplicateUsername(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -164,6 +170,8 @@ func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_GetByEmail(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -210,6 +218,8 @@ func TestMemoryPartyRepo_GetByEmail(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_DuplicateEmail(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -227,6 +237,8 @@ func TestMemoryPartyRepo_DuplicateEmail(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_EmptyEmailNotIndexed(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -250,6 +262,8 @@ func TestMemoryPartyRepo_EmptyEmailNotIndexed(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_UpdateMaintainsEmailIndex(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -297,6 +311,8 @@ func TestMemoryPartyRepo_UpdateMaintainsEmailIndex(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_UpdateEmailUniqueness(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -321,6 +337,8 @@ func TestMemoryPartyRepo_UpdateEmailUniqueness(t *testing.T) {
 }
 
 func TestMemoryPartyRepo_DeleteRemovesEmailIndex(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
 
@@ -348,6 +366,8 @@ func TestMemoryPartyRepo_DeleteRemovesEmailIndex(t *testing.T) {
 }
 
 func TestUUIDv7(t *testing.T) {
+	t.Parallel()
+
 	id1, err := identity.UUIDv7()
 	if err != nil {
 		t.Fatalf("UUIDv7 failed: %v", err)

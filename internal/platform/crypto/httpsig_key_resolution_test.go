@@ -29,6 +29,7 @@ import (
 )
 
 func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := crypto.DefaultRFC9421Options()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -74,6 +75,8 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 }
 
 func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
+	t.Parallel()
+
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +136,7 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 }
 
 func TestResolveExactKeyID_ExactMatchResolvesKey(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	set := km.JWKS()
 
@@ -165,6 +169,7 @@ func TestResolveExactKeyID_ExactMatchResolvesKey(t *testing.T) {
 }
 
 func TestResolveExactKeyID_RejectsNonExactKeyID(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	set := km.JWKS() // sole kid: example.com#key1
 
@@ -183,6 +188,8 @@ func TestResolveExactKeyID_RejectsNonExactKeyID(t *testing.T) {
 
 	for _, tt := range nonExact {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := set.ResolveExactKeyID(tt.keyID)
 			if !errors.Is(err, jwks.ErrKeyNotFound) {
 				t.Fatalf("ResolveExactKeyID(%q) error = %v, want ErrKeyNotFound", tt.keyID, err)
@@ -192,6 +199,7 @@ func TestResolveExactKeyID_RejectsNonExactKeyID(t *testing.T) {
 }
 
 func TestResolveExactKeyID_RejectsAmbiguousExactKid(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	key := jwks.Ed25519Key(km.GetKeyID(), km.GetSigningKey().PublicKey)
 	set := jwks.Set{Keys: []jwks.Key{key, key}}
@@ -203,8 +211,11 @@ func TestResolveExactKeyID_RejectsAmbiguousExactKid(t *testing.T) {
 }
 
 func TestKidEqualsExact(t *testing.T) {
+	t.Parallel()
+
 	// The verifier's exact resolver requires byte-for-byte equality; no
 	// authority normalization or case folding.
+
 	if keyid.KidEqualsExact("example.com:443#key1", "example.com#key1") {
 		t.Fatal("KidEqualsExact must reject non-equal authority forms")
 	}
@@ -215,6 +226,7 @@ func TestKidEqualsExact(t *testing.T) {
 }
 
 func TestVerifyRequest_ExactKeyIDResolutionEndToEnd(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -247,6 +259,7 @@ func TestVerifyRequest_ExactKeyIDResolutionEndToEnd(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsKeyIDWithoutExactKid(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -285,6 +298,8 @@ func TestVerifyRequest_RejectsKeyIDWithoutExactKid(t *testing.T) {
 }
 
 func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	body := httpsigTestBodyJSON
@@ -306,6 +321,8 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 	}
 
 	t.Run("key_not_found", func(t *testing.T) {
+		t.Parallel()
+
 		result := verifier.VerifyRequest(newReq(), body, func(string) (sigalg.ResolvedPublicKey, error) {
 			return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup: %w", jwks.ErrKeyNotFound)
 		})
@@ -319,6 +336,8 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 	})
 
 	t.Run("key_lookup_failed", func(t *testing.T) {
+		t.Parallel()
+
 		result := verifier.VerifyRequest(newReq(), body, func(string) (sigalg.ResolvedPublicKey, error) {
 			return sigalg.ResolvedPublicKey{}, errors.New("jwks: fetch failed: connection refused")
 		})
