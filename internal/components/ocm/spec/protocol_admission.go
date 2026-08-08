@@ -109,6 +109,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 		for _, perm := range p.Permissions {
 			if !isSupportedWebDAVPermission(perm) {
 				errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: "UNSUPPORTED"})
+
 				break
 			}
 		}
@@ -118,6 +119,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 		for _, accessType := range p.AccessTypes {
 			if !isSupportedWebDAVAccessType(accessType) {
 				errs = append(errs, ValidationError{Name: "protocol.webdav.accessTypes", Message: "UNSUPPORTED"})
+
 				break
 			}
 		}
@@ -126,6 +128,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 	for _, req := range p.Requirements {
 		if !isSupportedWebDAVRequirement(req) {
 			errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "UNSUPPORTED"})
+
 			break
 		}
 	}
@@ -196,6 +199,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 		for _, perm := range p.Permissions {
 			if !isSupportedWebappPermission(perm) {
 				errs = append(errs, ValidationError{Name: "protocol.webapp.permissions", Message: "UNSUPPORTED"})
+
 				break
 			}
 		}
@@ -216,6 +220,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 
 			if !isSupportedWebappRequirement(req) {
 				errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "UNSUPPORTED"})
+
 				break
 			}
 		}

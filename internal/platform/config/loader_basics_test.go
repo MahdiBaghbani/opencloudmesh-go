@@ -30,6 +30,7 @@ func TestParseMode(t *testing.T) {
 			got, err := ParseMode(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseMode(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+
 				return
 			}
 
@@ -238,6 +239,7 @@ func TestLoad_InvalidMode_FailsFast(t *testing.T) {
 		_, err := Load(LoaderOptions{ModeFlag: mode})
 		if err == nil {
 			t.Errorf("Load(ModeFlag=%q): expected error for invalid mode", mode)
+
 			continue
 		}
 

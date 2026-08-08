@@ -95,6 +95,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	for _, c := range cookies {
 		if c.Name == "session" {
 			sessionCookie = c
+
 			break
 		}
 	}

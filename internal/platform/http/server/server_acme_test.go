@@ -355,6 +355,7 @@ func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 		conn, err := dialer.DialContext(t.Context(), "tcp", addr)
 		if err == nil {
 			tshttp.MustClose(t, conn)
+
 			return true
 		}
 

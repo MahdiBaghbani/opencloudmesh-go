@@ -8,6 +8,7 @@ package architecture
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -352,7 +353,7 @@ func assertReasonUnsigned(t *testing.T) {
 	req.Header.Set("Signature", "sig1=:AAAA:")
 
 	result := verifier.VerifyRequest(req, nil, func(string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+		return sigalg.ResolvedPublicKey{}, errors.New("should not fetch key")
 	})
 	if result.Verified {
 		t.Fatal("expected verification failure")

@@ -96,6 +96,7 @@ func (p *HTTP01Provider) Present(_, token, keyAuth string) error {
 // CleanUp removes the stored HTTP-01 challenge token; implements challenge.Provider.
 func (p *HTTP01Provider) CleanUp(_, token, _ string) error {
 	p.tokens.Delete(token)
+
 	return nil
 }
 
@@ -255,23 +256,27 @@ func (m *ACMEManager) ChallengeHandler() http.Handler {
 		const prefix = "/.well-known/acme-challenge/"
 		if !strings.HasPrefix(r.URL.Path, prefix) {
 			http.NotFound(w, r)
+
 			return
 		}
 
 		token := strings.TrimPrefix(r.URL.Path, prefix)
 		if token == "" {
 			http.NotFound(w, r)
+
 			return
 		}
 
 		if m.provider == nil {
 			http.NotFound(w, r)
+
 			return
 		}
 
 		rawEntry, ok := m.provider.tokens.Load(token)
 		if !ok {
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -312,6 +317,7 @@ func (m *ACMEManager) loadOrCreateUser() (*ACMEUser, error) {
 				key, keyErr := certcrypto.ParsePEMPrivateKey(keyData)
 				if keyErr == nil {
 					user.key = key
+
 					return user, nil
 				}
 			}

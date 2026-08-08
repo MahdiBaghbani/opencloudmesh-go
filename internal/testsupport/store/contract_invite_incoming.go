@@ -205,7 +205,7 @@ func deleteIncomingInviteForRecipient(t *testing.T, ctx context.Context, s store
 // is enforced as a composite unique key across all backends:
 // - a duplicate pair returns ErrAlreadyExists
 // - the original record is not replaced
-// - the same token with a different recipient is allowed
+// - the same token with a different recipient is allowed.
 func runIncomingInviteCompositeUniqueness(
 	t *testing.T,
 	ctx context.Context,

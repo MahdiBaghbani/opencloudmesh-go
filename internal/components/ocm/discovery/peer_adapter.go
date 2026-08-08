@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -74,11 +75,11 @@ func (p *PeerDiscoveryAdapter) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
 // resolves the exact key matching kid from that explicit URL.
 func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	if p.jwks == nil {
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("no JWKS resolver configured")
+		return sigalg.ResolvedPublicKey{}, errors.New("no JWKS resolver configured")
 	}
 
 	if p.discovery == nil {
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("no discovery client configured")
+		return sigalg.ResolvedPublicKey{}, errors.New("no discovery client configured")
 	}
 
 	parsed, err := keyid.ParseKid(keyID)

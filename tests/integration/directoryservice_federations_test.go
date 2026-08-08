@@ -208,6 +208,7 @@ func pollFederations(t *testing.T, url string, timeout time.Duration) ([]federat
 		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if err != nil {
 			time.Sleep(200 * time.Millisecond)
+
 			continue
 		}
 
@@ -234,6 +235,7 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -256,6 +258,7 @@ func startBrokenOCMPeer(t *testing.T) *httptest.Server {
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			http.Error(w, "internal error", http.StatusInternalServerError)
+
 			return
 		}
 

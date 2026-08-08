@@ -62,6 +62,7 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 
 			if err == nil {
 				t.Errorf("expected SSRF error for %s even with NO_PROXY bypass", target)
+
 				return
 			}
 
@@ -114,6 +115,7 @@ func findNonLoopbackIPv4(t *testing.T, ctx context.Context) net.IP {
 			// Confirm we can actually bind a listener on this address.
 			if l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ip.String()+":0"); err == nil {
 				outboundtestutil.MustClose(t, l)
+
 				return ip.To4()
 			}
 		}

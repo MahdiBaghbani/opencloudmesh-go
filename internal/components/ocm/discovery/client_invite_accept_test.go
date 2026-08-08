@@ -21,6 +21,7 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialog(t *testing.T) {
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -49,6 +50,7 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialogWithoutEndPoint(t *t
 	server := newDiscoveryTestServer(t, func(_ string, w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -80,6 +82,7 @@ func TestClientDiscover_RejectsCrossAuthorityInviteAcceptDialog(t *testing.T) {
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
+
 			return
 		}
 

@@ -21,6 +21,7 @@ func envMap(env []string) map[string]string {
 		if !ok {
 			// Bare "KEY" form with no value.
 			m[key] = ""
+
 			continue
 		}
 
@@ -78,6 +79,7 @@ func TestScrubSubprocessEnvRemovesBlocklistedVars(t *testing.T) {
 		gotValue, present := got[key]
 		if !present {
 			t.Errorf("scrubSubprocessEnv dropped unrelated env var %q", key)
+
 			continue
 		}
 

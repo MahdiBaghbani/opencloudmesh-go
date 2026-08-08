@@ -95,7 +95,7 @@ func (a *outgoingShareAdapter) GetBySharedSecret(ctx context.Context, sharedSecr
 	s, err := a.s.GetOutgoingShareBySharedSecret(ctx, sharedSecret)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, fmt.Errorf("share not found for sharedSecret")
+			return nil, errors.New("share not found for sharedSecret")
 		}
 
 		return nil, fmt.Errorf("repos: get outgoing share by shared secret: %w", err)

@@ -6,6 +6,7 @@
 package wellknown
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -64,7 +65,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			return nil, fmt.Errorf("ocmprovider: %w", err)
 		}
 	} else if m["ocmprovider"] != nil {
-		return nil, fmt.Errorf("ocmprovider must be a table")
+		return nil, errors.New("ocmprovider must be a table")
 	}
 
 	r := chi.NewRouter()

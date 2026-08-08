@@ -53,17 +53,20 @@ type LoginResponse struct {
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+
 		return
 	}
 
 	if req.Username == "" || req.Password == "" {
 		writeJSONError(w, http.StatusBadRequest, "invalid_request", "username and password required")
+
 		return
 	}
 
@@ -72,12 +75,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	user, err := h.auth.Authenticate(ctx, h.repo, req.Username, req.Password)
 	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
+
 		return
 	}
 
 	session, err := h.sessions.Create(ctx, user.ID, SessionTTL)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "session_error", "failed to create session")
+
 		return
 	}
 
@@ -109,18 +114,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	token := extractToken(r)
 	if token == "" {
 		writeJSONError(w, http.StatusUnauthorized, "no_session", "no session token provided")
+
 		return
 	}
 
 	ctx := r.Context()
 	if err := h.sessions.Delete(ctx, token); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "session_error", "failed to delete session")
+
 		return
 	}
 
@@ -144,6 +152,7 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	token := extractToken(r)
 	if token == "" {
 		writeJSONError(w, http.StatusUnauthorized, "no_session", "no session token provided")
+
 		return
 	}
 
@@ -152,12 +161,14 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	session, err := h.sessions.Get(ctx, token)
 	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "invalid_session", "session expired or invalid")
+
 		return
 	}
 
 	user, err := h.repo.Get(ctx, session.UserID)
 	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "user_not_found", "user not found")
+
 		return
 	}
 

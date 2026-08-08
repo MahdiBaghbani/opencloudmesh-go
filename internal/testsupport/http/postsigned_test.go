@@ -93,6 +93,7 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
+
 			return
 		}
 
@@ -136,12 +137,14 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
+
 			return
 		}
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "read failed", http.StatusInternalServerError)
+
 			return
 		}
 
@@ -207,6 +210,7 @@ func TestPostSignedJSONStatusBody_ReturnsStatusAndBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
+
 			return
 		}
 
@@ -240,6 +244,7 @@ func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
+
 			return
 		}
 
@@ -278,6 +283,7 @@ func TestPostSignedJSONDecode_NilOutDoesNotPanic(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
+
 			return
 		}
 
@@ -310,6 +316,7 @@ func TestPostSignedJSONDecode_EmptyBodyDoesNotPanic(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
+
 			return
 		}
 

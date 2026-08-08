@@ -50,6 +50,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 		case "/.well-known/ocm":
 			if km == nil {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
+
 				return
 			}
 
@@ -69,6 +70,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 		case "/ocm/jwks":
 			if km == nil {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
+
 				return
 			}
 
@@ -78,17 +80,20 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				http.Error(w, "failed to read share body", http.StatusBadRequest)
+
 				return
 			}
 
 			var req spec.NewShareRequest
 			if err := json.Unmarshal(body, &req); err != nil {
 				http.Error(w, "failed to parse share body", http.StatusBadRequest)
+
 				return
 			}
 
 			if req.Protocol.WebDAV == nil {
 				http.Error(w, "missing webdav payload", http.StatusBadRequest)
+
 				return
 			}
 
@@ -151,6 +156,7 @@ func (r *strictCodeFlowReceiver) waitForShare(t *testing.T) strictCodeFlowShareC
 		return capture
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for strict share capture")
+
 		return strictCodeFlowShareCapture{}
 	}
 }

@@ -96,6 +96,7 @@ func isClassifiedError(err error, ce **reason.ClassifiedError) bool {
 	e := &reason.ClassifiedError{}
 	if errors.As(err, &e) {
 		*ce = e
+
 		return true
 	}
 

@@ -68,6 +68,7 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !cfg.RequireAuth(r.URL.Path) {
 				next.ServeHTTP(w, r)
+
 				return
 			}
 
@@ -75,6 +76,7 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 			sessionToken := extractSessionToken(r)
 			if sessionToken == "" {
 				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "authentication required")
+
 				return
 			}
 
@@ -82,12 +84,14 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 			session, err := cfg.SessionRepo.Get(r.Context(), sessionToken)
 			if err != nil {
 				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "session not found or expired")
+
 				return
 			}
 
 			// Check session expiry
 			if session.IsExpired() {
 				handleUnauthorized(w, r, basePath, api.ReasonSessionExpired, "session has expired")
+
 				return
 			}
 
@@ -95,6 +99,7 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 			user, err := cfg.PartyRepo.Get(r.Context(), session.UserID)
 			if err != nil {
 				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "session user not found")
+
 				return
 			}
 
@@ -115,6 +120,7 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 func handleUnauthorized(w http.ResponseWriter, r *http.Request, basePath, reason, message string) {
 	if shouldRedirectToLogin(r, basePath) {
 		redirectToLogin(w, r, basePath)
+
 		return
 	}
 

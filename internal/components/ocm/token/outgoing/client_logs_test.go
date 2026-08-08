@@ -26,6 +26,7 @@ type logSentinelSigner struct {
 
 func (s logSentinelSigner) Sign(req *http.Request) error {
 	req.Header.Set("Signature", s.signature)
+
 	return nil
 }
 

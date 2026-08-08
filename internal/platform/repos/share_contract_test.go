@@ -125,6 +125,7 @@ func runIncomingShareRepoContractListByRecipientUserID(t *testing.T, ctx context
 	for _, s := range shares {
 		if s.ShareID == share.ShareID {
 			found = true
+
 			break
 		}
 	}
@@ -389,6 +390,7 @@ func runOutgoingShareRepoContractList(t *testing.T, ctx context.Context, r *repo
 	for _, s := range all {
 		if s.ShareID == share.ShareID {
 			found = true
+
 			break
 		}
 	}

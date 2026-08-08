@@ -254,11 +254,13 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		if r.URL.Path == "/ocm/token" {
 			if r.Header.Get("Signature") == "" {
 				w.WriteHeader(http.StatusUnauthorized)
+
 				return
 			}
 
 			if err := r.ParseForm(); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
+
 				return
 			}
 
@@ -279,6 +281,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
 			if r.Header.Get("Authorization") != "Bearer owner-token" {
 				w.WriteHeader(http.StatusUnauthorized)
+
 				return
 			}
 

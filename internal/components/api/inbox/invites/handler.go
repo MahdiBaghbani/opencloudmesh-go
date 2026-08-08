@@ -88,6 +88,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
@@ -121,23 +122,27 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
 	var req InviteImportRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		api.WriteBadRequest(w, api.ReasonBadRequest, "invalid request body")
+
 		return
 	}
 
 	if req.InviteString == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "inviteString is required")
+
 		return
 	}
 
 	token, senderFQDN, err := invites.ParseInviteString(req.InviteString)
 	if err != nil {
 		api.WriteBadRequest(w, api.ReasonInvalidField, "invalid invite string: "+err.Error())
+
 		return
 	}
 
@@ -191,12 +196,14 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
 	inviteID := chi.URLParam(r, "inviteId")
 	if inviteID == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "inviteId is required")
+
 		return
 	}
 
@@ -206,6 +213,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, invites.ErrInviteNotFound) {
 			api.WriteNotFound(w, "invite not found")
+
 			return
 		}
 
@@ -230,6 +238,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	if invite.Status != invites.InviteStatusPending {
 		api.WriteConflict(w, "invite is not pending")
+
 		return
 	}
 
@@ -297,12 +306,14 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
 	inviteID := chi.URLParam(r, "inviteId")
 	if inviteID == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "inviteId is required")
+
 		return
 	}
 
@@ -312,6 +323,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, invites.ErrInviteNotFound) {
 			api.WriteNotFound(w, "invite not found")
+
 			return
 		}
 
@@ -336,6 +348,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	if invite.Status != invites.InviteStatusPending {
 		api.WriteConflict(w, "invite is not pending")
+
 		return
 	}
 

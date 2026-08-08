@@ -42,6 +42,7 @@ func TestClientDiscover_AcceptsLowerAPIVersionWithWarning(t *testing.T) {
 	for _, w := range disc.Warnings {
 		if strings.Contains(w, "differs from pin") {
 			found = true
+
 			break
 		}
 	}

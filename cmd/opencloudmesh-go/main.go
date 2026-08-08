@@ -26,7 +26,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
-	// Register cache drivers
+	// Register cache drivers.
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
@@ -99,6 +99,7 @@ func run(args []string, stdout io.Writer) int {
 	)
 	if err != nil {
 		logger.Error("failed to load config", "error", err)
+
 		return 1
 	}
 
@@ -107,12 +108,14 @@ func run(args []string, stdout io.Writer) int {
 
 	if validateErr := service.ValidatePreBootstrap(cfg); validateErr != nil {
 		logger.Error("pre-bootstrap startup validation failed", "error", validateErr)
+
 		return 1
 	}
 
 	result, err := wiring.Build(cfg, logger, wiring.BuildOpts{})
 	if err != nil {
 		logger.Error("failed to bootstrap dependencies", "error", err)
+
 		return 1
 	}
 
@@ -121,27 +124,32 @@ func run(args []string, stdout io.Writer) int {
 	d := result.Deps
 	if d == nil {
 		logger.Error(wiring.ErrMsgNilDepsAfterBuild)
+
 		return 1
 	}
 
 	if bootstrapErr := bootstrapAdmin(context.Background(), cfg, d, logger); bootstrapErr != nil {
 		logger.Error("failed to bootstrap super admin", "error", bootstrapErr)
+
 		return 1
 	}
 
 	services, err := wiring.BuildCoreServices(cfg, logger, d)
 	if err != nil {
 		logger.Error("failed to create services", "error", err)
+
 		return 1
 	}
 
 	if err := service.ValidateBuiltServices(services); err != nil {
 		logger.Error("built service validation failed", "error", err)
+
 		return 1
 	}
 
 	if err := runServer(context.Background(), cfg, logger, result, services); err != nil {
 		logger.Error("server error", "error", err)
+
 		return 1
 	}
 
@@ -308,6 +316,7 @@ func writeBootstrapPasswordFile(filePath, password string, logger *slog.Logger) 
 	if err := f.Chmod(0600); err != nil {
 		if closeErr := f.Close(); closeErr != nil {
 			removeTemp()
+
 			return fmt.Errorf("close bootstrap password temp file: %w", closeErr)
 		}
 
@@ -319,6 +328,7 @@ func writeBootstrapPasswordFile(filePath, password string, logger *slog.Logger) 
 	if _, err := f.WriteString(password); err != nil {
 		if closeErr := f.Close(); closeErr != nil {
 			removeTemp()
+
 			return fmt.Errorf("close bootstrap password temp file: %w", closeErr)
 		}
 
@@ -330,6 +340,7 @@ func writeBootstrapPasswordFile(filePath, password string, logger *slog.Logger) 
 	if err := f.Sync(); err != nil {
 		if closeErr := f.Close(); closeErr != nil {
 			removeTemp()
+
 			return fmt.Errorf("close bootstrap password temp file: %w", closeErr)
 		}
 

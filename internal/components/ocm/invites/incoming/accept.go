@@ -8,6 +8,7 @@ package incoming
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -77,7 +78,7 @@ func SendInviteAccepted(ctx context.Context, poster InviteAcceptedPoster, req sp
 		}
 
 		if acceptedResp.UserID == "" {
-			return AcceptResult{}, fmt.Errorf("invite-accepted returned 409 with an empty userID")
+			return AcceptResult{}, errors.New("invite-accepted returned 409 with an empty userID")
 		}
 
 		return AcceptResult{Response: acceptedResp, AlreadyAccepted: true}, nil

@@ -254,6 +254,7 @@ func runIncomingInviteRepoContractListByRecipientUserID(t *testing.T, ctx contex
 	for _, inv := range all {
 		if inv.ID == invite.ID {
 			found = true
+
 			break
 		}
 	}

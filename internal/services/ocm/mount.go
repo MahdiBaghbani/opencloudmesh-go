@@ -122,6 +122,7 @@ func enforceOCMBodyLimit(limit int64) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.ContentLength > limit {
 				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+
 				return
 			}
 

@@ -53,7 +53,7 @@ func Open(dataDir string) (*Core, error) {
 	// read-then-write update paths in one transaction, the pre-read +
 	// validate + coalesce + write is atomic: no other writer can commit
 	// between the pre-read and the write.
-	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_txlock=immediate", dbPath)
+	dsn := dbPath + "?_pragma=busy_timeout(5000)&_txlock=immediate"
 
 	db, err := gorm.Open(gormsqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),

@@ -279,6 +279,7 @@ func TestDecodeFederatedOpaqueID_AcceptsPaddedAndUnpaddedBase64url(t *testing.T)
 		userID, idp, ok := DecodeFederatedOpaqueID(encoded)
 		if !ok {
 			t.Errorf("DecodeFederatedOpaqueID(%q) failed", encoded)
+
 			continue
 		}
 

@@ -9,6 +9,7 @@ package json
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -48,7 +49,7 @@ type Driver struct {
 // NewDriver creates a new JSON driver instance.
 func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 	if cfg.DataDir == "" {
-		return nil, fmt.Errorf("data_dir is required for json driver")
+		return nil, errors.New("data_dir is required for json driver")
 	}
 
 	return &Driver{
@@ -113,7 +114,7 @@ func (d *Driver) Close() error {
 	return nil
 }
 
-// Compile-time interface checks
+// Compile-time interface checks.
 var _ store.Driver = (*Driver)(nil)
 var _ store.OutgoingShareStore = (*Driver)(nil)
 var _ store.IncomingShareStore = (*Driver)(nil)

@@ -44,6 +44,7 @@ func expectedOCMPostPaths(t *testing.T) []string {
 	for _, row := range activeOCMPostRouteRows(t) {
 		if row.ID == service.RouteIDOCMToken {
 			tokenPath = row.FullPath
+
 			break
 		}
 	}

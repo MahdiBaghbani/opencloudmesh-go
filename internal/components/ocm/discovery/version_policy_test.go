@@ -146,6 +146,7 @@ func TestVersionPolicy_Accept(t *testing.T) {
 			warn: WarnLowerOnly,
 			shouldWarn: func(v string) bool {
 				cmp, ok := compareDotTriple(v, spec.APIVersionPin)
+
 				return ok && cmp < 0
 			},
 		},

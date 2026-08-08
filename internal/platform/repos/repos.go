@@ -83,6 +83,7 @@ func newStoreRepos(ctx context.Context, cfg config.PersistenceConfig) (*Repos, e
 	if err := drv.Init(ctx); err != nil {
 		//nolint:errcheck // best-effort cleanup; error is not actionable
 		drv.Close()
+
 		return nil, fmt.Errorf("init %s store: %w", cfg.Backend, err)
 	}
 
@@ -90,6 +91,7 @@ func newStoreRepos(ctx context.Context, cfg config.PersistenceConfig) (*Repos, e
 	if !ok {
 		//nolint:errcheck // best-effort cleanup; error is not actionable
 		drv.Close()
+
 		return nil, fmt.Errorf("%s driver does not implement all required store surfaces", cfg.Backend)
 	}
 

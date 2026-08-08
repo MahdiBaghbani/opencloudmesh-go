@@ -35,6 +35,7 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 
 func testIdentity(t *testing.T, basePath string) localidentity.Identity {
 	t.Helper()
+
 	return tslocalid.MustTestIdentity(t, "https://localhost:9200", basePath)
 }
 
@@ -236,6 +237,7 @@ type testLogBuffer struct {
 
 func (b *testLogBuffer) Write(p []byte) (n int, err error) {
 	b.data = append(b.data, p...)
+
 	return len(p), nil
 }
 

@@ -52,6 +52,7 @@ func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 		if r.URL.Path == "/ocm/token" {
 			if r.Header.Get("Signature") == "" {
 				w.WriteHeader(http.StatusUnauthorized)
+
 				return
 			}
 

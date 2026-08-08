@@ -125,6 +125,7 @@ func (r *MemorySessionRepo) Delete(_ context.Context, token string) error {
 	for i, t := range tokens {
 		if t == token {
 			r.byUser[session.UserID] = append(tokens[:i], tokens[i+1:]...)
+
 			break
 		}
 	}
@@ -164,6 +165,7 @@ func (r *MemorySessionRepo) DeleteExpired(_ context.Context) (int, error) {
 			for i, t := range tokens {
 				if t == token {
 					r.byUser[session.UserID] = append(tokens[:i], tokens[i+1:]...)
+
 					break
 				}
 			}

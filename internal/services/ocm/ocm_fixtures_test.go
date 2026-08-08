@@ -72,6 +72,7 @@ func testInputs(cfg *config.Config) Inputs {
 
 func setupTestInputs() Inputs {
 	cfg := config.DevConfig()
+
 	return testInputs(cfg)
 }
 

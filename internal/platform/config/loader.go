@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -106,6 +107,7 @@ func readConfigFile(configPath string) (fileConfig, toml.MetaData, error) {
 
 		if len(keys) > 0 {
 			sort.Strings(keys)
+
 			return fc, md, fmt.Errorf("config file %s contains unsupported keys: %s", configPath, strings.Join(keys, ", "))
 		}
 	}
@@ -119,7 +121,7 @@ func applyTLSDirDefaults(cfg *Config, md toml.MetaData) error {
 	}
 
 	if strings.TrimSpace(cfg.TLS.TLSDir) == "" {
-		return fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
+		return errors.New("tls.tls_dir is set but empty; provide a path or remove the key")
 	}
 
 	tlsDir := strings.TrimSpace(cfg.TLS.TLSDir)
@@ -144,7 +146,7 @@ func validateExplicitEmptyPersistenceBackend(md toml.MetaData, fc fileConfig) er
 	}
 
 	if fc.Persistence != nil && fc.Persistence.Backend == "" {
-		return fmt.Errorf("persistence.backend is set but empty; provide a valid backend or remove the key")
+		return errors.New("persistence.backend is set but empty; provide a valid backend or remove the key")
 	}
 
 	return nil
@@ -305,7 +307,7 @@ func normalizeAllowedAlgorithm(alg string) (string, error) {
 // preserving first-seen order.
 func NormalizeSignatureAllowedAlgorithms(algorithms []string) ([]string, error) {
 	if len(algorithms) == 0 {
-		return nil, fmt.Errorf("signature.allowed_algorithms must not be empty")
+		return nil, errors.New("signature.allowed_algorithms must not be empty")
 	}
 
 	normalizedAlgs := make([]string, 0, len(algorithms))
@@ -313,7 +315,7 @@ func NormalizeSignatureAllowedAlgorithms(algorithms []string) ([]string, error) 
 	seen := make(map[string]struct{}, len(algorithms))
 	for _, alg := range algorithms {
 		if strings.TrimSpace(alg) == "" {
-			return nil, fmt.Errorf("signature.allowed_algorithms must not contain empty values")
+			return nil, errors.New("signature.allowed_algorithms must not contain empty values")
 		}
 
 		normalized, err := normalizeAllowedAlgorithm(alg)

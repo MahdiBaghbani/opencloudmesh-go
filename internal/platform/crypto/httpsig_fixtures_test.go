@@ -36,6 +36,7 @@ func httpsigFixedNow() time.Time {
 
 func mustHTTPSigKeyManager(tb testing.TB) *crypto.KeyManager {
 	tb.Helper()
+
 	return tscrypto.MustTestKeyManager(tb, httpsigTestOrigin)
 }
 
@@ -57,6 +58,7 @@ func httpsigEd25519KeyFetcher(km *crypto.KeyManager) func(string) (sigalg.Resolv
 
 func httpsigVerifierWithNow(base crypto.RFC9421Options, now time.Time) *crypto.RFC9421Verifier {
 	base.Now = func() time.Time { return now }
+
 	return crypto.NewRFC9421VerifierWithOptions(base)
 }
 

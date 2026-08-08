@@ -282,6 +282,7 @@ func (c *Cache) Reset(ctx context.Context, key string) error {
 // Close stops the cleanup goroutine.
 func (c *Cache) Close() error {
 	close(c.stopClean)
+
 	return nil
 }
 

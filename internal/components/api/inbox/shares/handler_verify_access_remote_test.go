@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -85,7 +85,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonDiscoveryFailed,
 			"failed to discover sender",
-			fmt.Errorf("connection refused"),
+			errors.New("connection refused"),
 		)
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)

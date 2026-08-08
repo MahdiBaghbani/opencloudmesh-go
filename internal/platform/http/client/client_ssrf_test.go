@@ -227,6 +227,7 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 
 			if err == nil {
 				t.Errorf("expected SSRF error for %s", tt.name)
+
 				return
 			}
 

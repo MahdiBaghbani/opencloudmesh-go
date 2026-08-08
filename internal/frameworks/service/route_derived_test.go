@@ -86,6 +86,7 @@ func assertSubtreeGroup(t *testing.T, opts service.RouteOpts, row service.RouteR
 	g, ok := byPrefix[row.FullPath]
 	if !ok {
 		t.Errorf("missing subtree group for synthetic row %q prefix %q", row.ID, row.FullPath)
+
 		return
 	}
 
@@ -107,6 +108,7 @@ func assertHostRootGroup(t *testing.T, opts service.RouteOpts, row service.Route
 	g, ok := byPrefix[row.FullPath]
 	if !ok {
 		t.Errorf("missing host-root group for row %q prefix %q", row.ID, row.FullPath)
+
 		return
 	}
 

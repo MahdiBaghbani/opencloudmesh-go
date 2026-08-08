@@ -24,6 +24,7 @@ type RouteGroup struct {
 // GetMountSpecs returns the route groups derived from the default route options.
 func GetMountSpecs() []RouteGroup {
 	opts := service.DefaultRouteOpts()
+
 	return mountSpecsFromDerived(opts)
 }
 

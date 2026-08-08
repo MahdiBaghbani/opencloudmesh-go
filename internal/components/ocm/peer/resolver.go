@@ -8,6 +8,7 @@ package peer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -40,7 +41,7 @@ func (p *Resolver) ResolveSharesRequest(_ *http.Request, body []byte) (string, e
 	}
 
 	if addr == "" {
-		return "", fmt.Errorf("no sender or owner in shares request")
+		return "", errors.New("no sender or owner in shares request")
 	}
 
 	_, provider, err := address.Parse(addr)
@@ -62,11 +63,11 @@ func (p *Resolver) ResolveInviteAcceptedRequest(_ *http.Request, body []byte) (s
 	}
 
 	if req.RecipientProvider == "" {
-		return "", fmt.Errorf("no recipientProvider in invite-accepted request")
+		return "", errors.New("no recipientProvider in invite-accepted request")
 	}
 
 	if strings.Contains(req.RecipientProvider, "://") {
-		return "", fmt.Errorf("invalid recipientProvider in invite-accepted request")
+		return "", errors.New("invalid recipientProvider in invite-accepted request")
 	}
 
 	return req.RecipientProvider, nil
@@ -80,7 +81,7 @@ func (p *Resolver) ResolveTokenRequest(_ *http.Request, body []byte) (string, er
 	}
 
 	if strings.Contains(clientID, "://") {
-		return "", fmt.Errorf("invalid client_id in token request")
+		return "", errors.New("invalid client_id in token request")
 	}
 
 	return clientID, nil
@@ -94,7 +95,7 @@ func parseTokenClientID(body []byte) (string, error) {
 
 	clientID := strings.TrimSpace(values.Get("client_id"))
 	if clientID == "" {
-		return "", fmt.Errorf("no client_id in token request")
+		return "", errors.New("no client_id in token request")
 	}
 
 	return clientID, nil

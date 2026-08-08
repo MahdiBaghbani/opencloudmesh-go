@@ -8,6 +8,7 @@
 package localidentity
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -47,7 +48,7 @@ func ValidateExternalBasePath(path string) (string, error) {
 	}
 
 	if path != strings.TrimSpace(path) {
-		return "", fmt.Errorf("localidentity: external_base_path must not contain leading or trailing whitespace")
+		return "", errors.New("localidentity: external_base_path must not contain leading or trailing whitespace")
 	}
 
 	if !strings.HasPrefix(path, "/") {
@@ -85,7 +86,7 @@ func Derive(publicOrigin, externalBasePath string) (Identity, error) {
 	}
 
 	if publicOrigin == "" {
-		return Identity{}, fmt.Errorf("localidentity: public_origin is required")
+		return Identity{}, errors.New("localidentity: public_origin is required")
 	}
 
 	origin, err := instanceid.NormalizePublicOrigin(publicOrigin)

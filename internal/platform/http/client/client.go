@@ -162,6 +162,7 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 		if isSigned {
 			//nolint:errcheck // best-effort cleanup; error is not actionable
 			resp.Body.Close()
+
 			return nil, fmt.Errorf("%w: received %d", ErrSignedNoRedirect, resp.StatusCode)
 		}
 
@@ -305,11 +306,13 @@ func NewContextClient(c *Client) *ContextClient {
 // Do performs an HTTP request, using the provided context.
 func (c *ContextClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	req = req.WithContext(ctx)
+
 	return c.client.Do(req)
 }
 
 // DoSigned performs a signed HTTP request that rejects redirects.
 func (c *ContextClient) DoSigned(ctx context.Context, req *http.Request) (*http.Response, error) {
 	req = req.WithContext(ctx)
+
 	return c.client.DoSigned(req)
 }

@@ -22,6 +22,7 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/redirect" {
 			http.Redirect(w, r, "/target", http.StatusFound)
+
 			return
 		}
 
@@ -142,6 +143,7 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/redirect" {
 			http.Redirect(w, r, "/target", http.StatusFound)
+
 			return
 		}
 
@@ -218,6 +220,7 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 
 		if r.URL.Path == "/target" {
 			w.WriteHeader(http.StatusOK)
+
 			return
 		}
 

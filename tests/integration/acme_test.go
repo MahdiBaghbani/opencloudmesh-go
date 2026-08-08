@@ -373,6 +373,7 @@ func waitForTCPListener(t *testing.T, addr string, timeout time.Duration) bool {
 		conn, err := dialer.DialContext(t.Context(), "tcp", addr)
 		if err == nil {
 			mustClose(t, conn)
+
 			return true
 		}
 

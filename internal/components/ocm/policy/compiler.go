@@ -146,6 +146,7 @@ func (c *CompatCompiler) EmitProtocols(in EmitProtocolsInput) spec.Protocols {
 // SignatureLabel returns the RFC 9421 dictionary label for OCM HTTP signatures.
 func (c *CompatCompiler) SignatureLabel() string {
 	_ = c
+
 	return spec.SignatureLabelOCM
 }
 

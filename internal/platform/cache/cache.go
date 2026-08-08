@@ -22,7 +22,7 @@ var (
 	ErrExpired = errors.New("key expired")
 )
 
-// Driver registry (Reva-style)
+// Driver registry (Reva-style).
 var (
 	driversMu sync.RWMutex
 	drivers   = make(map[string]DriverFactory)

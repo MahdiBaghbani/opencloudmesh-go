@@ -274,6 +274,7 @@ func HasOCMTagAttempt(header string) bool {
 	visitAllDictionaryMembers(header, func(_ string, entry string) bool {
 		if entryHasOCMTagAttempt(entry) {
 			found = true
+
 			return false
 		}
 
@@ -291,6 +292,7 @@ func HasOCMLabel(header string) bool {
 	visitAllDictionaryMembers(header, func(label, _ string) bool {
 		if label == SignatureLabelOCM {
 			found = true
+
 			return false
 		}
 
@@ -347,6 +349,7 @@ func (state *tagScanState) stepQuote(s string, i *int, ch byte) bool {
 
 	if ch == '\\' && *i+1 < len(s) {
 		*i += 2
+
 		return true
 	}
 

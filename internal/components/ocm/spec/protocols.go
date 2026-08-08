@@ -7,6 +7,7 @@ package spec
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -61,7 +62,7 @@ func ObjectProtocolRole(v any) (ProtocolRole, error) {
 	}
 
 	if len(raw) == 0 || raw[0] != '{' {
-		return ProtocolRole{}, fmt.Errorf("protocol role object must marshal to a JSON object")
+		return ProtocolRole{}, errors.New("protocol role object must marshal to a JSON object")
 	}
 
 	return ProtocolRole{kind: protocolRoleObject, object: raw}, nil
@@ -95,14 +96,14 @@ func (p ProtocolRole) MarshalJSON() ([]byte, error) {
 
 		return p.object, nil
 	default:
-		return nil, fmt.Errorf("invalid protocol role")
+		return nil, errors.New("invalid protocol role")
 	}
 }
 
 // UnmarshalJSON decodes a string or object JSON value into the role; implements json.Unmarshaler.
 func (p *ProtocolRole) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 || string(data) == "null" {
-		return fmt.Errorf("protocol role cannot be null")
+		return errors.New("protocol role cannot be null")
 	}
 
 	if data[0] == '"' {
@@ -119,7 +120,7 @@ func (p *ProtocolRole) UnmarshalJSON(data []byte) error {
 	}
 
 	if data[0] != '{' {
-		return fmt.Errorf("protocol role must be string or object")
+		return errors.New("protocol role must be string or object")
 	}
 
 	p.kind = protocolRoleObject

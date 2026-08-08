@@ -78,6 +78,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	for _, s := range listed {
 		if s.ProviderID == original.ProviderID {
 			found = s
+
 			break
 		}
 	}

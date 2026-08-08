@@ -205,13 +205,14 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	}
 }
 
-// testLogBuffer is a simple buffer for capturing log output
+// testLogBuffer is a simple buffer for capturing log output.
 type testLogBuffer struct {
 	data []byte
 }
 
 func (b *testLogBuffer) Write(p []byte) (n int, err error) {
 	b.data = append(b.data, p...)
+
 	return len(p), nil
 }
 

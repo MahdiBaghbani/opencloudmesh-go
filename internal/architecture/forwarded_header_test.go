@@ -66,6 +66,7 @@ func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 		for _, token := range forbidden {
 			if strings.Contains(content, token) {
 				violations = append(violations, p)
+
 				break
 			}
 		}

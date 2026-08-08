@@ -11,6 +11,7 @@ package outbound
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -126,7 +127,7 @@ func (p *Poster) applySigning(httpReq *http.Request, req Request, disc *spec.Dis
 		}
 
 		if p.signer == nil {
-			return fmt.Errorf("outbound signing requires a configured signer")
+			return errors.New("outbound signing requires a configured signer")
 		}
 
 		if err := p.signer.SignRequest(httpReq, req.Body); err != nil {

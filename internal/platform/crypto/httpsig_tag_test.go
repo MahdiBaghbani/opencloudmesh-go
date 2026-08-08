@@ -7,9 +7,11 @@ package crypto_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -63,7 +65,7 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
-		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", sigInput)
 		req.Header.Set("Signature", signature)
@@ -82,7 +84,8 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 			httpsigPlaceholderSig,
 		), body, func(string) (sigalg.ResolvedPublicKey, error) {
 			fetched = true
-			return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+
+			return sigalg.ResolvedPublicKey{}, errors.New("should not fetch key")
 		})
 		if result.Verified {
 			t.Fatal("expected duplicate tag rejection")
@@ -112,7 +115,8 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 			"ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:, ocm=:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=:",
 		), body, func(string) (sigalg.ResolvedPublicKey, error) {
 			fetched = true
-			return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+
+			return sigalg.ResolvedPublicKey{}, errors.New("should not fetch key")
 		})
 		if result.Verified {
 			t.Fatal("expected duplicate Signature label rejection")
@@ -140,7 +144,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", digest)
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519";tag="ocm"`,
@@ -152,7 +156,8 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
 		fetched = true
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+
+		return sigalg.ResolvedPublicKey{}, errors.New("should not fetch key")
 	})
 	if result.Verified {
 		t.Fatal("expected duplicate ocm member rejection")
@@ -178,7 +183,8 @@ func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, nil, func(string) (sigalg.ResolvedPublicKey, error) {
 		fetched = true
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+
+		return sigalg.ResolvedPublicKey{}, errors.New("should not fetch key")
 	})
 	if result.Verified {
 		t.Fatal("expected rejection when no ocm member is present")
@@ -322,7 +328,7 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
-		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", sigInput)
 		req.Header.Set("Signature", httpsigPlaceholderSig)
@@ -358,7 +364,7 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := verifier.VerifyRequest(newReq(tc.sigInput), body, func(string) (sigalg.ResolvedPublicKey, error) {
-				return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+				return sigalg.ResolvedPublicKey{}, errors.New("should not fetch key")
 			})
 			if result.Verified {
 				t.Fatal("expected verification failure")

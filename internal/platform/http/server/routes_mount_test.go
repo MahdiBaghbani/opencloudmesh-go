@@ -78,6 +78,7 @@ type orderTrackingService struct {
 
 func (t *orderTrackingService) Handler() http.Handler {
 	*t.mountOrder = append(*t.mountOrder, t.name)
+
 	return http.NotFoundHandler()
 }
 
@@ -85,6 +86,7 @@ func (t *orderTrackingService) Prefix() string { return t.prefix }
 
 func (t *orderTrackingService) Close() error {
 	*t.closeOrder = append(*t.closeOrder, t.name)
+
 	return nil
 }
 

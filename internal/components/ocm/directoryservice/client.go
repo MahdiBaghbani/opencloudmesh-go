@@ -13,6 +13,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -175,7 +176,7 @@ func (c *Client) parseWithOptionalVerification(body []byte, keys []VerificationK
 func (c *Client) parseAndVerifyJWS(body []byte, keys []VerificationKey) (*Listing, error) {
 	algorithms := collectAlgorithms(keys)
 	if len(algorithms) == 0 {
-		return nil, fmt.Errorf("no active verification keys with recognized algorithms")
+		return nil, errors.New("no active verification keys with recognized algorithms")
 	}
 
 	jws, err := jose.ParseSigned(string(body), algorithms)
@@ -213,7 +214,7 @@ func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (
 		return parseListing(payload)
 	}
 
-	return nil, fmt.Errorf("JWS signature verification failed")
+	return nil, errors.New("JWS signature verification failed")
 }
 
 // filterValidServerURLs drops invalid server URLs from verified listings (OCM Appendix C:
@@ -306,7 +307,7 @@ func parseListing(payload []byte) (*Listing, error) {
 	}
 
 	if listing.Federation == "" {
-		return nil, fmt.Errorf("directory service listing missing required 'federation' field")
+		return nil, errors.New("directory service listing missing required 'federation' field")
 	}
 
 	return &listing, nil
@@ -315,7 +316,7 @@ func parseListing(payload []byte) (*Listing, error) {
 func parsePublicKey(pemData string) (crypto.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
-		return nil, fmt.Errorf("no PEM block found")
+		return nil, errors.New("no PEM block found")
 	}
 
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)

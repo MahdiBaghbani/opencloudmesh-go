@@ -51,6 +51,7 @@ func (m *mockCounter) GetCount(_ context.Context, key string) (int64, error) {
 
 func (m *mockCounter) Reset(_ context.Context, key string) error {
 	delete(m.counts, key)
+
 	return nil
 }
 

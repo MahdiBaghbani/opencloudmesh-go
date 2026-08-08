@@ -300,7 +300,7 @@ func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserID string
 	return invites, nil
 }
 
-// Compile-time interface checks
+// Compile-time interface checks.
 var _ store.Driver = (*Driver)(nil)
 var _ store.OutgoingShareStore = (*Driver)(nil)
 var _ store.IncomingShareStore = (*Driver)(nil)

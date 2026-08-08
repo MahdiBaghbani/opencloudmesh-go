@@ -7,6 +7,7 @@ package sigalg
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -14,7 +15,7 @@ import (
 func decodeBase64URL(s string) ([]byte, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return nil, fmt.Errorf("empty base64url value")
+		return nil, errors.New("empty base64url value")
 	}
 	// RFC 7515 base64url without padding.
 	padded := s

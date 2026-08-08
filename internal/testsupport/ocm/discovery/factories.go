@@ -100,6 +100,7 @@ func NewDiscoveryTestServer(tb testing.TB, doc map[string]any) (*httptest.Server
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
+
 			return
 		}
 

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -165,6 +166,7 @@ func TestVerifyRequest_RejectsMissingKeyIDBeforeFetch(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
+
 		return sigalg.ResolvedPublicKey{}, nil
 	})
 	if result.Verified {
@@ -194,6 +196,7 @@ func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
+
 		return sigalg.ResolvedPublicKey{}, nil
 	})
 	if result.Verified {
@@ -223,6 +226,7 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
+
 		return sigalg.ResolvedPublicKey{}, nil
 	})
 	if result.Verified {
@@ -255,7 +259,7 @@ func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
 	req.Host = "example.com"
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Content-Digest", httpsigContentDigestHeader(body))
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	sigInput := fmt.Sprintf(
@@ -270,7 +274,7 @@ func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
 	}
 
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
-	fullBase := sigBase + fmt.Sprintf(`"@signature-params": %s`, paramsRaw)
+	fullBase := sigBase + "\"@signature-params\": " + paramsRaw
 
 	sig, err := km.Sign([]byte(fullBase))
 	if err != nil {
@@ -307,6 +311,7 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, []byte("{}"), func(_ string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
+
 		return sigalg.ResolvedPublicKey{}, nil
 	})
 	if result.Verified {

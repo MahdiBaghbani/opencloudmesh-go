@@ -223,7 +223,7 @@ func publicKeyFromRSAFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
 
 	ei := eBI.Int64()
 	if ei < 2 || ei > int64(^uint(0)>>1) {
-		return nil, fmt.Errorf("sigalg: invalid RSA exponent")
+		return nil, errors.New("sigalg: invalid RSA exponent")
 	}
 
 	return &rsa.PublicKey{
@@ -245,12 +245,14 @@ func PublicKeyFromJWK(kty, crv, x string) (crypto.PublicKey, error) {
 // https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L2025-L2026
 func SumSHA256(data []byte) []byte {
 	sum := sha256.Sum256(data)
+
 	return sum[:]
 }
 
 // SumSHA512 returns a SHA-512 digest helper for content-digest construction.
 func SumSHA512(data []byte) []byte {
 	sum := sha512.Sum512(data)
+
 	return sum[:]
 }
 

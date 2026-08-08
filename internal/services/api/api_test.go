@@ -204,6 +204,7 @@ type testLogBuffer struct {
 
 func (b *testLogBuffer) Write(p []byte) (n int, err error) {
 	b.data = append(b.data, p...)
+
 	return len(p), nil
 }
 

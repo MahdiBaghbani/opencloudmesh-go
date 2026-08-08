@@ -8,6 +8,7 @@ package signature_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -94,7 +95,7 @@ func TestSignatureMiddleware_StrictMode_RejectsPublicKeyLookupFailure(t *testing
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		publicKeyErrors: map[string]error{
-			km.GetKeyID(): fmt.Errorf("discovery unavailable"),
+			km.GetKeyID(): errors.New("discovery unavailable"),
 		},
 	}
 
@@ -262,7 +263,7 @@ func TestSignatureMiddleware_DeclaredPeerResolverError_FailClosed(t *testing.T) 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
 	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
-		return "", fmt.Errorf("malformed sender field")
+		return "", errors.New("malformed sender field")
 	}
 	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run on declared peer resolver error")

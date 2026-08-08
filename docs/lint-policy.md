@@ -48,9 +48,10 @@ set is auditable rather than tacit.
 
 ## Disabled linters (global)
 
-Four linters disabled in `.golangci.yml` need a narrative rationale beyond
-their inline config comment; the entries below document those four. Other
-disabled linters carry their rationale as inline comments in `.golangci.yml`.
+Twenty-one linters are disabled globally in `.golangci.yml`. Four of them
+need a narrative rationale beyond their inline config comment; the entries
+below document those four. The remaining seventeen disabled linters carry
+their rationale as inline comments in `.golangci.yml`.
 Unlike the gosec global excludes (which run the linter and suppress accepted
 findings), these four do not run at all. Each entry states whether the
 disable is structural (needs an architectural change to turn on), deferred
@@ -166,7 +167,6 @@ linters:
     - wsl
     - depguard
     - exhaustruct
-    - nlreturn
     - goconst
     - noinlineerr
     - varnamelen
@@ -183,8 +183,6 @@ linters:
     - gomodguard
     - nonamedreturns
     - ireturn
-    - perfsprint
-    - godot
     - gochecknoinits
     - gocyclo
   settings:

@@ -129,6 +129,7 @@ func newCONNECTRecordingProxy(t *testing.T, connectSeen *atomic.Bool, observedCO
 		targetConn, dialErr := (&net.Dialer{}).DialContext(r.Context(), "tcp", r.Host)
 		if dialErr != nil {
 			http.Error(w, dialErr.Error(), http.StatusBadGateway)
+
 			return
 		}
 
@@ -216,6 +217,7 @@ func TestClient_HTTPSPrivateDestinationBlockedWithProxy(t *testing.T) {
 
 			if err == nil {
 				t.Errorf("expected SSRF error for %s, got nil", target)
+
 				return
 			}
 

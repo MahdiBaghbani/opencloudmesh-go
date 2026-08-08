@@ -236,6 +236,7 @@ func requireLoopbackHostname(t *testing.T) string {
 	for _, ip := range ips {
 		if v4 := ip.To4(); v4 != nil && v4[0] == 127 {
 			resolvesLoopback = true
+
 			break
 		}
 	}

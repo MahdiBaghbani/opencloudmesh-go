@@ -6,7 +6,7 @@
 package wiring
 
 import (
-	"fmt"
+	"errors"
 	"log/slog"
 	"sync/atomic"
 	"testing"
@@ -35,7 +35,7 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 		BuildOpts,
 		*repos.Repos,
 	) (BuildResult, error) {
-		return BuildResult{}, fmt.Errorf("injected wire failure")
+		return BuildResult{}, errors.New("injected wire failure")
 	}
 
 	t.Cleanup(func() { wireSharedDepsHook = oldWire })

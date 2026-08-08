@@ -80,8 +80,8 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		85: {},
 	},
 	"internal/platform/config/loader_validate_ssrf.go": {
-		// loader.go split into loader_*.go; literal moved to loader_validate_ssrf.go:299.
-		299: {},
+		// loader.go split into loader_*.go; literal moved to loader_validate_ssrf.go:300.
+		300: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		9: {},
@@ -318,6 +318,7 @@ func rawWireLiteralViolations(fset *token.FileSet, f *ast.File, rel string, lite
 		if imp, ok := n.(*ast.ImportSpec); ok {
 			// Import paths are string literals but never OCM wire values.
 			_ = imp
+
 			return false
 		}
 

@@ -10,6 +10,7 @@ package protocol
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -98,7 +99,7 @@ func formatPortList(ports []int) string {
 
 	parts := make([]string, len(ports))
 	for i, p := range ports {
-		parts[i] = fmt.Sprintf("%d", p)
+		parts[i] = strconv.Itoa(p)
 	}
 
 	return strings.Join(parts, ", ")

@@ -68,6 +68,7 @@ const discoveryEnrichmentFailed = "failed"
 func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -194,6 +195,7 @@ const (
 func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -202,17 +204,20 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	baseParam := strings.TrimSpace(r.URL.Query().Get("base"))
 	if baseParam == "" {
 		h.sendDiscoverError(w, http.StatusBadRequest, discoverMsgMissingBase, discoverReasonInvalidURL, nil)
+
 		return
 	}
 
 	originURL, normErr := normalizeToOrigin(baseParam)
 	if normErr != nil {
 		h.sendDiscoverError(w, http.StatusBadRequest, discoverMsgInvalidURL, discoverReasonInvalidURL, normErr)
+
 		return
 	}
 
 	if h.discoveryClient == nil {
 		h.sendDiscoverError(w, http.StatusNotImplemented, "discovery client not configured", reason.PeerDiscoveryDisabled, nil)
+
 		return
 	}
 
@@ -226,6 +231,7 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 
 	if disc.InviteAcceptDialog == "" {
 		h.sendDiscoverError(w, http.StatusBadGateway, discoverMsgNoInviteAcceptDialog, discoverReasonNoInviteAcceptDialog, nil)
+
 		return
 	}
 

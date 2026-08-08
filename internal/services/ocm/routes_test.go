@@ -57,6 +57,7 @@ func TestRegisteredRouteSpecs_JWKSDiscoveryRoute(t *testing.T) {
 	for i := range specs {
 		if specs[i].ID == "ocm-jwks" {
 			jwksSpec = &specs[i]
+
 			break
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -63,7 +64,7 @@ const (
 func currentUserFunc(user *identity.User) func(context.Context) (*identity.User, error) {
 	return func(_ context.Context) (*identity.User, error) {
 		if user == nil {
-			return nil, fmt.Errorf("no authenticated user in context")
+			return nil, errors.New("no authenticated user in context")
 		}
 
 		return user, nil
@@ -73,6 +74,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 // newTestRouter mounts the inbox invites handler; nil poster suffices for list/import/decline (accept needs outbound).
 func newTestRouter(t *testing.T, repo invitesincoming.IncomingInviteRepo, user *identity.User) http.Handler {
 	t.Helper()
+
 	return newTestRouterWithDeps(t, repo, user, nil, nil)
 }
 
@@ -181,6 +183,7 @@ func createInviteForUser(t *testing.T, repo invitesincoming.IncomingInviteRepo, 
 
 func buildInviteString(token string) string {
 	inner := token + "@" + "remote.example.com"
+
 	return base64.StdEncoding.EncodeToString([]byte(inner))
 }
 

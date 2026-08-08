@@ -196,6 +196,7 @@ func TestResolve_EmptyJwksURIOverrideAndNoOriginLeavesBuildParamsEmpty(t *testin
 
 func newPeerMappingResolver(t *testing.T, cfg *config.PeerMappingConfig, scope config.CompatibilityScope) *policy.PeerMappingResolver {
 	t.Helper()
+
 	return policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, scope)
 }
 
