@@ -28,7 +28,10 @@ import (
 // the proxy observes a correct CONNECT host:port request before the TLS
 // handshake proceeds.
 func TestClient_HTTPSProxyCONNECT(t *testing.T) {
+	t.Parallel()
+
 	// HTTPS backend - the final TLS destination reached through the tunnel.
+
 	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
@@ -192,11 +195,14 @@ func newCONNECTRecordingProxy(t *testing.T, connectSeen *atomic.Bool, observedCO
 // CONNECT request is sent to the proxy. This is the HTTPS counterpart to
 // TestClient_DestinationPrivateIPBlockedWithProxy.
 func TestClient_HTTPSPrivateDestinationBlockedWithProxy(t *testing.T) {
+	t.Parallel()
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("proxy reached for blocked destination: %s %s", r.Method, r.RequestURI)
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer proxy.Close()
+
+	t.Cleanup(func() { proxy.Close() })
 
 	cfg := outboundtestutil.StrictNoneOutboundConfig()
 	cfg.ProxyURL = proxy.URL
@@ -210,6 +216,8 @@ func TestClient_HTTPSPrivateDestinationBlockedWithProxy(t *testing.T) {
 	}
 	for _, target := range targets {
 		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := c.Get(context.Background(), target) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
 				defer outboundtestutil.MustClose(t, resp.Body)

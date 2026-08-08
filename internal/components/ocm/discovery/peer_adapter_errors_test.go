@@ -16,6 +16,8 @@ import (
 )
 
 func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
+	t.Parallel()
+
 	peerOrigin := peerorigin.NewResolver(true)
 
 	outboundCfg := &config.OutboundHTTPConfig{
@@ -27,6 +29,8 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	discClient := NewClient(rawClient, nil)
 
 	t.Run("jwks 404", func(t *testing.T) {
+		t.Parallel()
+
 		srv := newJWKSErrorPeer(t, http.NotFound)
 		defer srv.Close()
 
@@ -38,6 +42,8 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	})
 
 	t.Run("invalid jwks JSON", func(t *testing.T) {
+		t.Parallel()
+
 		srv := newJWKSErrorPeer(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 
@@ -55,6 +61,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	})
 
 	t.Run("missing kid", func(t *testing.T) {
+		t.Parallel()
 		otherKM := newLoadedKeyManager(t, "https://other.example.com")
 
 		srv := newJWKSErrorPeer(t, func(w http.ResponseWriter, _ *http.Request) {

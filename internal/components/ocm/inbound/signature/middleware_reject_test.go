@@ -25,6 +25,8 @@ import (
 )
 
 func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -48,7 +50,10 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
+	t.Parallel()
+
 	// Create two different key managers
+
 	kmSender := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := kmSender.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate sender: %v", err)
@@ -98,6 +103,8 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 // that the strict middleware returns 401 for malformed signature material rather
 // than passing the request through.
 func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
@@ -142,6 +149,8 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
@@ -170,6 +179,8 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 // proves that a malformed or partial OCM signature attempt is rejected even
 // on the optional path, while a genuine unsigned request is still allowed.
 func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -232,6 +243,8 @@ func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if tt.wantCode != http.StatusOK {
 					t.Fatal("handler should not run for rejected request")
@@ -263,6 +276,8 @@ func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *
 	}
 }
 func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSignature(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -305,6 +320,8 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 	}
 }
 func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -326,6 +343,8 @@ func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_RequireSignatureAndPeer_Advertised_UnsignedRejects(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}

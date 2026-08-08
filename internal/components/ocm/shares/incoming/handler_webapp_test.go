@@ -40,6 +40,7 @@ func assertShareNotStored(t *testing.T, repo incoming.IncomingShareRepo, senderH
 }
 
 func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
@@ -73,6 +74,7 @@ func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
 // trigger 501 at admit regardless of a co-present webdav arm, and no share
 // may be persisted.
 func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
@@ -125,6 +127,8 @@ func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
 }
 
 func TestCreateShare_RejectsWebappMissingFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		body      string
@@ -251,6 +255,7 @@ func TestCreateShare_RejectsWebappMissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := tsrepos.OpenMemory(t).IncomingShares
 			partyRepo := setupTestPartyRepo(t)
 			handler := newTestHandler(repo, partyRepo)
@@ -290,6 +295,8 @@ func TestCreateShare_RejectsWebappMissingFields(t *testing.T) {
 }
 
 func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
+	t.Parallel()
+
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -313,10 +320,12 @@ func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	bodyReader := bytes.NewBufferString(body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bodyReader)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
+
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
@@ -325,15 +334,17 @@ func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
+		t.Fatalf("Decode: %v", err)
 	}
 
-	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
-		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
+	const wantMessage = "PROTOCOL_NOT_SUPPORTED"
+	if resp.Message != wantMessage {
+		t.Errorf("expected %s, got %q", wantMessage, resp.Message)
 	}
 }
 
 func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -395,6 +406,8 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 }
 
 func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
+	t.Parallel()
+
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -418,10 +431,12 @@ func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	bodyReader := bytes.NewBufferString(body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bodyReader)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
+
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
@@ -430,10 +445,10 @@ func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
+		t.Fatalf("Decode: %v", err)
 	}
 
-	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
-		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
+	if got := resp.Message; got != "PROTOCOL_NOT_SUPPORTED" {
+		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", got)
 	}
 }

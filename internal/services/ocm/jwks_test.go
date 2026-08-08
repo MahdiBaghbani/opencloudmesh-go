@@ -17,6 +17,8 @@ import (
 )
 
 func TestJWKSHandler_ServesLocalKeys(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -45,6 +47,8 @@ func TestJWKSHandler_ServesLocalKeys(t *testing.T) {
 }
 
 func TestJWKSHandler_NilKeyManagerServesUnavailable(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, RouteJWKS, nil)
 	rec := httptest.NewRecorder()
 	newJWKSHandler(nil).ServeHTTP(rec, req)
@@ -58,6 +62,8 @@ func TestJWKSHandler_NilKeyManagerServesUnavailable(t *testing.T) {
 // publicly and unauthenticated, serving the JWK set without going through
 // the POST HTTPSig/peer-resolution middleware chain.
 func TestService_MountsJWKSRoute(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)

@@ -23,6 +23,8 @@ import (
 // the memory backend in generated configs, so this test declares its own
 // [persistence] table.
 func TestSubprocessSQLiteBackendBoots(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

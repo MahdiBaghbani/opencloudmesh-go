@@ -13,6 +13,8 @@ import (
 )
 
 func TestResolveSharesRequest_SenderPreferred(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"sender":"alice@sender.example","owner":"bob@owner.example"}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", nil)
 
@@ -29,6 +31,8 @@ func TestResolveSharesRequest_SenderPreferred(t *testing.T) {
 }
 
 func TestResolveSharesRequest_FallbackToOwner(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"sender":"","owner":"bob@owner.example:9200"}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", nil)
 
@@ -45,7 +49,10 @@ func TestResolveSharesRequest_FallbackToOwner(t *testing.T) {
 }
 
 func TestResolveSharesRequest_LastAtSemantics(t *testing.T) {
+	t.Parallel()
+
 	// Email-style identifier with @ in the identifier part
+
 	body := []byte(`{"sender":"alice@university.edu@provider.net"}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", nil)
 
@@ -62,6 +69,8 @@ func TestResolveSharesRequest_LastAtSemantics(t *testing.T) {
 }
 
 func TestResolveSharesRequest_NoSenderOrOwner(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"sender":"","owner":""}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", nil)
 
@@ -74,6 +83,8 @@ func TestResolveSharesRequest_NoSenderOrOwner(t *testing.T) {
 }
 
 func TestResolveSharesRequest_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{invalid}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", nil)
 
@@ -86,6 +97,8 @@ func TestResolveSharesRequest_InvalidJSON(t *testing.T) {
 }
 
 func TestResolveInviteAcceptedRequest(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"recipientProvider":"recipient.example:443","token":"abc","userID":"u"}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted", nil)
 
@@ -102,6 +115,8 @@ func TestResolveInviteAcceptedRequest(t *testing.T) {
 }
 
 func TestResolveInviteAcceptedRequest_MissingProvider(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"recipientProvider":""}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted", nil)
 
@@ -114,6 +129,8 @@ func TestResolveInviteAcceptedRequest_MissingProvider(t *testing.T) {
 }
 
 func TestResolveInviteAcceptedRequest_RejectsURLShapedProvider(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"recipientProvider":"https://recipient.example","token":"abc","userID":"u"}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted", nil)
 
@@ -126,6 +143,8 @@ func TestResolveInviteAcceptedRequest_RejectsURLShapedProvider(t *testing.T) {
 }
 
 func TestResolveTokenRequest_FormBody(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`grant_type=authorization_code&client_id=receiver.example.com%3A443&code=abc`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", nil)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -143,6 +162,8 @@ func TestResolveTokenRequest_FormBody(t *testing.T) {
 }
 
 func TestResolveTokenRequest_RejectsJSONBody(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"abc"}`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", nil)
 	r.Header.Set("Content-Type", "application/json")
@@ -156,6 +177,8 @@ func TestResolveTokenRequest_RejectsJSONBody(t *testing.T) {
 }
 
 func TestResolveTokenRequest_MissingClientID(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`grant_type=authorization_code&code=abc`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", nil)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -169,6 +192,8 @@ func TestResolveTokenRequest_MissingClientID(t *testing.T) {
 }
 
 func TestResolveTokenRequest_RejectsURLShapedClientID(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`grant_type=authorization_code&client_id=https%3A%2F%2Freceiver.example.com&code=abc`)
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", nil)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")

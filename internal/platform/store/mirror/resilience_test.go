@@ -23,6 +23,8 @@ import (
 // The test injects the failure by making the mirror directory read-only after
 // Init, so that temp-file creation inside writeJSON fails.
 func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
+	t.Parallel()
+
 	if os.Getuid() == 0 {
 		t.Skip("cannot test read-only dir as root")
 	}
@@ -78,6 +80,7 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 }
 
 func TestMirrorNeverReadsJSON(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-mirror-noread-*")
 
 	ctx := context.Background()

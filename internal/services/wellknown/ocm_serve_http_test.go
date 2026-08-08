@@ -17,6 +17,8 @@ import (
 )
 
 func TestOCMHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{
 		Provider: "TestProvider",
 	}
@@ -61,6 +63,8 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 
 	h := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())

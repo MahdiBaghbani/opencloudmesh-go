@@ -17,6 +17,8 @@ import (
 )
 
 func TestBuildCoreServices_FailsWithoutSharedDeps(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -31,6 +33,8 @@ func TestBuildCoreServices_FailsWithoutSharedDeps(t *testing.T) {
 }
 
 func TestBuildCoreServices_FailsWithoutRealIP(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	d := &Deps{

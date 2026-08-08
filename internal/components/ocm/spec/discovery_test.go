@@ -21,6 +21,8 @@ import (
 )
 
 func TestHasCriteria_CanonicalEqualityOnly(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Criteria: []string{spec.CriteriaMustUseHTTPSig, spec.CriteriaMustExchangeToken},
 	}
@@ -40,6 +42,8 @@ func TestHasCriteria_CanonicalEqualityOnly(t *testing.T) {
 }
 
 func TestRequiresHTTPSigAndIsHTTPSigCapable(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Capabilities: []string{"http-sig"},
 		Criteria:     []string{"must-use-http-sig"},
@@ -58,6 +62,7 @@ func TestRequiresHTTPSigAndIsHTTPSigCapable(t *testing.T) {
 }
 
 func TestDeriveDiscoveryPaths_RootMount(t *testing.T) {
+	t.Parallel()
 	id := tslocalid.MustTestIdentity(t, "https://example.com", "")
 
 	paths, ok := spec.DeriveDiscoveryPaths(id, service.DefaultRouteOpts())
@@ -87,6 +92,7 @@ func TestDeriveDiscoveryPaths_RootMount(t *testing.T) {
 }
 
 func TestDeriveDiscoveryPaths_BasePathAndInviteAccept(t *testing.T) {
+	t.Parallel()
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
@@ -118,6 +124,8 @@ func TestDeriveDiscoveryPaths_BasePathAndInviteAccept(t *testing.T) {
 }
 
 func TestResolveInviteAcceptDialog_RelativePeerValue(t *testing.T) {
+	t.Parallel()
+
 	got := spec.ResolveInviteAcceptDialog("https://peer.example.com/ocm", "/apps/ocm/invite-accept")
 
 	want := "https://peer.example.com/apps/ocm/invite-accept"
@@ -127,6 +135,7 @@ func TestResolveInviteAcceptDialog_RelativePeerValue(t *testing.T) {
 }
 
 func TestDeriveDiscoveryPaths_SameAuthorityEndpoints(t *testing.T) {
+	t.Parallel()
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
 	opts := service.RouteOpts{ExternalBasePath: "/ocm"}
 
@@ -149,6 +158,8 @@ func TestDeriveDiscoveryPaths_SameAuthorityEndpoints(t *testing.T) {
 }
 
 func TestDeriveDiscoveryPaths_RequiresOrigin(t *testing.T) {
+	t.Parallel()
+
 	_, ok := spec.DeriveDiscoveryPaths(localidentity.Identity{ExternalBasePath: "/ocm"}, service.DefaultRouteOpts())
 	if ok {
 		t.Error("expected projection false without Origin")
@@ -156,6 +167,8 @@ func TestDeriveDiscoveryPaths_RequiresOrigin(t *testing.T) {
 }
 
 func TestWebDAVReceiveURIKind(t *testing.T) {
+	t.Parallel()
+
 	absDisc := &spec.Discovery{
 		ResourceTypes: []spec.ResourceType{{
 			Name: "file",
@@ -186,6 +199,8 @@ func TestWebDAVReceiveURIKind(t *testing.T) {
 }
 
 func TestSupportedResourceTypes(t *testing.T) {
+	t.Parallel()
+
 	if len(spec.SupportedResourceTypes) != 2 {
 		t.Fatalf("SupportedResourceTypes = %v, want [file folder]", spec.SupportedResourceTypes)
 	}
@@ -202,6 +217,8 @@ func TestSupportedResourceTypes(t *testing.T) {
 }
 
 func TestDiscovery_JwksUriPresent(t *testing.T) {
+	t.Parallel()
+
 	const jwksURI = "https://example.com/ocm/jwks"
 
 	disc := &spec.Discovery{
@@ -243,6 +260,8 @@ func TestDiscovery_JwksUriPresent(t *testing.T) {
 }
 
 func TestDiscovery_JwksUriOmittedWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Enabled:       true,
 		APIVersion:    "1.4.0",
@@ -278,6 +297,8 @@ func TestDiscovery_JwksUriOmittedWhenEmpty(t *testing.T) {
 }
 
 func TestCriteriaAlwaysPresent(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Enabled:    true,
 		APIVersion: "1.4.0",
@@ -314,6 +335,8 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 }
 
 func TestDiscovery_Helpers(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Enabled:    true,
 		APIVersion: "1.4.0",

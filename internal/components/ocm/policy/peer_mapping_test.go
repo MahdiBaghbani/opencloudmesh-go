@@ -19,6 +19,7 @@ import (
 // PeerPlatformOverlay identifier families. Legacy prefixes built from
 // Peer+Compat and Peer+Profile are not allowed.
 func TestPeerMapping_NamingGuardrail(t *testing.T) {
+	t.Parallel()
 	policySrc := readPeerMappingSource(t, "peer_mapping.go")
 	configSrc := readPeerMappingSource(t, filepath.Join("..", "..", "..", "platform", "config", "peer_mapping.go"))
 
@@ -37,6 +38,8 @@ func TestPeerMapping_NamingGuardrail(t *testing.T) {
 }
 
 func TestDefaultConfig_ResolveFactsEqualsEvaluate(t *testing.T) {
+	t.Parallel()
+
 	cfg, err := config.Load(config.LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -52,6 +55,8 @@ func TestDefaultConfig_ResolveFactsEqualsEvaluate(t *testing.T) {
 }
 
 func TestPeerMapping_FailClosedMatrix(t *testing.T) {
+	t.Parallel()
+
 	cfg, err := config.Load(config.LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -60,16 +65,22 @@ func TestPeerMapping_FailClosedMatrix(t *testing.T) {
 	resolver := policy.NewPeerMappingResolver(codeFlowFromConfig(cfg), &cfg.OCM.PeerMapping, config.CompatibilityScopeGlobal)
 
 	t.Run("empty config three facts true", func(t *testing.T) {
+		t.Parallel()
+
 		facts := resolver.ResolveFacts("any-host.example")
 		assertAllFactsTrue(t, facts)
 	})
 	t.Run("unknown host global strict", func(t *testing.T) {
+		t.Parallel()
+
 		facts := resolver.ResolveFacts("unknown.example")
 		assertAllFactsTrue(t, facts)
 	})
 }
 
 func TestPeerMapping_InstanceOverridesPlatformOverridesGlobal(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	trueVal := true
 	cfg := config.PeerMappingConfig{
@@ -103,6 +114,8 @@ func TestPeerMapping_InstanceOverridesPlatformOverridesGlobal(t *testing.T) {
 }
 
 func TestPeerMapping_HostPlatformLookup(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := config.PeerMappingConfig{
 		HostPlatform: map[string]string{
@@ -123,6 +136,8 @@ func TestPeerMapping_HostPlatformLookup(t *testing.T) {
 }
 
 func TestPeerMapping_TypedNilConfig_NoPanicFallsBackToGlobal(t *testing.T) {
+	t.Parallel()
+
 	globalCodeFlow := policy.NewCodeFlow()
 
 	var (
@@ -140,6 +155,8 @@ func TestPeerMapping_TypedNilConfig_NoPanicFallsBackToGlobal(t *testing.T) {
 }
 
 func TestPeerMapping_NormalizedHostLookup(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := config.PeerMappingConfig{
 		HostPlatform: map[string]string{
@@ -160,6 +177,8 @@ func TestPeerMapping_NormalizedHostLookup(t *testing.T) {
 }
 
 func TestPeerMapping_GlobalNilInheritsCodeFlowBaseline(t *testing.T) {
+	t.Parallel()
+
 	global := policy.NewCodeFlow()
 	resolver := policy.NewPeerMappingResolver(global, &config.PeerMappingConfig{}, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("any-host.example")
@@ -171,6 +190,8 @@ func TestPeerMapping_GlobalNilInheritsCodeFlowBaseline(t *testing.T) {
 }
 
 func TestPeerMapping_InstanceBindingPrecedenceOverHostPlatform(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	trueVal := true
 	cfg := config.PeerMappingConfig{
@@ -198,6 +219,8 @@ func TestPeerMapping_InstanceBindingPrecedenceOverHostPlatform(t *testing.T) {
 }
 
 func TestPeerMapping_MappedHostAppliesPlatformOverlay(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := config.PeerMappingConfig{
 		HostPlatform: map[string]string{
@@ -220,6 +243,8 @@ func TestPeerMapping_MappedHostAppliesPlatformOverlay(t *testing.T) {
 // TestPeerMapping_GlobalScope_KnobsApplyToUnmappedHost confirms that under the
 // default global scope, global peer_compat knobs are merged for every host.
 func TestPeerMapping_GlobalScope_KnobsApplyToUnmappedHost(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := config.PeerMappingConfig{
 		RequiresTokenExchangeRequirement: &falseVal,
@@ -235,6 +260,8 @@ func TestPeerMapping_GlobalScope_KnobsApplyToUnmappedHost(t *testing.T) {
 // TestPeerMapping_ScopedScope_KnobsApplyToMappedHost confirms that under scoped
 // scope, peer_compat knobs still apply to explicitly mapped peers.
 func TestPeerMapping_ScopedScope_KnobsApplyToMappedHost(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := config.PeerMappingConfig{
 		RequiresTokenExchangeRequirement: &falseVal,
@@ -253,6 +280,8 @@ func TestPeerMapping_ScopedScope_KnobsApplyToMappedHost(t *testing.T) {
 // TestPeerMapping_ScopedScope_KnobsDoNotApplyToUnmappedHost confirms that under
 // scoped scope, global peer_compat knobs are not leaked to unknown peers.
 func TestPeerMapping_ScopedScope_KnobsDoNotApplyToUnmappedHost(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := config.PeerMappingConfig{
 		RequiresTokenExchangeRequirement: &falseVal,
@@ -268,6 +297,8 @@ func TestPeerMapping_ScopedScope_KnobsDoNotApplyToUnmappedHost(t *testing.T) {
 // TestPeerMapping_ScopedScope_UnmappedHostFallsBackToGlobalFacts confirms that
 // scoped scope still leaves unmapped hosts with the global CodeFlow baseline.
 func TestPeerMapping_ScopedScope_UnmappedHostFallsBackToGlobalFacts(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.PeerMappingConfig{}
 	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeScoped)
 	facts := resolver.ResolveFacts("unmapped.example")
@@ -284,6 +315,8 @@ func TestPeerMapping_ScopedScope_UnmappedHostFallsBackToGlobalFacts(t *testing.T
 // platform or instance compatibility overrides. The global peer_compat http-sig
 // knob still applies (under the scope gate), but platform/instance cannot touch it.
 func TestPeerMapping_PerPeerHTTPSigRemoved(t *testing.T) {
+	t.Parallel()
+
 	trueVal := true
 	cfg := config.PeerMappingConfig{
 		RequiresHTTPRequestSignatures: &trueVal,

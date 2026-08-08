@@ -16,6 +16,8 @@ import (
 )
 
 func TestDecideAccessAuth_NilShareFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	client := NewClient(nil, &discovery.Client{}, nil, nil)
 
 	decision, err := client.DecideAccessAuth(AccessOptions{
@@ -33,6 +35,8 @@ func TestDecideAccessAuth_NilShareFailsClosed(t *testing.T) {
 }
 
 func TestDecideAccessAuth_WebDAVTokenExchange(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Enabled:       true,
 		APIVersion:    "1.4.0",
@@ -58,6 +62,8 @@ func TestDecideAccessAuth_WebDAVTokenExchange(t *testing.T) {
 }
 
 func TestDecideAccessAuth_WebDAVSharedSecret(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Enabled:    true,
 		APIVersion: "1.4.0",
@@ -79,6 +85,8 @@ func TestDecideAccessAuth_WebDAVSharedSecret(t *testing.T) {
 }
 
 func TestDecideAccessAuth_WebDAVRequiresButNotCapable(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Enabled:    true,
 		APIVersion: "1.4.0",
@@ -103,6 +111,8 @@ func TestDecideAccessAuth_WebDAVRequiresButNotCapable(t *testing.T) {
 }
 
 func TestDecideAccessAuth_WebDAVRequiresHTTPSigButNotCapable(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Enabled:       true,
 		APIVersion:    "1.4.0",
@@ -141,6 +151,8 @@ func TestDecideAccessAuth_WebDAVRequiresHTTPSigButNotCapable(t *testing.T) {
 // governs OCM API requests such as the token POST, not bearer WebDAV resource
 // access; therefore this branch does not fail closed on signature policy.
 func TestDecideAccessAuth_WebDAVSharedSecret_IgnoresMustUseHTTPSig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		capabilities []string
@@ -157,6 +169,8 @@ func TestDecideAccessAuth_WebDAVSharedSecret_IgnoresMustUseHTTPSig(t *testing.T)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			disc := &spec.Discovery{
 				Enabled:      true,
 				APIVersion:   "1.4.0",
@@ -186,6 +200,8 @@ func TestDecideAccessAuth_WebDAVSharedSecret_IgnoresMustUseHTTPSig(t *testing.T)
 }
 
 func TestDecideAccessAuth_WebDAVOptionalExchange(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		requirements  []string
@@ -231,6 +247,8 @@ func TestDecideAccessAuth_WebDAVOptionalExchange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			disc := &spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",

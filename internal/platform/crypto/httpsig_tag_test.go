@@ -22,6 +22,7 @@ import (
 )
 
 func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -56,6 +57,8 @@ func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	body := httpsigTestBodyJSON
@@ -74,6 +77,8 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 	}
 
 	t.Run("duplicate_signature_input", func(t *testing.T) {
+		t.Parallel()
+
 		fetched := false
 
 		result := verifier.VerifyRequest(newReq(
@@ -105,6 +110,8 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 	})
 
 	t.Run("duplicate_signature", func(t *testing.T) {
+		t.Parallel()
+
 		fetched := false
 
 		result := verifier.VerifyRequest(newReq(
@@ -137,6 +144,8 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	body := httpsigTestBodyJSON
@@ -169,6 +178,8 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
@@ -200,6 +211,7 @@ func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 }
 
 func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()
@@ -237,6 +249,7 @@ func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
 }
 
 func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()
@@ -279,6 +292,7 @@ func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
 }
 
 func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	signOpts := crypto.DefaultRFC9421Options()
@@ -319,6 +333,8 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 }
 
 func TestHTTPSig_Verify_TagCount(t *testing.T) {
+	t.Parallel()
+
 	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
@@ -363,6 +379,8 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := verifier.VerifyRequest(newReq(tc.sigInput), body, func(string) (sigalg.ResolvedPublicKey, error) {
 				return sigalg.ResolvedPublicKey{}, errors.New("should not fetch key")
 			})
@@ -378,6 +396,7 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 }
 
 func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()

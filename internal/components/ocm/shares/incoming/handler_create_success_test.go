@@ -52,14 +52,17 @@ func runCreateShareSuccess(t *testing.T, shareWith string) {
 }
 
 func TestCreateShare_Success_ResolvesById(t *testing.T) {
+	t.Parallel()
 	runCreateShareSuccess(t, "user-a-uuid@localhost:9200")
 }
 
 func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
+	t.Parallel()
 	runCreateShareSuccess(t, "alice@localhost:9200")
 }
 
 func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
@@ -77,6 +80,7 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 	}
 }
 func TestCreateShare_DuplicateReturns200(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
@@ -116,6 +120,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsFolderResourceType(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
@@ -142,9 +147,12 @@ func TestCreateShare_AcceptsFolderResourceType(t *testing.T) {
 	}
 }
 func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
+	t.Parallel()
+
 	// Reva-style federated opaque ID: base64url_padded(userID@localProvider)
 	// The encoded identifier won't match any user by raw ID, username, or email,
 	// so triple resolution fails and the decode fallback fires.
+
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)

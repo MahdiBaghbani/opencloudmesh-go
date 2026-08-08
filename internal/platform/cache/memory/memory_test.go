@@ -17,6 +17,8 @@ import (
 )
 
 func TestCache_SetGet(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -40,6 +42,8 @@ func TestCache_SetGet(t *testing.T) {
 }
 
 func TestCache_GetNotFound(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -52,6 +56,8 @@ func TestCache_GetNotFound(t *testing.T) {
 }
 
 func TestCache_Expiration(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -93,6 +99,8 @@ func TestCache_Expiration(t *testing.T) {
 }
 
 func TestCache_Delete(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -113,6 +121,8 @@ func TestCache_Delete(t *testing.T) {
 }
 
 func TestCache_ValueIsolation(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -151,6 +161,8 @@ func TestCache_ValueIsolation(t *testing.T) {
 }
 
 func TestCounter_Increment(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -197,6 +209,8 @@ func TestCounter_Increment(t *testing.T) {
 }
 
 func TestCounter_Expiration(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -233,6 +247,8 @@ func TestCounter_Expiration(t *testing.T) {
 }
 
 func TestCounter_Reset(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -258,6 +274,8 @@ func TestCounter_Reset(t *testing.T) {
 }
 
 func TestCounter_ResetAt(t *testing.T) {
+	t.Parallel()
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -302,7 +320,10 @@ func TestCounter_ResetAt(t *testing.T) {
 }
 
 func TestCache_CleanupLoop(t *testing.T) {
+	t.Parallel()
+
 	// Create cache with fast cleanup
+
 	c := memory.New(time.Minute, 50*time.Millisecond)
 	defer tshttp.MustClose(t, c)
 

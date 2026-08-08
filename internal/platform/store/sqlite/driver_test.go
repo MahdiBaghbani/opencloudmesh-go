@@ -18,6 +18,7 @@ import (
 )
 
 func TestSQLiteDriver(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-sqlite-*")
 
 	cfg := &store.DriverConfig{
@@ -94,6 +95,7 @@ func openSQLiteDriver(t *testing.T, name string) (store.OutgoingInviteStore, sto
 // even though the replacing writer succeeded; the exact assertion below fails
 // in that case instead of masking it with an either/or check.
 func TestSQLiteOutgoingInviteConcurrentUpdateNoStaleCoalesce(t *testing.T) {
+	t.Parallel()
 	s, _, ctx := openSQLiteDriver(t, "ocm-test-sqlite-toctou-*")
 
 	invite := testutil.NewOutgoingInviteFixture()
@@ -216,6 +218,7 @@ func TestSQLiteOutgoingInviteConcurrentUpdateNoStaleCoalesce(t *testing.T) {
 // (sender-a) even though the replacing writer succeeded; the exact assertion
 // below fails in that case instead of masking it with an either/or check.
 func TestSQLiteIncomingInviteConcurrentUpdateNoStaleCoalesce(t *testing.T) {
+	t.Parallel()
 	_, s, ctx := openSQLiteDriver(t, "ocm-test-sqlite-toctou-in-*")
 
 	invite := testutil.NewIncomingInviteFixture()

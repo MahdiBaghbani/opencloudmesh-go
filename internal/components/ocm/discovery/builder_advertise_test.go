@@ -15,6 +15,8 @@ import (
 )
 
 func TestBuildDiscovery_MustUseHTTPSig_RequiresAdvertise(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:               "https://example.com/ocm",
 		WebDAVRoot:             "/webdav/ocm/",
@@ -36,6 +38,8 @@ func TestBuildDiscovery_MustUseHTTPSig_RequiresAdvertise(t *testing.T) {
 }
 
 func TestBuildDiscovery_AdvertisesJwksUriWhenHTTPSig(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:         "https://example.com/ocm",
 		WebDAVRoot:       "/webdav/ocm/",
@@ -61,6 +65,8 @@ func TestBuildDiscovery_AdvertisesJwksUriWhenHTTPSig(t *testing.T) {
 }
 
 func TestBuildDiscovery_JwksUriDerivedUnderBasePathEndPoint(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:         "https://example.com/myapp/ocm",
 		WebDAVRoot:       "/webdav/ocm/",
@@ -73,6 +79,8 @@ func TestBuildDiscovery_JwksUriDerivedUnderBasePathEndPoint(t *testing.T) {
 }
 
 func TestBuildDiscovery_OmitsJwksUriWithoutHTTPSig(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "https://example.com/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -84,6 +92,8 @@ func TestBuildDiscovery_OmitsJwksUriWithoutHTTPSig(t *testing.T) {
 }
 
 func TestBuildDiscovery_JwksURIOverrideAdvertisedVerbatim(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:         "https://example.com/ocm",
 		WebDAVRoot:       "/webdav/ocm/",
@@ -97,6 +107,8 @@ func TestBuildDiscovery_JwksURIOverrideAdvertisedVerbatim(t *testing.T) {
 }
 
 func TestBuildDiscovery_EmptyJwksURIOverrideStillDerivesFromEndPoint(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:         "https://example.com/ocm",
 		WebDAVRoot:       "/webdav/ocm/",
@@ -110,6 +122,8 @@ func TestBuildDiscovery_EmptyJwksURIOverrideStillDerivesFromEndPoint(t *testing.
 }
 
 func TestBuildDiscovery_JwksURIOverrideOmittedWithoutHTTPSig(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "https://example.com/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -122,6 +136,8 @@ func TestBuildDiscovery_JwksURIOverrideOmittedWithoutHTTPSig(t *testing.T) {
 }
 
 func TestBuildDiscovery_JwksUriFollowsDevHTTPEndPoint(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:         "http://localhost:9200/ocm",
 		WebDAVRoot:       "/webdav/ocm/",
@@ -134,6 +150,8 @@ func TestBuildDiscovery_JwksUriFollowsDevHTTPEndPoint(t *testing.T) {
 }
 
 func TestBuildDiscovery_AdvertisesDenylistWhenConfigured(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:          "https://example.com/ocm",
 		WebDAVRoot:        "/webdav/ocm/",
@@ -146,6 +164,8 @@ func TestBuildDiscovery_AdvertisesDenylistWhenConfigured(t *testing.T) {
 }
 
 func TestBuildDiscovery_OmitsDenylistWhenNotConfigured(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "https://example.com/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -157,6 +177,8 @@ func TestBuildDiscovery_OmitsDenylistWhenNotConfigured(t *testing.T) {
 }
 
 func TestBuildDiscovery_AdvertisesAllowlistWhenConfigured(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:           "https://example.com/ocm",
 		WebDAVRoot:         "/webdav/ocm/",
@@ -169,6 +191,8 @@ func TestBuildDiscovery_AdvertisesAllowlistWhenConfigured(t *testing.T) {
 }
 
 func TestBuildDiscovery_OmitsAllowlistWhenNotConfigured(t *testing.T) {
+	t.Parallel()
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:   "https://example.com/ocm",
 		WebDAVRoot: "/webdav/ocm/",
@@ -180,6 +204,8 @@ func TestBuildDiscovery_OmitsAllowlistWhenNotConfigured(t *testing.T) {
 }
 
 func TestBuildDiscovery_EmitsOnlySpecDefinedCriteria(t *testing.T) {
+	t.Parallel()
+
 	known := make(map[string]struct{}, len(spec.KnownCriteria()))
 	for _, c := range spec.KnownCriteria() {
 		known[c] = struct{}{}

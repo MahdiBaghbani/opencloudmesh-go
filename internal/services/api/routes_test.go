@@ -12,6 +12,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs(t *testing.T) {
+	t.Parallel()
+
 	specs := registeredRouteSpecs(service.DefaultRouteOpts())
 	if len(specs) < 10 {
 		t.Fatalf("expected many api route specs, got %d", len(specs))
@@ -25,6 +27,8 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 }
 
 func TestRegisteredRouteSpecs_OutboundProtocolKinds(t *testing.T) {
+	t.Parallel()
+
 	specs := registeredRouteSpecs(service.DefaultRouteOpts())
 	found := map[service.OutboundProtocolKind]bool{
 		service.OutboundShares:  false,

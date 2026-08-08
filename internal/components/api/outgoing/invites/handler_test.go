@@ -45,6 +45,8 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 }
 
 func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) {
+	t.Parallel()
+
 	const originWithDefaultPort = "https://example.com:443"
 
 	wantProvider := tslocalid.MustTestIdentity(t, originWithDefaultPort, "").ProviderDomain
@@ -76,6 +78,7 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 }
 
 func TestHandleCreateOutgoing_Success(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{ID: "creator-2", Username: "alice"}
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
@@ -118,6 +121,7 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{
 		ID:       "creator-uuid",
@@ -150,6 +154,7 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
@@ -164,6 +169,7 @@ func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
@@ -178,6 +184,7 @@ func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed_Returns405(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 

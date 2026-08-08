@@ -25,6 +25,7 @@ import (
 )
 
 func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-redact", "sender.example.com", "redact.txt")
 	secret := share.SharedSecret
@@ -65,6 +66,7 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-redact-ct", "sender.example.com", "ct.txt")
 	secret := share.SharedSecret
@@ -113,6 +115,7 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-redact-status", "sender.example.com", "err.txt")
 	secret := share.SharedSecret
@@ -161,6 +164,7 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 
 	share := &sharesincoming.IncomingShare{

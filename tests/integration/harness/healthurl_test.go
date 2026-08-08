@@ -14,6 +14,8 @@ import (
 )
 
 func TestHealthEndpointURL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name             string
 		baseURL          string
@@ -48,6 +50,8 @@ func TestHealthEndpointURL(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := healthEndpointURL(tc.baseURL, tc.externalBasePath)
 			if got != tc.want {
 				t.Fatalf("healthEndpointURL(%q, %q) = %q, want %q",
@@ -58,6 +62,8 @@ func TestHealthEndpointURL(t *testing.T) {
 }
 
 func TestLocalListenerBaseURL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		tlsMode string
@@ -73,6 +79,8 @@ func TestLocalListenerBaseURL(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := localListenerBaseURL(tc.tlsMode, tc.port)
 			if got != tc.want {
 				t.Fatalf("localListenerBaseURL(%q, %d) = %q, want %q",
@@ -83,6 +91,8 @@ func TestLocalListenerBaseURL(t *testing.T) {
 }
 
 func TestValidatePreBootstrapStartup(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		mutate    func(*config.Config)
@@ -118,6 +128,8 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := config.StrictConfig()
 			tc.mutate(cfg)
 
@@ -138,6 +150,8 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 }
 
 func TestApplyIETFConfigDefaults(t *testing.T) {
+	t.Parallel()
+
 	dev := config.DevConfig()
 	cfg := config.DevConfig()
 	applyIETFConfigDefaults(cfg)
@@ -165,6 +179,8 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 }
 
 func TestIETFIntegrationBuildOpts(t *testing.T) {
+	t.Parallel()
+
 	opts := IETFIntegrationBuildOpts()
 	if opts.SkipCrypto {
 		t.Fatal("SkipCrypto must be false for IETF integration path")
@@ -185,6 +201,8 @@ func TestIETFIntegrationBuildOpts(t *testing.T) {
 }
 
 func TestIETFIntegrationBuildOpts_MatchesWiringBuildOpts(t *testing.T) {
+	t.Parallel()
+
 	got := IETFIntegrationBuildOpts()
 
 	want := wiring.BuildOpts{

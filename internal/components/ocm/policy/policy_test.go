@@ -90,6 +90,8 @@ func assertAllFactsTrue(t *testing.T, facts policy.Facts) {
 }
 
 func TestStrictPreset_FinalShape(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.StrictConfig()
 	if cfg == nil {
 		t.Fatal("expected StrictConfig to load a config")
@@ -168,6 +170,8 @@ use_env_fallback = true
 }
 
 func TestDevPreset_FinalShape(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	if cfg == nil {
 		t.Fatal("expected DevConfig to load a config")
@@ -208,12 +212,15 @@ func TestDevPreset_FinalShape(t *testing.T) {
 // TestCodeFlow_EvaluateDefaultsStrict confirms unset knobs on a non-nil
 // CodeFlow evaluate to all-true facts.
 func TestCodeFlow_EvaluateDefaultsStrict(t *testing.T) {
+	t.Parallel()
 	assertAllFactsTrue(t, policy.NewCodeFlow().Evaluate())
 }
 
 // TestCodeFlow_NilSafe confirms a nil *CodeFlow is safe to call and returns
 // all-false Facts (strict-off).
 func TestCodeFlow_NilSafe(t *testing.T) {
+	t.Parallel()
+
 	var c *policy.CodeFlow
 
 	facts := c.Evaluate()
@@ -224,6 +231,8 @@ func TestCodeFlow_NilSafe(t *testing.T) {
 }
 
 func TestCodeFlow_LegacyVoluntary_IncludesFalse(t *testing.T) {
+	t.Parallel()
+
 	facts := configfixture.CodeFlowLegacyVoluntary().Evaluate()
 	if facts.IncludesTokenExchangeRequirement {
 		t.Fatal("expected IncludesTokenExchangeRequirement false")
@@ -239,10 +248,14 @@ func TestCodeFlow_LegacyVoluntary_IncludesFalse(t *testing.T) {
 }
 
 func TestCodeFlow_KnobRelaxationAndEnforcement(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	trueVal := true
 
 	t.Run("false relaxes each knob", func(t *testing.T) {
+		t.Parallel()
+
 		cf := &policy.CodeFlow{
 			IncludesTokenExchangeRequirement: &falseVal,
 			RequiresTokenExchangeRequirement: &falseVal,
@@ -257,6 +270,8 @@ func TestCodeFlow_KnobRelaxationAndEnforcement(t *testing.T) {
 	})
 
 	t.Run("true enforces each knob", func(t *testing.T) {
+		t.Parallel()
+
 		cf := &policy.CodeFlow{
 			IncludesTokenExchangeRequirement: &trueVal,
 			RequiresTokenExchangeRequirement: &trueVal,
@@ -346,6 +361,8 @@ func TestCodeFlow_UnsetTOMLKeepsNilKnobs(t *testing.T) {
 }
 
 func TestDiscovery_OmitsMustUseHTTPSigWhenRequiresFalse(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cf := &policy.CodeFlow{RequiresHTTPRequestSignatures: &falseVal}
 	facts := cf.Evaluate()

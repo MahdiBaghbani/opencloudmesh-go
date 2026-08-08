@@ -24,6 +24,8 @@ import (
 const unnormalizableProvider = "bad host"
 
 func TestCreateShare_Unauthenticated_RejectsUnnormalizableProviders(t *testing.T) {
+	t.Parallel()
+
 	const validHost = "sender.example.com"
 
 	tests := []struct {
@@ -54,6 +56,7 @@ func TestCreateShare_Unauthenticated_RejectsUnnormalizableProviders(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := tsrepos.OpenMemory(t).IncomingShares
 			partyRepo := setupTestPartyRepo(t)
 			handler := newTestHandler(repo, partyRepo)
@@ -99,6 +102,8 @@ func TestCreateShare_Unauthenticated_RejectsUnnormalizableProviders(t *testing.T
 }
 
 func TestCreateShare_UnauthenticatedOwnerHostDefaultPortStripped(t *testing.T) {
+	t.Parallel()
+
 	const (
 		normalizedHost = "relay.example.com"
 		rawOwnerHost   = "relay.example.com:443"
@@ -146,6 +151,8 @@ func TestCreateShare_UnauthenticatedOwnerHostDefaultPortStripped(t *testing.T) {
 }
 
 func TestCreateShare_Authenticated_RejectsUnnormalizableOwnerProvider(t *testing.T) {
+	t.Parallel()
+
 	const (
 		authority  = "relay.example.com"
 		providerID = "auth-owner-normalize-fail"

@@ -24,6 +24,8 @@ import (
 // token and Alice providerDomain, Bob preserves accept-invite query through login
 // redirect, Bob accepts via API, and Alice records accepted state.
 func TestWayfInviteAcceptTwoInstance(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

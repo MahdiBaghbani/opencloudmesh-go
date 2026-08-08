@@ -21,6 +21,7 @@ import (
 // an invite created directly in accepted status must carry the full accepted
 // identity.
 func TestCreate_RejectsAcceptedWithoutIdentity(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	ctx := context.Background()
 
@@ -41,6 +42,7 @@ func TestCreate_RejectsAcceptedWithoutIdentity(t *testing.T) {
 // normalized provider host is rejected instead of persisting a row the
 // must-invite lookup could never match.
 func TestUpdateStatus_RejectsAcceptedWithoutNormalizedHost(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	ctx := context.Background()
 
@@ -66,6 +68,7 @@ func TestUpdateStatus_RejectsAcceptedWithoutNormalizedHost(t *testing.T) {
 // path: an acceptance carrying recipient identity is findable by user and
 // normalized host.
 func TestFindAcceptedForRecipient_MatchesPersistedIdentity(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	ctx := context.Background()
 

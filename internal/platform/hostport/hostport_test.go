@@ -10,6 +10,8 @@ import (
 )
 
 func TestNormalize(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		authority string
@@ -65,6 +67,8 @@ func TestNormalize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := Normalize(tt.authority, tt.scheme)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Normalize(%q, %q) error = %v, wantErr = %v", tt.authority, tt.scheme, err, tt.wantErr)
@@ -78,7 +82,10 @@ func TestNormalize(t *testing.T) {
 }
 
 func TestNormalize_Equivalence(t *testing.T) {
+	t.Parallel()
+
 	// Verify that bare host and host with default port produce the same result.
+
 	bare, err1 := Normalize("example.org", "https")
 
 	withPort, err2 := Normalize("example.org:443", "https")

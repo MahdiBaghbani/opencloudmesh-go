@@ -13,6 +13,8 @@ import (
 )
 
 func TestValidateAcceptedIdentity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		status         string
@@ -32,6 +34,8 @@ func TestValidateAcceptedIdentity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := invites.ValidateAcceptedIdentity(tt.status, tt.userID, tt.normalizedHost)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("ValidateAcceptedIdentity(%q, %q, %q) = %v, want %v",
@@ -42,6 +46,8 @@ func TestValidateAcceptedIdentity(t *testing.T) {
 }
 
 func TestValidateCreateInviteStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		status         string
@@ -60,6 +66,8 @@ func TestValidateCreateInviteStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := invites.ValidateCreateInviteStatus(tt.status, tt.userID, tt.normalizedHost)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("ValidateCreateInviteStatus(%q, %q, %q) = %v, want %v",
@@ -70,6 +78,8 @@ func TestValidateCreateInviteStatus(t *testing.T) {
 }
 
 func TestCoalesceAcceptedIdentity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		argUserID   string
@@ -93,6 +103,8 @@ func TestCoalesceAcceptedIdentity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			userID, host := invites.CoalesceAcceptedIdentity(tt.argUserID, tt.argHost, tt.existUserID, tt.existHost)
 			if userID != tt.wantUserID || host != tt.wantHost {
 				t.Errorf("CoalesceAcceptedIdentity(%q, %q, %q, %q) = (%q, %q), want (%q, %q)",
@@ -104,6 +116,8 @@ func TestCoalesceAcceptedIdentity(t *testing.T) {
 }
 
 func TestValidateUpdateAcceptedIdentity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		status      string
@@ -127,6 +141,8 @@ func TestValidateUpdateAcceptedIdentity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := invites.ValidateUpdateAcceptedIdentity(tt.status, tt.argUserID, tt.argHost, tt.existUserID, tt.existHost)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("ValidateUpdateAcceptedIdentity(%q, %q, %q, %q, %q) = %v, want %v",

@@ -26,6 +26,8 @@ import (
 //     next fetch.
 //  4. Update path works correctly after isolation is applied.
 func TestJSONOutgoingShareIsolation(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 
@@ -127,6 +129,8 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 //  3. Provider-key scoped lookup returns a copy with correct values.
 //  4. Status-only update still works after the isolation change.
 func TestJSONIncomingShareIsolation(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 

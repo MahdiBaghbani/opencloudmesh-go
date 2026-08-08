@@ -20,6 +20,8 @@ import (
 )
 
 func TestCreateShare_Authenticated_RejectsUntrustedOwnerProvider(t *testing.T) {
+	t.Parallel()
+
 	const (
 		ownerHost  = "owner.example.com"
 		senderHost = "relay.example.com"
@@ -61,6 +63,8 @@ func TestCreateShare_Authenticated_RejectsUntrustedOwnerProvider(t *testing.T) {
 	}
 }
 func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
+	t.Parallel()
+
 	const (
 		authenticatedSender = "verified-sender.com"
 		rawSenderHost       = "wrong-sender.com"
@@ -122,6 +126,8 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 }
 
 func TestCreateShare_Authenticated_AcceptsDistinctOwnerAndSenderUserIDs(t *testing.T) {
+	t.Parallel()
+
 	const (
 		authority  = "relay.example.com"
 		providerID = "distinct-users-same-authority"
@@ -189,6 +195,8 @@ func TestCreateShare_Authenticated_AcceptsDistinctOwnerAndSenderUserIDs(t *testi
 }
 
 func TestCreateShare_AuthenticatedOwnerHostDefaultPortStripped(t *testing.T) {
+	t.Parallel()
+
 	const (
 		normalizedAuthority = "relay.example.com"
 		rawOwnerHost        = "relay.example.com:443"

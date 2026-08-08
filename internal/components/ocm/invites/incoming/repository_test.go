@@ -20,6 +20,7 @@ import (
 // an invite created directly in accepted status must carry the full sender
 // identity.
 func TestCreate_RejectsAcceptedWithoutIdentity(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	ctx := context.Background()
 
@@ -39,6 +40,7 @@ func TestCreate_RejectsAcceptedWithoutIdentity(t *testing.T) {
 // no sender identity is rejected instead of persisting a row the must-invite
 // lookup could never match.
 func TestUpdateStatusForRecipientUserID_RejectsAcceptedWithoutIdentity(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	ctx := context.Background()
 
@@ -61,6 +63,7 @@ func TestUpdateStatusForRecipientUserID_RejectsAcceptedWithoutIdentity(t *testin
 // an acceptance carrying sender identity is findable by user and normalized
 // host.
 func TestFindAcceptedForSender_MatchesPersistedIdentity(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	ctx := context.Background()
 

@@ -14,6 +14,8 @@ import (
 )
 
 func TestHTTPSigAlgorithms_AsymmetricOnlyAndSHA256(t *testing.T) {
+	t.Parallel()
+
 	// OCM request signatures use an asymmetric algorithm identified by the JWK
 	// `alg` parameter from the IANA JOSE registry (RFC7518); Ed25519 is
 	// RECOMMENDED. The `none` algorithm and symmetric MAC algorithms such as
@@ -25,6 +27,7 @@ func TestHTTPSigAlgorithms_AsymmetricOnlyAndSHA256(t *testing.T) {
 	// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L856-L860
 	// This guard checks that the default allowed algorithm set satisfies those
 	// invariants and that SHA-256 is the implemented digest.
+
 	for _, alg := range sigalg.DefaultAllowed() {
 		if sigalg.IsSymmetric(alg) {
 			t.Errorf("DefaultAllowed algorithm %q is symmetric", alg)

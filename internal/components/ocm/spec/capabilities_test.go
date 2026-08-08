@@ -17,6 +17,8 @@ import (
 )
 
 func TestCapabilityWireValues(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		got  string
@@ -29,6 +31,8 @@ func TestCapabilityWireValues(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if tc.got != tc.want {
 				t.Errorf("wire value = %q, want %q", tc.got, tc.want)
 			}
@@ -37,6 +41,8 @@ func TestCapabilityWireValues(t *testing.T) {
 }
 
 func TestCapabilityInviteMatchesOutboundEndpointKindWireValue(t *testing.T) {
+	t.Parallel()
+
 	if spec.CapabilityInvite != string(outbound.EndpointInvites) {
 		t.Fatalf("CapabilityInvite = %q, EndpointInvites = %q; wire vocabulary should match",
 			spec.CapabilityInvite, outbound.EndpointInvites)
@@ -44,6 +50,8 @@ func TestCapabilityInviteMatchesOutboundEndpointKindWireValue(t *testing.T) {
 }
 
 func TestDiscoveryHelpersUseCapabilityConstants(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		Capabilities:  []string{spec.CapabilityHTTPSig, spec.CapabilityExchangeToken},
 		TokenEndPoint: "https://example.com/ocm/token",
@@ -79,9 +87,13 @@ var capabilityWireLiterals = []string{
 }
 
 func TestCapabilityClosedPathNoRawWireLiterals(t *testing.T) {
+	t.Parallel()
+
 	root := modroot.ModuleRoot(t)
 	for _, rel := range capabilityClosedPathFiles {
 		t.Run(rel, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)

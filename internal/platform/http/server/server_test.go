@@ -58,10 +58,14 @@ func testServerDeps(t *testing.T, cfg *config.Config, logger *slog.Logger) Serve
 }
 
 func TestNew_FailsWithMissingServerDeps(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	t.Run("empty deps", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := New(cfg, logger, nil, ServerDeps{})
 		if err == nil {
 			t.Fatal("expected error for missing server deps")
@@ -73,6 +77,8 @@ func TestNew_FailsWithMissingServerDeps(t *testing.T) {
 	})
 
 	t.Run("missing auth gate", func(t *testing.T) {
+		t.Parallel()
+
 		sd := ServerDeps{RealIP: realip.NewTrustedProxies(nil)}
 
 		_, err := New(cfg, logger, nil, sd)
@@ -87,6 +93,8 @@ func TestNew_FailsWithMissingServerDeps(t *testing.T) {
 }
 
 func TestNew_SucceedsWithServerDeps(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -101,6 +109,8 @@ func TestNew_SucceedsWithServerDeps(t *testing.T) {
 }
 
 func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -140,6 +150,7 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 }
 
 func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://[::1]:9080/x?q=1", nil)
 	req.Host = "[::1]:9080"
 	rec := httptest.NewRecorder()

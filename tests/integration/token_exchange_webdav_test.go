@@ -18,6 +18,8 @@ import (
 
 // TestWebDAVWithBearerToken tests WebDAV access with bearer token authentication.
 func TestWebDAVWithBearerToken(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -37,10 +39,13 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 		Name: "webdav-test",
 		Mode: "dev",
 	})
-	defer srv.Stop(t)
+	t.Cleanup(func() { srv.Stop(t) })
 
 	t.Run("WebDAVEndpointExists", func(t *testing.T) {
+		t.Parallel()
+
 		// Try to access WebDAV endpoint - should require auth
+
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
 		if err != nil {
 			t.Fatalf("create request: %v", err)
@@ -61,7 +66,10 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 	})
 
 	t.Run("WebDAVRequiresAuth", func(t *testing.T) {
+		t.Parallel()
+
 		// The WebDAV endpoint should require authorization
+
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/webdav/ocm/test-id", nil)
 		if err != nil {
 			t.Fatalf("create request: %v", err)

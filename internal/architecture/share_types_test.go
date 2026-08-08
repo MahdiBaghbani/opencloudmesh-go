@@ -13,8 +13,11 @@ import (
 )
 
 func TestDiscoveryShareTypes_AdvertiseUserNotFederation(t *testing.T) {
+	t.Parallel()
+
 	// "federation" is an OCM-MLS share type, not core OCM
 	// (https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1874-L1876); ocmgo must never advertise it.
+
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint: "https://example.org/ocm",
 	}, nil)

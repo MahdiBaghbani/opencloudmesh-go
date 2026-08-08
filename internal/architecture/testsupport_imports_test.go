@@ -20,6 +20,7 @@ import (
 const testsupportImportPrefix = "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport"
 
 func TestTestsupportOnlyImportedFromTestFiles(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	var violations []string

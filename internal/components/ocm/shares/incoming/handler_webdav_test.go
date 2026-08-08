@@ -16,6 +16,7 @@ import (
 )
 
 func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -80,6 +81,8 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 
@@ -94,6 +97,7 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -121,6 +125,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -148,6 +153,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -175,6 +181,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 }
 
 func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)

@@ -76,6 +76,8 @@ func (h *recordingHandler) getAttr(key string) (any, bool) {
 }
 
 func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	handler := newRecordingHandler()
 	logger := slog.New(handler)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -150,6 +152,8 @@ func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
 }
 
 func TestRequestLoggerMiddleware_ClientIPFromXForwardedFor(t *testing.T) {
+	t.Parallel()
+
 	handler := newRecordingHandler()
 	logger := slog.New(handler)
 	// Trust localhost so X-Forwarded-For is honored
@@ -189,6 +193,8 @@ func TestRequestLoggerMiddleware_ClientIPFromXForwardedFor(t *testing.T) {
 }
 
 func TestRequestLoggerMiddleware_NilTrustedProxies(t *testing.T) {
+	t.Parallel()
+
 	handler := newRecordingHandler()
 	logger := slog.New(handler)
 
@@ -225,6 +231,8 @@ func TestRequestLoggerMiddleware_NilTrustedProxies(t *testing.T) {
 }
 
 func TestRequestLoggerMiddleware_PathOnly_NoQueryString(t *testing.T) {
+	t.Parallel()
+
 	handler := newRecordingHandler()
 	logger := slog.New(handler)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})

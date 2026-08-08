@@ -15,6 +15,8 @@ import (
 // flows unchanged into resolve.ResolveInputs.JwksURIOverride, the same field
 // resolve.Resolve threads into discovery.BuildParams.JwksURI.
 func TestResolveInputs_CopiesSignatureJwksURI(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.Signature.JwksURI = "https://cloud.example.com/custom/jwks.json"
 
@@ -29,6 +31,8 @@ func TestResolveInputs_CopiesSignatureJwksURI(t *testing.T) {
 // TestResolveInputs_EmptySignatureJwksURILeavesOverrideEmpty confirms an
 // unset override does not synthesize a value.
 func TestResolveInputs_EmptySignatureJwksURILeavesOverrideEmpty(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	d := &Deps{}
@@ -40,6 +44,8 @@ func TestResolveInputs_EmptySignatureJwksURILeavesOverrideEmpty(t *testing.T) {
 }
 
 func TestResolveInputs_AdvertisesPeerTrustListsWhenEnabled(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PeerTrust.Enabled = true
 	cfg.PeerTrust.Policy.DenyList = []string{"blocked.example.com"}
@@ -56,6 +62,8 @@ func TestResolveInputs_AdvertisesPeerTrustListsWhenEnabled(t *testing.T) {
 }
 
 func TestResolveInputs_OmitsPeerTrustListsWhenDisabled(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PeerTrust.Enabled = false
 	cfg.PeerTrust.Policy.DenyList = []string{"blocked.example.com"}
@@ -72,6 +80,8 @@ func TestResolveInputs_OmitsPeerTrustListsWhenDisabled(t *testing.T) {
 }
 
 func TestResolveInputs_OmitsEmptyPeerTrustLists(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PeerTrust.Enabled = true
 
@@ -86,6 +96,8 @@ func TestResolveInputs_OmitsEmptyPeerTrustLists(t *testing.T) {
 }
 
 func TestResolveInputs_AdvertisesDenylistOnly(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PeerTrust.Enabled = true
 	cfg.PeerTrust.Policy.DenyList = []string{"blocked.example.com"}
@@ -101,6 +113,8 @@ func TestResolveInputs_AdvertisesDenylistOnly(t *testing.T) {
 }
 
 func TestResolveInputs_AdvertisesAllowlistOnly(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PeerTrust.Enabled = true
 	cfg.PeerTrust.Policy.AllowList = []string{"trusted.example.com"}

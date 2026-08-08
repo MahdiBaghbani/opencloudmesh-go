@@ -23,6 +23,8 @@ import (
 )
 
 func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		sharedSecret  string
@@ -45,6 +47,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := tsrepos.OpenMemory(t).IncomingShares
 			partyRepo := setupTestPartyRepo(t)
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)

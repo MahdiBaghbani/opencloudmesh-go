@@ -18,6 +18,7 @@ import (
 )
 
 func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()
@@ -63,6 +64,7 @@ func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
 }
 
 func TestRFC9421_SignAndVerify(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()
@@ -109,6 +111,7 @@ func TestRFC9421_SignAndVerify(t *testing.T) {
 }
 
 func TestRFC9421_SignatureParams(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()
@@ -141,6 +144,7 @@ func TestRFC9421_SignatureParams(t *testing.T) {
 }
 
 func TestHTTPSig_GoldenDefaultSignatureInput(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	opts := httpsigFixedOptions()
@@ -171,6 +175,7 @@ func TestHTTPSig_GoldenDefaultSignatureInput(t *testing.T) {
 }
 
 func TestSignRequest_DefaultSigningDoesNotCreateDate(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	signer := crypto.NewRFC9421SignerWithOptions(km, httpsigFixedOptions())
 
@@ -198,6 +203,7 @@ func TestSignRequest_DefaultSigningDoesNotCreateDate(t *testing.T) {
 }
 
 func TestSignRequest_PreexistingDateRemainsUnsigned(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -233,6 +239,8 @@ func TestSignRequest_PreexistingDateRemainsUnsigned(t *testing.T) {
 }
 
 func TestSignRequest_ExplicitDateComponentCovered(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		preexistingDate bool
@@ -243,6 +251,7 @@ func TestSignRequest_ExplicitDateComponentCovered(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			km := mustHTTPSigKeyManager(t)
 			opts := httpsigFixedOptions()
 			opts.RequiredComponents = []string{"@method", "@target-uri", "content-digest", "content-length", "date"}

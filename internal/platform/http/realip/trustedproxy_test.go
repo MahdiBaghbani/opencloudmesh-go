@@ -13,6 +13,8 @@ import (
 )
 
 func TestTrustedProxies_IsTrusted(t *testing.T) {
+	t.Parallel()
+
 	tp := NewTrustedProxies([]string{"127.0.0.0/8", "::1/128", "10.0.0.0/8"})
 
 	tests := []struct {
@@ -31,6 +33,8 @@ func TestTrustedProxies_IsTrusted(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.ip, func(t *testing.T) {
+			t.Parallel()
+
 			ip := net.ParseIP(tt.ip)
 			if ip == nil {
 				t.Fatalf("failed to parse IP: %s", tt.ip)
@@ -45,7 +49,10 @@ func TestTrustedProxies_IsTrusted(t *testing.T) {
 }
 
 func TestTrustedProxies_GetClientIP_Direct(t *testing.T) {
+	t.Parallel()
+
 	// No trusted proxies
+
 	tp := NewTrustedProxies(nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
@@ -59,6 +66,8 @@ func TestTrustedProxies_GetClientIP_Direct(t *testing.T) {
 }
 
 func TestTrustedProxies_GetClientIP_Trusted(t *testing.T) {
+	t.Parallel()
+
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
@@ -72,6 +81,8 @@ func TestTrustedProxies_GetClientIP_Trusted(t *testing.T) {
 }
 
 func TestTrustedProxies_GetClientIP_XRealIP(t *testing.T) {
+	t.Parallel()
+
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
@@ -85,6 +96,8 @@ func TestTrustedProxies_GetClientIP_XRealIP(t *testing.T) {
 }
 
 func TestTrustedProxies_GetClientIP_UntrustedIgnoresHeader(t *testing.T) {
+	t.Parallel()
+
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
@@ -98,6 +111,8 @@ func TestTrustedProxies_GetClientIP_UntrustedIgnoresHeader(t *testing.T) {
 }
 
 func TestTrustedProxies_IPv6(t *testing.T) {
+	t.Parallel()
+
 	tp := NewTrustedProxies([]string{"::1/128"})
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
@@ -111,6 +126,8 @@ func TestTrustedProxies_IPv6(t *testing.T) {
 }
 
 func TestParseRemoteAddr(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		addr string
 		want string
@@ -122,6 +139,8 @@ func TestParseRemoteAddr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.addr, func(t *testing.T) {
+			t.Parallel()
+
 			ip := parseRemoteAddr(tt.addr)
 			if ip == nil {
 				t.Fatalf("parseRemoteAddr returned nil for %s", tt.addr)
@@ -135,7 +154,10 @@ func TestParseRemoteAddr(t *testing.T) {
 }
 
 func TestNewTrustedProxies_SingleIP(t *testing.T) {
+	t.Parallel()
+
 	// Test that single IPs (not CIDR) work
+
 	tp := NewTrustedProxies([]string{"192.168.1.1"})
 
 	if !tp.IsTrusted(net.ParseIP("192.168.1.1")) {

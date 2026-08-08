@@ -21,6 +21,7 @@ import (
 )
 
 func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -68,6 +69,7 @@ func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) {
 }
 
 func TestCreateShare_NilResolver_RejectsEmptyWebappRequirements(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -111,6 +113,7 @@ func TestCreateShare_NilResolver_RejectsEmptyWebappRequirements(t *testing.T) {
 }
 
 func TestCreateShare_ResolverWithNoPeerOverlay_RejectsEmptyWebDAVRequirements(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandlerWithResolver(repo, partyRepo, policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal))
@@ -154,6 +157,7 @@ func TestCreateShare_ResolverWithNoPeerOverlay_RejectsEmptyWebDAVRequirements(t 
 }
 
 func TestCreateShare_NilResolver_AcceptsWebDAVWithMustExchangeToken(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -180,6 +184,7 @@ func TestCreateShare_NilResolver_AcceptsWebDAVWithMustExchangeToken(t *testing.T
 }
 
 func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 
@@ -248,6 +253,7 @@ func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
 }
 
 func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 
@@ -303,6 +309,7 @@ func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
 }
 
 func TestCreateShare_PeerOverlayRejectsWebappForMatchedHost(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 
@@ -338,6 +345,7 @@ func TestCreateShare_PeerOverlayRejectsWebappForMatchedHost(t *testing.T) {
 }
 
 func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 
@@ -402,6 +410,7 @@ func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testin
 }
 
 func TestCreateShare_MalformedSender_KeepsStrictRequirements(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 

@@ -13,6 +13,8 @@ import (
 )
 
 func TestCapturingLoggerConcurrentWrites(t *testing.T) {
+	t.Parallel()
+
 	capture := NewCapturingLogger(slog.LevelDebug)
 
 	const writers = 32

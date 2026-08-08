@@ -24,6 +24,8 @@ import (
 )
 
 func TestValidateAllowed_RejectsHMAC(t *testing.T) {
+	t.Parallel()
+
 	err := sigalg.ValidateAllowed("hmac-sha256", sigalg.DefaultAllowed())
 	if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
 		t.Fatalf("got %v, want ErrSymmetricNotPermitted", err)
@@ -31,6 +33,8 @@ func TestValidateAllowed_RejectsHMAC(t *testing.T) {
 }
 
 func TestValidateAllowed_AcceptsDefaultSet(t *testing.T) {
+	t.Parallel()
+
 	for _, alg := range sigalg.DefaultAllowed() {
 		if err := sigalg.ValidateAllowed(alg, sigalg.DefaultAllowed()); err != nil {
 			t.Fatalf("unexpected error for %s: %v", alg, err)
@@ -39,12 +43,16 @@ func TestValidateAllowed_AcceptsDefaultSet(t *testing.T) {
 }
 
 func TestValidateAllowed_RejectsEmpty(t *testing.T) {
+	t.Parallel()
+
 	if err := sigalg.ValidateAllowed("", sigalg.DefaultAllowed()); !errors.Is(err, sigalg.ErrMissingAlgorithm) {
 		t.Fatalf("got %v, want ErrMissingAlgorithm", err)
 	}
 }
 
 func TestNormalize_JOSENames(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"ed25519":           sigalg.Ed25519,
 		"EdDSA":             sigalg.Ed25519,
@@ -72,6 +80,8 @@ func TestNormalize_JOSENames(t *testing.T) {
 }
 
 func TestDeriveFromJWK(t *testing.T) {
+	t.Parallel()
+
 	successes := []struct {
 		name string
 		kty  string
@@ -87,6 +97,8 @@ func TestDeriveFromJWK(t *testing.T) {
 
 	for _, tt := range successes {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := sigalg.DeriveFromJWK(tt.kty, tt.crv, tt.alg)
 			if err != nil || got != tt.want {
 				t.Fatalf("got %q err %v, want %q", got, err, tt.want)
@@ -113,6 +125,8 @@ func TestDeriveFromJWK(t *testing.T) {
 
 	for _, tt := range failures {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := sigalg.DeriveFromJWK(tt.kty, tt.crv, tt.alg)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("got %v, want %v", err, tt.wantErr)
@@ -122,6 +136,8 @@ func TestDeriveFromJWK(t *testing.T) {
 }
 
 func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
+	t.Parallel()
+
 	got, err := sigalg.ResolveAlgorithm("", "EC", "P-256", "ES256")
 	if err != nil || got != sigalg.ECDSAP256SHA256 {
 		t.Fatalf("omit header: got %q err %v", got, err)
@@ -166,6 +182,8 @@ func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
 // they would denote the same algorithm as the JWK alg.
 // https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L903-L913
 func TestResolveAlgorithm_RejectsJOSENamesInHeader(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		headerAlg string
@@ -181,6 +199,8 @@ func TestResolveAlgorithm_RejectsJOSENamesInHeader(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := sigalg.ResolveAlgorithm(tc.headerAlg, tc.kty, tc.crv, tc.jwkAlg)
 			if err == nil {
 				t.Fatalf("ResolveAlgorithm(%q, ...): expected JOSE name rejection", tc.headerAlg)
@@ -194,6 +214,7 @@ func TestResolveAlgorithm_RejectsJOSENamesInHeader(t *testing.T) {
 }
 
 func TestSignVerify_Ed25519(t *testing.T) {
+	t.Parallel()
 	pub, priv := mustEd25519KeyPair(t)
 	msg := []byte("signature base")
 
@@ -208,6 +229,7 @@ func TestSignVerify_Ed25519(t *testing.T) {
 }
 
 func TestVerify_ECDSAP256_RawRS(t *testing.T) {
+	t.Parallel()
 	priv := mustECDSAKey(t, elliptic.P256())
 	msg := []byte("ocm signature base ecdsa-p256")
 	digest := sha256.Sum256(msg)
@@ -233,6 +255,7 @@ func TestVerify_ECDSAP256_RawRS(t *testing.T) {
 }
 
 func TestVerify_ECDSAP384_RawRS(t *testing.T) {
+	t.Parallel()
 	priv := mustECDSAKey(t, elliptic.P384())
 	msg := []byte("ocm signature base ecdsa-p384")
 	sum := sha512.Sum384(msg)
@@ -253,6 +276,7 @@ func TestVerify_ECDSAP384_RawRS(t *testing.T) {
 }
 
 func TestVerify_RS256(t *testing.T) {
+	t.Parallel()
 	priv := mustRSAKey(t)
 	msg := []byte("ocm signature base rsa")
 	digest := sha256.Sum256(msg)
@@ -268,6 +292,7 @@ func TestVerify_RS256(t *testing.T) {
 }
 
 func TestVerify_RS384AndRS512(t *testing.T) {
+	t.Parallel()
 	priv := mustRSAKey(t)
 	msg := []byte("ocm signature base rsa-384-512")
 
@@ -295,6 +320,7 @@ func TestVerify_RS384AndRS512(t *testing.T) {
 }
 
 func TestPublicKeyFromJWK_Ed25519(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	x := base64.RawURLEncoding.EncodeToString(pub)
 
@@ -314,6 +340,7 @@ func TestPublicKeyFromJWK_Ed25519(t *testing.T) {
 }
 
 func TestPublicKeyFromJWKFields_ECAndRSA(t *testing.T) {
+	t.Parallel()
 	ecPriv := mustECDSAKey(t, elliptic.P256())
 	x := base64.RawURLEncoding.EncodeToString(tscrypto.PadCoord(ecPriv.X.Bytes(), 32))
 	y := base64.RawURLEncoding.EncodeToString(tscrypto.PadCoord(ecPriv.Y.Bytes(), 32))
@@ -356,7 +383,10 @@ func TestPublicKeyFromJWKFields_ECAndRSA(t *testing.T) {
 }
 
 func TestVerify_RFC9421_B24_ECDSAP256(t *testing.T) {
+	t.Parallel()
+
 	// Verify-only vector from RFC 9421 Appendix B.2.4 (ecdsa-p256-sha256).
+
 	const signatureBase = "" +
 		`"@status": 200` + "\n" +
 		`"content-type": application/json` + "\n" +
@@ -387,6 +417,8 @@ func TestVerify_RFC9421_B24_ECDSAP256(t *testing.T) {
 }
 
 func TestNormalize_RejectsJOSESymmetric(t *testing.T) {
+	t.Parallel()
+
 	for _, in := range []string{"HS256", "hs256", "HS384", "hs512"} {
 		_, err := sigalg.Normalize(in)
 		if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
@@ -400,6 +432,8 @@ func TestNormalize_RejectsJOSESymmetric(t *testing.T) {
 // name from the IANA "HTTP Signature Algorithms" registry, including ed25519,
 // the one identifier that is also a valid JOSE name.
 func TestNormalizeSignatureInputAlgorithm_AcceptsNativeNames(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"ed25519":           sigalg.Ed25519,
 		"ED25519":           sigalg.Ed25519,

@@ -74,6 +74,7 @@ var bannedTokens = []string{
 var peerMappingIdent = regexp.MustCompile(`PeerMapping\w*`)
 
 func TestResolvedFindings_BanList(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations, err := scanBannedIdentifiers(root)
@@ -173,6 +174,8 @@ func bannedIdentifierViolations(content, rel string) []string {
 }
 
 func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
+	t.Parallel()
+
 	want := []string{
 		"internal/components/ocm/discovery/resolve/inputs.go",
 		"internal/components/ocm/discovery/resolve/resolve.go",
@@ -241,6 +244,7 @@ func peerMappingAllowed(ident, rel string) bool {
 }
 
 func TestRFC9421Conformance(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		run  func(t *testing.T)
@@ -254,6 +258,7 @@ func TestRFC9421Conformance(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			tc.run(t)
 		})
 	}

@@ -26,6 +26,8 @@ import (
 // The proxy hop is trusted (operator-controlled) but the private destination
 // must still satisfy route policy or be blocked.
 func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
+	t.Parallel()
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Error("proxy should not be reached for policy-blocked destination")
 		w.WriteHeader(http.StatusOK)
@@ -119,6 +121,8 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 // the (loopback) destination. Both the initial preflight and the redirect
 // SSRF check must pass for the redirect to succeed.
 func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
+	t.Parallel()
+
 	var requestCount int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +182,8 @@ func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 // the suffix-mismatch message. Both are SSRF errors, but the text must reflect
 // which invariant failed so operators can diagnose configuration problems.
 func TestClient_NoPolicyErrorDistinct(t *testing.T) {
+	t.Parallel()
+
 	resolver := &fixedResolver{entries: map[string][]net.IPAddr{
 		"internal.example.com": {{IP: net.ParseIP("10.0.1.50")}},
 	}}

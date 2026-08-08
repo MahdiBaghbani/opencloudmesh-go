@@ -17,6 +17,8 @@ import (
 )
 
 func TestClientDiscover_RealPeerFixtures(t *testing.T) {
+	t.Parallel()
+
 	httpCfg := tshttp.PermissiveConfig()
 	fixtures := []struct {
 		name       string
@@ -49,6 +51,7 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 
 	for _, fx := range fixtures {
 		t.Run(fx.name, func(t *testing.T) {
+			t.Parallel()
 			server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 				raw := validDiscoveryPayload(serverURL, map[string]any{
 					"apiVersion": fx.apiVersion,

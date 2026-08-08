@@ -11,6 +11,8 @@ import (
 )
 
 func TestValidateInputs_ReportsMissingRatelimitKeyFunc(t *testing.T) {
+	t.Parallel()
+
 	err := validateInputs(Inputs{})
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -22,6 +24,8 @@ func TestValidateInputs_ReportsMissingRatelimitKeyFunc(t *testing.T) {
 }
 
 func TestValidateInputs_AcceptsRatelimitKeyFunc(t *testing.T) {
+	t.Parallel()
+
 	if err := validateInputs(testOCMAuxInputs()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -18,11 +18,15 @@ import (
 )
 
 func TestSignatureCriteria(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
 	t.Run("criteria off allows unsigned token request", func(t *testing.T) {
+		t.Parallel()
+
 		falseVal := false
 
 		ts := harness.StartTestServerWithIETFConfig(t, func(cfg *config.Config) {
@@ -41,6 +45,8 @@ func TestSignatureCriteria(t *testing.T) {
 	})
 
 	t.Run("criteria on rejects unsigned token request", func(t *testing.T) {
+		t.Parallel()
+
 		trueVal := true
 
 		ts := harness.StartTestServerWithIETFConfig(t, func(cfg *config.Config) {

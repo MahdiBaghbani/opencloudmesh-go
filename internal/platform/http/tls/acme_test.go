@@ -17,6 +17,8 @@ import (
 )
 
 func TestHTTP01Provider_PresentAndCleanUp(t *testing.T) {
+	t.Parallel()
+
 	p := &HTTP01Provider{}
 
 	if err := p.Present("example.com", "tok1", "keyAuth1"); err != nil {
@@ -56,6 +58,8 @@ func TestHTTP01Provider_PresentAndCleanUp(t *testing.T) {
 }
 
 func TestHTTP01Provider_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
 	p := &HTTP01Provider{}
 
 	const n = 50
@@ -84,6 +88,8 @@ func TestHTTP01Provider_ConcurrentAccess(t *testing.T) {
 }
 
 func TestChallengeHandler_ServesKeyAuth(t *testing.T) {
+	t.Parallel()
+
 	m := &ACMEManager{
 		provider: &HTTP01Provider{},
 	}
@@ -111,6 +117,8 @@ func TestChallengeHandler_ServesKeyAuth(t *testing.T) {
 }
 
 func TestChallengeHandler_Returns404ForUnknown(t *testing.T) {
+	t.Parallel()
+
 	m := &ACMEManager{
 		provider: &HTTP01Provider{},
 	}
@@ -126,6 +134,8 @@ func TestChallengeHandler_Returns404ForUnknown(t *testing.T) {
 }
 
 func TestChallengeHandler_Returns404ForEmptyToken(t *testing.T) {
+	t.Parallel()
+
 	m := &ACMEManager{
 		provider: &HTTP01Provider{},
 	}
@@ -141,6 +151,8 @@ func TestChallengeHandler_Returns404ForEmptyToken(t *testing.T) {
 }
 
 func TestChallengeHandler_Returns404ForWrongPath(t *testing.T) {
+	t.Parallel()
+
 	m := &ACMEManager{
 		provider: &HTTP01Provider{},
 	}
@@ -156,6 +168,7 @@ func TestChallengeHandler_Returns404ForWrongPath(t *testing.T) {
 }
 
 func TestChallengeHandler_BeforeInit_NoPanicAnd404(t *testing.T) {
+	t.Parallel()
 	m := NewACMEManager(&config.ACMEConfig{
 		StorageDir: t.TempDir(),
 	}, nil, nil)
@@ -171,6 +184,8 @@ func TestChallengeHandler_BeforeInit_NoPanicAnd404(t *testing.T) {
 }
 
 func TestHTTP01Provider_TTLExpires(t *testing.T) {
+	t.Parallel()
+
 	baseTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	now := baseTime
 	p := &HTTP01Provider{

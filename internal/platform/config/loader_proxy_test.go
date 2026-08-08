@@ -161,6 +161,8 @@ func TestLoad_ProxyURL_DefaultEmpty(t *testing.T) {
 }
 
 func TestUseEnvFallback_StrictPresetDefaultFalse(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	if cfg.OutboundHTTP.UseEnvFallback {
 		t.Error("strict preset must default use_env_fallback=false")
@@ -168,6 +170,8 @@ func TestUseEnvFallback_StrictPresetDefaultFalse(t *testing.T) {
 }
 
 func TestUseEnvFallback_DevPresetDefaultFalse(t *testing.T) {
+	t.Parallel()
+
 	cfg := DevConfig()
 	if cfg.OutboundHTTP.UseEnvFallback {
 		t.Error("dev preset must default use_env_fallback=false")
@@ -287,10 +291,13 @@ use_env_fallback = true
 }
 
 func TestOutboundHTTPConfigStrict_UseEnvFallbackFalse(t *testing.T) {
+	t.Parallel()
+
 	// OutboundHTTPConfigStrict is a non-ambient building block: it must never
 	// enable environment-based proxy discovery on its own. StrictConfig() now
 	// also defaults use_env_fallback=false, so the raw builder must stay false
 	// so callers that use it directly get a safe, non-ambient default.
+
 	cfg := OutboundHTTPConfigStrict()
 	if cfg.UseEnvFallback {
 		t.Error("OutboundHTTPConfigStrict() must return UseEnvFallback=false (non-ambient by default)")

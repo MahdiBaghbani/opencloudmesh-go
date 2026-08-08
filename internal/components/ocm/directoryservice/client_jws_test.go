@@ -25,6 +25,7 @@ func newTestHTTPClient() *httpclient.Client {
 }
 
 func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -43,6 +44,7 @@ func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 }
 
 func TestFetchListing_CompactJWS_RS256(t *testing.T) {
+	t.Parallel()
 	kp := generateRSA(t)
 	body := signCompact(t, jose.RS256, kp.priv, testPayload(t))
 
@@ -61,6 +63,7 @@ func TestFetchListing_CompactJWS_RS256(t *testing.T) {
 }
 
 func TestFetchListing_CompactJWS_ES256(t *testing.T) {
+	t.Parallel()
 	kp := generateECDSA(t)
 	body := signCompact(t, jose.ES256, kp.priv, testPayload(t))
 
@@ -79,6 +82,7 @@ func TestFetchListing_CompactJWS_ES256(t *testing.T) {
 }
 
 func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signFullSerialize(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -97,6 +101,7 @@ func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
 }
 
 func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
+	t.Parallel()
 	kp1 := generateEd25519(t)
 	kp2 := generateRSA(t)
 
@@ -133,6 +138,7 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 }
 
 func TestFetchListing_InvalidSignature(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -152,6 +158,7 @@ func TestFetchListing_InvalidSignature(t *testing.T) {
 }
 
 func TestFetchListing_WrongKey(t *testing.T) {
+	t.Parallel()
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
@@ -169,6 +176,7 @@ func TestFetchListing_WrongKey(t *testing.T) {
 }
 
 func TestFetchListing_InactiveKey(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -185,6 +193,7 @@ func TestFetchListing_InactiveKey(t *testing.T) {
 }
 
 func TestFetchListing_MissingFederationField(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 
 	payload, err := json.Marshal(map[string]any{
@@ -209,6 +218,8 @@ func TestFetchListing_MissingFederationField(t *testing.T) {
 }
 
 func TestFetchListing_UnsignedPayload(t *testing.T) {
+	t.Parallel()
+
 	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
@@ -223,6 +234,7 @@ func TestFetchListing_UnsignedPayload(t *testing.T) {
 }
 
 func TestFetchListing_NoActiveKeys(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -239,6 +251,7 @@ func TestFetchListing_NoActiveKeys(t *testing.T) {
 }
 
 func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
+	t.Parallel()
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
@@ -261,6 +274,7 @@ func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
 }
 
 func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -279,6 +293,8 @@ func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
 }
 
 func TestFetchListing_HTTPError(t *testing.T) {
+	t.Parallel()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

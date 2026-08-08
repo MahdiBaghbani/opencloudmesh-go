@@ -17,6 +17,8 @@ import (
 // ---- backend selection ----
 
 func TestNew_MemoryBackend(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cfg := config.PersistenceConfig{Backend: config.BackendMemory}
 
@@ -44,6 +46,8 @@ func TestNew_MemoryBackend(t *testing.T) {
 }
 
 func TestNew_JSONBackend(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	dir := t.TempDir()
 
@@ -76,6 +80,8 @@ func TestNew_JSONBackend(t *testing.T) {
 }
 
 func TestNew_SQLiteBackend(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	dir := t.TempDir()
 
@@ -108,6 +114,8 @@ func TestNew_SQLiteBackend(t *testing.T) {
 }
 
 func TestNew_MirrorBackend(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	dir := t.TempDir()
 
@@ -140,6 +148,8 @@ func TestNew_MirrorBackend(t *testing.T) {
 }
 
 func TestNew_UnknownBackend(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cfg := config.PersistenceConfig{Backend: "postgres"}
 

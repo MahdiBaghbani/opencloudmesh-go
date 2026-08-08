@@ -11,6 +11,8 @@ import (
 )
 
 func TestWebappDTO_DecodeValid(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"uri":"https://sender.example/apps/files/abc","targets":["blank","iframe"],"permissions":["view","read","write","share"],"requirements":["must-exchange-token"],"sharedSecret":"s"}`
 
 	var p WebappProtocol
@@ -36,12 +38,16 @@ func TestWebappDTO_DecodeValid(t *testing.T) {
 }
 
 func TestWebappProtocol_AcceptsValid(t *testing.T) {
+	t.Parallel()
+
 	if errs := ValidateWebappProtocol(validWebapp()); len(errs) != 0 {
 		t.Fatalf("expected no validation errors, got %v", errs)
 	}
 }
 
 func TestWebappProtocol_RequiresURI(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.URI = ""
 
@@ -52,6 +58,8 @@ func TestWebappProtocol_RequiresURI(t *testing.T) {
 }
 
 func TestWebappProtocol_RequiresTargets(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Targets = nil
 
@@ -62,6 +70,8 @@ func TestWebappProtocol_RequiresTargets(t *testing.T) {
 }
 
 func TestWebappProtocol_RequiresPermissions(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Permissions = nil
 
@@ -72,6 +82,8 @@ func TestWebappProtocol_RequiresPermissions(t *testing.T) {
 }
 
 func TestWebappProtocol_RequiresRequirements(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Requirements = nil
 
@@ -94,6 +106,8 @@ func TestWebappProtocol_RequiresRequirements(t *testing.T) {
 }
 
 func TestWebappProtocol_RequiresSharedSecret(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.SharedSecret = ""
 
@@ -104,8 +118,11 @@ func TestWebappProtocol_RequiresSharedSecret(t *testing.T) {
 }
 
 func TestWebappProtocol_RequiresMustExchangeToken(t *testing.T) {
+	t.Parallel()
+
 	// Non-empty requirements without must-exchange-token must be rejected,
 	// even when the only other requirement is the recognized must-use-mfa.
+
 	p := validWebapp()
 	p.Requirements = []string{RequirementMustUseMFA}
 
@@ -116,6 +133,8 @@ func TestWebappProtocol_RequiresMustExchangeToken(t *testing.T) {
 }
 
 func TestWebappProtocol_RejectsUnknownRequirement(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Requirements = []string{RequirementMustExchangeToken, "an-unsupported-requirement"}
 
@@ -134,6 +153,8 @@ func TestWebappProtocol_RejectsUnknownRequirement(t *testing.T) {
 }
 
 func TestWebappProtocol_RejectsUnsupportedPermission(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Permissions = []string{"delete"}
 
@@ -152,8 +173,11 @@ func TestWebappProtocol_RejectsUnsupportedPermission(t *testing.T) {
 }
 
 func TestWebappPermissions_DistinctFromWebDAV(t *testing.T) {
+	t.Parallel()
+
 	// The webapp allow-list must be distinct and broader than WebDAV's.
 	// view/write/share are supported for webapp but NOT for webdav.
+
 	for _, perm := range []string{"view", "write", "share"} {
 		if !isSupportedWebappPermission(perm) {
 			t.Errorf("webapp should support %q", perm)
@@ -177,6 +201,8 @@ func TestWebappPermissions_DistinctFromWebDAV(t *testing.T) {
 }
 
 func TestWebappProtocol_RejectsMustUseMFAWithGapNote(t *testing.T) {
+	t.Parallel()
+
 	p := validWebapp()
 	p.Requirements = []string{RequirementMustExchangeToken, RequirementMustUseMFA}
 	errs := ValidateWebappProtocol(p)

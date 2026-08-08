@@ -21,6 +21,8 @@ import (
 // and that the proxy receives an absolute-form request URI as required by
 // RFC 7230 s5.3.2 for HTTP proxy requests.
 func TestClient_ExplicitProxySuccess(t *testing.T) {
+	t.Parallel()
+
 	var (
 		proxyHit                                         atomic.Bool
 		observedRequestURI, observedMethod, observedHost atomic.Value
@@ -76,6 +78,8 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 // TestClient_DestinationPrivateIPBlockedWithProxy verifies that the preflight
 // SSRF check still blocks private-IP destinations even when a proxy is configured.
 func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
+	t.Parallel()
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Preflight must fire before the proxy is ever contacted.
 		t.Error("proxy should not have been reached for a blocked destination")
@@ -116,6 +120,8 @@ func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
 // in strict mode. Destination SSRF is still enforced by the preflight check,
 // so private-IP destinations are blocked before the proxy is contacted.
 func TestClient_PrivateProxyAllowedInStrictMode(t *testing.T) {
+	t.Parallel()
+
 	var proxyHit atomic.Bool
 
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

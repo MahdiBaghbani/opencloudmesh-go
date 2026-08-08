@@ -14,6 +14,8 @@ import (
 // Route-policy tests only: production session enforcement is proven at server
 // and integration layers, not by hitting the bare UI service handler.
 func TestRouteSpecs_SessionPolicy_WayfAndAcceptInvite(t *testing.T) {
+	t.Parallel()
+
 	enabled := service.RouteOpts{
 		WayfEnabled:         true,
 		InviteAcceptEnabled: true,
@@ -49,6 +51,8 @@ func TestRouteSpecs_SessionPolicy_WayfAndAcceptInvite(t *testing.T) {
 }
 
 func TestRouteSpecs_SessionAuthProjection_WayfPublicAcceptInviteProtected(t *testing.T) {
+	t.Parallel()
+
 	enabled := service.RouteOpts{
 		WayfEnabled:         true,
 		InviteAcceptEnabled: true,
@@ -72,6 +76,8 @@ func TestRouteSpecs_SessionAuthProjection_WayfPublicAcceptInviteProtected(t *tes
 }
 
 func TestRouteSpecs_SessionAuthProjection_WithExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
 		WayfEnabled:         true,

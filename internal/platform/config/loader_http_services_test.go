@@ -71,6 +71,8 @@ path = "auth/token"
 }
 
 func TestBuildServiceConfig_ReturnsNilForUnconfiguredService(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 
 	result := cfg.BuildServiceConfig("nonexistent")
@@ -80,6 +82,8 @@ func TestBuildServiceConfig_ReturnsNilForUnconfiguredService(t *testing.T) {
 }
 
 func TestBuildServiceConfig_ReturnsCopyForConfiguredService(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 	cfg.HTTP.Services = map[string]map[string]any{
 		"testservice": {

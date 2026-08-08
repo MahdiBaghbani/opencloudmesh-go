@@ -13,6 +13,8 @@ import (
 )
 
 func TestRouteOptsFromConfig_DevDefaults(t *testing.T) {
+	t.Parallel()
+
 	opts := service.RouteOptsFromConfig(nil)
 	if opts.TokenExchangePath != "token" {
 		t.Errorf("TokenExchangePath = %q, want token", opts.TokenExchangePath)
@@ -20,6 +22,7 @@ func TestRouteOptsFromConfig_DevDefaults(t *testing.T) {
 }
 
 func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		cfg             *config.Config
@@ -135,6 +138,8 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			opts := service.RouteOptsFromConfig(tt.cfg)
 			if opts != tt.want {
 				t.Errorf("RouteOptsFromConfig() = %+v, want %+v", opts, tt.want)

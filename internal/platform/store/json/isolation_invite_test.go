@@ -28,6 +28,8 @@ import (
 //  4. Update path (status plus sender identity) still works after the
 //     isolation change.
 func TestJSONIncomingInviteIsolation(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 
@@ -188,6 +190,8 @@ func assertIncomingInviteStatusUpdate(t *testing.T, ctx context.Context, inStore
 //     next fetch.
 //  5. Update path still works correctly after isolation is applied.
 func TestJSONOutgoingInviteIsolation(t *testing.T) {
+	t.Parallel()
+
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
 

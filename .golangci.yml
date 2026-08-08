@@ -44,8 +44,6 @@ linters:
     - noinlineerr
     # Bans idiomatic short names in handlers/tests (~685).
     - varnamelen
-    # Mandates t.Parallel() (~1409); see docs/lint-policy.md.
-    - paralleltest
     # Sentinel error naming style (~392).
     - err113
     # Line length (~201); not a correctness gate.

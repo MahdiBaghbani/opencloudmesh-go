@@ -14,6 +14,8 @@ import (
 )
 
 func TestValidatePreBootstrap_UnknownServiceName(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	cfg.HTTP.Services = map[string]map[string]any{
@@ -25,6 +27,8 @@ func TestValidatePreBootstrap_UnknownServiceName(t *testing.T) {
 }
 
 func TestValidatePreBootstrap_ValidServices(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 
 	cfg.HTTP.Services = map[string]map[string]any{
@@ -36,12 +40,16 @@ func TestValidatePreBootstrap_ValidServices(t *testing.T) {
 }
 
 func TestValidateBuiltServices_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	if err := ValidateBuiltServices(allBuiltServices()); err != nil {
 		t.Fatalf("ValidateBuiltServices() = %v, want nil", err)
 	}
 }
 
 func TestValidateBuiltServices_CountMismatch(t *testing.T) {
+	t.Parallel()
+
 	services := allBuiltServices()
 	delete(services, "api")
 
@@ -56,6 +64,8 @@ func TestValidateBuiltServices_CountMismatch(t *testing.T) {
 }
 
 func TestValidateBuiltServices_MissingService(t *testing.T) {
+	t.Parallel()
+
 	services := allBuiltServices()
 	delete(services, "webdav")
 	services["bogus"] = &descriptorStub{prefix: "bogus"}
@@ -71,6 +81,8 @@ func TestValidateBuiltServices_MissingService(t *testing.T) {
 }
 
 func TestValidateBuiltServices_ExtraService(t *testing.T) {
+	t.Parallel()
+
 	services := allBuiltServices()
 	services["bogus"] = &descriptorStub{prefix: "bogus"}
 
@@ -85,6 +97,8 @@ func TestValidateBuiltServices_ExtraService(t *testing.T) {
 }
 
 func TestValidateBuiltServices_NilService(t *testing.T) {
+	t.Parallel()
+
 	services := allBuiltServices()
 	services["api"] = nil
 
@@ -99,6 +113,8 @@ func TestValidateBuiltServices_NilService(t *testing.T) {
 }
 
 func TestValidateBuiltServices_PrefixMismatch(t *testing.T) {
+	t.Parallel()
+
 	services := allBuiltServices()
 	services["ocmaux"] = &descriptorStub{prefix: "wrong"}
 

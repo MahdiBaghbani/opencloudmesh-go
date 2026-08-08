@@ -12,6 +12,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	specs := registeredRouteSpecs(opts)
@@ -35,6 +37,8 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 }
 
 func TestRouteConstants_MatchChiRegistration(t *testing.T) {
+	t.Parallel()
+
 	paths := []string{
 		RouteWellKnownOCM,
 		RouteWellKnownOCMSlash,

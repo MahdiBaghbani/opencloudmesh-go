@@ -16,6 +16,8 @@ func runRequirementsAdmissionBoolSeam(t *testing.T, field string, validate func(
 	t.Helper()
 
 	t.Run("true+omit requires requirements", func(t *testing.T) {
+		t.Parallel()
+
 		errs := validate(true, nil)
 		if !hasValidationError(errs, field) {
 			t.Fatalf("expected REQUIRED for true+omit, got %v", errs)
@@ -28,17 +30,23 @@ func runRequirementsAdmissionBoolSeam(t *testing.T, field string, validate func(
 		}
 	})
 	t.Run("false+omit allows empty", func(t *testing.T) {
+		t.Parallel()
+
 		if errs := validate(false, nil); len(errs) != 0 {
 			t.Fatalf("expected no admission error for false+omit, got %v", errs)
 		}
 	})
 	t.Run("false+has reqs allows", func(t *testing.T) {
+		t.Parallel()
+
 		reqs := []string{RequirementMustExchangeToken}
 		if errs := validate(false, reqs); len(errs) != 0 {
 			t.Fatalf("expected no admission error for false+has, got %v", errs)
 		}
 	})
 	t.Run("true+has reqs allows", func(t *testing.T) {
+		t.Parallel()
+
 		reqs := []string{RequirementMustExchangeToken}
 		if errs := validate(true, reqs); len(errs) != 0 {
 			t.Fatalf("expected no admission error for true+has, got %v", errs)
@@ -47,9 +55,11 @@ func runRequirementsAdmissionBoolSeam(t *testing.T, field string, validate func(
 }
 
 func TestWebDAVRequirementsAdmission_BoolSeam(t *testing.T) {
+	t.Parallel()
 	runRequirementsAdmissionBoolSeam(t, "protocol.webdav.requirements", ValidateWebDAVRequirementsAdmission)
 }
 
 func TestWebappRequirementsAdmission_BoolSeam(t *testing.T) {
+	t.Parallel()
 	runRequirementsAdmissionBoolSeam(t, "protocol.webapp.requirements", ValidateWebappRequirementsAdmission)
 }

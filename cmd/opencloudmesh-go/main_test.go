@@ -23,6 +23,8 @@ import (
 )
 
 func TestPrintVersionTrue(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	done, err := printVersion(true, &buf)
@@ -41,6 +43,8 @@ func TestPrintVersionTrue(t *testing.T) {
 }
 
 func TestPrintVersionFalse(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	done, err := printVersion(false, &buf)
@@ -58,6 +62,8 @@ func TestPrintVersionFalse(t *testing.T) {
 }
 
 func TestRunVersionShortFlag(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	code := run([]string{"-version"}, &buf)
@@ -72,6 +78,8 @@ func TestRunVersionShortFlag(t *testing.T) {
 }
 
 func TestRunVersionLongFlag(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	code := run([]string{"--version"}, &buf)
@@ -86,6 +94,8 @@ func TestRunVersionLongFlag(t *testing.T) {
 }
 
 func TestRunBadFlag(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	code := run([]string{"--nonexistent-flag"}, &buf)
@@ -95,6 +105,8 @@ func TestRunBadFlag(t *testing.T) {
 }
 
 func TestRunHelpShortFlag(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	code := run([]string{"-h"}, &buf)
@@ -104,6 +116,8 @@ func TestRunHelpShortFlag(t *testing.T) {
 }
 
 func TestRunHelpLongFlag(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	code := run([]string{"--help"}, &buf)
@@ -234,8 +248,9 @@ func TestWriteBootstrapPasswordFile_OverwritesPermissiveMode(t *testing.T) {
 }
 
 func TestBootstrapAdmin_WritesGeneratedPasswordFile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	t.Chdir(dir)
 
 	var logBuf bytes.Buffer
 
@@ -247,7 +262,8 @@ func TestBootstrapAdmin_WritesGeneratedPasswordFile(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			BootstrapAdmin: config.BootstrapAdminConfig{
-				Username: "admin",
+				Username:       "admin",
+				CredentialFile: filepath.Join(dir, defaultBootstrapFilePath),
 			},
 		},
 	}
@@ -301,7 +317,7 @@ func TestBootstrapAdmin_WritesGeneratedPasswordFile(t *testing.T) {
 	}
 }
 
-func TestResolveBootstrapPasswordFilePath(t *testing.T) {
+func TestResolveBootstrapPasswordFilePath(t *testing.T) { //nolint:paralleltest // uses t.Chdir, which mutates process-global cwd and is incompatible with t.Parallel
 	cwd := t.TempDir()
 
 	tests := []struct {
@@ -363,7 +379,7 @@ func TestResolveBootstrapPasswordFilePath(t *testing.T) {
 
 	t.Chdir(cwd)
 
-	for _, tc := range tests {
+	for _, tc := range tests { //nolint:paralleltest // parent uses t.Chdir; subtests resolve paths against shared cwd
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := resolveBootstrapPasswordFilePath(tc.cfg)
 			if err != nil {

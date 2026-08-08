@@ -23,6 +23,8 @@ import (
 )
 
 func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		bearerToken  string
@@ -42,6 +44,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := tsrepos.OpenMemory(t).OutgoingShares
 
 			tmpFile, err := os.CreateTemp(t.TempDir(), "webdav-logs-*")

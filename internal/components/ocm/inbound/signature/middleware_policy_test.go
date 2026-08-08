@@ -25,6 +25,8 @@ import (
 )
 
 func TestSignatureMiddleware_IfPresent_StrictMode_AllowsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -47,6 +49,8 @@ func TestSignatureMiddleware_IfPresent_StrictMode_AllowsUnsigned(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_RequireSignatureAndPeer_AdvertiseFalse_AllowsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -76,6 +80,8 @@ func TestSignatureMiddleware_RequireSignatureAndPeer_AdvertiseFalse_AllowsUnsign
 	}
 }
 func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -111,6 +117,8 @@ func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 			mw.SetLocalHTTPSigPolicy(tt.requires, tt.advertise)
 
@@ -175,6 +183,8 @@ func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_ForeignSignature_TreatedAsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -207,6 +217,8 @@ func TestSignatureMiddleware_ForeignSignature_TreatedAsUnsigned(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 			mw.SetLocalHTTPSigPolicy(true, false)
 			handler := tt.mount(mw)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -22,6 +22,7 @@ import (
 )
 
 func TestSetFromEd25519PublicKey_ResolveExactKeyID(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
@@ -44,6 +45,7 @@ func TestSetFromEd25519PublicKey_ResolveExactKeyID(t *testing.T) {
 }
 
 func TestResolveExactKeyID_MissingKid(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -54,6 +56,7 @@ func TestResolveExactKeyID_MissingKid(t *testing.T) {
 }
 
 func TestResolveExactKeyID_AmbiguousKid(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.Set{Keys: []jwks.Key{
 		jwks.Ed25519Key(testJWKSKey1, pub),
@@ -67,6 +70,7 @@ func TestResolveExactKeyID_AmbiguousKid(t *testing.T) {
 }
 
 func TestResolveExactKeyID_UseSigAndEnc(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 
 	sigKey := jwks.Ed25519Key(testJWKSKey1, pub)
@@ -98,6 +102,8 @@ func TestResolveExactKeyID_UseSigAndEnc(t *testing.T) {
 }
 
 func TestResolveExactKeyID_ECP256AndRSA(t *testing.T) {
+	t.Parallel()
+
 	ecPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)

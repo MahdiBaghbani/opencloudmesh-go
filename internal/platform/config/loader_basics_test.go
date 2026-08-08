@@ -11,6 +11,8 @@ import (
 )
 
 func TestParseMode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		input   string
@@ -27,6 +29,8 @@ func TestParseMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := ParseMode(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseMode(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
@@ -250,6 +254,8 @@ func TestLoad_InvalidMode_FailsFast(t *testing.T) {
 }
 
 func TestStrictConfig(t *testing.T) {
+	t.Parallel()
+
 	cfg := StrictConfig()
 
 	if cfg.Mode != "strict" {
@@ -270,6 +276,8 @@ func TestStrictConfig(t *testing.T) {
 }
 
 func TestDevConfig(t *testing.T) {
+	t.Parallel()
+
 	cfg := DevConfig()
 
 	if cfg.Mode != "dev" {
@@ -292,6 +300,8 @@ func TestDevConfig(t *testing.T) {
 // TestDevConfig_DerivesFromStrict pins the behavior-preserving contract for
 // DevConfig now that it overlays StrictConfig.
 func TestDevConfig_DerivesFromStrict(t *testing.T) {
+	t.Parallel()
+
 	dev := DevConfig()
 	strict := StrictConfig()
 

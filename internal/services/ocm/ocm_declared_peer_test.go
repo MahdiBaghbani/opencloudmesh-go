@@ -19,6 +19,8 @@ import (
 // Shares, invite-accepted, and token routes require a declared peer (HTTP 400
 // when missing).
 func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -55,6 +57,8 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
 			req.Header.Set("Content-Type", tc.contentType)
 

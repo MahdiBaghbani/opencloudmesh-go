@@ -22,7 +22,10 @@ import (
 )
 
 func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
+	t.Parallel()
 	t.Run("SkipDiscoveryCache=true wires NoopCache to discovery client", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := wiring.Build(
 			config.DevConfig(),
 			tslog.DiscardLogger(),
@@ -43,6 +46,8 @@ func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 	})
 
 	t.Run("SkipDiscoveryCache=false wires discovery LRU-capped cache and ratelimit TTL-only cache", func(t *testing.T) {
+		t.Parallel()
+
 		opts := harnessBuildOpts()
 		opts.SkipDiscoveryCache = false
 
@@ -67,6 +72,8 @@ func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 }
 
 func TestBuild_DiscoveryCacheLRUCappedAndRatelimitTTLOnly(t *testing.T) {
+	t.Parallel()
+
 	opts := harnessBuildOpts()
 	opts.SkipDiscoveryCache = false
 

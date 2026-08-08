@@ -26,6 +26,8 @@ import (
 // JWS listing is fetched, cached, and exposed through /ocm-aux/federations with
 // discovery enrichment status on failed peers.
 func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

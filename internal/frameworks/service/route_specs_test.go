@@ -18,6 +18,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs_IncludesAllCoreServices(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	specs := service.RegisteredRouteSpecs(opts)

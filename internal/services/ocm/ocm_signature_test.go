@@ -21,6 +21,8 @@ import (
 )
 
 func TestService_SharesRequireVerifiedSignature(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -46,6 +48,8 @@ func TestService_SharesRequireVerifiedSignature(t *testing.T) {
 }
 
 func TestService_InviteAcceptedRequireVerifiedSignature(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -71,6 +75,8 @@ func TestService_InviteAcceptedRequireVerifiedSignature(t *testing.T) {
 }
 
 func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
+	t.Parallel()
+
 	const (
 		clientHost   = "receiver.example.com"
 		sharedSecret = "signed-token-secret"
@@ -137,6 +143,8 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 }
 
 func TestService_TokenRequireVerifiedSignature(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 

@@ -16,6 +16,8 @@ import (
 // helper enforces the same transport, credential, fragment, and
 // same-authority policy as peer jwksUri validation.
 func TestValidateLocalJwksURIOverride(t *testing.T) {
+	t.Parallel()
+
 	const httpsOrigin = "https://cloud.example.com"
 
 	tests := []struct {
@@ -73,6 +75,8 @@ func TestValidateLocalJwksURIOverride(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := discovery.ValidateLocalJwksURIOverride(tt.jwksURI, tt.origin)
 
 			if tt.wantErr == "" {

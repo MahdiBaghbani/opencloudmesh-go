@@ -73,6 +73,7 @@ func mustCountingDoer(t *testing.T) *countingDoer {
 }
 
 func TestResolver_CacheEvictsOldestURLBeyondCap(t *testing.T) {
+	t.Parallel()
 	doer := mustCountingDoer(t)
 
 	resolver, err := jwks.NewResolverWithOptions(doer, jwks.ResolverOptions{TTL: time.Hour})
@@ -112,6 +113,7 @@ func TestResolver_CacheEvictsOldestURLBeyondCap(t *testing.T) {
 }
 
 func TestResolver_NegativeCacheEvictsBeyondCap(t *testing.T) {
+	t.Parallel()
 	doer := mustCountingDoer(t)
 
 	resolver, err := jwks.NewResolverWithOptions(doer, jwks.ResolverOptions{
@@ -163,8 +165,11 @@ func TestResolver_NegativeCacheEvictsBeyondCap(t *testing.T) {
 }
 
 func TestResolver_ExpiredCacheReadDoesNotPromote(t *testing.T) {
+	t.Parallel()
+
 	// Polling an expired URL must not refresh LRU recency. Otherwise a stale
 	// entry stays hot after a failed refetch and younger live entries evict.
+
 	flip := &flipDoer{ok: mustCountingDoer(t)}
 	now := time.Unix(1_700_000_000, 0)
 
@@ -239,6 +244,7 @@ func (d *flipDoer) Do(req *http.Request) (*http.Response, error) {
 }
 
 func TestResolver_ConcurrentResolve(t *testing.T) {
+	t.Parallel()
 	doer := mustCountingDoer(t)
 
 	resolver, err := jwks.NewResolverWithOptions(doer, jwks.ResolverOptions{

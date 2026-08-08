@@ -15,6 +15,8 @@ import (
 )
 
 func TestMemorySessionRepo_CRUD(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemorySessionRepo()
 	ctx := context.Background()
 
@@ -55,6 +57,8 @@ func TestMemorySessionRepo_CRUD(t *testing.T) {
 }
 
 func TestMemorySessionRepo_ExpiredSession(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemorySessionRepo()
 	ctx := context.Background()
 
@@ -75,6 +79,8 @@ func TestMemorySessionRepo_ExpiredSession(t *testing.T) {
 }
 
 func TestMemorySessionRepo_DeleteByUser(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemorySessionRepo()
 	ctx := context.Background()
 
@@ -107,6 +113,8 @@ func TestMemorySessionRepo_DeleteByUser(t *testing.T) {
 }
 
 func TestMemorySessionRepo_DeleteExpired(t *testing.T) {
+	t.Parallel()
+
 	repo := identity.NewMemorySessionRepo()
 	ctx := context.Background()
 
@@ -142,6 +150,8 @@ func TestMemorySessionRepo_DeleteExpired(t *testing.T) {
 }
 
 func TestGenerateToken(t *testing.T) {
+	t.Parallel()
+
 	t1, err := identity.GenerateToken()
 	if err != nil {
 		t.Fatalf("GenerateToken failed: %v", err)

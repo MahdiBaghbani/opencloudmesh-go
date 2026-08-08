@@ -36,7 +36,10 @@ import (
 )
 
 func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
+	t.Parallel()
+
 	// Create a key manager and signer
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate: %v", err)
@@ -93,7 +96,10 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 // TestSignatureMiddleware_DefaultPortEquivalence proves scheme-aware comparison:
 // a keyId with explicit :443 matches a declared peer without :443 when scheme is https.
 func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
+	t.Parallel()
+
 	// Use explicit :443 in the sender's external origin so the keyId includes it.
+
 	km := crypto.NewKeyManager("", "https://sender.example.com:443")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate: %v", err)
@@ -148,6 +154,8 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_UsesSignatureConfigLabel(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -211,6 +219,8 @@ func TestSignatureMiddleware_UsesSignatureConfigLabel(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
+	t.Parallel()
+
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -283,6 +293,8 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 
 // ECDSA P-256 JWKS omitting alg is rejected with a 502 lookup failure.
 func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testing.T) {
+	t.Parallel()
+
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -400,6 +412,8 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 	}
 }
 func TestSignatureMiddleware_IfPresent_StrictMode_AcceptsSigned(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://nc.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)

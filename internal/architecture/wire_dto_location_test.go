@@ -18,6 +18,8 @@ import (
 )
 
 func TestWireDTOsOnlyInSpec(t *testing.T) {
+	t.Parallel()
+
 	wireDTOTypes := []string{
 		"NewShareRequest",
 		"CreateShareResponse",

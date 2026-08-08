@@ -17,6 +17,7 @@ import (
 )
 
 func TestOCMPackagesDoNotImportAPI(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	ocmDir := filepath.Join(root, "internal", "components", "ocm")
 
@@ -74,6 +75,7 @@ func TestOCMPackagesDoNotImportAPI(t *testing.T) {
 }
 
 func TestServicesDoNotImportDepsPackage(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations := findProductionImportSuffix(t, root, []string{"internal/services"}, "/platform/deps")
@@ -83,6 +85,7 @@ func TestServicesDoNotImportDepsPackage(t *testing.T) {
 }
 
 func TestInterceptorsDoNotImportDepsPackage(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations := findProductionImportSuffix(t, root, []string{"internal/interceptors"}, "/platform/deps")
@@ -92,6 +95,7 @@ func TestInterceptorsDoNotImportDepsPackage(t *testing.T) {
 }
 
 func TestServicesDoNotImportWiringPackage(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations := findProductionImportSuffix(t, root, []string{"internal/services"}, "/internal/wiring")
@@ -101,6 +105,7 @@ func TestServicesDoNotImportWiringPackage(t *testing.T) {
 }
 
 func TestInterceptorsDoNotImportWiringPackage(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations := findProductionImportSuffix(t, root, []string{"internal/interceptors"}, "/internal/wiring")

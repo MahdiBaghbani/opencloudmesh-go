@@ -18,6 +18,8 @@ import (
 )
 
 func TestDerivedAuthRows_ProjectsFromRoutes(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	rows := service.Routes(opts)
 
@@ -28,6 +30,8 @@ func TestDerivedAuthRows_ProjectsFromRoutes(t *testing.T) {
 }
 
 func TestDerivedMountSpecs_ProjectsFromRoutes(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	rows := service.Routes(opts)
 
@@ -135,6 +139,8 @@ func assertGroupRequiresAuth(t *testing.T, opts service.RouteOpts, kind, fullPat
 }
 
 func TestSessionAuthRequiredForPath_PublicAndProtected(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	cases := []struct {
@@ -159,6 +165,8 @@ func TestSessionAuthRequiredForPath_PublicAndProtected(t *testing.T) {
 }
 
 func TestSessionAuthRequiredForPath_WayfRoutes(t *testing.T) {
+	t.Parallel()
+
 	disabled := service.DefaultRouteOpts()
 	if !service.SessionAuthRequiredForPath("/ui/wayf", disabled) {
 		t.Error("expected /ui/wayf protected when WAYF disabled")

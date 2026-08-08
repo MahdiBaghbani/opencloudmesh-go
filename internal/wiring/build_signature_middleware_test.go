@@ -17,7 +17,10 @@ import (
 )
 
 func TestSignatureMiddleware_AlwaysConstructed(t *testing.T) {
+	t.Parallel()
 	t.Run("harness opts produce non-nil middleware", func(t *testing.T) {
+		t.Parallel()
+
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
 
@@ -36,6 +39,8 @@ func TestSignatureMiddleware_AlwaysConstructed(t *testing.T) {
 	})
 
 	t.Run("IETF harness opts produce non-nil middleware with signing keys", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := wiring.Build(
 			config.DevConfig(),
 			tslog.DiscardLogger(),

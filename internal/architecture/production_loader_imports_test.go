@@ -13,6 +13,7 @@ import (
 )
 
 func TestNoProductionServiceLoaderImports(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 
@@ -24,6 +25,7 @@ func TestNoProductionServiceLoaderImports(t *testing.T) {
 }
 
 func TestNoProductionInterceptorLoaderImports(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 

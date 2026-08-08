@@ -37,6 +37,7 @@ func shareBodyWithProtocolName(protocolName, ownerHost string) string {
 }
 
 func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -69,6 +70,7 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 }
 
 func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -85,6 +87,7 @@ func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
@@ -101,6 +104,7 @@ func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsMultiProtocolName(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)

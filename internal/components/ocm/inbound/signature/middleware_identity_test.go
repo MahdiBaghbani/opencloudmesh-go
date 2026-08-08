@@ -13,7 +13,10 @@ import (
 )
 
 func TestGetPeerIdentity(t *testing.T) {
+	t.Parallel()
+
 	// Without peer identity
+
 	ctx := context.Background()
 
 	pi := sig.GetPeerIdentity(ctx)

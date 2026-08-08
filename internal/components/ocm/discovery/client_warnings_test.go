@@ -23,6 +23,8 @@ import (
 )
 
 func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -81,6 +83,8 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 }
 
 func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
+	t.Parallel()
+
 	httpCfg := tshttp.PermissiveConfig()
 	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{

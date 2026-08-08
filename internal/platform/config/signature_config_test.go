@@ -21,6 +21,8 @@ import (
 )
 
 func TestDefaultSignatureConfig_IETFDefaults(t *testing.T) {
+	t.Parallel()
+
 	sig := config.DefaultSignatureConfig()
 	if sig.Label != "ocm" {
 		t.Fatalf("Label = %q", sig.Label)
@@ -169,6 +171,8 @@ allowed_algorithms = ["ed25519", "ES256", "ed25519", "rs256"]
 }
 
 func TestStrictConfig_AllowedAlgorithmsCanonical(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.StrictConfig()
 
 	want := sigalg.DefaultAllowed()
@@ -184,6 +188,8 @@ func TestStrictConfig_AllowedAlgorithmsCanonical(t *testing.T) {
 }
 
 func TestNormalizeSignatureAllowedAlgorithms_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	first, err := config.NormalizeSignatureAllowedAlgorithms([]string{"ES256", "ed25519", "ES256"})
 	if err != nil {
 		t.Fatal(err)
@@ -206,6 +212,8 @@ func TestNormalizeSignatureAllowedAlgorithms_Idempotent(t *testing.T) {
 }
 
 func TestNormalizeSignatureAllowedAlgorithms_RejectsEmpty(t *testing.T) {
+	t.Parallel()
+
 	_, err := config.NormalizeSignatureAllowedAlgorithms(nil)
 	if err == nil || !strings.Contains(err.Error(), "must not be empty") {
 		t.Fatalf("nil: got %v, want empty rejection", err)

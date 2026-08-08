@@ -26,6 +26,8 @@ import (
 // same provider key returns a duplicate error (wrapping store.ErrAlreadyExists),
 // not ErrShareNotFound.
 func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	r := tsrepos.OpenJSON(t)
@@ -67,6 +69,8 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 // same invite id returns a duplicate error (wrapping store.ErrAlreadyExists),
 // not ErrInviteNotFound.
 func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	r := tsrepos.OpenJSON(t)
@@ -102,10 +106,14 @@ func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 // TestDurable_OutgoingShare_SentAt_RoundTrip verifies that SentAt survives a
 // Create -> GetByID round-trip through all durable backends (json, sqlite, mirror).
 func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
+
 			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer tshttp.MustClose(t, r)
 
@@ -147,10 +155,14 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 // ShareType, Error, and Requirements survive a Create -> GetByID round-trip
 // through durable backends.
 func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
+
 			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer tshttp.MustClose(t, r)
 
@@ -202,10 +214,14 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 // does not corrupt the stored share. Guards the slice copy at
 // outgoing_share_adapter.go storeOutgoingShareToApp.
 func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
+
 			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer tshttp.MustClose(t, r)
 
@@ -255,10 +271,14 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 // Create does not corrupt the stored share. Guards the slice copy at
 // outgoing_share_adapter.go appOutgoingShareToStore.
 func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
+
 			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer tshttp.MustClose(t, r)
 
@@ -298,11 +318,15 @@ func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing
 // ShareType, OwnerDisplayName, SenderDisplayName, and Expiration survive a
 // Create -> GetByIDForRecipientUserID round-trip through durable backends.
 func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	exp := int64(9999999)
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
+
 			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer tshttp.MustClose(t, r)
 

@@ -14,6 +14,7 @@ import (
 )
 
 func TestFetchListing_Required_SetsVerifiedTrue(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -34,6 +35,8 @@ func TestFetchListing_Required_SetsVerifiedTrue(t *testing.T) {
 }
 
 func TestFetchListing_Optional_UnsignedPayload_Accepted(t *testing.T) {
+	t.Parallel()
+
 	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
@@ -54,6 +57,7 @@ func TestFetchListing_Optional_UnsignedPayload_Accepted(t *testing.T) {
 }
 
 func TestFetchListing_Optional_ValidJWS_Verified(t *testing.T) {
+	t.Parallel()
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
@@ -76,6 +80,7 @@ func TestFetchListing_Optional_ValidJWS_Verified(t *testing.T) {
 }
 
 func TestFetchListing_Optional_BadSignature_Rejected(t *testing.T) {
+	t.Parallel()
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
@@ -93,6 +98,8 @@ func TestFetchListing_Optional_BadSignature_Rejected(t *testing.T) {
 }
 
 func TestFetchListing_Optional_NoKeys_AcceptsAsUnsigned(t *testing.T) {
+	t.Parallel()
+
 	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
@@ -112,6 +119,8 @@ func TestFetchListing_Optional_NoKeys_AcceptsAsUnsigned(t *testing.T) {
 }
 
 func TestFetchListing_Off_Accepted(t *testing.T) {
+	t.Parallel()
+
 	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
@@ -134,6 +143,8 @@ func TestFetchListing_Off_Accepted(t *testing.T) {
 // peer trust membership refresh uses required JWS verification (matching wiring
 // bootstrap). Unsigned directory listings must not satisfy membership refresh.
 func TestTrustMembershipGuardrail_RequiredRejectsUnsignedListing(t *testing.T) {
+	t.Parallel()
+
 	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
@@ -148,6 +159,8 @@ func TestTrustMembershipGuardrail_RequiredRejectsUnsignedListing(t *testing.T) {
 }
 
 func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
+	t.Parallel()
+
 	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
@@ -171,6 +184,7 @@ func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing.T) {
+	t.Parallel()
 	payload := tshttp.MustMarshalJSON(t, Listing{
 		Federation: "test-federation",
 		Servers: []Server{
@@ -219,6 +233,8 @@ func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing
 }
 
 func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
+	t.Parallel()
+
 	unsignedTS := serveJWS(t, testPayload(t))
 	defer unsignedTS.Close()
 
@@ -247,6 +263,7 @@ func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) {
+	t.Parallel()
 	payload := tshttp.MustMarshalJSON(t, Listing{
 		Federation: "test-federation",
 		Servers: []Server{

@@ -19,6 +19,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs_AllResolveDescriptor(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		opts service.RouteOpts
@@ -40,6 +42,8 @@ func TestRegisteredRouteSpecs_AllResolveDescriptor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			specs := service.RegisteredRouteSpecs(tt.opts)
 			for _, spec := range specs {
 				if _, ok := service.DescriptorByName(spec.Service); !ok {
@@ -51,6 +55,8 @@ func TestRegisteredRouteSpecs_AllResolveDescriptor(t *testing.T) {
 }
 
 func TestRouteIDSSOT_StaticTokenAndSubtreeDefault(t *testing.T) {
+	t.Parallel()
+
 	if got := service.SubtreeDefaultID("ocm"); got != "ocm-subtree-default" {
 		t.Errorf("SubtreeDefaultID(ocm) = %q, want ocm-subtree-default", got)
 	}
@@ -58,6 +64,8 @@ func TestRouteIDSSOT_StaticTokenAndSubtreeDefault(t *testing.T) {
 	tokenPaths := []string{"token", "auth/exchange", "token/v2"}
 	for _, tokenPath := range tokenPaths {
 		t.Run(tokenPath, func(t *testing.T) {
+			t.Parallel()
+
 			opts := service.RouteOpts{TokenExchangePath: tokenPath}
 			rows := service.Routes(opts)
 
@@ -83,6 +91,8 @@ func TestRouteIDSSOT_StaticTokenAndSubtreeDefault(t *testing.T) {
 }
 
 func TestDerivedRouteInventory_ExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
 		WayfEnabled:         false,

@@ -12,6 +12,8 @@ import (
 )
 
 func TestRegisteredRouteSpecs(t *testing.T) {
+	t.Parallel()
+
 	specs := registeredRouteSpecs(service.DefaultRouteOpts())
 	if len(specs) != 2 {
 		t.Fatalf("expected 2 route specs, got %d", len(specs))

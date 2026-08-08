@@ -14,6 +14,8 @@ import (
 )
 
 func TestParseInviteString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -114,6 +116,8 @@ func TestParseInviteString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			token, fqdn, err := invites.ParseInviteString(tt.input)
 			if tt.wantErr {
 				if err == nil {
@@ -143,6 +147,8 @@ func TestParseInviteString(t *testing.T) {
 }
 
 func TestBuildInviteString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		token string
@@ -162,6 +168,8 @@ func TestBuildInviteString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			encoded := invites.BuildInviteString(tt.token, tt.fqdn)
 
 			if strings.Contains(encoded, "=") {
@@ -189,6 +197,8 @@ func TestBuildInviteString(t *testing.T) {
 }
 
 func TestRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	token := "secure-random-token"
 	fqdn := "cloud.example.org"
 
@@ -209,6 +219,8 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestRoundTrip_MultipleAtInToken(t *testing.T) {
+	t.Parallel()
+
 	token := "user@name@host"
 	fqdn := "example.com"
 

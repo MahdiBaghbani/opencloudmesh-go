@@ -15,6 +15,7 @@ import (
 )
 
 func TestNoAdHocPeerOriginSchemeInApprovedCallSites(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	targets := []string{
 		"internal/components/ocm/access/remote.go",

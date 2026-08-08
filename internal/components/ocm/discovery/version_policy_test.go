@@ -14,6 +14,8 @@ import (
 )
 
 func TestVersionPolicyFromConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		cfg   config.DiscoveryConfig
@@ -39,6 +41,8 @@ func TestVersionPolicyFromConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			p := VersionPolicyFromConfig(tt.cfg)
 			if p.Mode != tt.wantM {
 				t.Fatalf("Mode = %v, want %v", p.Mode, tt.wantM)
@@ -52,6 +56,8 @@ func TestVersionPolicyFromConfig(t *testing.T) {
 }
 
 func TestNewVersionPolicy_DefaultAcceptAnyWarnAnyDiff(t *testing.T) {
+	t.Parallel()
+
 	p := NewVersionPolicy()
 	if p.Mode != APIVersionAcceptAny {
 		t.Fatalf("Mode = %v, want APIVersionAcceptAny", p.Mode)
@@ -63,6 +69,8 @@ func TestNewVersionPolicy_DefaultAcceptAnyWarnAnyDiff(t *testing.T) {
 }
 
 func TestCompareDotTriple_Unparseable(t *testing.T) {
+	t.Parallel()
+
 	unparseable := []string{
 		"1.0-proposal1",
 		"v1.4.0",
@@ -83,6 +91,8 @@ func TestCompareDotTriple_Unparseable(t *testing.T) {
 }
 
 func TestCompareDotTriple_Ordering(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		a, b string
 		want int
@@ -105,6 +115,8 @@ func TestCompareDotTriple_Ordering(t *testing.T) {
 }
 
 func TestVersionPolicy_Accept(t *testing.T) {
+	t.Parallel()
+
 	versions := []string{"1.1.0", "1.1.2", "1.2.0", "1.3.0", "1.4.0", "2.0.0"}
 
 	modes := []struct {
@@ -160,6 +172,8 @@ func TestVersionPolicy_Accept(t *testing.T) {
 	for _, m := range modes {
 		for _, w := range warnModes {
 			t.Run(m.name+"/"+w.name, func(t *testing.T) {
+				t.Parallel()
+
 				p := &VersionPolicy{Mode: m.mode, Warn: w.warn}
 				for _, v := range versions {
 					ok, warning := p.Accept(v)
@@ -186,6 +200,8 @@ func TestVersionPolicy_Accept(t *testing.T) {
 }
 
 func TestVersionPolicy_Accept_EmptyRejected(t *testing.T) {
+	t.Parallel()
+
 	p := NewVersionPolicy()
 
 	ok, warn := p.Accept("")
@@ -199,9 +215,13 @@ func TestVersionPolicy_Accept_EmptyRejected(t *testing.T) {
 }
 
 func TestVersionPolicy_Accept_Unparseable(t *testing.T) {
+	t.Parallel()
+
 	unparseable := []string{"1.0-proposal1", "v1.4.0", "1.4", "1.4.0-rc1", "abc"}
 
 	t.Run("accept-any", func(t *testing.T) {
+		t.Parallel()
+
 		p := &VersionPolicy{Mode: APIVersionAcceptAny, Warn: WarnAnyDiff}
 		for _, v := range unparseable {
 			ok, _ := p.Accept(v)
@@ -212,6 +232,8 @@ func TestVersionPolicy_Accept_Unparseable(t *testing.T) {
 	})
 
 	t.Run("exact", func(t *testing.T) {
+		t.Parallel()
+
 		p := &VersionPolicy{Mode: APIVersionExact, Warn: WarnNone}
 		for _, v := range unparseable {
 			ok, _ := p.Accept(v)
@@ -222,6 +244,8 @@ func TestVersionPolicy_Accept_Unparseable(t *testing.T) {
 	})
 
 	t.Run("at-least-1.4", func(t *testing.T) {
+		t.Parallel()
+
 		p := &VersionPolicy{Mode: APIVersionAtLeast14, Warn: WarnNone}
 		for _, v := range unparseable {
 			ok, _ := p.Accept(v)
@@ -232,6 +256,8 @@ func TestVersionPolicy_Accept_Unparseable(t *testing.T) {
 	})
 
 	t.Run("lower-only-no-warn-unparseable", func(t *testing.T) {
+		t.Parallel()
+
 		p := &VersionPolicy{Mode: APIVersionAcceptAny, Warn: WarnLowerOnly}
 		for _, v := range unparseable {
 			_, warn := p.Accept(v)

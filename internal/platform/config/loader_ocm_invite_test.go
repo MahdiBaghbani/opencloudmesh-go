@@ -13,6 +13,8 @@ import (
 )
 
 func TestMustInviteEnforced_NilSemantics(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	trueVal := true
 
@@ -29,6 +31,8 @@ func TestMustInviteEnforced_NilSemantics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := tt.cfg.MustInviteEnforced(); got != tt.want {
 				t.Errorf("MustInviteEnforced() = %v, want %v", got, tt.want)
 			}
@@ -132,7 +136,7 @@ func TestLoad_OCMInvite_StrictModeAllowsDefaultAndExplicitTrue(t *testing.T) {
 	// Clear ambient env override so the strict-mode acceptance path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 
-	for name, extra := range map[string]string{
+	for name, extra := range map[string]string{ //nolint:paralleltest // parent uses t.Setenv; subtests share cleared env baseline
 		"default unset": "",
 		"explicit true": "[ocm.invite]\nenforce_must_invite = true\n",
 	} {

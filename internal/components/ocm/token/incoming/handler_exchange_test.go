@@ -22,6 +22,7 @@ import (
 )
 
 func TestHandler_FormEncoded_Success(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -96,6 +97,7 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 }
 
 func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")

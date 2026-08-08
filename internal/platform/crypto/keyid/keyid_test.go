@@ -13,6 +13,8 @@ import (
 
 // TestParse_AllFormats covers supported absolute keyId formats.
 func TestParse_AllFormats(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		keyID            string
@@ -73,6 +75,8 @@ func TestParse_AllFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := keyid.Parse(tt.keyID)
 			if err != nil {
 				t.Fatalf("Parse(%q) unexpected error: %v", tt.keyID, err)
@@ -95,6 +99,8 @@ func TestParse_AllFormats(t *testing.T) {
 
 // TestParse_EdgeCases covers ports, IPv6, and http scheme.
 func TestParse_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		keyID            string
@@ -162,6 +168,8 @@ func TestParse_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := keyid.Parse(tt.keyID)
 			if err != nil {
 				t.Fatalf("Parse(%q) unexpected error: %v", tt.keyID, err)
@@ -184,7 +192,10 @@ func TestParse_EdgeCases(t *testing.T) {
 
 // TestParse_Strictness verifies rejection and acceptance rules.
 func TestParse_Strictness(t *testing.T) {
+	t.Parallel()
 	t.Run("rejects userinfo", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := keyid.Parse("https://user@example.com/ocm#key-1")
 		if err == nil {
 			t.Error("expected error for userinfo in keyId")
@@ -192,6 +203,8 @@ func TestParse_Strictness(t *testing.T) {
 	})
 
 	t.Run("rejects userinfo with password", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := keyid.Parse("https://user:pass@example.com/ocm#key-1")
 		if err == nil {
 			t.Error("expected error for userinfo with password")
@@ -199,6 +212,8 @@ func TestParse_Strictness(t *testing.T) {
 	})
 
 	t.Run("accepts query and ignores it", func(t *testing.T) {
+		t.Parallel()
+
 		p, err := keyid.Parse("https://example.com/ocm?x=y#signature")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -216,6 +231,8 @@ func TestParse_Strictness(t *testing.T) {
 	})
 
 	t.Run("rejects no scheme", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := keyid.Parse("example.com/ocm#key-1")
 		if err == nil {
 			t.Error("expected error for missing scheme")
@@ -223,6 +240,8 @@ func TestParse_Strictness(t *testing.T) {
 	})
 
 	t.Run("rejects ftp scheme", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := keyid.Parse("ftp://example.com/ocm#key-1")
 		if err == nil {
 			t.Error("expected error for ftp scheme")
@@ -230,6 +249,8 @@ func TestParse_Strictness(t *testing.T) {
 	})
 
 	t.Run("rejects no host", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := keyid.Parse("https:///ocm#key-1")
 		if err == nil {
 			t.Error("expected error for missing host")
@@ -237,6 +258,8 @@ func TestParse_Strictness(t *testing.T) {
 	})
 
 	t.Run("rejects empty string", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := keyid.Parse("")
 		if err == nil {
 			t.Error("expected error for empty string")
@@ -246,6 +269,8 @@ func TestParse_Strictness(t *testing.T) {
 
 // TestAuthority verifies the raw authority string.
 func TestAuthority(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		keyID    string
@@ -260,6 +285,8 @@ func TestAuthority(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := keyid.Parse(tt.keyID)
 			if err != nil {
 				t.Fatalf("Parse failed: %v", err)
@@ -275,6 +302,8 @@ func TestAuthority(t *testing.T) {
 
 // TestAuthorityForCompareFromKeyID verifies scheme-aware default port stripping.
 func TestAuthorityForCompareFromKeyID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		keyID    string
@@ -297,6 +326,8 @@ func TestAuthorityForCompareFromKeyID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := keyid.Parse(tt.keyID)
 			if err != nil {
 				t.Fatalf("Parse failed: %v", err)
@@ -317,6 +348,8 @@ func TestAuthorityForCompareFromKeyID(t *testing.T) {
 // TestAuthorityForCompareFromDeclaredPeer verifies normalization of schemeless
 // peer authorities using scheme-aware default port stripping.
 func TestAuthorityForCompareFromDeclaredPeer(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		peer     string
@@ -342,6 +375,8 @@ func TestAuthorityForCompareFromDeclaredPeer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := keyid.AuthorityForCompareFromDeclaredPeer(tt.peer, tt.scheme)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -357,6 +392,8 @@ func TestAuthorityForCompareFromDeclaredPeer(t *testing.T) {
 
 // TestAuthorityForCompareFromDeclaredPeer_Errors verifies error cases.
 func TestAuthorityForCompareFromDeclaredPeer_Errors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		peer   string
@@ -368,6 +405,8 @@ func TestAuthorityForCompareFromDeclaredPeer_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := keyid.AuthorityForCompareFromDeclaredPeer(tt.peer, tt.scheme)
 			if err == nil {
 				t.Errorf("expected error for peer %q", tt.peer)
@@ -380,6 +419,8 @@ func TestAuthorityForCompareFromDeclaredPeer_Errors(t *testing.T) {
 // scheme-aware: example.com matches example.com:443 only for https,
 // and example.com matches example.com:80 only for http.
 func TestSchemeAwareEquivalence(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		keyID     string
@@ -396,6 +437,7 @@ func TestSchemeAwareEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assertAuthorityEquivalence(t, tt.keyID, tt.peer, tt.scheme, tt.wantEqual)
 		})
 	}

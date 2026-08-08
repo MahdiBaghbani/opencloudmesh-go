@@ -55,6 +55,7 @@ func assertEmptyFieldInviteAccepted(t *testing.T, localUser *identity.User, toke
 }
 
 func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
+	t.Parallel()
 	assertEmptyFieldInviteAccepted(
 		t,
 		&identity.User{ID: "user-empty-email", Username: "empty-email-user", Email: ""},
@@ -65,6 +66,7 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
+	t.Parallel()
 	assertEmptyFieldInviteAccepted(
 		t,
 		&identity.User{ID: "user-empty-name", Username: "empty-name-user", DisplayName: ""},
@@ -74,6 +76,7 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	)
 }
 func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 
@@ -135,6 +138,7 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 

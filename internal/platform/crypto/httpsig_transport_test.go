@@ -23,6 +23,7 @@ import (
 )
 
 func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := crypto.DefaultRFC9421Options()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -67,6 +68,7 @@ func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
 }
 
 func TestSignVerifyRoundTrip_ExactKeyIDOverHTTPJWKS(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	opts := crypto.DefaultRFC9421Options()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -133,6 +135,8 @@ func TestSignVerifyRoundTrip_ExactKeyIDOverHTTPJWKS(t *testing.T) {
 }
 
 func TestVerifyRequest_MissingKeyIDMakesNoHTTPCall(t *testing.T) {
+	t.Parallel()
+
 	var jwksRequests atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

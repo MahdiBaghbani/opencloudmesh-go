@@ -18,6 +18,7 @@ import (
 )
 
 func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	now := httpsigFixedNow()
@@ -57,6 +58,7 @@ func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
 }
 
 func TestRFC9421_VerifyRejectsFutureCreated(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	signTime := httpsigFixedNow()
@@ -98,6 +100,7 @@ func TestRFC9421_VerifyRejectsFutureCreated(t *testing.T) {
 }
 
 func TestRFC9421_VerifyCreatedBoundaryAtMaxSkew(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	signTime := httpsigFixedNow()
@@ -139,6 +142,7 @@ func TestRFC9421_VerifyCreatedBoundaryAtMaxSkew(t *testing.T) {
 }
 
 func TestRFC9421_VerifyCreatedBoundaryAtMaxAge(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 
 	signTime := httpsigFixedNow()
@@ -180,6 +184,7 @@ func TestRFC9421_VerifyCreatedBoundaryAtMaxAge(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsFutureCreated(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	signTime := httpsigFixedNow()
 	verifyTime := signTime.Add(-2 * time.Minute)
@@ -214,6 +219,7 @@ func TestVerifyRequest_RejectsFutureCreated(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsStaleCreated(t *testing.T) {
+	t.Parallel()
 	km := mustHTTPSigKeyManager(t)
 	now := httpsigFixedNow()
 	opts := crypto.DefaultRFC9421Options()
@@ -246,6 +252,8 @@ func TestVerifyRequest_RejectsStaleCreated(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsMissingCreated(t *testing.T) {
+	t.Parallel()
+
 	verifier := crypto.NewRFC9421Verifier()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)

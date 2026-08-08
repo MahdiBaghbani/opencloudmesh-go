@@ -15,6 +15,8 @@ import (
 )
 
 func TestClassifyError_SignatureBodiesAndKeyLookup(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		err  error
 		want string

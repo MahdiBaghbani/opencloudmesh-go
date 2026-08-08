@@ -43,6 +43,7 @@ func (r *failingUpdateRepo) UpdateStatusForRecipientUserID(_ context.Context, _ 
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "accept-token", "sender.example.com")
 
@@ -59,6 +60,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentReturns404(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
@@ -73,6 +75,7 @@ func TestHandleAccept_NonexistentReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "idem-accept-token", "sender.example.com")
 
@@ -97,6 +100,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "conflict-token", "sender.example.com")
 
@@ -118,6 +122,7 @@ func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
@@ -131,6 +136,7 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 
 	senderServer, inviteAcceptedCalls, _ := startInviteSenderServer(t)
@@ -171,6 +177,7 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 }
 
 func TestHandleAccept_PersistsRemoteSenderIdentity(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 
 	remoteSenderUserID := address.EncodeFederatedOpaqueID("remote-inviter-uuid", "sender.example.com")
@@ -237,6 +244,8 @@ func TestHandleAccept_PersistsRemoteSenderIdentity(t *testing.T) {
 }
 
 func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
+	t.Parallel()
+
 	const originWithDefaultPort = "https://example.com:443"
 
 	wantProvider := tslocalid.MustTestIdentity(t, originWithDefaultPort, "").ProviderDomain

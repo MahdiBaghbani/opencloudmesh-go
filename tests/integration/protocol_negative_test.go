@@ -20,11 +20,15 @@ import (
 // TestProtocolNegativeStrict exercises strict subprocess rejection classes with
 // persistence, network, fallback, and log invariants.
 func TestProtocolNegativeStrict(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
 	t.Run("inbound", func(t *testing.T) {
+		t.Parallel()
+
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
 
@@ -39,6 +43,8 @@ func TestProtocolNegativeStrict(t *testing.T) {
 	})
 
 	t.Run("outbound_cross_authority_endpoint", func(t *testing.T) {
+		t.Parallel()
+
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
 
@@ -52,6 +58,8 @@ func TestProtocolNegativeStrict(t *testing.T) {
 	})
 
 	t.Run("outbound_redirect_ssrf", func(t *testing.T) {
+		t.Parallel()
+
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
 
@@ -65,6 +73,8 @@ func TestProtocolNegativeStrict(t *testing.T) {
 	})
 
 	t.Run("outbound_stale_trust_membership", func(t *testing.T) {
+		t.Parallel()
+
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
 
@@ -79,6 +89,8 @@ func TestProtocolNegativeStrict(t *testing.T) {
 	})
 
 	t.Run("contract_malformed_discovery_blocks_outbound_post", func(t *testing.T) {
+		t.Parallel()
+
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
 
@@ -92,6 +104,8 @@ func TestProtocolNegativeStrict(t *testing.T) {
 	})
 
 	t.Run("contract_unexchanged_shared_secret_bearer_401", func(t *testing.T) {
+		t.Parallel()
+
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
 

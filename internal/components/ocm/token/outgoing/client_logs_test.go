@@ -30,7 +30,7 @@ func (s logSentinelSigner) Sign(req *http.Request) error {
 	return nil
 }
 
-func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
+func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) { //nolint:paralleltest // subtests call slog.SetDefault, mutating the process-global default logger
 	tests := []struct {
 		name         string
 		sharedSecret string
@@ -51,7 +51,7 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests call slog.SetDefault, mutating the process-global default logger
 		t.Run(tt.name, func(t *testing.T) {
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			prev := slog.Default()

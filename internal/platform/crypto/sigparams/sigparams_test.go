@@ -13,12 +13,16 @@ import (
 )
 
 func TestSignatureTagOCM(t *testing.T) {
+	t.Parallel()
+
 	if sigparams.SignatureTagOCM != "ocm" {
 		t.Fatalf("SignatureTagOCM = %q, want %q", sigparams.SignatureTagOCM, "ocm")
 	}
 }
 
 func TestParseSignatureInput_OCM(t *testing.T) {
+	t.Parallel()
+
 	header := `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=1730815200;keyid="example.com#key1";alg="ed25519"`
 
 	params, err := sigparams.ParseSignatureInput(header, "ocm")
@@ -44,6 +48,8 @@ func TestParseSignatureInput_OCM(t *testing.T) {
 }
 
 func TestParseSignatureInput_RejectsMissingLabel(t *testing.T) {
+	t.Parallel()
+
 	_, err := sigparams.ParseSignatureInput(`sig1=("@method");created=1;keyid="x";alg="ed25519"`, "ocm")
 	if err == nil {
 		t.Fatal("expected error for missing ocm label")
@@ -55,6 +61,8 @@ func TestParseSignatureInput_RejectsMissingLabel(t *testing.T) {
 }
 
 func TestParseSignature_RejectsMissingLabel(t *testing.T) {
+	t.Parallel()
+
 	_, err := sigparams.ParseSignature(`sig1=:YWJj:`, "ocm")
 	if err == nil {
 		t.Fatal("expected error for missing ocm label")
@@ -66,6 +74,8 @@ func TestParseSignature_RejectsMissingLabel(t *testing.T) {
 }
 
 func TestParseSignature_RejectsInvalidEncoding(t *testing.T) {
+	t.Parallel()
+
 	_, err := sigparams.ParseSignature(`ocm=:not-valid!!!:`, "ocm")
 	if err == nil {
 		t.Fatal("expected decode error")
@@ -73,6 +83,8 @@ func TestParseSignature_RejectsInvalidEncoding(t *testing.T) {
 }
 
 func TestFormatRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	components := []string{"@method", "@target-uri", "date"}
 
 	raw := sigparams.FormatSignatureInput("ocm", components, 42, "example.com#key1", "ed25519")
@@ -95,6 +107,8 @@ func TestFormatRoundTrip(t *testing.T) {
 }
 
 func TestFormatSignatureInput_AlwaysIncludesTagOCM(t *testing.T) {
+	t.Parallel()
+
 	raw := sigparams.FormatSignatureInput("ocm", []string{"@method"}, 1, "example.com#k1", "ed25519")
 	if strings.Count(raw, `tag="ocm"`) != 1 {
 		t.Fatalf("Signature-Input must contain exactly one tag=\"ocm\": %q", raw)
@@ -115,6 +129,8 @@ func TestFormatSignatureInput_AlwaysIncludesTagOCM(t *testing.T) {
 }
 
 func TestFormatSignatureInput_OmitsEmptyAlg(t *testing.T) {
+	t.Parallel()
+
 	raw := sigparams.FormatSignatureInput("ocm", []string{"@method"}, 1, "example.com#k1", "")
 	if strings.Contains(raw, "alg=") {
 		t.Fatalf("empty algorithm must omit alg=: %q", raw)
@@ -135,7 +151,10 @@ func TestFormatSignatureInput_OmitsEmptyAlg(t *testing.T) {
 }
 
 func TestDictionaryMember_BoundaryAware(t *testing.T) {
+	t.Parallel()
+
 	// Substring "ocm=" appears inside keyid value; must not count or extract that.
+
 	header := `sig1=("@method");created=1;keyid="https://evil.example/ocm=spoof", ocm=("@method" "@target-uri");created=2;keyid="example.com#key1";alg="ed25519"`
 	if got := sigparams.CountDictionaryMembers(header, "ocm"); got != 1 {
 		t.Fatalf("CountDictionaryMembers = %d, want 1", got)
@@ -161,7 +180,10 @@ func TestDictionaryMember_BoundaryAware(t *testing.T) {
 }
 
 func TestDictionaryMember_QuotedCommaSpoof(t *testing.T) {
+	t.Parallel()
+
 	// Comma + "ocm=" inside a quoted keyid must not invent a second member.
+
 	header := `sig1=("@method");created=1;keyid="x, ocm=spoof", ocm=("@method" "@target-uri");created=2;keyid="example.com#key1";alg="ed25519"`
 	if got := sigparams.CountDictionaryMembers(header, "ocm"); got != 1 {
 		t.Fatalf("CountDictionaryMembers = %d, want 1", got)
@@ -187,6 +209,8 @@ func TestDictionaryMember_QuotedCommaSpoof(t *testing.T) {
 }
 
 func TestCountDictionaryMembers_DuplicateLabel(t *testing.T) {
+	t.Parallel()
+
 	header := `ocm=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
 	if got := sigparams.CountDictionaryMembers(header, "ocm"); got != 2 {
 		t.Fatalf("CountDictionaryMembers = %d, want 2", got)
@@ -194,6 +218,8 @@ func TestCountDictionaryMembers_DuplicateLabel(t *testing.T) {
 }
 
 func TestParseSignatureInput_RejectsDuplicateCoveredComponents(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		header string
@@ -209,6 +235,8 @@ func TestParseSignatureInput_RejectsDuplicateCoveredComponents(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := sigparams.ParseSignatureInput(tt.header, "ocm")
 			if err == nil {
 				t.Fatal("expected duplicate covered component rejection")
@@ -222,7 +250,10 @@ func TestParseSignatureInput_RejectsDuplicateCoveredComponents(t *testing.T) {
 }
 
 func TestValidateExactlyOneLabel(t *testing.T) {
+	t.Parallel()
 	t.Run("single_ocm", func(t *testing.T) {
+		t.Parallel()
+
 		header := `ocm=("@method");created=1;keyid="a#1"`
 		if err := sigparams.ValidateExactlyOneLabel(header, "ocm"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -230,6 +261,8 @@ func TestValidateExactlyOneLabel(t *testing.T) {
 	})
 
 	t.Run("foreign_label", func(t *testing.T) {
+		t.Parallel()
+
 		header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
 
 		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
@@ -239,6 +272,8 @@ func TestValidateExactlyOneLabel(t *testing.T) {
 	})
 
 	t.Run("duplicate_ocm", func(t *testing.T) {
+		t.Parallel()
+
 		header := `ocm=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
 
 		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
@@ -252,6 +287,8 @@ func TestValidateExactlyOneLabel(t *testing.T) {
 	})
 
 	t.Run("only_foreign", func(t *testing.T) {
+		t.Parallel()
+
 		header := `sig1=("@method");created=1;keyid="a#1"`
 
 		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
@@ -269,6 +306,8 @@ func TestValidateExactlyOneLabel(t *testing.T) {
 // v1.4 parser contract: a foreign dictionary label alongside exactly one ocm
 // member must be accepted, since only the ocm member is meaningful.
 func TestValidateExactlyOneLabel_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
+	t.Parallel()
+
 	header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
 	if err := sigparams.ValidateExactlyOneLabel(header, "ocm"); err != nil {
 		t.Fatalf("expected foreign labels alongside exactly one ocm member to be accepted, got: %v", err)
@@ -276,6 +315,8 @@ func TestValidateExactlyOneLabel_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 }
 
 func TestValidateExactlyOneLabel_RejectsDuplicateOCMAlongsideForeignLabel(t *testing.T) {
+	t.Parallel()
+
 	header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1", ocm=("@method");created=3;keyid="c#1"`
 
 	err := sigparams.ValidateExactlyOneLabel(header, "ocm")
@@ -289,6 +330,8 @@ func TestValidateExactlyOneLabel_RejectsDuplicateOCMAlongsideForeignLabel(t *tes
 }
 
 func TestValidateExactlyOneLabel_RejectsMissingOCMAmongForeignLabels(t *testing.T) {
+	t.Parallel()
+
 	header := `sig1=("@method");created=1;keyid="a#1", sig2=("@method");created=2;keyid="b#1"`
 
 	err := sigparams.ValidateExactlyOneLabel(header, "ocm")

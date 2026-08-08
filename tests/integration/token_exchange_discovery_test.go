@@ -22,6 +22,8 @@ import (
 // TestDevModeCanonicalPolicy exercises canonical policy under dev mode:
 // bounded route-policy governance with a strict global OCM posture.
 func TestDevModeCanonicalPolicy(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -36,17 +38,20 @@ func TestDevModeCanonicalPolicy(t *testing.T) {
 mode = "off"
 `,
 	})
-	defer srv.Stop(t)
+	t.Cleanup(func() { srv.Stop(t) })
 
 	t.Run("DiscoveryAdvertisesExchangeToken", func(t *testing.T) {
+		t.Parallel()
 		assertDiscoveryAdvertisesExchangeToken(t, srv)
 	})
 
 	t.Run("HealthEndpoint", func(t *testing.T) {
+		t.Parallel()
 		assertHealthEndpoint(t, srv)
 	})
 
 	t.Run("TokenEndpointRejectsInvalidGrant", func(t *testing.T) {
+		t.Parallel()
 		assertTokenEndpointRejectsInvalidGrant(t, srv)
 	})
 }
@@ -190,6 +195,8 @@ func assertTokenEndpointRejectsInvalidGrant(t *testing.T, srv *harness.Subproces
 // TestDiscoverySignatureCriteriaMatrixByPosture verifies the discovery
 // signature criterion tracks the resolved signature posture across modes.
 func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -215,6 +222,8 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 				Name:        "criteria-matrix-" + tt.mode,
 				Mode:        tt.mode,

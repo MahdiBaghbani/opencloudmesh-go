@@ -23,6 +23,8 @@ func testLog() *slog.Logger {
 }
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(Inputs{}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -40,6 +42,8 @@ func testIdentity(t *testing.T, basePath string) localidentity.Identity {
 }
 
 func TestNew_AcceptsExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(Inputs{LocalIdentity: testIdentity(t, "/ocm")}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -51,6 +55,8 @@ func TestNew_AcceptsExternalBasePath(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(Inputs{}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -62,6 +68,8 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(Inputs{}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -73,6 +81,8 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(Inputs{}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -113,14 +123,18 @@ func assertEndpointServesHTML(t *testing.T, path, marker string) {
 }
 
 func TestService_LoginEndpoint(t *testing.T) {
+	t.Parallel()
 	assertEndpointServesHTML(t, "/login", "<form")
 }
 
 func TestService_InboxEndpoint(t *testing.T) {
+	t.Parallel()
 	assertEndpointServesHTML(t, "/inbox", "inbox")
 }
 
 func TestService_LoginEndpoint_WithBasePath(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(Inputs{LocalIdentity: testIdentity(t, "/ocm")}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -141,6 +155,8 @@ func TestService_LoginEndpoint_WithBasePath(t *testing.T) {
 }
 
 func TestService_WayfEndpoint_Disabled(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(Inputs{}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -156,6 +172,8 @@ func TestService_WayfEndpoint_Disabled(t *testing.T) {
 }
 
 func TestService_WayfEndpoint_Enabled(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{
 		"wayf": map[string]any{"enabled": true},
 	}
@@ -185,6 +203,8 @@ func TestService_WayfEndpoint_Enabled(t *testing.T) {
 }
 
 func TestService_AcceptInvite_RendersTemplate(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{
 		"invite_accept": map[string]any{"enabled": true},
 	}
@@ -214,6 +234,8 @@ func TestService_AcceptInvite_RendersTemplate(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
+	t.Parallel()
+
 	var logBuf testLogBuffer
 
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))

@@ -17,6 +17,7 @@ import (
 )
 
 func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
+	t.Parallel()
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
 
 	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
@@ -49,6 +50,7 @@ func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 }
 
 func TestLogin_AcceptsRedirectQueryForAcceptInvite(t *testing.T) {
+	t.Parallel()
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "")
 
 	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)

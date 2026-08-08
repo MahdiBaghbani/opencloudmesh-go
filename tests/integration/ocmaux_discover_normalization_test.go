@@ -24,6 +24,8 @@ enabled = true
 `
 
 func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -77,6 +79,8 @@ func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {
 }
 
 func TestOCMAuxDiscover_BareHostNormalization(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -131,6 +135,8 @@ func TestOCMAuxDiscover_BareHostNormalization(t *testing.T) {
 }
 
 func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -189,6 +195,8 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 }
 
 func TestOCMAuxDiscover_NoInviteAcceptDialogReason(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

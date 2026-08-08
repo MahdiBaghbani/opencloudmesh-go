@@ -12,6 +12,7 @@ import (
 )
 
 func TestLogCapture_Contains(t *testing.T) {
+	t.Parallel()
 	logger, capture := log.NewLogCapture(t)
 	logger.Warn("unused config keys detected")
 
@@ -25,6 +26,7 @@ func TestLogCapture_Contains(t *testing.T) {
 }
 
 func TestLogCapture_WarnJSONContainsMessage(t *testing.T) {
+	t.Parallel()
 	logger, capture := log.NewLogCapture(t)
 	logger.Warn("json contract probe")
 
@@ -34,6 +36,7 @@ func TestLogCapture_WarnJSONContainsMessage(t *testing.T) {
 }
 
 func TestLogCapture_FiltersInfoAndDebug(t *testing.T) {
+	t.Parallel()
 	logger, capture := log.NewLogCapture(t)
 	logger.Info("info should not appear")
 	logger.Debug("debug should not appear")

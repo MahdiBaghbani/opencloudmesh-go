@@ -16,6 +16,8 @@ import (
 )
 
 func TestAcceptInvite_ReadsTokenAndProviderFromQuery(t *testing.T) {
+	t.Parallel()
+
 	handler, err := ui.NewHandler("", "alice.example.com")
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
@@ -42,6 +44,8 @@ func TestAcceptInvite_ReadsTokenAndProviderFromQuery(t *testing.T) {
 }
 
 func TestAcceptInvite_MissingParamsShowsWarning(t *testing.T) {
+	t.Parallel()
+
 	handler, err := ui.NewHandler("", "alice.example.com")
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)

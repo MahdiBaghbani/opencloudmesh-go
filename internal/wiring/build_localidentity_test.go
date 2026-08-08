@@ -18,6 +18,8 @@ import (
 )
 
 func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.ExternalBasePath = "/ocm"
 
@@ -41,6 +43,8 @@ func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
 }
 
 func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
+	t.Parallel()
+
 	const messyOrigin = "https://Cloud.Example.COM:443/"
 
 	cfg := config.DevConfig()

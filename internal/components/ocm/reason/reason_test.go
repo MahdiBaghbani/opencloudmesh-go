@@ -14,6 +14,8 @@ import (
 )
 
 func TestReasonMappings(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		code       string
@@ -60,6 +62,8 @@ func TestReasonMappings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := reason.OCMStatus(tt.code); got != tt.wantOCM {
 				t.Fatalf("OCMStatus(%q)=%d, want %d", tt.code, got, tt.wantOCM)
 			}
@@ -76,6 +80,8 @@ func TestReasonMappings(t *testing.T) {
 }
 
 func TestOCMStatus_ShareAdmissionWireMessages(t *testing.T) {
+	t.Parallel()
+
 	if got := reason.OCMStatus(reason.SenderNotTrusted); got != http.StatusForbidden {
 		t.Fatalf("OCMStatus(SENDER_NOT_TRUSTED)=%d, want %d", got, http.StatusForbidden)
 	}
@@ -86,6 +92,8 @@ func TestOCMStatus_ShareAdmissionWireMessages(t *testing.T) {
 }
 
 func TestFromClassified(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		in   string
@@ -103,6 +111,8 @@ func TestFromClassified(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := reason.FromClassified(tt.in); got != tt.want {
 				t.Fatalf("FromClassified(%q)=%q, want %q", tt.in, got, tt.want)
 			}
@@ -111,7 +121,10 @@ func TestFromClassified(t *testing.T) {
 }
 
 func TestCanonicalFromError(t *testing.T) {
+	t.Parallel()
 	t.Run("passes through reason.Error", func(t *testing.T) {
+		t.Parallel()
+
 		err := reason.New(reason.PeerDiscoveryDisabled, "disabled", nil)
 		if got := reason.CanonicalFromError(err); got != reason.PeerDiscoveryDisabled {
 			t.Fatalf("CanonicalFromError()=%q, want %q", got, reason.PeerDiscoveryDisabled)
@@ -119,6 +132,8 @@ func TestCanonicalFromError(t *testing.T) {
 	})
 
 	t.Run("maps classified errors", func(t *testing.T) {
+		t.Parallel()
+
 		err := reason.NewClassifiedError(reason.ReasonSignatureRequired, "missing signature", nil)
 		if got := reason.CanonicalFromError(err); got != reason.PeerPolicyUnsatisfied {
 			t.Fatalf("CanonicalFromError()=%q, want %q", got, reason.PeerPolicyUnsatisfied)
@@ -126,6 +141,8 @@ func TestCanonicalFromError(t *testing.T) {
 	})
 
 	t.Run("maps unknown errors to peer unreachable", func(t *testing.T) {
+		t.Parallel()
+
 		err := errors.New("some opaque error")
 		if got := reason.CanonicalFromError(err); got != reason.PeerUnreachable {
 			t.Fatalf("CanonicalFromError()=%q, want %q", got, reason.PeerUnreachable)

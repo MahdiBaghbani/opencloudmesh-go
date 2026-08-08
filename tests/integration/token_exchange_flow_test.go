@@ -31,6 +31,8 @@ import (
 // share creation to a strict peer, signed token exchange, and WebDAV access
 // with the exchanged bearer token.
 func TestTokenExchangeFlow(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -240,6 +242,8 @@ func assertWebDAVBearerContent(t *testing.T, senderBaseURL, webdavID, testFile, 
 }
 
 func TestIETFHarness_WiresCryptoDeps(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -265,6 +269,8 @@ func TestIETFHarness_WiresCryptoDeps(t *testing.T) {
 }
 
 func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}

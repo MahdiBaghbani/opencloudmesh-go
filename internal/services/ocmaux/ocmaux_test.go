@@ -23,6 +23,8 @@ func testLog() *slog.Logger {
 }
 
 func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Inputs{}, map[string]any{}, testLog())
 	if err == nil {
 		t.Fatal("expected error when required inputs are missing")
@@ -30,6 +32,8 @@ func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
 }
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -41,6 +45,8 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -52,6 +58,8 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -63,6 +71,8 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -74,6 +84,8 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestService_FederationsEndpoint(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -98,6 +110,8 @@ func TestService_FederationsEndpoint(t *testing.T) {
 }
 
 func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
+	t.Parallel()
+
 	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -122,6 +136,8 @@ func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
 }
 
 func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
+	t.Parallel()
+
 	in := testOCMAuxInputs()
 	in.DiscoveryClient = nil
 
@@ -140,6 +156,8 @@ func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
+	t.Parallel()
+
 	var logBuf testLogBuffer
 
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))

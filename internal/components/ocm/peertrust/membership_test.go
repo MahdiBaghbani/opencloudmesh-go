@@ -22,6 +22,8 @@ import (
 )
 
 func TestTrustGroupManager_IsMember(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	// Create manager without directory service client (no network calls), scheme=https
@@ -57,6 +59,8 @@ func TestTrustGroupManager_IsMember(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.host, func(t *testing.T) {
+			t.Parallel()
+
 			result := m.IsMember(context.Background(), tt.host, false)
 			if result != tt.expected {
 				t.Errorf("IsMember(%q) = %v, want %v", tt.host, result, tt.expected)
@@ -66,6 +70,8 @@ func TestTrustGroupManager_IsMember(t *testing.T) {
 }
 
 func TestTrustGroupManager_DisabledTrustGroup(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", logger, 10*time.Second)
@@ -91,6 +97,8 @@ func TestTrustGroupManager_DisabledTrustGroup(t *testing.T) {
 }
 
 func TestTrustGroupManager_M1UnionAcrossTrustGroups(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", logger, 10*time.Second)
@@ -133,6 +141,8 @@ func TestTrustGroupManager_M1UnionAcrossTrustGroups(t *testing.T) {
 }
 
 func TestTrustGroupManager_IsMember_RequireVerified(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", logger, 10*time.Second)
@@ -181,6 +191,8 @@ func TestTrustGroupManager_IsMember_RequireVerified(t *testing.T) {
 }
 
 func TestTrustGroupManager_IsMember_MaxStaleDenies(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cacheConfig := peertrust.CacheConfig{
@@ -211,6 +223,8 @@ func TestTrustGroupManager_IsMember_MaxStaleDenies(t *testing.T) {
 }
 
 func TestTrustGroupManager_IsMember_WithinMaxStaleAllowsMember(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cacheConfig := peertrust.CacheConfig{
@@ -241,6 +255,8 @@ func TestTrustGroupManager_IsMember_WithinMaxStaleAllowsMember(t *testing.T) {
 }
 
 func TestTrustGroupManager_IsMember_TTLVersusMaxStaleBoundary(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cacheConfig := peertrust.CacheConfig{
@@ -280,6 +296,8 @@ func TestTrustGroupManager_IsMember_TTLVersusMaxStaleBoundary(t *testing.T) {
 }
 
 func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	var fetchCount atomic.Int32
@@ -330,6 +348,8 @@ func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
 }
 
 func TestTrustGroupManager_MembershipRequiresVerifiedListings(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", logger, 10*time.Second)

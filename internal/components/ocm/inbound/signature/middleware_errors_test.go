@@ -74,6 +74,7 @@ func runStrictPeerMismatchCase(t *testing.T, declaredPeer, body, guardMsg, wantM
 // verified signature whose keyId authority disagrees with the declared peer
 // returns 403.
 func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T) {
+	t.Parallel()
 	runStrictPeerMismatchCase(
 		t,
 		"attacker.example.com",
@@ -84,6 +85,8 @@ func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T
 }
 
 func TestSignatureMiddleware_StrictMode_RejectsPublicKeyLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -126,6 +129,8 @@ func TestSignatureMiddleware_StrictMode_RejectsPublicKeyLookupFailure(t *testing
 	}
 }
 func TestSignatureMiddleware_StrictMode_RejectsKeyNotFound(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -168,6 +173,8 @@ func TestSignatureMiddleware_StrictMode_RejectsKeyNotFound(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_StrictMode_RejectsAlgorithmNotAllowed(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -211,6 +218,8 @@ func TestSignatureMiddleware_StrictMode_RejectsAlgorithmNotAllowed(t *testing.T)
 	}
 }
 func TestSignatureMiddleware_StrictMode_RejectsInvalidSignatureBody(t *testing.T) {
+	t.Parallel()
+
 	kmSender := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := kmSender.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -257,6 +266,8 @@ func TestSignatureMiddleware_StrictMode_RejectsInvalidSignatureBody(t *testing.T
 	}
 }
 func TestSignatureMiddleware_DeclaredPeerResolverError_FailClosed(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -278,6 +289,8 @@ func TestSignatureMiddleware_DeclaredPeerResolverError_FailClosed(t *testing.T) 
 	}
 }
 func TestSignatureMiddleware_DeclaredPeerResolverEmpty_FailClosed(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -299,6 +312,8 @@ func TestSignatureMiddleware_DeclaredPeerResolverEmpty_FailClosed(t *testing.T) 
 	}
 }
 func TestSignatureMiddleware_RequireDeclaredPeer_NilResolver(t *testing.T) {
+	t.Parallel()
+
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
@@ -317,7 +332,10 @@ func TestSignatureMiddleware_RequireDeclaredPeer_NilResolver(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_MismatchNormalizeError_FailClosed(t *testing.T) {
+	t.Parallel()
+
 	// Declared peer with a path fails authority normalization.
+
 	runStrictPeerMismatchCase(
 		t,
 		"sender.example.com/evil",

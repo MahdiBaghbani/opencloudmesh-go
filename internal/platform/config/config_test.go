@@ -16,6 +16,8 @@ import (
 // sites that must leave localScheme empty when PublicOrigin is empty or
 // unparseable (signature middleware).
 func TestSchemeFromOrigin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		origin string
@@ -30,6 +32,8 @@ func TestSchemeFromOrigin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := SchemeFromOrigin(tt.origin); got != tt.want {
 				t.Errorf("SchemeFromOrigin(%q) = %q, want %q", tt.origin, got, tt.want)
 			}
@@ -40,6 +44,8 @@ func TestSchemeFromOrigin(t *testing.T) {
 // TestPublicSchemeFromOrigin documents the https-default contract retained for
 // config-aware callers and the token handler.
 func TestPublicSchemeFromOrigin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		origin string
@@ -54,6 +60,8 @@ func TestPublicSchemeFromOrigin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := PublicSchemeFromOrigin(tt.origin); got != tt.want {
 				t.Errorf("PublicSchemeFromOrigin(%q) = %q, want %q", tt.origin, got, tt.want)
 			}
@@ -64,6 +72,8 @@ func TestPublicSchemeFromOrigin(t *testing.T) {
 // TestConfigPublicScheme confirms the config-aware method keeps the https
 // default for an empty PublicOrigin.
 func TestConfigPublicScheme(t *testing.T) {
+	t.Parallel()
+
 	if got := (&Config{}).PublicScheme(); got != "https" {
 		t.Errorf("(&Config{}).PublicScheme() = %q, want %q", got, "https")
 	}

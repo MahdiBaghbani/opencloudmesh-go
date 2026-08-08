@@ -31,6 +31,8 @@ func (unsignedMockSigner) Sign(_ *http.Request) error {
 }
 
 func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
+	t.Parallel()
+
 	const exchangedToken = "exchanged-access-token"
 
 	var requestCount atomic.Int32
@@ -88,6 +90,8 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 }
 
 func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := spec.Discovery{
@@ -136,6 +140,8 @@ func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
 }
 
 func TestAccess_NilTokenClientFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if exchangeDiscoveryHandler(t, w, r, "unused") {
 			return
@@ -218,14 +224,18 @@ func assertBearerStatusReturnedAsIs(t *testing.T, wantStatus int) {
 }
 
 func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
+	t.Parallel()
 	assertBearerStatusReturnedAsIs(t, http.StatusUnauthorized)
 }
 
 func TestAccess_Bearer403ReturnedAsIs(t *testing.T) {
+	t.Parallel()
 	assertBearerStatusReturnedAsIs(t, http.StatusForbidden)
 }
 
 func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
+	t.Parallel()
+
 	var tokenGrantType string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -399,6 +409,8 @@ func assertTokenExchangeFailsClosed(t *testing.T, client *Client, srvURL string,
 }
 
 func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	var tokenHits atomic.Int32
 
 	srv := startFailingTokenExchangeServer(t, &tokenHits, http.StatusUnauthorized, `{"error":"invalid_client","error_description":"client authentication failed"}`)
@@ -413,6 +425,8 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 }
 
 func TestAccess_TokenExchange403FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	var tokenHits atomic.Int32
 
 	srv := startFailingTokenExchangeServer(t, &tokenHits, http.StatusForbidden, `{"error":"access_denied","error_description":"token exchange denied"}`)

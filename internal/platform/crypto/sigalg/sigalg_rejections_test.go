@@ -21,6 +21,8 @@ import (
 // TestNormalizeSignatureInputAlgorithm_RejectsJOSENames asserts JOSE-registry
 // names other than ed25519 are not valid Signature-Input alg values.
 func TestNormalizeSignatureInputAlgorithm_RejectsJOSENames(t *testing.T) {
+	t.Parallel()
+
 	for _, in := range []string{"EdDSA", "EDDSA", "eddsa", "ES256", "es256", "ES384", "RS256", "RS384", "RS512"} {
 		_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
 		if err == nil {
@@ -36,7 +38,10 @@ func TestNormalizeSignatureInputAlgorithm_RejectsJOSENames(t *testing.T) {
 }
 
 func TestNormalizeSignatureInputAlgorithm_ErrorClassification(t *testing.T) {
+	t.Parallel()
 	t.Run("none", func(t *testing.T) {
+		t.Parallel()
+
 		for _, in := range []string{"none", "NONE", "None"} {
 			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
 			if !errors.Is(err, sigalg.ErrAlgorithmNotAllowed) {
@@ -46,6 +51,8 @@ func TestNormalizeSignatureInputAlgorithm_ErrorClassification(t *testing.T) {
 	})
 
 	t.Run("symmetric", func(t *testing.T) {
+		t.Parallel()
+
 		for _, in := range []string{"HS256", "hs256", "hmac-sha256", "HS384", "hmac-sha512"} {
 			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
 			if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
@@ -55,6 +62,8 @@ func TestNormalizeSignatureInputAlgorithm_ErrorClassification(t *testing.T) {
 	})
 
 	t.Run("missing", func(t *testing.T) {
+		t.Parallel()
+
 		for _, in := range []string{"", "   "} {
 			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
 			if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
@@ -64,6 +73,8 @@ func TestNormalizeSignatureInputAlgorithm_ErrorClassification(t *testing.T) {
 	})
 
 	t.Run("unsupported", func(t *testing.T) {
+		t.Parallel()
+
 		for _, in := range []string{"rsa-pss-sha256", "rsa-pss-sha512", "ecdsa-p521-sha512", "unknown-alg"} {
 			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
 			if err == nil {
@@ -80,6 +91,8 @@ func TestNormalizeSignatureInputAlgorithm_ErrorClassification(t *testing.T) {
 }
 
 func TestDeriveFromJWK_RejectsNoneAndSymmetric(t *testing.T) {
+	t.Parallel()
+
 	_, err := sigalg.DeriveFromJWK("OKP", "Ed25519", "none")
 	if !errors.Is(err, sigalg.ErrAlgorithmNotAllowed) {
 		t.Fatalf("OKP none: got %v, want ErrAlgorithmNotAllowed", err)
@@ -107,6 +120,8 @@ func TestDeriveFromJWK_RejectsNoneAndSymmetric(t *testing.T) {
 // and must be rejected as unsupported JWK alg.
 // https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L879
 func TestDeriveFromJWK_RejectsRFC9421NativeAlgNames(t *testing.T) {
+	t.Parallel()
+
 	nativeNames := []struct {
 		kty    string
 		crv    string
@@ -133,6 +148,8 @@ func TestDeriveFromJWK_RejectsRFC9421NativeAlgNames(t *testing.T) {
 // parameter accepts JOSE-registry names case-insensitively for each kty/crv
 // combination supported by the existing key-type compatibility logic.
 func TestDeriveFromJWK_AcceptsJOSENamesCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		kty     string
@@ -155,6 +172,8 @@ func TestDeriveFromJWK_AcceptsJOSENamesCaseInsensitive(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := sigalg.DeriveFromJWK(tc.kty, tc.crv, tc.jwkAlg)
 			if err != nil {
 				t.Fatalf("DeriveFromJWK(%q,%q,%q): unexpected error %v", tc.kty, tc.crv, tc.jwkAlg, err)
@@ -168,6 +187,8 @@ func TestDeriveFromJWK_AcceptsJOSENamesCaseInsensitive(t *testing.T) {
 }
 
 func TestIsSymmetric_JOSENames(t *testing.T) {
+	t.Parallel()
+
 	for _, in := range []string{"hmac-sha256", "HS256", "hs256", "hs384", "hs512"} {
 		if !sigalg.IsSymmetric(in) {
 			t.Fatalf("IsSymmetric(%q) = false", in)
@@ -180,6 +201,8 @@ func TestIsSymmetric_JOSENames(t *testing.T) {
 }
 
 func TestValidateAllowed_RejectsHS256(t *testing.T) {
+	t.Parallel()
+
 	err := sigalg.ValidateAllowed("hs256", sigalg.DefaultAllowed())
 	if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
 		t.Fatalf("got %v, want ErrSymmetricNotPermitted", err)
@@ -187,6 +210,8 @@ func TestValidateAllowed_RejectsHS256(t *testing.T) {
 }
 
 func TestValidateAllowed_SkipsInvalidAllowListEntries(t *testing.T) {
+	t.Parallel()
+
 	if err := sigalg.ValidateAllowed("ed25519", []string{"not-an-alg", "ed25519"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -198,6 +223,8 @@ func TestValidateAllowed_SkipsInvalidAllowListEntries(t *testing.T) {
 }
 
 func TestIsImplemented(t *testing.T) {
+	t.Parallel()
+
 	if !sigalg.IsImplemented("ed25519") {
 		t.Fatal("ed25519 should be implemented")
 	}
@@ -208,6 +235,7 @@ func TestIsImplemented(t *testing.T) {
 }
 
 func TestSign_NonEd25519NotImplemented(t *testing.T) {
+	t.Parallel()
 	priv := mustECDSAKey(t, elliptic.P256())
 
 	_, err := sigalg.Sign(sigalg.ECDSAP256SHA256, priv, []byte(testMsg))
@@ -217,6 +245,7 @@ func TestSign_NonEd25519NotImplemented(t *testing.T) {
 }
 
 func TestSign_WrongKeyType(t *testing.T) {
+	t.Parallel()
 	priv := mustRSAKey(t)
 
 	_, err := sigalg.Sign(sigalg.Ed25519, priv, []byte(testMsg))
@@ -226,6 +255,8 @@ func TestSign_WrongKeyType(t *testing.T) {
 }
 
 func TestVerify_TypedNilAndWrongKeyType(t *testing.T) {
+	t.Parallel()
+
 	sig := make([]byte, 64)
 
 	err := sigalg.Verify(sigalg.ECDSAP256SHA256, (*ecdsa.PublicKey)(nil), []byte(testMsg), sig)
@@ -256,6 +287,8 @@ func TestVerify_TypedNilAndWrongKeyType(t *testing.T) {
 }
 
 func TestSign_TypedNilEd25519(t *testing.T) {
+	t.Parallel()
+
 	_, err := sigalg.Sign(sigalg.Ed25519, ed25519.PrivateKey(nil), []byte(testMsg))
 	if !errors.Is(err, sigalg.ErrWrongKeyType) {
 		t.Fatalf("typed-nil ed25519 private: got %v, want ErrWrongKeyType", err)
@@ -263,6 +296,7 @@ func TestSign_TypedNilEd25519(t *testing.T) {
 }
 
 func TestVerify_CurveMismatch(t *testing.T) {
+	t.Parallel()
 	priv := mustECDSAKey(t, elliptic.P256())
 
 	err := sigalg.Verify(sigalg.ECDSAP384SHA384, &priv.PublicKey, []byte(testMsg), make([]byte, 96))
@@ -276,6 +310,8 @@ func TestVerify_CurveMismatch(t *testing.T) {
 }
 
 func TestVerify_ECDSA_WrongLengthEncoding(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		alg       string
@@ -292,6 +328,7 @@ func TestVerify_ECDSA_WrongLengthEncoding(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			priv := mustECDSAKey(t, tc.curve)
 
 			err := sigalg.Verify(tc.alg, &priv.PublicKey, []byte(testMsg), make([]byte, tc.badLen))
@@ -307,6 +344,8 @@ func TestVerify_ECDSA_WrongLengthEncoding(t *testing.T) {
 }
 
 func TestEncodeECDSARawRS_Errors(t *testing.T) {
+	t.Parallel()
+
 	r := big.NewInt(1)
 
 	s := big.NewInt(1)
@@ -325,6 +364,8 @@ func TestEncodeECDSARawRS_Errors(t *testing.T) {
 }
 
 func TestPublicKeyFromJWKFields_Negative(t *testing.T) {
+	t.Parallel()
+
 	if _, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: "OKP", Crv: "Ed25519", X: "!!!",
 	}); err == nil {

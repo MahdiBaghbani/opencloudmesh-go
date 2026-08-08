@@ -11,6 +11,8 @@ import (
 )
 
 func TestHostRootDiscoveryPaths_CanonicalOnly(t *testing.T) {
+	t.Parallel()
+
 	paths := HostRootDiscoveryPaths()
 
 	want := []string{"/.well-known/ocm"}

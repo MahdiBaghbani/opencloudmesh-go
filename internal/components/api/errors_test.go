@@ -15,6 +15,8 @@ import (
 )
 
 func TestWriteError_EnvelopeShape(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 
 	api.WriteError(w, http.StatusForbidden, api.ReasonSSRFBlocked, "connection to private IP blocked")
@@ -46,7 +48,10 @@ func TestWriteError_EnvelopeShape(t *testing.T) {
 }
 
 func TestWriteError_StableReasonCodes(t *testing.T) {
+	t.Parallel()
+
 	// Verify reason codes are stable (these should not change across versions)
+
 	codes := map[string]string{
 		"unauthenticated":    api.ReasonUnauthenticated,
 		"signature_required": api.ReasonSignatureRequired,
@@ -65,6 +70,8 @@ func TestWriteError_StableReasonCodes(t *testing.T) {
 }
 
 func TestWriteUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	api.WriteUnauthorized(w, api.ReasonSessionExpired, "session has expired")
 
@@ -83,6 +90,8 @@ func TestWriteUnauthorized(t *testing.T) {
 }
 
 func TestWriteForbidden(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	api.WriteForbidden(w, api.ReasonDeniedByDenylist, "peer is on denylist")
 
@@ -92,6 +101,8 @@ func TestWriteForbidden(t *testing.T) {
 }
 
 func TestWriteTooManyRequests(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	api.WriteTooManyRequests(w, "too many requests")
 

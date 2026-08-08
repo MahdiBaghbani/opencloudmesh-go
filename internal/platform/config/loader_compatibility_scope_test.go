@@ -132,6 +132,8 @@ compatibility_scope = "SCOPED"
 }
 
 func TestParseCompatibilityScope(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input   string
 		want    CompatibilityScope

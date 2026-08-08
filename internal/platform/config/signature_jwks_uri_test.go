@@ -34,7 +34,7 @@ func loadJwksURITOML(t *testing.T, tomlContent string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func TestLoad_SignatureJwksURIDecodes(t *testing.T) {
+func TestLoad_SignatureJwksURIDecodes(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	cfg, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -51,7 +51,7 @@ jwks_uri = "https://cloud.example.com/custom/jwks.json"
 	}
 }
 
-func TestLoad_SignatureJwksURIEmptyByDefault(t *testing.T) {
+func TestLoad_SignatureJwksURIEmptyByDefault(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	cfg, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -65,7 +65,7 @@ public_origin = "https://cloud.example.com"
 	}
 }
 
-func TestLoad_RejectsUnknownSignatureKey(t *testing.T) {
+func TestLoad_RejectsUnknownSignatureKey(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -82,7 +82,7 @@ jwks_uri_typo = "https://cloud.example.com/jwks.json"
 	}
 }
 
-func TestLoad_RejectsNonAbsoluteSignatureJwksURI(t *testing.T) {
+func TestLoad_RejectsNonAbsoluteSignatureJwksURI(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -99,7 +99,7 @@ jwks_uri = "/.well-known/jwks.json"
 	}
 }
 
-func TestLoad_RejectsHTTPSignatureJwksURIOutsideDev(t *testing.T) {
+func TestLoad_RejectsHTTPSignatureJwksURIOutsideDev(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -116,7 +116,7 @@ jwks_uri = "http://cloud.example.com/jwks.json"
 	}
 }
 
-func TestLoad_AllowsHTTPSignatureJwksURIWithDevHTTPOrigin(t *testing.T) {
+func TestLoad_AllowsHTTPSignatureJwksURIWithDevHTTPOrigin(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	cfg, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "http://localhost:9200"
@@ -133,7 +133,7 @@ jwks_uri = "http://localhost:9200/jwks.json"
 	}
 }
 
-func TestLoad_RejectsSignatureJwksURIWithCredentials(t *testing.T) {
+func TestLoad_RejectsSignatureJwksURIWithCredentials(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -155,7 +155,7 @@ jwks_uri = "https://user:pass@cloud.example.com/jwks.json"
 	}
 }
 
-func TestLoad_RejectsOpaqueSignatureJwksURIWithoutEchoingCredentials(t *testing.T) {
+func TestLoad_RejectsOpaqueSignatureJwksURIWithoutEchoingCredentials(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	// Opaque URLs can carry credential-like text in u.Opaque; rejection must
 	// not interpolate the configured URI into the error.
 	_, err := loadJwksURITOML(t, `
@@ -179,7 +179,7 @@ jwks_uri = "https:user:pass@cloud.example.com/jwks.json"
 	}
 }
 
-func TestLoad_RejectsMalformedSignatureJwksURIWithoutEchoingRaw(t *testing.T) {
+func TestLoad_RejectsMalformedSignatureJwksURIWithoutEchoingRaw(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	const raw = "https://cloud.example.com/%zz"
 
 	_, err := loadJwksURITOML(t, `
@@ -203,7 +203,7 @@ jwks_uri = "https://cloud.example.com/%zz"
 	}
 }
 
-func TestLoad_RejectsSignatureJwksURIWithFragment(t *testing.T) {
+func TestLoad_RejectsSignatureJwksURIWithFragment(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -220,7 +220,7 @@ jwks_uri = "https://cloud.example.com/jwks.json#key-1"
 	}
 }
 
-func TestLoad_RejectsSignatureJwksURIWithBareFragment(t *testing.T) {
+func TestLoad_RejectsSignatureJwksURIWithBareFragment(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -237,7 +237,7 @@ jwks_uri = "https://cloud.example.com/jwks.json#"
 	}
 }
 
-func TestLoad_RejectsNonHTTPSchemeSignatureJwksURI(t *testing.T) {
+func TestLoad_RejectsNonHTTPSchemeSignatureJwksURI(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -255,7 +255,7 @@ jwks_uri = "ftp://cloud.example.com/jwks"
 	}
 }
 
-func TestLoad_RejectsSchemeRelativeSignatureJwksURI(t *testing.T) {
+func TestLoad_RejectsSchemeRelativeSignatureJwksURI(t *testing.T) { //nolint:paralleltest // uses loadJwksURITOML helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"

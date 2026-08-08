@@ -15,6 +15,8 @@ import (
 )
 
 func TestDriverRegistry(t *testing.T) {
+	t.Parallel()
+
 	drivers := store.AvailableDrivers()
 
 	expected := map[string]bool{"json": true, "sqlite": true, "mirror": true}

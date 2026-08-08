@@ -63,7 +63,7 @@ func assertTLSPaths(t *testing.T, cfg *Config, want tlsPathExpectation) {
 	}
 }
 
-func TestLoad_TLSDir_Absent_NoChange(t *testing.T) {
+func TestLoad_TLSDir_Absent_NoChange(t *testing.T) { //nolint:paralleltest // uses loadTLSPathConfig helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	// No tls_dir in TOML; paths stay at preset defaults.
 	cfg := loadTLSPathConfig(t, `mode = "strict"
 public_origin = "https://localhost:9200"
@@ -77,7 +77,7 @@ public_origin = "https://localhost:9200"
 	})
 }
 
-func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) {
+func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) { //nolint:paralleltest // uses loadTLSPathConfig helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	// Even with [tls] present, derivation must not run unless tls_dir key is present.
 	cfg := loadTLSPathConfig(t, `mode = "strict"
 public_origin = "https://localhost:9200"
@@ -94,7 +94,7 @@ mode = "selfsigned"
 	})
 }
 
-func TestLoad_TLSDir_Present_DerivesDefaults(t *testing.T) {
+func TestLoad_TLSDir_Present_DerivesDefaults(t *testing.T) { //nolint:paralleltest // uses loadTLSPathConfig helper that calls t.Setenv, which mutates process-global env and is incompatible with t.Parallel
 	// tls_dir set; derives self_signed_dir, acme.storage_dir, signature.key_path.
 	cfg := loadTLSPathConfig(t, `mode = "strict"
 public_origin = "https://localhost:9200"

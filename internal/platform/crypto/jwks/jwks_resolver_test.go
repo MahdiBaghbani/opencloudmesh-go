@@ -21,6 +21,7 @@ import (
 )
 
 func TestResolver_ResolveURL(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -66,6 +67,7 @@ func (d *recordingDoer) Do(req *http.Request) (*http.Response, error) {
 }
 
 func TestResolver_ResolveURL_HonorsExplicitURL(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -103,6 +105,7 @@ func TestResolver_ResolveURL_HonorsExplicitURL(t *testing.T) {
 }
 
 func TestResolver_ResolveURL_MissingKid(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -121,6 +124,8 @@ func TestResolver_ResolveURL_MissingKid(t *testing.T) {
 }
 
 func TestResolver_EffectiveOptions_DefaultsAreBoundedAndNonZero(t *testing.T) {
+	t.Parallel()
+
 	resolver, err := jwks.NewResolver(&recordingDoer{})
 	if err != nil {
 		t.Fatal(err)
@@ -146,6 +151,8 @@ func TestResolver_EffectiveOptions_DefaultsAreBoundedAndNonZero(t *testing.T) {
 }
 
 func TestResolver_EffectiveOptions_ExplicitZeroFallsBackToDefaults(t *testing.T) {
+	t.Parallel()
+
 	resolver, err := jwks.NewResolverWithOptions(&recordingDoer{}, jwks.ResolverOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -170,6 +177,8 @@ func TestResolver_EffectiveOptions_ExplicitZeroFallsBackToDefaults(t *testing.T)
 }
 
 func TestNewResolver_NilClient(t *testing.T) {
+	t.Parallel()
+
 	_, err := jwks.NewResolver(nil)
 	if !errors.Is(err, jwks.ErrNilHTTPClient) {
 		t.Fatalf("NewResolver(nil) = %v, want ErrNilHTTPClient", err)

@@ -18,7 +18,10 @@ import (
 )
 
 func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
+	t.Parallel()
+
 	// Create a server that redirects
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/redirect" {
 			http.Redirect(w, r, "/target", http.StatusFound)
@@ -57,6 +60,7 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 }
 
 func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
+	t.Parallel()
 	runSameHostRelativeRedirectTest(
 		t,
 		"reached target",
@@ -66,6 +70,8 @@ func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
 }
 
 func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Always redirect
 		http.Redirect(w, r, r.URL.Path+"x", http.StatusFound) //nolint:gosec // test fixture: redirect target is derived from the local test request path, not an attacker-controlled production path
@@ -89,12 +95,16 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 }
 
 func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
+	t.Parallel()
 	runCrossHostRedirectBlockedTest(t, "expected error for cross-host redirect")
 }
 
 func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
+	t.Parallel()
+
 	// HTTP target the redirect will point to. The downgrade check fires before
 	// the same-host check, so the target host does not matter for this test.
+
 	httpTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -138,8 +148,11 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 }
 
 func TestSignedNoRedirectViaHeaders(t *testing.T) {
+	t.Parallel()
+
 	// Requests with RFC 9421 signature headers must not follow redirects
 	// even when using the unsigned Do() path
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/redirect" {
 			http.Redirect(w, r, "/target", http.StatusFound)
@@ -149,7 +162,8 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
+
+	t.Cleanup(func() { server.Close() })
 
 	client := outboundtestutil.NewPermissive(nil)
 
@@ -163,6 +177,8 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/redirect", nil)
 			if err != nil {
 				t.Fatalf("NewRequest: %v", err)
@@ -192,8 +208,11 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 }
 
 func TestRedirectSameHostSemantics(t *testing.T) {
+	t.Parallel()
+
 	// Test same-host redirect checks use relative URLs so the server host is preserved
 	// This tests that relative redirects work correctly and that port normalization applies
+
 	runSameHostRelativeRedirectTest(
 		t,
 		"reached",
@@ -203,12 +222,16 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 }
 
 func TestRedirectCrossHostBlocked(t *testing.T) {
+	t.Parallel()
 	runCrossHostRedirectBlockedTest(t, "cross-host redirect should be blocked")
 }
 
 func TestIsSameHostPortNormalization(t *testing.T) {
+	t.Parallel()
+
 	// Test port normalization logic via a test where we inject port in redirect
 	// This simulates: server at :PORT redirects to same host with explicit :PORT
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/start" {
 			// Build absolute URL with explicit port (should still be same-host)
@@ -245,8 +268,11 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 // redirect rejection is enforced even when an explicit proxy is configured
 // and the proxy itself responds with a redirect.
 func TestClient_SignedRedirectRejectedWithProxy(t *testing.T) {
+	t.Parallel()
+
 	// Proxy responds with a redirect to prove rejection happens at the client,
 	// not at the transport level.
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "http://other.example.invalid/target", http.StatusFound)
 	}))

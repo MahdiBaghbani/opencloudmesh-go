@@ -13,6 +13,8 @@ import (
 )
 
 func TestNew_RejectsNilSignatureMiddleware(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -32,6 +34,8 @@ func TestNew_RejectsNilSignatureMiddleware(t *testing.T) {
 }
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -46,6 +50,8 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -60,6 +66,8 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -74,6 +82,8 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -88,6 +98,8 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
+	t.Parallel()
+
 	var logBuf testLogBuffer
 
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))

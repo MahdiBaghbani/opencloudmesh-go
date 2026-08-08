@@ -66,6 +66,8 @@ func assertProtocolsRoundTrip(t *testing.T, input string) {
 }
 
 func TestObjectProtocolRole_RejectsNonObject(t *testing.T) {
+	t.Parallel()
+
 	cases := []any{
 		"scalar",
 		42,
@@ -79,6 +81,8 @@ func TestObjectProtocolRole_RejectsNonObject(t *testing.T) {
 }
 
 func TestObjectProtocolRole_AcceptsObject(t *testing.T) {
+	t.Parallel()
+
 	role, err := spec.ObjectProtocolRole(spec.WebDAVReceive{URI: spec.WebDAVReceiveURIAbsolute})
 	if err != nil {
 		t.Fatalf("ObjectProtocolRole: %v", err)
@@ -91,6 +95,8 @@ func TestObjectProtocolRole_AcceptsObject(t *testing.T) {
 }
 
 func TestProtocolRole_UnmarshalJSON_RejectsInvalidTypes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		input string
@@ -102,6 +108,8 @@ func TestProtocolRole_UnmarshalJSON_RejectsInvalidTypes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			var role spec.ProtocolRole
 			if err := json.Unmarshal([]byte(tc.input), &role); err == nil {
 				t.Fatalf("Unmarshal(%s) expected error", tc.input)
@@ -111,6 +119,8 @@ func TestProtocolRole_UnmarshalJSON_RejectsInvalidTypes(t *testing.T) {
 }
 
 func TestProtocolRole_JSONRoundTrip_StringRole(t *testing.T) {
+	t.Parallel()
+
 	const input = `{"protocols":{"webdav":"/remote/dav/ocm/"}}`
 	assertProtocolsRoundTrip(t, input)
 
@@ -128,6 +138,8 @@ func TestProtocolRole_JSONRoundTrip_StringRole(t *testing.T) {
 }
 
 func TestProtocolRole_JSONRoundTrip_ObjectReceiveRoles(t *testing.T) {
+	t.Parallel()
+
 	const input = `{"protocols":{"webdav-receive":{"uri":"absolute"}}}`
 	assertProtocolsRoundTrip(t, input)
 
@@ -145,6 +157,8 @@ func TestProtocolRole_JSONRoundTrip_ObjectReceiveRoles(t *testing.T) {
 }
 
 func TestProtocolRole_JSONRoundTrip_CustomProtocol(t *testing.T) {
+	t.Parallel()
+
 	const input = `{"protocols":{"custom-proto":"/custom/path","custom-recv":{"mode":"push"}}}`
 	assertProtocolsRoundTrip(t, input)
 
@@ -162,11 +176,15 @@ func TestProtocolRole_JSONRoundTrip_CustomProtocol(t *testing.T) {
 }
 
 func TestProtocolRole_JSONRoundTrip_FullExample(t *testing.T) {
+	t.Parallel()
+
 	const input = `{"protocols":{"webdav":"/remote/dav/ocm/","webdav-receive":{"uri":"absolute"}}}`
 	assertProtocolsRoundTrip(t, input)
 }
 
 func TestProtocolWireValues(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		got  string
@@ -177,6 +195,8 @@ func TestProtocolWireValues(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if tc.got != tc.want {
 				t.Errorf("wire value = %q, want %q", tc.got, tc.want)
 			}
@@ -198,9 +218,13 @@ var protocolWireLiterals = []string{
 }
 
 func TestProtocolClosedPathNoRawWireLiterals(t *testing.T) {
+	t.Parallel()
+
 	root := modroot.ModuleRoot(t)
 	for _, rel := range protocolClosedPathFiles {
 		t.Run(rel, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
@@ -217,6 +241,8 @@ func TestProtocolClosedPathNoRawWireLiterals(t *testing.T) {
 }
 
 func TestDiscovery_GetWebDAVPath_TypedStringRole(t *testing.T) {
+	t.Parallel()
+
 	disc := &spec.Discovery{
 		ResourceTypes: []spec.ResourceType{{
 			Name: "file",
@@ -231,6 +257,7 @@ func TestDiscovery_GetWebDAVPath_TypedStringRole(t *testing.T) {
 }
 
 func TestProtocolsDiscoveryProductionUsesSpecConstants(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	files := []string{
@@ -239,6 +266,8 @@ func TestProtocolsDiscoveryProductionUsesSpecConstants(t *testing.T) {
 	}
 	for _, rel := range files {
 		t.Run(rel, func(t *testing.T) {
+			t.Parallel()
+
 			path := filepath.Join(root, rel)
 
 			src, err := os.ReadFile(path)

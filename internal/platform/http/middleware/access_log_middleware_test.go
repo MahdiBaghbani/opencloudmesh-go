@@ -137,6 +137,8 @@ func (r *accessLogRecorderWithAttrs) WithGroup(_ string) slog.Handler {
 }
 
 func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
+	t.Parallel()
+
 	recorder := newAccessLogRecorder(slog.LevelInfo)
 	logger := slog.New(recorder)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -222,6 +224,8 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 }
 
 func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
+	t.Parallel()
+
 	recorder := newAccessLogRecorder(slog.LevelInfo)
 	logger := slog.New(recorder)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -284,6 +288,8 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 }
 
 func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
+	t.Parallel()
+
 	recorder := newAccessLogRecorder(slog.LevelInfo)
 	logger := slog.New(recorder)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -346,7 +352,10 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 }
 
 func TestLogLevelFiltering_DebugNotEmittedAtInfoLevel(t *testing.T) {
+	t.Parallel()
+
 	// Create a recorder at INFO level
+
 	recorder := newAccessLogRecorder(slog.LevelInfo)
 	logger := slog.New(recorder)
 
@@ -391,7 +400,10 @@ func TestLogLevelFiltering_DebugNotEmittedAtInfoLevel(t *testing.T) {
 }
 
 func TestLogLevelFiltering_DebugEmittedAtDebugLevel(t *testing.T) {
+	t.Parallel()
+
 	// Create a recorder at DEBUG level
+
 	recorder := newAccessLogRecorder(slog.LevelDebug)
 	logger := slog.New(recorder)
 

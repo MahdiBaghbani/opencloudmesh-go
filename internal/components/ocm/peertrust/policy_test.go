@@ -15,6 +15,8 @@ import (
 )
 
 func TestPolicyEngine_DenylistWins(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
@@ -35,6 +37,8 @@ func TestPolicyEngine_DenylistWins(t *testing.T) {
 }
 
 func TestPolicyEngine_AllowlistOverridesFederation(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
@@ -55,6 +59,8 @@ func TestPolicyEngine_AllowlistOverridesFederation(t *testing.T) {
 }
 
 func TestPolicyEngine_DenylistEnforced(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
@@ -74,6 +80,8 @@ func TestPolicyEngine_DenylistEnforced(t *testing.T) {
 }
 
 func TestPolicyEngine_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
@@ -89,6 +97,8 @@ func TestPolicyEngine_CaseInsensitive(t *testing.T) {
 }
 
 func TestPolicyEngine_NotAllowed(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{

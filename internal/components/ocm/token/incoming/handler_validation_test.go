@@ -23,6 +23,7 @@ import (
 )
 
 func TestHandler_MissingFields(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -38,6 +39,8 @@ func TestHandler_MissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(tt.form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -92,6 +95,8 @@ func assertTokenFormRejected(t *testing.T, form url.Values, wantError string) {
 }
 
 func TestHandler_InvalidGrantType(t *testing.T) {
+	t.Parallel()
+
 	form := url.Values{}
 	form.Set("grant_type", "password")
 	form.Set("client_id", "x")
@@ -103,6 +108,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 // TestHandler_UnsupportedGrantType_Rejected proves the strict token contract
 // rejects unknown grant types with unsupported_grant_type.
 func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -135,6 +141,7 @@ func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 
 // TestHandler_JSONBody_Rejected proves JSON token request bodies are rejected.
 func TestHandler_JSONBody_Rejected(t *testing.T) {
+	t.Parallel()
 	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
@@ -162,6 +169,8 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 }
 
 func TestHandler_ContentTypeValidation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		contentType        string
@@ -223,6 +232,7 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 			tokenStore := token.NewMemoryTokenStore()
 			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")

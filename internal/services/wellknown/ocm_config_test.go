@@ -12,6 +12,8 @@ import (
 )
 
 func TestProviderConfig_ApplyDefaults(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{}
 	c.ApplyDefaults()
 
@@ -21,6 +23,8 @@ func TestProviderConfig_ApplyDefaults(t *testing.T) {
 }
 
 func TestProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
+	t.Parallel()
+
 	c := &resolve.ProviderConfig{
 		Provider: "CustomProvider",
 	}

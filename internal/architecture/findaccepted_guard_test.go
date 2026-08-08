@@ -29,6 +29,7 @@ var (
 )
 
 func TestFindAccepted_NoRawFallback(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 
 	violations, found, err := scanFindAcceptedBodies(root)

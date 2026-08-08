@@ -27,6 +27,7 @@ import (
 // SHARED-to-RESERVED lock upgrade and intermittently fail with SQLITE_BUSY,
 // so this test would flake red without _txlock=immediate.
 func TestSQLiteConcurrentWritersSerialize(t *testing.T) {
+	t.Parallel()
 	s, _, ctx := openSQLiteDriver(t, "ocm-test-sqlite-writers-*")
 
 	invite := testutil.NewOutgoingInviteFixture()

@@ -19,6 +19,7 @@ import (
 // in-memory state is not left in a mutated state (no split-brain).
 // The failure is injected by making the data directory read-only after Init.
 func TestJSONInviteSaveFailureRollback(t *testing.T) {
+	t.Parallel()
 	runRollbackSuite(t, []rollbackCase{
 		{"CreateOutgoingInvite", testCreateOutgoingInviteRollback},
 		{"UpdateOutgoingInvite", testUpdateOutgoingInviteRollback},

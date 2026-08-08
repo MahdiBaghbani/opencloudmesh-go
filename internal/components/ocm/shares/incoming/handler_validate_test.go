@@ -12,6 +12,8 @@ import (
 )
 
 func TestValidateRequiredFields_AllMissing(t *testing.T) {
+	t.Parallel()
+
 	req := &spec.NewShareRequest{}
 	errs := spec.ValidateRequiredFields(req)
 
@@ -36,6 +38,8 @@ func TestValidateRequiredFields_AllMissing(t *testing.T) {
 }
 
 func TestValidateRequiredFields_AllPresent(t *testing.T) {
+	t.Parallel()
+
 	req := &spec.NewShareRequest{
 		ShareWith:    "user@host",
 		Name:         "file.txt",
@@ -54,7 +58,10 @@ func TestValidateRequiredFields_AllPresent(t *testing.T) {
 }
 
 func TestValidateRequiredFields_ProtocolWithOnlyWebDAV(t *testing.T) {
+	t.Parallel()
+
 	// Protocol has WebDAV but no name -- should not trigger "protocol REQUIRED"
+
 	req := &spec.NewShareRequest{
 		ShareWith:    "user@host",
 		Name:         "file.txt",

@@ -23,6 +23,7 @@ import (
 )
 
 func TestResolver_RefreshesOnTTLExpiry(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -55,6 +56,7 @@ func TestResolver_RefreshesOnTTLExpiry(t *testing.T) {
 }
 
 func TestResolver_RefetchesOnKidMiss(t *testing.T) {
+	t.Parallel()
 	key1Pub, key2Pub := mustTwoEd25519PublicKeys(t)
 
 	var version atomic.Int32
@@ -97,6 +99,7 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 }
 
 func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -146,6 +149,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 }
 
 func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
+	t.Parallel()
 	key1Pub, key2Pub := mustTwoEd25519PublicKeys(t)
 
 	var (
@@ -217,6 +221,7 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 }
 
 func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -267,6 +272,7 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 }
 
 func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 

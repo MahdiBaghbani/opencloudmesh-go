@@ -14,6 +14,8 @@ import (
 )
 
 func TestCompatCompiler_EmitDiscoveryCriteriaUsesSpecConstants(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	compiler := policy.NewCompatCompiler(
 		&policy.CodeFlow{RequiresHTTPRequestSignatures: &falseVal},
@@ -43,6 +45,8 @@ func TestCompatCompiler_EmitDiscoveryCriteriaUsesSpecConstants(t *testing.T) {
 }
 
 func TestCompatCompiler_EmitDiscoveryCriteriaOmitsWhenGated(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal)
 
 	criteria := compiler.EmitDiscoveryCriteria(policy.EmitDiscoveryCriteriaInput{
@@ -80,6 +84,8 @@ func TestCompatCompiler_EmitDiscoveryCriteriaOmitsWhenGated(t *testing.T) {
 }
 
 func TestCompatCompiler_EmitCapabilitiesUsesSpecConstants(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 
 	got := compiler.EmitCapabilities(policy.EmitCapabilitiesInput{
@@ -108,6 +114,8 @@ func TestCompatCompiler_EmitCapabilitiesUsesSpecConstants(t *testing.T) {
 }
 
 func TestCompatCompiler_EmitCapabilitiesOmitsWhenGated(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 
 	got := compiler.EmitCapabilities(policy.EmitCapabilitiesInput{
@@ -142,6 +150,8 @@ func TestCompatCompiler_EmitCapabilitiesOmitsWhenGated(t *testing.T) {
 }
 
 func TestCompatCompiler_EmitProtocolsUsesSpecConstants(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 
 	got := compiler.EmitProtocols(policy.EmitProtocolsInput{
@@ -165,6 +175,8 @@ func TestCompatCompiler_EmitProtocolsUsesSpecConstants(t *testing.T) {
 }
 
 func TestCompatCompiler_EmitProtocolsOmitsWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 
 	if len(compiler.EmitProtocols(policy.EmitProtocolsInput{})) != 0 {
@@ -195,6 +207,8 @@ func TestCompatCompiler_EmitProtocolsOmitsWhenEmpty(t *testing.T) {
 }
 
 func TestCompatCompiler_SignatureLabelUsesSpecConstant(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 	if got := compiler.SignatureLabel(); got != spec.SignatureLabelOCM {
 		t.Fatalf("SignatureLabel() = %q, want %q", got, spec.SignatureLabelOCM)
@@ -202,6 +216,8 @@ func TestCompatCompiler_SignatureLabelUsesSpecConstant(t *testing.T) {
 }
 
 func TestCompatCompiler_EmitShareRequirementsUsesSpecConstants(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 
 	got := compiler.EmitShareRequirements(policy.EmitShareRequirementsInput{
@@ -219,6 +235,8 @@ func TestCompatCompiler_EmitShareRequirementsUsesSpecConstants(t *testing.T) {
 }
 
 func TestCompatCompiler_RecognizedShareRequirementsUsesSpecConstants(t *testing.T) {
+	t.Parallel()
+
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 
 	got := compiler.RecognizedShareRequirements()
@@ -236,6 +254,8 @@ func TestCompatCompiler_RecognizedShareRequirementsUsesSpecConstants(t *testing.
 }
 
 func TestCompatCompiler_LocalProfileDelegatesToResolver(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	cfg := config.PeerMappingConfig{
 		RequiresTokenExchangeRequirement: &falseVal,

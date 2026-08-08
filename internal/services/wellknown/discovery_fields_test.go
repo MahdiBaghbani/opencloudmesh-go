@@ -43,6 +43,8 @@ func discoveryResolveInputs(cfg *config.Config) resolve.ResolveInputs {
 }
 
 func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
@@ -87,6 +89,8 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 }
 
 func TestDiscoveryFields_BasePathMount(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = "/ocm"
@@ -123,6 +127,8 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 }
 
 func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""

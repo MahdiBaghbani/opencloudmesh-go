@@ -46,17 +46,22 @@ func expectFatal(t *testing.T, fn func(testing.TB)) {
 }
 
 func TestAssertClassifiedReason_matchingReason(t *testing.T) {
+	t.Parallel()
+
 	err := ocmreason.NewClassifiedError(ocmreason.ReasonSignatureInvalid, "bad signature", nil)
 	tsreason.AssertClassifiedReason(t, err, ocmreason.ReasonSignatureInvalid)
 }
 
 func TestAssertClassifiedReason_wrappedClassifiedError(t *testing.T) {
+	t.Parallel()
+
 	classifiedErr := ocmreason.NewClassifiedError(ocmreason.ReasonSignatureInvalid, "bad signature", nil)
 	wrapped := fmt.Errorf("outer: %w", classifiedErr)
 	tsreason.AssertClassifiedReason(t, wrapped, ocmreason.ReasonSignatureInvalid)
 }
 
 func TestAssertClassifiedReason_nilError(t *testing.T) {
+	t.Parallel()
 	expectFatal(t, func(tb testing.TB) {
 		tb.Helper()
 		tsreason.AssertClassifiedReason(tb, nil, ocmreason.ReasonSignatureInvalid)
@@ -64,6 +69,7 @@ func TestAssertClassifiedReason_nilError(t *testing.T) {
 }
 
 func TestAssertClassifiedReason_notClassified(t *testing.T) {
+	t.Parallel()
 	expectFatal(t, func(tb testing.TB) {
 		tb.Helper()
 		tsreason.AssertClassifiedReason(tb, errors.New("plain error"), ocmreason.ReasonSignatureInvalid)
@@ -71,6 +77,8 @@ func TestAssertClassifiedReason_notClassified(t *testing.T) {
 }
 
 func TestAssertClassifiedReason_wrongReason(t *testing.T) {
+	t.Parallel()
+
 	err := ocmreason.NewClassifiedError(ocmreason.ReasonDigestMismatch, "digest mismatch", nil)
 
 	expectFatal(t, func(tb testing.TB) {

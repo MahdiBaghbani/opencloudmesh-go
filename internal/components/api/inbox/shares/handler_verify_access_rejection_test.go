@@ -20,6 +20,7 @@ import (
 )
 
 func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-cross", "sender.example.com", "file.txt")
 
@@ -41,6 +42,7 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-va-pending", "sender.example.com")
 

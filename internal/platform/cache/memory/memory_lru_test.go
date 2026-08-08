@@ -18,6 +18,8 @@ import (
 )
 
 func TestCache_LRUEvictsOldestBeyondCap(t *testing.T) {
+	t.Parallel()
+
 	c := memory.NewBounded(time.Minute, 0, 2)
 	defer tshttp.MustClose(t, c)
 
@@ -51,8 +53,11 @@ func TestCache_LRUEvictsOldestBeyondCap(t *testing.T) {
 }
 
 func TestCache_UnboundedInstanceDoesNotEvict(t *testing.T) {
+	t.Parallel()
+
 	// The rate-limit cache instance is TTL-only: inserts beyond the discovery
 	// cardinality default must not evict anything.
+
 	c := memory.New(time.Minute, 0)
 	defer tshttp.MustClose(t, c)
 
@@ -76,8 +81,11 @@ func TestCache_UnboundedInstanceDoesNotEvict(t *testing.T) {
 }
 
 func TestCache_ExpiredGetDoesNotPromoteLRU(t *testing.T) {
+	t.Parallel()
+
 	// An expired read must delete without refreshing recency. Otherwise a
 	// polled stale key stays hot and protects itself from LRU eviction.
+
 	c := memory.NewBounded(time.Minute, 0, 2)
 	defer tshttp.MustClose(t, c)
 
@@ -111,6 +119,8 @@ func TestCache_ExpiredGetDoesNotPromoteLRU(t *testing.T) {
 }
 
 func TestCache_ExpiredExistsDoesNotPromoteLRU(t *testing.T) {
+	t.Parallel()
+
 	c := memory.NewBounded(time.Minute, 0, 2)
 	defer tshttp.MustClose(t, c)
 
@@ -145,8 +155,11 @@ func TestCache_ExpiredExistsDoesNotPromoteLRU(t *testing.T) {
 }
 
 func TestCounter_NeverLRUBounded(t *testing.T) {
+	t.Parallel()
+
 	// Counters expire by TTL only, even on an LRU-bounded instance: evicting
 	// a live rate-limit window would reset its count and bypass the limit.
+
 	c := memory.NewBounded(time.Minute, 0, 2)
 	defer tshttp.MustClose(t, c)
 

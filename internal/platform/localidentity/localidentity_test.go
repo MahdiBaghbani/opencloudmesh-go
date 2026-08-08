@@ -12,6 +12,8 @@ import (
 )
 
 func TestValidateExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		input   string
@@ -34,6 +36,8 @@ func TestValidateExternalBasePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := localidentity.ValidateExternalBasePath(tt.input)
 			if tt.wantErr {
 				if err == nil {
@@ -55,6 +59,8 @@ func TestValidateExternalBasePath(t *testing.T) {
 }
 
 func TestDerive_ProviderDomainStripsDefaultPorts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		publicOrigin string
@@ -101,6 +107,8 @@ func TestDerive_ProviderDomainStripsDefaultPorts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			id, err := localidentity.Derive(tt.publicOrigin, tt.externalBase)
 			if err != nil {
 				t.Fatalf("Derive: %v", err)
@@ -130,6 +138,8 @@ func TestDerive_ProviderDomainStripsDefaultPorts(t *testing.T) {
 }
 
 func TestDerive_SchemeFromOrigin(t *testing.T) {
+	t.Parallel()
+
 	id, err := localidentity.Derive("http://localhost:8080", "")
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
@@ -141,6 +151,8 @@ func TestDerive_SchemeFromOrigin(t *testing.T) {
 }
 
 func TestDerive_EmptyPublicOrigin(t *testing.T) {
+	t.Parallel()
+
 	_, err := localidentity.Derive("", "/ocm")
 	if err == nil {
 		t.Fatal("expected error for empty public_origin")
@@ -148,6 +160,8 @@ func TestDerive_EmptyPublicOrigin(t *testing.T) {
 }
 
 func TestDerive_InvalidExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	_, err := localidentity.Derive("https://example.com", "ocm")
 	if err == nil {
 		t.Fatal("expected error for invalid external base path")

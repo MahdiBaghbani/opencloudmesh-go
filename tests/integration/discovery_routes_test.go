@@ -19,8 +19,11 @@ import (
 )
 
 func TestDiscoveryRoutesMatchRouteInventory(t *testing.T) {
+	t.Parallel()
+
 	for _, variant := range tsrouting.MatrixVariants() {
 		t.Run(variant.Name, func(t *testing.T) {
+			t.Parallel()
 			ts := harness.StartTestServerWithConfig(t, matrixConfigPatch(variant))
 			disc := getLiveDiscovery(t, ts.BaseURL)
 			assertDiscoveryMatchesProjection(t, ts, disc)

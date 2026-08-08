@@ -31,6 +31,7 @@ func (r *failingDeleteRepo) DeleteForRecipientUserID(_ context.Context, _ string
 }
 
 func TestHandleDecline_Success(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "decline-token", "sender.example.com")
 
@@ -52,6 +53,7 @@ func TestHandleDecline_Success(t *testing.T) {
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "decline-cross-token", "sender.example.com")
 
@@ -68,6 +70,7 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
@@ -83,6 +86,7 @@ func TestHandleDecline_Unauthenticated(t *testing.T) {
 // TestHandleDecline_PersistFailureReturns5xx verifies a local delete failure
 // surfaces as 5xx instead of a silent 200.
 func TestHandleDecline_PersistFailureReturns5xx(t *testing.T) {
+	t.Parallel()
 	mem := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, mem, userAID, "decline-fail-token", "sender.example.com")
 

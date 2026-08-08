@@ -16,6 +16,7 @@ import (
 )
 
 func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
@@ -31,6 +32,7 @@ func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
@@ -46,6 +48,7 @@ func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
@@ -61,6 +64,7 @@ func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
@@ -76,6 +80,7 @@ func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
@@ -91,6 +96,7 @@ func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
@@ -105,6 +111,7 @@ func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
 	}
 }
 func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 

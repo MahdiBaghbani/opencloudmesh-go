@@ -21,6 +21,8 @@ import (
 )
 
 func TestIsAuthRequired_FromRoutePolicyAggregate(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 
 	tests := []struct {
@@ -45,6 +47,8 @@ func TestIsAuthRequired_FromRoutePolicyAggregate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := IsAuthRequired(tt.path, opts)
 			if got != tt.want {
 				t.Errorf("IsAuthRequired(%q) = %v, want %v", tt.path, got, tt.want)
@@ -54,6 +58,8 @@ func TestIsAuthRequired_FromRoutePolicyAggregate(t *testing.T) {
 }
 
 func TestIsAuthRequired_WithExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
 		WayfEnabled:         false,
@@ -78,6 +84,8 @@ func TestIsAuthRequired_WithExternalBasePath(t *testing.T) {
 }
 
 func TestIsAuthRequired_WayfEnabled(t *testing.T) {
+	t.Parallel()
+
 	opts := service.RouteOpts{
 		WayfEnabled:         true,
 		InviteAcceptEnabled: true,
@@ -93,6 +101,8 @@ func TestIsAuthRequired_WayfEnabled(t *testing.T) {
 }
 
 func TestIsAuthRequired_AcceptInviteWithExternalBasePath(t *testing.T) {
+	t.Parallel()
+
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
 		WayfEnabled:         true,
@@ -109,6 +119,8 @@ func TestIsAuthRequired_AcceptInviteWithExternalBasePath(t *testing.T) {
 }
 
 func TestSessionGate_AcceptInviteProtectedAtServer(t *testing.T) {
+	t.Parallel()
+
 	opts := service.RouteOpts{
 		WayfEnabled:         true,
 		InviteAcceptEnabled: true,

@@ -18,6 +18,8 @@ import (
 )
 
 func TestRoutes_IsCanonicalAggregate(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	inventory := service.DerivedRouteInventory(opts)
 	rows := service.Routes(opts)
@@ -36,6 +38,8 @@ func TestRoutes_IsCanonicalAggregate(t *testing.T) {
 }
 
 func TestRoutes_ProductRowsHavePolicyMetadata(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	for _, row := range service.Routes(opts) {
 		if row.Synthetic {
@@ -57,6 +61,8 @@ func TestRoutes_ProductRowsHavePolicyMetadata(t *testing.T) {
 }
 
 func TestRoutes_SyntheticRowsHaveSurfaceClass(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	for _, row := range service.Routes(opts) {
 		if !row.Synthetic {
@@ -70,6 +76,8 @@ func TestRoutes_SyntheticRowsHaveSurfaceClass(t *testing.T) {
 }
 
 func TestRoutes_ProtocolRowsUseHTTPSigHandlerAuth(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	for _, row := range service.Routes(opts) {
 		if row.Synthetic || row.SurfaceClass != service.SurfaceProtocol {
@@ -83,6 +91,8 @@ func TestRoutes_ProtocolRowsUseHTTPSigHandlerAuth(t *testing.T) {
 }
 
 func TestRoutes_APIOutboundKindsDeclaredOnAPIRows(t *testing.T) {
+	t.Parallel()
+
 	opts := service.DefaultRouteOpts()
 	found := map[service.OutboundProtocolKind]bool{
 		service.OutboundShares:  false,

@@ -13,6 +13,8 @@ import (
 )
 
 func TestValidatePublicOrigin_ValidValues(t *testing.T) {
+	t.Parallel()
+
 	valid := []struct {
 		name   string
 		origin string
@@ -36,6 +38,8 @@ func TestValidatePublicOrigin_ValidValues(t *testing.T) {
 
 	for _, tt := range valid {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := &Config{PublicOrigin: tt.origin}
 			if err := validatePublicOrigin(cfg); err != nil {
 				t.Errorf("validatePublicOrigin(%q) unexpected error: %v", tt.origin, err)
@@ -45,6 +49,8 @@ func TestValidatePublicOrigin_ValidValues(t *testing.T) {
 }
 
 func TestValidatePublicOrigin_InvalidValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		origin    string
@@ -104,6 +110,8 @@ func TestValidatePublicOrigin_InvalidValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := &Config{PublicOrigin: tt.origin}
 
 			err := validatePublicOrigin(cfg)

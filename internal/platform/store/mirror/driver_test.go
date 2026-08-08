@@ -16,6 +16,7 @@ import (
 )
 
 func TestMirrorDriver(t *testing.T) {
+	t.Parallel()
 	tempDir := testutil.TempDataDir(t, "ocm-test-mirror-*")
 
 	cfg := &store.DriverConfig{

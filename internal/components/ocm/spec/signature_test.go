@@ -17,6 +17,8 @@ import (
 )
 
 func TestSignatureLabelOCM(t *testing.T) {
+	t.Parallel()
+
 	if spec.SignatureLabelOCM != "ocm" {
 		t.Fatalf("SignatureLabelOCM = %q, want %q", spec.SignatureLabelOCM, "ocm")
 	}
@@ -34,9 +36,13 @@ var signatureClosedPathFiles = []string{
 }
 
 func TestSignatureClosedPathNoRawWireLiterals(t *testing.T) {
+	t.Parallel()
+
 	root := modroot.ModuleRoot(t)
 	for _, rel := range signatureClosedPathFiles {
 		t.Run(rel, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)

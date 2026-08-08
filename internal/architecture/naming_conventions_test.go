@@ -18,6 +18,8 @@ import (
 )
 
 func TestNoBannedDSAbbreviations(t *testing.T) {
+	t.Parallel()
+
 	standaloneDS := regexp.MustCompile(`\bDS\b`)
 	bannedTerms := []string{
 		"dsClient", "dsURL", "ds_url",
@@ -90,6 +92,8 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 }
 
 func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
+	t.Parallel()
+
 	bannedTags := []string{
 		`json:"domain"`, `json:"domain,`,
 		`json:"name"`, `json:"name,`,
@@ -145,6 +149,8 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 }
 
 func TestNoFirstAtOCMAddressParsing(t *testing.T) {
+	t.Parallel()
+
 	pattern := regexp.MustCompile(`SplitN\([^,]*,\s*"@"\s*,\s*2\)`)
 
 	root := modroot.ModuleRoot(t)

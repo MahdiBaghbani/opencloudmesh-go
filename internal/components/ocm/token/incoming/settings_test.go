@@ -11,6 +11,8 @@ import (
 )
 
 func TestTokenExchangeSettings_ApplyDefaults(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		settings TokenExchangeSettings
@@ -35,6 +37,7 @@ func TestTokenExchangeSettings_ApplyDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.settings.ApplyDefaults()
 
 			if tt.settings.Path != tt.wantPath {
@@ -45,6 +48,8 @@ func TestTokenExchangeSettings_ApplyDefaults(t *testing.T) {
 }
 
 func TestTokenExchangeSettings_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		path    string
@@ -112,6 +117,8 @@ func TestTokenExchangeSettings_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := &TokenExchangeSettings{Path: tt.path}
 
 			err := s.Validate()
@@ -133,6 +140,8 @@ func TestTokenExchangeSettings_Validate(t *testing.T) {
 }
 
 func TestTokenExchangeSettings_FullEndpoint(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		path             string
@@ -172,6 +181,8 @@ func TestTokenExchangeSettings_FullEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := &TokenExchangeSettings{Path: tt.path}
 
 			got := s.FullEndpoint(tt.publicOrigin, tt.externalBasePath)
@@ -183,6 +194,8 @@ func TestTokenExchangeSettings_FullEndpoint(t *testing.T) {
 }
 
 func TestTokenExchangeSettings_RoutePath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		path string
@@ -207,6 +220,8 @@ func TestTokenExchangeSettings_RoutePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := &TokenExchangeSettings{Path: tt.path}
 
 			got := s.RoutePath()

@@ -36,6 +36,8 @@ import (
 // inbound/outbound defaults apply; this test only exercises the ACME/TLS
 // listener setup, not signature enforcement.
 func TestACME_SubprocessTwoListeners(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

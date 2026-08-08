@@ -24,6 +24,8 @@ import (
 )
 
 func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
+	t.Parallel()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -84,7 +86,10 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 	}
 }
 func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T) {
+	t.Parallel()
+
 	// keyId "[]#key1" is rejected during authority normalization.
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)

@@ -22,6 +22,8 @@ import (
 )
 
 func TestClient_Exchange_OAuthError(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -53,6 +55,8 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 }
 
 func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)

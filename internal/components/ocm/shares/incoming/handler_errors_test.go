@@ -20,6 +20,7 @@ import (
 )
 
 func TestCreateShare_MissingRequiredFields(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -51,6 +52,7 @@ func TestCreateShare_MissingRequiredFields(t *testing.T) {
 }
 
 func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -99,6 +101,7 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 }
 
 func TestCreateShare_ProviderMismatch(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -126,6 +129,8 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 }
 
 func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
+	t.Parallel()
+
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -140,7 +145,8 @@ func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
 	}`
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	bodyReader := bytes.NewBufferString(body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bodyReader)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -156,12 +162,14 @@ func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
 		t.Fatalf("Decode: %v", err)
 	}
 
-	if resp.Message != "SHARE_TYPE_NOT_SUPPORTED" {
-		t.Errorf("expected SHARE_TYPE_NOT_SUPPORTED, got %q", resp.Message)
+	wantMessage := "SHARE_TYPE_NOT_SUPPORTED"
+	if resp.Message != wantMessage {
+		t.Errorf("expected %s, got %q", wantMessage, resp.Message)
 	}
 }
 
 func TestCreateShare_RecipientNotFound(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -200,6 +208,7 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 	}
 }
 func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -226,8 +235,11 @@ func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
 	}
 }
 func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
+	t.Parallel()
+
 	// Encoded identifier decodes to a valid userID@idp payload, but the
 	// decoded idp doesn't match local provider -- must be rejected.
+
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
@@ -257,9 +269,12 @@ func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 }
 
 func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
+	t.Parallel()
+
 	// "YWJj" is base64 of "abc" -- passes charset check but decoded payload
 	// has no '@', so DecodeFederatedOpaqueID returns false. Falls through to
 	// "recipient not found" since "YWJj" is not a real user.
+
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)

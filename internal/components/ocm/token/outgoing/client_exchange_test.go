@@ -25,6 +25,8 @@ import (
 )
 
 func TestClient_Exchange_Success_LowercaseBearerTokenType(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		tshttp.MustEncodeJSON(t, w, token.TokenResponse{
@@ -50,6 +52,8 @@ func TestClient_Exchange_Success_LowercaseBearerTokenType(t *testing.T) {
 }
 
 func TestClient_Exchange_Success(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("expected POST, got %s", r.Method)
@@ -113,10 +117,13 @@ func TestClient_Exchange_Success(t *testing.T) {
 }
 
 func TestClient_Exchange_WithoutHTTPSigSendsUnsigned(t *testing.T) {
+	t.Parallel()
 	runExchangeSignatureCase(t, false, "my-instance.example.com", noHTTPSigDiscovery(), "unsigned-token")
 }
 
 func TestClient_Exchange_NoSignerWithoutHTTPSigSucceeds(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") != "" {
 			t.Error("expected unsigned request for peer without http-sig")
@@ -150,6 +157,8 @@ func TestClient_Exchange_NoSignerWithoutHTTPSigSucceeds(t *testing.T) {
 }
 
 func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
+	t.Parallel()
+
 	tokenEndpointCalled := false
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -194,6 +203,8 @@ func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 }
 
 func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
+	t.Parallel()
+
 	tokenEndpointCalled := false
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -238,6 +249,8 @@ func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
 }
 
 func TestClient_Exchange_SignedRejection401EmptyBodySingleAttempt(t *testing.T) {
+	t.Parallel()
+
 	var tokenHits atomic.Int32
 
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -280,6 +293,8 @@ func TestClient_Exchange_SignedRejection401EmptyBodySingleAttempt(t *testing.T) 
 }
 
 func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		tshttp.MustWrite(t, w, []byte("{not valid json"))
@@ -291,6 +306,8 @@ func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
 }
 
 func TestClient_Exchange_SignedRejection401OAuthErrorSingleAttempt(t *testing.T) {
+	t.Parallel()
+
 	var tokenHits atomic.Int32
 
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -333,6 +350,8 @@ func TestClient_Exchange_SignedRejection401OAuthErrorSingleAttempt(t *testing.T)
 }
 
 func TestClient_Exchange_RejectsOversizeResponse(t *testing.T) {
+	t.Parallel()
+
 	oversizeBody := make([]byte, config.DefaultMaxResponseBytes+1)
 	for i := range oversizeBody {
 		oversizeBody[i] = 'x'
@@ -350,6 +369,8 @@ func TestClient_Exchange_RejectsOversizeResponse(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsNonJSONContentType(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		tshttp.MustWrite(t, w, []byte("not json"))
@@ -361,6 +382,8 @@ func TestClient_Exchange_RejectsNonJSONContentType(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsEmptyAccessToken(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		tshttp.MustEncodeJSON(t, w, token.TokenResponse{
@@ -376,6 +399,8 @@ func TestClient_Exchange_RejectsEmptyAccessToken(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsNonBearerTokenType(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		tshttp.MustEncodeJSON(t, w, token.TokenResponse{
@@ -391,6 +416,8 @@ func TestClient_Exchange_RejectsNonBearerTokenType(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsNonPositiveExpiresIn(t *testing.T) {
+	t.Parallel()
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		tshttp.MustEncodeJSON(t, w, token.TokenResponse{

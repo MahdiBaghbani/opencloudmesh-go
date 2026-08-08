@@ -17,6 +17,8 @@ import (
 )
 
 func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	protected := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -67,6 +69,8 @@ func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 }
 
 func TestAuthGate_AcceptInviteRedirectPreservesQueryWithBasePath(t *testing.T) {
+	t.Parallel()
+
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	protected := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -22,6 +22,7 @@ import (
 )
 
 func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	shareA := createShareForUser(t, repo, userAID, "prov-a1", "sender.example.com")
 	createShareForUser(t, repo, userBID, "prov-b1", "sender.example.com")
@@ -52,6 +53,7 @@ func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 }
 
 func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	createShareForUser(t, repo, userAID, "prov-a1", "sender.example.com")
 
@@ -77,6 +79,7 @@ func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 }
 
 func TestHandleList_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	router := newTestRouter(repo, nil) // nil user = unauthenticated
 
@@ -89,6 +92,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 	}
 }
 func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
+	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 
 	share := &sharesincoming.IncomingShare{

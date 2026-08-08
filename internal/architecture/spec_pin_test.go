@@ -27,6 +27,7 @@ import (
 )
 
 func TestSpecPinPresent(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	vendorDir := filepath.Join(root, "internal", "components", "ocm", "spec", "vendor")
 	pinPath := filepath.Join(vendorDir, "pin.json")
@@ -83,6 +84,7 @@ func TestSpecPinPresent(t *testing.T) {
 }
 
 func TestRuntimeAPIVersionPinMatchesVendoredSpec(t *testing.T) {
+	t.Parallel()
 	root := modroot.ModuleRoot(t)
 	specPath := filepath.Join(root, "internal", "components", "ocm", "spec", "vendor", "spec.yaml")
 

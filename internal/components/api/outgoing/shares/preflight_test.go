@@ -13,6 +13,8 @@ import (
 )
 
 func TestMustIncludeTokenExchange(t *testing.T) {
+	t.Parallel()
+
 	strictFacts := policy.NewCodeFlow().Evaluate()
 	voluntaryFacts := policy.Facts{IncludesTokenExchangeRequirement: false}
 	forcedDisc := &spec.Discovery{Criteria: []string{spec.CriteriaMustExchangeToken}}
@@ -52,6 +54,8 @@ func TestMustIncludeTokenExchange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := mustIncludeTokenExchange(tt.facts, tt.disc)
 			if got != tt.want {
 				t.Errorf("mustIncludeTokenExchange(%+v, %v) = %v, want %v",
@@ -62,6 +66,8 @@ func TestMustIncludeTokenExchange(t *testing.T) {
 }
 
 func TestTokenExchangeRequirements(t *testing.T) {
+	t.Parallel()
+
 	if got := tokenExchangeRequirements(true); len(got) != 1 || got[0] != spec.RequirementMustExchangeToken {
 		t.Errorf("tokenExchangeRequirements(true) = %v, want [%s]", got, spec.RequirementMustExchangeToken)
 	}

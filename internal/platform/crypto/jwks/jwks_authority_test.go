@@ -17,6 +17,8 @@ import (
 )
 
 func TestAuthorityFromBaseURL_NormalizesHostAndDefaultPort(t *testing.T) {
+	t.Parallel()
+
 	scheme, authority, err := jwks.AuthorityFromBaseURL("https://Example.COM:443/ocm/path?q=1")
 	if err != nil {
 		t.Fatalf("AuthorityFromBaseURL: %v", err)
@@ -41,6 +43,7 @@ func TestAuthorityFromBaseURL_NormalizesHostAndDefaultPort(t *testing.T) {
 }
 
 func TestEd25519Key_PublicationIncludesAlg(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	key := jwks.Ed25519Key(testJWKSKey1, pub)
 
@@ -67,6 +70,7 @@ func TestEd25519Key_PublicationIncludesAlg(t *testing.T) {
 }
 
 func TestResolver_ResolveURL_RejectsInvalidJWKBeforeVerifierUse(t *testing.T) {
+	t.Parallel()
 	pub, _ := mustEd25519KeyPair(t)
 	key := jwks.Ed25519Key(testJWKSKey1, pub)
 	key.Alg = "ES256" // incompatible alg/kty/crv: Ed25519 key claiming ES256
