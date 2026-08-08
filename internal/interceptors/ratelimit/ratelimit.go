@@ -8,6 +8,7 @@ package ratelimit
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -67,7 +68,7 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 
 	var c Config
 	if err := svccfg.Decode(conf, &c); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ratelimit: decode config: %w", err)
 	}
 
 	c.ApplyDefaults()

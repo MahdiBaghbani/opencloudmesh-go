@@ -7,6 +7,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
@@ -30,10 +31,15 @@ func NewInviteAcceptedPoster(poster *outbound.Poster) invitesincoming.InviteAcce
 
 // PostInviteAccepted posts the invite-accepted protocol call to the sender.
 func (a *inviteAcceptedPoster) PostInviteAccepted(ctx context.Context, targetHost string, body []byte) (*http.Response, error) {
-	return a.poster.Send(ctx, outbound.Request{
+	resp, err := a.poster.Send(ctx, outbound.Request{
 		TargetHost:   targetHost,
 		EndpointPath: "invite-accepted",
 		Kind:         outbound.EndpointInvites,
 		Body:         body,
 	})
+	if err != nil {
+		return resp, fmt.Errorf("services: post accepted invite: %w", err)
+	}
+
+	return resp, nil
 }

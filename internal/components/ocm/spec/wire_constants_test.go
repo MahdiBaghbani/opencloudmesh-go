@@ -90,8 +90,9 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		60: {},
 	},
 	"internal/services/ocm/ocm.go": {
-		58:  {},
-		145: {},
+		// wrapcheck rollout added a "fmt" import (+1).
+		59:  {},
+		146: {},
 	},
 	"internal/services/ocm/routes.go": {
 		40: {},
@@ -106,9 +107,10 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		25: {},
 	},
 	"internal/services/webdav/webdav.go": {
-		48: {},
-		54: {},
-		70: {},
+		// wrapcheck rollout added a "fmt" import (+1).
+		49: {},
+		55: {},
+		71: {},
 	},
 }
 

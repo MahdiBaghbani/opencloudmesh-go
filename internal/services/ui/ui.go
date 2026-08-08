@@ -7,6 +7,7 @@
 package ui
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -53,7 +54,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("services: decode ui config: %w", err)
 	}
 
 	if len(unused) > 0 {
@@ -62,7 +63,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	uiHandler, err := ui.NewHandler(inputs.LocalIdentity.ExternalBasePath, inputs.LocalIdentity.ProviderDomain)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("services: create ui handler: %w", err)
 	}
 
 	r := chi.NewRouter()
