@@ -8,6 +8,7 @@ package webdav
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -268,7 +269,12 @@ func (fs *singleFileFS) OpenFile(_ context.Context, _ string, flag int, _ os.Fil
 		return nil, os.ErrPermission
 	}
 
-	return os.Open(fs.path)
+	f, err := os.Open(fs.path)
+	if err != nil {
+		return nil, fmt.Errorf("webdav: open webdav file: %w", err)
+	}
+
+	return f, nil
 }
 
 func (fs *singleFileFS) RemoveAll(_ context.Context, _ string) error {

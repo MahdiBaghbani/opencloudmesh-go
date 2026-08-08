@@ -229,7 +229,7 @@ func (d *Discovery) BuildWebDAVURL(shareID string) (string, error) {
 
 	endpointURL, err := url.Parse(d.EndPoint)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("ocm: parse discovery endpoint url: %w", err)
 	}
 
 	// Combine the endpoint host with the webdav path and share ID

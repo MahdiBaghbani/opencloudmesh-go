@@ -320,7 +320,7 @@ func parsePublicKey(pemData string) (crypto.PublicKey, error) {
 
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: parse directory service public key: %w", err)
 	}
 
 	return pub, nil

@@ -9,6 +9,7 @@ package token
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -54,7 +55,7 @@ func (t *IssuedToken) IsExpired() bool { //nolint:revive // exported: trivial ex
 func GenerateAccessToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return "", err
+		return "", fmt.Errorf("ocm: generate access token: %w", err)
 	}
 
 	return hex.EncodeToString(b), nil

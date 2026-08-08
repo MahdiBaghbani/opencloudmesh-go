@@ -8,6 +8,7 @@ package shares
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -302,10 +303,18 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 func readBoundedPreview(r io.Reader) ([]byte, bool, error) {
 	buf, err := io.ReadAll(io.LimitReader(r, int64(maxPreviewBytes+1)))
 	if len(buf) > maxPreviewBytes {
-		return buf[:maxPreviewBytes], true, err
+		if err != nil {
+			return buf[:maxPreviewBytes], true, fmt.Errorf("api: read bounded preview: %w", err)
+		}
+
+		return buf[:maxPreviewBytes], true, nil
 	}
 
-	return buf, false, err
+	if err != nil {
+		return buf, false, fmt.Errorf("api: read bounded preview: %w", err)
+	}
+
+	return buf, false, nil
 }
 
 // redactPeerValue redacts peer-controlled values (preview, content-type,

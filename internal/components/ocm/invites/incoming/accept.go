@@ -47,7 +47,7 @@ func SendInviteAccepted(ctx context.Context, poster InviteAcceptedPoster, req sp
 
 	resp, err := poster.PostInviteAccepted(ctx, targetHost, body)
 	if err != nil {
-		return AcceptResult{}, err
+		return AcceptResult{}, fmt.Errorf("ocm: post invite accepted: %w", err)
 	}
 	defer func() {
 		//nolint:errcheck // best-effort cleanup; error is not actionable

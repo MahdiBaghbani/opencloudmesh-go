@@ -254,7 +254,7 @@ func (h *Handler) sendShareToReceiver(
 		Discovery: disc,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("api: send outgoing share: %w", err)
 	}
 	defer func() {
 		//nolint:errcheck // best-effort cleanup; error is not actionable
