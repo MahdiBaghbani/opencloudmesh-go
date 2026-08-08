@@ -183,8 +183,8 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 	}
 
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
-		return cryptotls.Certificate{}, fmt.Errorf("failed to write key: %w", err)
+	if writeErr := os.WriteFile(keyFile, keyPEM, 0600); writeErr != nil {
+		return cryptotls.Certificate{}, fmt.Errorf("failed to write key: %w", writeErr)
 	}
 
 	m.logger.Info("generated self-signed certificate",
@@ -192,5 +192,10 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 		"key_file", keyFile,
 		"expires", template.NotAfter)
 
-	return cryptotls.X509KeyPair(certPEM, keyPEM)
+	cert, err := cryptotls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return cryptotls.Certificate{}, fmt.Errorf("http: build x509 keypair: %w", err)
+	}
+
+	return cert, nil
 }

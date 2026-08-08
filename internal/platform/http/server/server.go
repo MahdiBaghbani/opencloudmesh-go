@@ -102,7 +102,11 @@ func (s *Server) Start() error {
 
 	switch s.cfg.TLS.Mode {
 	case "off":
-		return s.httpServer.ListenAndServe()
+		if err := s.httpServer.ListenAndServe(); err != nil {
+			return fmt.Errorf("http: listen and serve: %w", err)
+		}
+
+		return nil
 
 	case "acme":
 		return s.startACME()
@@ -127,7 +131,11 @@ func (s *Server) Start() error {
 		s.httpServer.TLSConfig = tlsConfig
 		s.logger.Info("starting server with TLS", "mode", s.cfg.TLS.Mode)
 
-		return s.httpServer.ListenAndServeTLS("", "")
+		if err := s.httpServer.ListenAndServeTLS("", ""); err != nil {
+			return fmt.Errorf("http: listen and serve tls: %w", err)
+		}
+
+		return nil
 
 	default:
 		return fmt.Errorf("%w: %s", tlspkg.ErrInvalidTLSMode, s.cfg.TLS.Mode)

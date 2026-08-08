@@ -207,12 +207,12 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 			return nil, cache.ErrNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("cache: get redis key: %w", err)
 	}
 
 	data, err := resp.AsBytes()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cache: read redis key value: %w", err)
 	}
 
 	return data, nil
@@ -225,26 +225,33 @@ func (c *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Dura
 	}
 
 	resp := c.client.Do(ctx, c.client.B().Set().Key(key).Value(string(value)).Px(ttl).Build())
+	if err := resp.Error(); err != nil {
+		return fmt.Errorf("cache: set redis key: %w", err)
+	}
 
-	return resp.Error()
+	return nil
 }
 
 // Delete removes a key.
 func (c *Cache) Delete(ctx context.Context, key string) error {
 	resp := c.client.Do(ctx, c.client.B().Del().Key(key).Build())
-	return resp.Error()
+	if err := resp.Error(); err != nil {
+		return fmt.Errorf("cache: delete redis key: %w", err)
+	}
+
+	return nil
 }
 
 // Exists checks if a key exists.
 func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
 	resp := c.client.Do(ctx, c.client.B().Exists().Key(key).Build())
 	if err := resp.Error(); err != nil {
-		return false, err
+		return false, fmt.Errorf("cache: check redis key exists: %w", err)
 	}
 
 	count, err := resp.AsInt64()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("cache: parse redis exists count: %w", err)
 	}
 
 	return count > 0, nil
@@ -263,7 +270,7 @@ func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time
 	})
 
 	if err := result.Error(); err != nil {
-		return 0, time.Time{}, err
+		return 0, time.Time{}, fmt.Errorf("cache: increment redis counter: %w", err)
 	}
 
 	arr, err := result.AsIntSlice()
@@ -292,13 +299,13 @@ func (c *Cache) GetCount(ctx context.Context, key string) (int64, error) {
 			return 0, nil
 		}
 
-		return 0, err
+		return 0, fmt.Errorf("cache: get redis count: %w", err)
 	}
 
 	val, err := resp.AsInt64()
 	if err != nil {
 		// Key exists but is not an integer (shouldn't happen for counters)
-		return 0, err
+		return 0, fmt.Errorf("cache: parse redis count value: %w", err)
 	}
 
 	return val, nil
