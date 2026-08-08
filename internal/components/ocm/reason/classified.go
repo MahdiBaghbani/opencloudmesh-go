@@ -61,6 +61,15 @@ type ClassifiedError struct {
 	Cause      error
 }
 
+// NewClassifiedError creates a new classified error.
+func NewClassifiedError(reasonCode, message string, cause error) *ClassifiedError {
+	return &ClassifiedError{
+		ReasonCode: reasonCode,
+		Message:    message,
+		Cause:      cause,
+	}
+}
+
 func (e *ClassifiedError) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("%s: %s: %v", e.ReasonCode, e.Message, e.Cause)
@@ -71,15 +80,6 @@ func (e *ClassifiedError) Error() string {
 
 func (e *ClassifiedError) Unwrap() error {
 	return e.Cause
-}
-
-// NewClassifiedError creates a new classified error.
-func NewClassifiedError(reasonCode, message string, cause error) *ClassifiedError {
-	return &ClassifiedError{
-		ReasonCode: reasonCode,
-		Message:    message,
-		Cause:      cause,
-	}
 }
 
 // ClassifyError classifies an error into a reason code:

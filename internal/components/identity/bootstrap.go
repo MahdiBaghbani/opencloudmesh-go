@@ -161,21 +161,6 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	return "", nil
 }
 
-func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, password string) error {
-	hash, err := b.auth.HashPassword(password)
-	if err != nil {
-		return err
-	}
-
-	admin.PasswordHash = hash
-
-	if err := b.repo.Update(ctx, admin); err != nil {
-		return fmt.Errorf("identity: update super admin password: %w", err)
-	}
-
-	return nil
-}
-
 // GenerateRandomPassword returns a cryptographically random password.
 func GenerateRandomPassword() (string, error) {
 	return generateRandomPassword()
@@ -204,54 +189,6 @@ func generateRandomPassword() (string, error) {
 	}
 
 	return base64.URLEncoding.EncodeToString(b), nil
-}
-
-func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
-	_, err := b.repo.GetByUsername(ctx, s.Username)
-	if err == nil {
-		b.log.Debug("user already exists", "username", s.Username)
-
-		return 0, nil
-	}
-
-	if !errors.Is(err, ErrUserNotFound) {
-		return 0, fmt.Errorf("identity: get user by username: %w", err)
-	}
-
-	hash, err := b.auth.HashPassword(s.Password)
-	if err != nil {
-		return 0, err
-	}
-
-	role := s.Role
-	if role == "" {
-		role = "user"
-	}
-
-	id, err := UUIDv7()
-	if err != nil {
-		return 0, err
-	}
-
-	user := &User{
-		ID:           id,
-		Username:     s.Username,
-		Email:        s.Email,
-		DisplayName:  s.DisplayName,
-		PasswordHash: hash,
-		Role:         role,
-		Realm:        s.Realm,
-		StorageRoot:  s.StorageRoot,
-		CreatedAt:    time.Now(),
-	}
-
-	if err := b.repo.Create(ctx, user); err != nil {
-		return 0, fmt.Errorf("identity: create user: %w", err)
-	}
-
-	b.log.Info("created user", "username", s.Username, "role", role)
-
-	return 1, nil
 }
 
 // ProbeUserTTL is the default TTL for probe users.
@@ -306,4 +243,67 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 	b.log.Info("created probe user", "username", username, "realm", realm, "expires_at", expiresAt)
 
 	return user, nil
+}
+
+func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, password string) error {
+	hash, err := b.auth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	admin.PasswordHash = hash
+
+	if err := b.repo.Update(ctx, admin); err != nil {
+		return fmt.Errorf("identity: update super admin password: %w", err)
+	}
+
+	return nil
+}
+
+func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
+	_, err := b.repo.GetByUsername(ctx, s.Username)
+	if err == nil {
+		b.log.Debug("user already exists", "username", s.Username)
+
+		return 0, nil
+	}
+
+	if !errors.Is(err, ErrUserNotFound) {
+		return 0, fmt.Errorf("identity: get user by username: %w", err)
+	}
+
+	hash, err := b.auth.HashPassword(s.Password)
+	if err != nil {
+		return 0, err
+	}
+
+	role := s.Role
+	if role == "" {
+		role = "user"
+	}
+
+	id, err := UUIDv7()
+	if err != nil {
+		return 0, err
+	}
+
+	user := &User{
+		ID:           id,
+		Username:     s.Username,
+		Email:        s.Email,
+		DisplayName:  s.DisplayName,
+		PasswordHash: hash,
+		Role:         role,
+		Realm:        s.Realm,
+		StorageRoot:  s.StorageRoot,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := b.repo.Create(ctx, user); err != nil {
+		return 0, fmt.Errorf("identity: create user: %w", err)
+	}
+
+	b.log.Info("created user", "username", s.Username, "role", role)
+
+	return 1, nil
 }

@@ -119,37 +119,6 @@ func NewBounded(defaultTTL time.Duration, cleanupInterval time.Duration, maxEntr
 	return c
 }
 
-func (c *Cache) cleanupLoop(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			c.deleteExpired()
-		case <-c.stopClean:
-			return
-		}
-	}
-}
-
-func (c *Cache) deleteExpired() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	now := time.Now()
-
-	c.items.RemoveIf(func(_ string, v *item) bool {
-		return now.After(v.expiresAt)
-	})
-
-	for k, v := range c.counters {
-		if now.After(v.expiresAt) {
-			delete(c.counters, k)
-		}
-	}
-}
-
 // Get retrieves a value by key.
 func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	c.mu.Lock()
@@ -284,6 +253,37 @@ func (c *Cache) Close() error {
 	close(c.stopClean)
 
 	return nil
+}
+
+func (c *Cache) cleanupLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.deleteExpired()
+		case <-c.stopClean:
+			return
+		}
+	}
+}
+
+func (c *Cache) deleteExpired() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+
+	c.items.RemoveIf(func(_ string, v *item) bool {
+		return now.After(v.expiresAt)
+	})
+
+	for k, v := range c.counters {
+		if now.After(v.expiresAt) {
+			delete(c.counters, k)
+		}
+	}
 }
 
 // Ensure Cache implements CacheWithCounter.

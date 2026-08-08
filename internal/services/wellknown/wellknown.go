@@ -90,14 +90,6 @@ func discoveryHandler(
 	return signatureMiddleware.VerifyOCMRequestIfPresent()(handler)
 }
 
-func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) {
-	handler := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
-
-	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
-	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)
-	s.router.Get(RouteWellKnownOCMSlash, ocm.ServeHTTP)
-}
-
 // Close implements service.Service.
 func (s *svc) Close() error { return nil }
 
@@ -106,3 +98,11 @@ func (s *svc) Prefix() string { return "" }
 
 // Handler implements service.Service.
 func (s *svc) Handler() http.Handler { return httpwrap.ClearRawPath(s.router) }
+
+func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) {
+	handler := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
+
+	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
+	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)
+	s.router.Get(RouteWellKnownOCMSlash, ocm.ServeHTTP)
+}

@@ -142,6 +142,36 @@ func (s *Server) Start() error {
 	}
 }
 
+// Shutdown gracefully stops the HTTP server and any ACME challenge server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.logger.Info("shutting down server")
+
+	var challengeErr error
+	if s.challengeServer != nil {
+		challengeErr = s.challengeServer.Shutdown(ctx)
+	}
+
+	httpErr := s.httpServer.Shutdown(ctx)
+
+	for _, svc := range slices.Backward(s.mountedServices) {
+		prefix := svc.Prefix()
+		if prefix == "" {
+			prefix = "(root)"
+		}
+
+		if err := svc.Close(); err != nil {
+			s.logger.Warn("service close error",
+				"service", prefix,
+				"error", err,
+			)
+		} else {
+			s.logger.Debug("service closed", "service", prefix)
+		}
+	}
+
+	return errors.Join(challengeErr, httpErr)
+}
+
 func (s *Server) startACME() error {
 	host, _, err := net.SplitHostPort(s.cfg.ListenAddr)
 	if err != nil {
@@ -309,34 +339,4 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 		//nolint:gosec // target is same-host HTTPS upgrade built from r.Host and r.URL, not a user-supplied URL
 		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 	})
-}
-
-// Shutdown gracefully stops the HTTP server and any ACME challenge server.
-func (s *Server) Shutdown(ctx context.Context) error {
-	s.logger.Info("shutting down server")
-
-	var challengeErr error
-	if s.challengeServer != nil {
-		challengeErr = s.challengeServer.Shutdown(ctx)
-	}
-
-	httpErr := s.httpServer.Shutdown(ctx)
-
-	for _, svc := range slices.Backward(s.mountedServices) {
-		prefix := svc.Prefix()
-		if prefix == "" {
-			prefix = "(root)"
-		}
-
-		if err := svc.Close(); err != nil {
-			s.logger.Warn("service close error",
-				"service", prefix,
-				"error", err,
-			)
-		} else {
-			s.logger.Debug("service closed", "service", prefix)
-		}
-	}
-
-	return errors.Join(challengeErr, httpErr)
 }

@@ -170,41 +170,6 @@ func failClosedAccessDecision(reasonCode, message string, cause error) (AccessAu
 	}, reason.NewClassifiedError(reasonCode, message, cause)
 }
 
-func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (AccessAuthDecision, error) {
-	requires := hasRequirement(opts.Share.Requirements, spec.RequirementMustExchangeToken)
-	capable := disc.SupportsTokenExchange()
-
-	if requires {
-		if !capable {
-			return failClosedAccessDecision(
-				reason.ReasonPeerCapabilityMissing,
-				"peer does not advertise "+spec.CapabilityExchangeToken+" or tokenEndPoint",
-				nil,
-			)
-		}
-
-		if err := c.checkSignaturePolicy(disc); err != nil {
-			return failClosedAccessDecision(
-				reason.ReasonSignatureRequired,
-				"peer requires HTTP request signatures that are unsupported",
-				err,
-			)
-		}
-
-		return AccessAuthDecision{Mode: AccessModeTokenExchange, HTTPStatus: http.StatusOK}, nil
-	}
-
-	// When must-exchange-token is omitted but the peer advertises token
-	// exchange, the receiver MAY attempt exchange first and MUST fall back to
-	// legacy shared-secret access if exchange fails.
-	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1594-L1597
-	if capable {
-		return AccessAuthDecision{Mode: AccessModeExchangeThenFallback, HTTPStatus: http.StatusOK}, nil
-	}
-
-	return AccessAuthDecision{Mode: AccessModeSharedSecret, HTTPStatus: http.StatusOK}, nil
-}
-
 func hasRequirement(reqs []string, target string) bool {
 	return slices.Contains(reqs, target)
 }
@@ -280,6 +245,122 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 			nil,
 		)
 	}
+}
+
+// FetchFile fetches a shared file's body via WebDAV GET, returning the response reader.
+func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser, error) {
+	result, err := c.Access(ctx, AccessOptions{
+		Share:    share,
+		Protocol: ProtocolWebDAV,
+		Method:   http.MethodGet,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if result.Response.StatusCode != http.StatusOK {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		result.Response.Body.Close()
+
+		return nil, reason.NewClassifiedError(
+			reason.ReasonRemoteError,
+			"remote server returned error",
+			errors.New(result.Response.Status),
+		)
+	}
+
+	return result.Response.Body, nil
+}
+
+// buildWebDAVURL returns the WebDAV URL; validates absolute URI host against owner to prevent SSRF.
+func (c *Client) buildWebDAVURL(share *ShareInfo, subPath string, disc *spec.Discovery) (string, error) {
+	host := accessHostForDiscovery(share)
+	if isAbsoluteWebDAVURI(share.WebDAVID) {
+		if c.isAbsoluteURIHostValid(share.WebDAVID, host) {
+			u := share.WebDAVID
+			if subPath != "" {
+				u += "/" + subPath
+			}
+
+			return u, nil
+		}
+	}
+
+	webdavURL, err := disc.BuildWebDAVURL(share.WebDAVID)
+	if err != nil {
+		return "", reason.NewClassifiedError(
+			reason.ReasonProtocolMismatch,
+			"failed to build WebDAV URL",
+			err,
+		)
+	}
+
+	if subPath != "" {
+		webdavURL += "/" + subPath
+	}
+
+	return webdavURL, nil
+}
+
+func isAbsoluteWebDAVURI(uri string) bool {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+
+	return u.IsAbs()
+}
+
+// isAbsoluteURIHostValid compares absolute URI host to sender host via scheme-aware normalization.
+func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
+	return c.peerOrigin.IsAbsoluteURIAllowed(absoluteURI, senderHost)
+}
+
+type resolvedPeerOrigin struct {
+	baseURL string
+}
+
+func (c *Client) resolvePeerOrigin(host string) resolvedPeerOrigin {
+	decision := c.peerOrigin.Resolve(host)
+
+	return resolvedPeerOrigin{
+		baseURL: decision.BaseURL,
+	}
+}
+
+func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (AccessAuthDecision, error) {
+	requires := hasRequirement(opts.Share.Requirements, spec.RequirementMustExchangeToken)
+	capable := disc.SupportsTokenExchange()
+
+	if requires {
+		if !capable {
+			return failClosedAccessDecision(
+				reason.ReasonPeerCapabilityMissing,
+				"peer does not advertise "+spec.CapabilityExchangeToken+" or tokenEndPoint",
+				nil,
+			)
+		}
+
+		if err := c.checkSignaturePolicy(disc); err != nil {
+			return failClosedAccessDecision(
+				reason.ReasonSignatureRequired,
+				"peer requires HTTP request signatures that are unsupported",
+				err,
+			)
+		}
+
+		return AccessAuthDecision{Mode: AccessModeTokenExchange, HTTPStatus: http.StatusOK}, nil
+	}
+
+	// When must-exchange-token is omitted but the peer advertises token
+	// exchange, the receiver MAY attempt exchange first and MUST fall back to
+	// legacy shared-secret access if exchange fails.
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1594-L1597
+	if capable {
+		return AccessAuthDecision{Mode: AccessModeExchangeThenFallback, HTTPStatus: http.StatusOK}, nil
+	}
+
+	return AccessAuthDecision{Mode: AccessModeSharedSecret, HTTPStatus: http.StatusOK}, nil
 }
 
 func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts AccessOptions, disc *spec.Discovery) (*AccessResult, error) {
@@ -376,85 +457,4 @@ func (c *Client) checkSignaturePolicy(disc *spec.Discovery) error {
 	}
 
 	return nil
-}
-
-// FetchFile fetches a shared file's body via WebDAV GET, returning the response reader.
-func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser, error) {
-	result, err := c.Access(ctx, AccessOptions{
-		Share:    share,
-		Protocol: ProtocolWebDAV,
-		Method:   http.MethodGet,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if result.Response.StatusCode != http.StatusOK {
-		//nolint:errcheck // best-effort cleanup; error is not actionable
-		result.Response.Body.Close()
-
-		return nil, reason.NewClassifiedError(
-			reason.ReasonRemoteError,
-			"remote server returned error",
-			errors.New(result.Response.Status),
-		)
-	}
-
-	return result.Response.Body, nil
-}
-
-// buildWebDAVURL returns the WebDAV URL; validates absolute URI host against owner to prevent SSRF.
-func (c *Client) buildWebDAVURL(share *ShareInfo, subPath string, disc *spec.Discovery) (string, error) {
-	host := accessHostForDiscovery(share)
-	if isAbsoluteWebDAVURI(share.WebDAVID) {
-		if c.isAbsoluteURIHostValid(share.WebDAVID, host) {
-			u := share.WebDAVID
-			if subPath != "" {
-				u += "/" + subPath
-			}
-
-			return u, nil
-		}
-	}
-
-	webdavURL, err := disc.BuildWebDAVURL(share.WebDAVID)
-	if err != nil {
-		return "", reason.NewClassifiedError(
-			reason.ReasonProtocolMismatch,
-			"failed to build WebDAV URL",
-			err,
-		)
-	}
-
-	if subPath != "" {
-		webdavURL += "/" + subPath
-	}
-
-	return webdavURL, nil
-}
-
-func isAbsoluteWebDAVURI(uri string) bool {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return false
-	}
-
-	return u.IsAbs()
-}
-
-// isAbsoluteURIHostValid compares absolute URI host to sender host via scheme-aware normalization.
-func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
-	return c.peerOrigin.IsAbsoluteURIAllowed(absoluteURI, senderHost)
-}
-
-type resolvedPeerOrigin struct {
-	baseURL string
-}
-
-func (c *Client) resolvePeerOrigin(host string) resolvedPeerOrigin {
-	decision := c.peerOrigin.Resolve(host)
-
-	return resolvedPeerOrigin{
-		baseURL: decision.BaseURL,
-	}
 }

@@ -122,6 +122,57 @@ func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVe
 	return false
 }
 
+// GetTrustGroups returns the configured trust groups.
+func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]*TrustGroupConfig, 0, len(m.trustGroups))
+	for _, tg := range m.trustGroups {
+		result = append(result, tg.config)
+	}
+
+	return result
+}
+
+// GetDirectoryListings returns all cached Directory Service listings (verified
+// and unverified) for enabled trust groups. Consumed by ocmaux handler.
+func (m *TrustGroupManager) GetDirectoryListings(ctx context.Context) []directoryservice.Listing {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var allListings []directoryservice.Listing
+
+	for _, tg := range m.trustGroups {
+		if !tg.config.Enabled {
+			continue
+		}
+
+		if !tg.lastRefresh.IsZero() && time.Since(tg.lastRefresh) < m.cacheConfig.MaxStale {
+			allListings = append(allListings, tg.directoryListings...)
+		}
+
+		m.triggerRefreshIfNeeded(ctx, tg)
+	}
+
+	return allListings
+}
+
+// SetCacheForTesting allows tests to set cache directly.
+func (m *TrustGroupManager) SetCacheForTesting(trustGroupID string, listings []directoryservice.Listing, lastRefresh time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tg, ok := m.trustGroups[trustGroupID]
+	if !ok {
+		return
+	}
+
+	tg.directoryListings = listings
+	tg.lastRefresh = lastRefresh
+	tg.memberAuthorities = m.precomputeAuthorities(listings)
+}
+
 // isMemberOf checks if a host matches any precomputed member authority in the trust group.
 // Member authorities are normalized with hostport.Normalize at refresh time; this is an
 // ocmgo implementation choice. The OCM spec defines denylist/allowlist as IP-address
@@ -264,55 +315,4 @@ func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Li
 	}
 
 	return result
-}
-
-// GetTrustGroups returns the configured trust groups.
-func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	result := make([]*TrustGroupConfig, 0, len(m.trustGroups))
-	for _, tg := range m.trustGroups {
-		result = append(result, tg.config)
-	}
-
-	return result
-}
-
-// GetDirectoryListings returns all cached Directory Service listings (verified
-// and unverified) for enabled trust groups. Consumed by ocmaux handler.
-func (m *TrustGroupManager) GetDirectoryListings(ctx context.Context) []directoryservice.Listing {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var allListings []directoryservice.Listing
-
-	for _, tg := range m.trustGroups {
-		if !tg.config.Enabled {
-			continue
-		}
-
-		if !tg.lastRefresh.IsZero() && time.Since(tg.lastRefresh) < m.cacheConfig.MaxStale {
-			allListings = append(allListings, tg.directoryListings...)
-		}
-
-		m.triggerRefreshIfNeeded(ctx, tg)
-	}
-
-	return allListings
-}
-
-// SetCacheForTesting allows tests to set cache directly.
-func (m *TrustGroupManager) SetCacheForTesting(trustGroupID string, listings []directoryservice.Listing, lastRefresh time.Time) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	tg, ok := m.trustGroups[trustGroupID]
-	if !ok {
-		return
-	}
-
-	tg.directoryListings = listings
-	tg.lastRefresh = lastRefresh
-	tg.memberAuthorities = m.precomputeAuthorities(listings)
 }

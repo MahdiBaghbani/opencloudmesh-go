@@ -101,20 +101,6 @@ func (c *Client) SetResolver(r Resolver) {
 	c.resolver = r
 }
 
-// getResolver returns the resolver, defaulting to net.DefaultResolver.
-func (c *Client) getResolver() Resolver {
-	if c.resolver != nil {
-		return c.resolver
-	}
-
-	return net.DefaultResolver
-}
-
-// isStrictMode reports whether SSRF enforcement is active.
-func (c *Client) isStrictMode() bool {
-	return c.cfg.SSRF.Mode == "strict"
-}
-
 // Get performs a GET request with safety protections.
 // Unsigned requests may follow redirects under strict constraints.
 func (c *Client) Get(ctx context.Context, urlStr string) (*http.Response, error) {
@@ -175,6 +161,45 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 // hasSignatureHeaders detects RFC 9421 signature headers.
 func hasSignatureHeaders(req *http.Request) bool {
 	return req.Header.Get("Signature") != "" || req.Header.Get("Signature-Input") != ""
+}
+
+// GetJSON performs a GET request and reads the response body with size limit.
+func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Response, error) {
+	resp, err := c.Get(ctx, urlStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
+
+	limitedReader := io.LimitReader(resp.Body, c.cfg.MaxResponseBytes+1)
+
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, resp, fmt.Errorf("http: read response body: %w", err)
+	}
+
+	if int64(len(body)) > c.cfg.MaxResponseBytes {
+		return nil, resp, ErrResponseTooLarge
+	}
+
+	return body, resp, nil
+}
+
+// getResolver returns the resolver, defaulting to net.DefaultResolver.
+func (c *Client) getResolver() Resolver {
+	if c.resolver != nil {
+		return c.resolver
+	}
+
+	return net.DefaultResolver
+}
+
+// isStrictMode reports whether SSRF enforcement is active.
+func (c *Client) isStrictMode() bool {
+	return c.cfg.SSRF.Mode == "strict"
 }
 
 // followRedirect follows a single redirect with strict constraints.
@@ -246,31 +271,6 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	}
 
 	return newResp, nil
-}
-
-// GetJSON performs a GET request and reads the response body with size limit.
-func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Response, error) {
-	resp, err := c.Get(ctx, urlStr)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() {
-		//nolint:errcheck // best-effort cleanup; error is not actionable
-		resp.Body.Close()
-	}()
-
-	limitedReader := io.LimitReader(resp.Body, c.cfg.MaxResponseBytes+1)
-
-	body, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return nil, resp, fmt.Errorf("http: read response body: %w", err)
-	}
-
-	if int64(len(body)) > c.cfg.MaxResponseBytes {
-		return nil, resp, ErrResponseTooLarge
-	}
-
-	return body, resp, nil
 }
 
 // IsSSRFError returns true if the error is an SSRF blocking error.

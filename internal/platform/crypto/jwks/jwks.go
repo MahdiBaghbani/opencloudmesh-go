@@ -215,21 +215,6 @@ func NewResolverWithTTL(client HTTPDoer, ttl time.Duration) (*Resolver, error) {
 	return NewResolverWithOptions(client, ResolverOptions{TTL: ttl})
 }
 
-// EffectiveOptions returns the cache and fetch policy actually enforced by
-// this resolver, after zero-value inputs from NewResolverWithOptions have
-// been replaced by package defaults. Callers use this to assert that
-// production wiring stays bounded (non-zero TTL, MinRefetchInterval,
-// NegativeCacheTTL, and MaxResponseBytes); unbounded fetch is a config bug,
-// not a supported mode.
-func (r *Resolver) EffectiveOptions() ResolverOptions {
-	return ResolverOptions{
-		TTL:                r.ttl,
-		MinRefetchInterval: r.minRefetchInterval,
-		NegativeCacheTTL:   r.negativeTTL,
-		MaxResponseBytes:   r.maxResponseBytes,
-	}
-}
-
 // NewResolverWithOptions creates a JWKS resolver with explicit policy options.
 func NewResolverWithOptions(client HTTPDoer, opts ResolverOptions) (*Resolver, error) {
 	if client == nil {
@@ -279,6 +264,21 @@ func NewResolverWithOptions(client HTTPDoer, opts ResolverOptions) (*Resolver, e
 		maxResponseBytes:   maxBytes,
 		now:                now,
 	}, nil
+}
+
+// EffectiveOptions returns the cache and fetch policy actually enforced by
+// this resolver, after zero-value inputs from NewResolverWithOptions have
+// been replaced by package defaults. Callers use this to assert that
+// production wiring stays bounded (non-zero TTL, MinRefetchInterval,
+// NegativeCacheTTL, and MaxResponseBytes); unbounded fetch is a config bug,
+// not a supported mode.
+func (r *Resolver) EffectiveOptions() ResolverOptions {
+	return ResolverOptions{
+		TTL:                r.ttl,
+		MinRefetchInterval: r.minRefetchInterval,
+		NegativeCacheTTL:   r.negativeTTL,
+		MaxResponseBytes:   r.maxResponseBytes,
+	}
 }
 
 // FetchURL retrieves a JWKS document from an absolute URL.
