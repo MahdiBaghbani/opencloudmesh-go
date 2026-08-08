@@ -6,6 +6,7 @@
 package callscan
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -90,7 +91,7 @@ func scanFileForSpec(
 
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("testsupport: compute relative path: %w", err)
 	}
 
 	rel = filepath.ToSlash(rel)

@@ -376,7 +376,12 @@ func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, 
 	//nolint:errcheck // test cleanup: restore working directory
 	defer func() { _ = os.Chdir(prevDir) }()
 
-	return config.Load(config.LoaderOptions{ConfigPath: configPath})
+	cfg, loadErr := config.Load(config.LoaderOptions{ConfigPath: configPath})
+	if loadErr != nil {
+		return nil, fmt.Errorf("tests: load subprocess config: %w", loadErr)
+	}
+
+	return cfg, nil
 }
 
 // scrubParentConfigEnv temporarily unsets every OCM_CONFIG_* environment

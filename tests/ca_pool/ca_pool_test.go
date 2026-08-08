@@ -210,7 +210,12 @@ func createServerCert(caCert *x509.Certificate, caKey any, serverKey *ecdsa.Priv
 		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
 	}
 
-	return x509.CreateCertificate(rand.Reader, &template, caCert, &serverKey.PublicKey, caKey)
+	cert, err := x509.CreateCertificate(rand.Reader, &template, caCert, &serverKey.PublicKey, caKey)
+	if err != nil {
+		return nil, fmt.Errorf("tests: create server certificate: %w", err)
+	}
+
+	return cert, nil
 }
 
 func pemEncodeECKey(key *ecdsa.PrivateKey) []byte {

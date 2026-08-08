@@ -7,6 +7,7 @@ package log
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -29,7 +30,12 @@ func NewLogCapture(tb testing.TB) (*slog.Logger, *LogCapture) {
 }
 
 func (c *LogCapture) Write(p []byte) (n int, err error) {
-	return c.buf.Write(p)
+	n, err = c.buf.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("testsupport: capture log: %w", err)
+	}
+
+	return n, nil
 }
 
 // Contains reports whether the captured log output contains substr.

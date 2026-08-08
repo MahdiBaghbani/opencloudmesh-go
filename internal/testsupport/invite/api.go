@@ -50,14 +50,14 @@ type AcceptResponse struct {
 func CreateOutgoing(ctx context.Context, client *http.Client, baseURL, token string) (*OutgoingCreateResponse, int, error) {
 	req, err := tsession.NewRequest(ctx, http.MethodPost, baseURL, "/api/invites/outgoing", token, map[string]any{})
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("testsupport: build outgoing invite request: %w", err)
 	}
 
 	var resp OutgoingCreateResponse
 
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
-		return nil, status, err
+		return nil, status, fmt.Errorf("testsupport: create outgoing invite: %w", err)
 	}
 
 	if status != http.StatusCreated {
@@ -77,14 +77,14 @@ func Import(ctx context.Context, client *http.Client, baseURL, token, inviteStri
 		"inviteString": inviteString,
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("testsupport: build import invite request: %w", err)
 	}
 
 	var resp ImportResponse
 
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
-		return nil, status, err
+		return nil, status, fmt.Errorf("testsupport: import invite: %w", err)
 	}
 
 	if status != http.StatusCreated && status != http.StatusOK {
@@ -104,14 +104,14 @@ func Accept(ctx context.Context, client *http.Client, baseURL, token, inviteID s
 
 	req, err := tsession.NewRequest(ctx, http.MethodPost, baseURL, path, token, nil)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("testsupport: build accept invite request: %w", err)
 	}
 
 	var resp AcceptResponse
 
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
-		return nil, status, err
+		return nil, status, fmt.Errorf("testsupport: accept invite: %w", err)
 	}
 
 	if status != http.StatusOK {
@@ -129,14 +129,14 @@ func Accept(ctx context.Context, client *http.Client, baseURL, token, inviteID s
 func ListInbox(ctx context.Context, client *http.Client, baseURL, token string) (*InboxListResponse, int, error) {
 	req, err := tsession.NewRequest(ctx, http.MethodGet, baseURL, "/api/inbox/invites", token, nil)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("testsupport: create inbox request: %w", err)
 	}
 
 	var resp InboxListResponse
 
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
-		return nil, status, err
+		return nil, status, fmt.Errorf("testsupport: list inbox: %w", err)
 	}
 
 	if status != http.StatusOK {
