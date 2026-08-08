@@ -84,6 +84,59 @@ func (km *KeyManager) LoadOrGenerate() error {
 	return nil
 }
 
+// SetWireKeyID updates the keyId used for signatures and JWKS after
+// LoadOrGenerate. It does not rotate keys or change the on-disk key path.
+func (km *KeyManager) SetWireKeyID(keyID string) {
+	km.mu.Lock()
+	defer km.mu.Unlock()
+
+	if km.signingKey != nil {
+		km.signingKey.KeyID = keyID
+	}
+}
+
+// GetSigningKey returns the current signing key.
+func (km *KeyManager) GetSigningKey() *SigningKey {
+	km.mu.RLock()
+	defer km.mu.RUnlock()
+
+	return km.signingKey
+}
+
+// JWKS returns the local public key set served at the OCM root /jwks route.
+func (km *KeyManager) JWKS() jwks.Set {
+	km.mu.RLock()
+	defer km.mu.RUnlock()
+
+	if km.signingKey == nil {
+		return jwks.Set{Keys: []jwks.Key{}}
+	}
+
+	return jwks.SetFromEd25519PublicKey(km.signingKey.KeyID, km.signingKey.PublicKey)
+}
+
+// GetKeyID returns the stable host#fragment kid.
+func (km *KeyManager) GetKeyID() string {
+	return km.keyID
+}
+
+// Sign signs a message using the signing key.
+func (km *KeyManager) Sign(message []byte) ([]byte, error) {
+	km.mu.RLock()
+	defer km.mu.RUnlock()
+
+	if km.signingKey == nil {
+		return nil, errors.New("no signing key available")
+	}
+
+	sig, err := sigalg.Sign(km.signingKey.Algorithm, km.signingKey.PrivateKey, message)
+	if err != nil {
+		return nil, fmt.Errorf("crypto: sign message: %w", err)
+	}
+
+	return sig, nil
+}
+
 func (km *KeyManager) generateKey() (*SigningKey, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -154,57 +207,4 @@ func (km *KeyManager) saveKey() error {
 	}
 
 	return nil
-}
-
-// SetWireKeyID updates the keyId used for signatures and JWKS after
-// LoadOrGenerate. It does not rotate keys or change the on-disk key path.
-func (km *KeyManager) SetWireKeyID(keyID string) {
-	km.mu.Lock()
-	defer km.mu.Unlock()
-
-	if km.signingKey != nil {
-		km.signingKey.KeyID = keyID
-	}
-}
-
-// GetSigningKey returns the current signing key.
-func (km *KeyManager) GetSigningKey() *SigningKey {
-	km.mu.RLock()
-	defer km.mu.RUnlock()
-
-	return km.signingKey
-}
-
-// JWKS returns the local public key set served at the OCM root /jwks route.
-func (km *KeyManager) JWKS() jwks.Set {
-	km.mu.RLock()
-	defer km.mu.RUnlock()
-
-	if km.signingKey == nil {
-		return jwks.Set{Keys: []jwks.Key{}}
-	}
-
-	return jwks.SetFromEd25519PublicKey(km.signingKey.KeyID, km.signingKey.PublicKey)
-}
-
-// GetKeyID returns the stable host#fragment kid.
-func (km *KeyManager) GetKeyID() string {
-	return km.keyID
-}
-
-// Sign signs a message using the signing key.
-func (km *KeyManager) Sign(message []byte) ([]byte, error) {
-	km.mu.RLock()
-	defer km.mu.RUnlock()
-
-	if km.signingKey == nil {
-		return nil, errors.New("no signing key available")
-	}
-
-	sig, err := sigalg.Sign(km.signingKey.Algorithm, km.signingKey.PrivateKey, message)
-	if err != nil {
-		return nil, fmt.Errorf("crypto: sign message: %w", err)
-	}
-
-	return sig, nil
 }

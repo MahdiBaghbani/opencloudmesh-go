@@ -270,15 +270,6 @@ func (s *SubprocessServer) Stop(t *testing.T) {
 	}
 }
 
-// syncLog flushes the shared server.log file so reads observe stdout/stderr
-// redirected from the subprocess.
-func (s *SubprocessServer) syncLog() {
-	if s.logFile != nil {
-		//nolint:errcheck // test helper: best-effort log sync before read
-		_ = s.logFile.Sync()
-	}
-}
-
 // ReadLog returns the current server.log contents after syncing the shared log
 // file. stdout and stderr are redirected to the same file.
 func (s *SubprocessServer) ReadLog(t *testing.T) string {
@@ -334,6 +325,15 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	}
 
 	t.Logf("=== Logs for server %s ===\n%s\n=== End logs ===", s.Name, string(content))
+}
+
+// syncLog flushes the shared server.log file so reads observe stdout/stderr
+// redirected from the subprocess.
+func (s *SubprocessServer) syncLog() {
+	if s.logFile != nil {
+		//nolint:errcheck // test helper: best-effort log sync before read
+		_ = s.logFile.Sync()
+	}
 }
 
 // subprocessChdirMu serializes the working-directory switch used while loading

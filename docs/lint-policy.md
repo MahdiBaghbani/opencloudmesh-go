@@ -48,12 +48,12 @@ set is auditable rather than tacit.
 
 ## Disabled linters (global)
 
-Twenty-one linters are disabled globally in `.golangci.yml`. Four of them
+Twenty linters are disabled globally in `.golangci.yml`. Three of them
 need a narrative rationale beyond their inline config comment; the entries
-below document those four. The remaining seventeen disabled linters carry
+below document those three. The remaining seventeen disabled linters carry
 their rationale as inline comments in `.golangci.yml`.
 Unlike the gosec global excludes (which run the linter and suppress accepted
-findings), these four do not run at all. Each entry states whether the
+findings), these three do not run at all. Each entry states whether the
 disable is structural (needs an architectural change to turn on), deferred
 (has a concrete burn-down trigger), or permanent (a deliberate style choice
 with no burn-down trigger). None of these are "too noisy" or "will fix
@@ -105,12 +105,14 @@ test files (which would drop the count to roughly 84) is forbidden by the
 One standard above. Burn-down trigger: a dedicated const-extraction PR that
 lifts the repeated literals to named constants without a test-path waiver.
 
-### funcorder - permanent
+## Function ordering (funcorder)
 
-`funcorder` is kept disabled. Method and type ordering churn is review-
-hostile: the diff noise outweighs the readability gain, and the team has not
-adopted a fixed ordering convention to enforce. There is no burn-down
-trigger; this is a permanent style choice, not a deferred fix.
+`funcorder` is enabled across the project with its default settings. It checks
+that each constructor (a `New`/`Must` function returning a struct declared in the
+same file) is placed after that struct's declaration, and that a struct's
+exported methods come before its non-exported methods. Alphabetical sorting and
+standalone-function ordering are off by default. The team adopted this ordering
+convention, reversing the prior permanent-disable decision.
 
 ## Error wrapping (wrapcheck)
 
@@ -177,7 +179,6 @@ linters:
     - mnd
     - funlen
     - gochecknoglobals
-    - funcorder
     - nestif
     - gocognit
     - gomodguard

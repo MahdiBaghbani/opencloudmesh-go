@@ -60,8 +60,6 @@ linters:
     - funlen
     # Package-level vars (~43); conflicts with architecture guard registries.
     - gochecknoglobals
-    # Constructor/export ordering (~32).
-    - funcorder
     # Nested if depth (~24); overlaps cyclop.
     - nestif
     # Cognitive complexity (~35); redundant with cyclop.

@@ -42,46 +42,6 @@ func RegisterDriver(name string, factory DriverFactory) {
 	drivers[name] = factory
 }
 
-// NewDefault returns the default cache (in-memory with default settings).
-// Panics if the memory driver is not registered (caller must blank-import internal/cache/loader).
-func NewDefault() CacheWithCounter {
-	return newByDriver("memory", nil)
-}
-
-// NewFromConfig returns a cache based on the driver name and driver-specific config.
-// If driver is empty, defaults to "memory".
-// The driversConfig map contains per-driver configs keyed by driver name (from [cache.drivers.*]).
-// If driversConfig is nil or missing the driver key, the driver's defaults are used.
-// Returns an error if the driver is unknown.
-func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounter, error) {
-	if driver == "" {
-		driver = "memory"
-	}
-
-	driversMu.RLock()
-
-	factory, ok := drivers[driver]
-
-	driversMu.RUnlock()
-
-	if !ok {
-		return nil, fmt.Errorf("unknown cache driver %q: available drivers are 'memory' and 'redis'", driver)
-	}
-
-	// Extract driver-specific config (may be nil)
-	var driverConfig map[string]any
-
-	if driversConfig != nil {
-		if cfg, ok := driversConfig[driver]; ok {
-			if cfgMap, ok := cfg.(map[string]any); ok {
-				driverConfig = cfgMap
-			}
-		}
-	}
-
-	return factory(driverConfig), nil
-}
-
 // newByDriver returns a cache for the named driver, panicking if not found.
 func newByDriver(name string, config map[string]any) CacheWithCounter {
 	driversMu.RLock()
@@ -133,6 +93,46 @@ type Counter interface {
 type CacheWithCounter interface {
 	Cache
 	Counter
+}
+
+// NewDefault returns the default cache (in-memory with default settings).
+// Panics if the memory driver is not registered (caller must blank-import internal/cache/loader).
+func NewDefault() CacheWithCounter {
+	return newByDriver("memory", nil)
+}
+
+// NewFromConfig returns a cache based on the driver name and driver-specific config.
+// If driver is empty, defaults to "memory".
+// The driversConfig map contains per-driver configs keyed by driver name (from [cache.drivers.*]).
+// If driversConfig is nil or missing the driver key, the driver's defaults are used.
+// Returns an error if the driver is unknown.
+func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounter, error) {
+	if driver == "" {
+		driver = "memory"
+	}
+
+	driversMu.RLock()
+
+	factory, ok := drivers[driver]
+
+	driversMu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("unknown cache driver %q: available drivers are 'memory' and 'redis'", driver)
+	}
+
+	// Extract driver-specific config (may be nil)
+	var driverConfig map[string]any
+
+	if driversConfig != nil {
+		if cfg, ok := driversConfig[driver]; ok {
+			if cfgMap, ok := cfg.(map[string]any); ok {
+				driverConfig = cfgMap
+			}
+		}
+	}
+
+	return factory(driverConfig), nil
 }
 
 // Default TTLs for different cache categories.

@@ -132,6 +132,71 @@ func serveRecordingJWKS(w http.ResponseWriter, km *crypto.KeyManager) {
 	tshttp.WriteJSON(w, km.JWKS())
 }
 
+func copyURLValues(src url.Values) url.Values {
+	if src == nil {
+		return nil
+	}
+
+	dst := make(url.Values, len(src))
+	for k, vs := range src {
+		dst[k] = append([]string(nil), vs...)
+	}
+
+	return dst
+}
+
+func (r *strictRecordingReceiver) Close() {
+	if r != nil && r.server != nil {
+		r.server.Close()
+	}
+}
+
+func (r *strictRecordingReceiver) PostCount() int32 {
+	return r.postCount.Load()
+}
+
+func (r *strictRecordingReceiver) TokenPostCount() int32 {
+	return r.tokenPostCount.Load()
+}
+
+func (r *strictRecordingReceiver) WebDAVGetCount() int32 {
+	return r.webDAVGetCount.Load()
+}
+
+func assertRecordingReceiverIdle(t *testing.T, receiver *strictRecordingReceiver) {
+	t.Helper()
+
+	if receiver == nil {
+		t.Fatal("strict recording receiver is nil")
+	}
+
+	if n := receiver.PostCount(); n > 0 {
+		t.Fatalf("expected recording receiver postCount=0, got %d", n)
+	}
+
+	if n := receiver.TokenPostCount(); n > 0 {
+		t.Fatalf("expected recording receiver tokenPostCount=0, got %d", n)
+	}
+
+	if n := receiver.WebDAVGetCount(); n > 0 {
+		t.Fatalf("expected recording receiver webDAVGetCount=0, got %d", n)
+	}
+}
+
+func (r *strictRecordingReceiver) LastShare() strictRecordingShareCapture {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.lastShare
+}
+
+func (r *strictRecordingReceiver) LastTokenForm() url.Values {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return copyURLValues(r.lastTokenForm)
+}
+
 // serveRecordingShare records an inbound share POST and returns 201.
 func (r *strictRecordingReceiver) serveRecordingShare(w http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
@@ -211,71 +276,6 @@ func (r *strictRecordingReceiver) serveRecordingWebDAV(w http.ResponseWriter, re
 	r.webDAVGetCount.Add(1)
 	w.WriteHeader(http.StatusOK)
 	tshttp.MustWrite(r.t, w, []byte("strict-recording-webdav-stub"))
-}
-
-func copyURLValues(src url.Values) url.Values {
-	if src == nil {
-		return nil
-	}
-
-	dst := make(url.Values, len(src))
-	for k, vs := range src {
-		dst[k] = append([]string(nil), vs...)
-	}
-
-	return dst
-}
-
-func (r *strictRecordingReceiver) Close() {
-	if r != nil && r.server != nil {
-		r.server.Close()
-	}
-}
-
-func (r *strictRecordingReceiver) PostCount() int32 {
-	return r.postCount.Load()
-}
-
-func (r *strictRecordingReceiver) TokenPostCount() int32 {
-	return r.tokenPostCount.Load()
-}
-
-func (r *strictRecordingReceiver) WebDAVGetCount() int32 {
-	return r.webDAVGetCount.Load()
-}
-
-func assertRecordingReceiverIdle(t *testing.T, receiver *strictRecordingReceiver) {
-	t.Helper()
-
-	if receiver == nil {
-		t.Fatal("strict recording receiver is nil")
-	}
-
-	if n := receiver.PostCount(); n > 0 {
-		t.Fatalf("expected recording receiver postCount=0, got %d", n)
-	}
-
-	if n := receiver.TokenPostCount(); n > 0 {
-		t.Fatalf("expected recording receiver tokenPostCount=0, got %d", n)
-	}
-
-	if n := receiver.WebDAVGetCount(); n > 0 {
-		t.Fatalf("expected recording receiver webDAVGetCount=0, got %d", n)
-	}
-}
-
-func (r *strictRecordingReceiver) LastShare() strictRecordingShareCapture {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.lastShare
-}
-
-func (r *strictRecordingReceiver) LastTokenForm() url.Values {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return copyURLValues(r.lastTokenForm)
 }
 
 func strictRecordingReceiverAllowedPort(t *testing.T, receiver *strictRecordingReceiver) int {

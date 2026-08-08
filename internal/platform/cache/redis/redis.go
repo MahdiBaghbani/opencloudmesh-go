@@ -178,28 +178,6 @@ func New(cfg *Config) (*Cache, error) {
 	return c, nil
 }
 
-// healthCheck verifies Redis is reachable and the counter script can execute.
-func (c *Cache) healthCheck(ctx context.Context) error {
-	// Test basic connectivity with PING
-	resp := c.client.Do(ctx, c.client.B().Ping().Build())
-	if err := resp.Error(); err != nil {
-		return fmt.Errorf("PING failed: %w", err)
-	}
-
-	// Test counter script execution with a temporary key
-	testKey := "__ocm_cache_health_check__"
-
-	result := c.counterScript.Exec(ctx, c.client, []string{testKey}, []string{"1", "1000"})
-	if err := result.Error(); err != nil {
-		return fmt.Errorf("counter script test failed: %w", err)
-	}
-
-	// Clean up test key
-	c.client.Do(ctx, c.client.B().Del().Key(testKey).Build())
-
-	return nil
-}
-
 // Get retrieves a value by key.
 func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	resp := c.client.Do(ctx, c.client.B().Get().Key(key).Build())
@@ -320,6 +298,28 @@ func (c *Cache) Reset(ctx context.Context, key string) error {
 // Close releases resources.
 func (c *Cache) Close() error {
 	c.client.Close()
+
+	return nil
+}
+
+// healthCheck verifies Redis is reachable and the counter script can execute.
+func (c *Cache) healthCheck(ctx context.Context) error {
+	// Test basic connectivity with PING
+	resp := c.client.Do(ctx, c.client.B().Ping().Build())
+	if err := resp.Error(); err != nil {
+		return fmt.Errorf("PING failed: %w", err)
+	}
+
+	// Test counter script execution with a temporary key
+	testKey := "__ocm_cache_health_check__"
+
+	result := c.counterScript.Exec(ctx, c.client, []string{testKey}, []string{"1", "1000"})
+	if err := result.Error(); err != nil {
+		return fmt.Errorf("counter script test failed: %w", err)
+	}
+
+	// Clean up test key
+	c.client.Do(ctx, c.client.B().Del().Key(testKey).Build())
 
 	return nil
 }

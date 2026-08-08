@@ -75,14 +75,6 @@ func newHTTP01Provider() *HTTP01Provider {
 	}
 }
 
-func (p *HTTP01Provider) nowTime() time.Time {
-	if p.now != nil {
-		return p.now()
-	}
-
-	return time.Now()
-}
-
 // Present stores the HTTP-01 challenge token and key authorization; implements challenge.Provider.
 func (p *HTTP01Provider) Present(_, token, keyAuth string) error {
 	p.tokens.Store(token, tokenEntry{
@@ -98,6 +90,14 @@ func (p *HTTP01Provider) CleanUp(_, token, _ string) error {
 	p.tokens.Delete(token)
 
 	return nil
+}
+
+func (p *HTTP01Provider) nowTime() time.Time {
+	if p.now != nil {
+		return p.now()
+	}
+
+	return time.Now()
 }
 
 // ACMEManager handles ACME certificate management using lego.

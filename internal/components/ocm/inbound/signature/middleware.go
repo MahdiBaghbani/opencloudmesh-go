@@ -100,10 +100,6 @@ func (m *SignatureMiddleware) SetLocalHTTPSigPolicy(requiresHTTPRequestSignature
 	m.localAdvertiseHTTPSig = advertiseHTTPSig
 }
 
-func (m *SignatureMiddleware) localRequiresHTTPSig() bool {
-	return m.localRequiresHTTPRequestSignatures && m.localAdvertiseHTTPSig
-}
-
 // VerifyOCMRequestIfPresent verifies inbound signatures when present and
 // populates peer identity from a verified keyId. Unsigned requests pass through
 // without identity. Invalid signatures are rejected.
@@ -359,4 +355,8 @@ func httpStatusForVerifyReason(reason string) int {
 	default:
 		return http.StatusUnauthorized
 	}
+}
+
+func (m *SignatureMiddleware) localRequiresHTTPSig() bool {
+	return m.localRequiresHTTPRequestSignatures && m.localAdvertiseHTTPSig
 }

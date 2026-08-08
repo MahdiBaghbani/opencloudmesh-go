@@ -97,6 +97,14 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 	}
 }
 
+// UpdatePolicy updates the policy configuration.
+func (pe *PolicyEngine) UpdatePolicy(cfg *PolicyConfig) {
+	pe.mu.Lock()
+	defer pe.mu.Unlock()
+
+	pe.cfg = cfg
+}
+
 // isInList checks if host is in list using case-insensitive string equality.
 // Evaluate lowercases peerHost before calling this; list entries are not passed
 // through hostport.Normalize here.
@@ -125,12 +133,4 @@ func (pe *PolicyEngine) anyEnforcesMembership() bool {
 	}
 
 	return false
-}
-
-// UpdatePolicy updates the policy configuration.
-func (pe *PolicyEngine) UpdatePolicy(cfg *PolicyConfig) {
-	pe.mu.Lock()
-	defer pe.mu.Unlock()
-
-	pe.cfg = cfg
 }

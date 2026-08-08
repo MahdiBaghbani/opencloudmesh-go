@@ -1,0 +1,5 @@
+kind: changed
+body: >-
+  enable the funcorder linter project-wide and auto-fix all violations to
+  enforce constructor-then-method function ordering, reversing the prior
+  permanent-disable decision.
