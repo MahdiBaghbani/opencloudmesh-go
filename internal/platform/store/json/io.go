@@ -26,10 +26,14 @@ func (d *Driver) loadFile(filename string, target any) error {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // preserve raw fs.PathError so callers' os.IsNotExist detects missing-file init
 	}
 
-	return json.Unmarshal(data, target)
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("store: decode json file: %w", err)
+	}
+
+	return nil
 }
 
 // saveFile atomically writes data to a JSON file.

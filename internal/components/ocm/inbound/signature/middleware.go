@@ -8,6 +8,7 @@ package signature
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -326,7 +327,7 @@ func authorityForCompareFromKid(k keyid.Kid, scheme string) (string, error) {
 
 	normalized, err := hostport.Normalize(k.Authority, scheme)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("ocm: normalize signature authority: %w", err)
 	}
 
 	return normalized, nil

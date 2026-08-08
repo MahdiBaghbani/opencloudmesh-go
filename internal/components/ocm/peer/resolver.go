@@ -45,7 +45,7 @@ func (p *Resolver) ResolveSharesRequest(_ *http.Request, body []byte) (string, e
 
 	_, provider, err := address.Parse(addr)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("ocm: parse share sender address: %w", err)
 	}
 
 	return provider, nil

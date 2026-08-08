@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -226,7 +227,11 @@ type outgoingRepoSpy struct {
 
 func (s *outgoingRepoSpy) UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptance *invitesoutgoing.Acceptance) error {
 	s.updateStatusCalled = true
-	return s.inner.UpdateStatus(ctx, id, status, acceptance)
+	if err := s.inner.UpdateStatus(ctx, id, status, acceptance); err != nil {
+		return fmt.Errorf("ocm: handle outgoing invite error: %w", err)
+	}
+
+	return nil
 }
 
 type partyRepoGetFail struct {

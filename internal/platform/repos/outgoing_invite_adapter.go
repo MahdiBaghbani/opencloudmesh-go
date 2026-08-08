@@ -41,7 +41,7 @@ func (a *outgoingInviteAdapter) Create(ctx context.Context, invite *invitesoutgo
 	}
 
 	if err := invites.ValidateCreateInviteStatus(string(invite.Status), invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("repos: validate create invite status: %w", err)
 	}
 
 	s := appOutgoingInviteToStore(invite)
@@ -50,7 +50,7 @@ func (a *outgoingInviteAdapter) Create(ctx context.Context, invite *invitesoutgo
 			return fmt.Errorf("invite already exists: %w", store.ErrAlreadyExists)
 		}
 
-		return err
+		return fmt.Errorf("repos: create outgoing invite: %w", err)
 	}
 
 	return nil
@@ -63,7 +63,7 @@ func (a *outgoingInviteAdapter) GetByID(ctx context.Context, id string) (*invite
 			return nil, invites.ErrInviteNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get outgoing invite: %w", err)
 	}
 
 	return storeOutgoingInviteToApp(s), nil
@@ -76,7 +76,7 @@ func (a *outgoingInviteAdapter) GetByToken(ctx context.Context, token string) (*
 			return nil, invites.ErrTokenNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get outgoing invite by token: %w", err)
 	}
 
 	return storeOutgoingInviteToApp(s), nil
@@ -86,7 +86,7 @@ func (a *outgoingInviteAdapter) List(ctx context.Context) ([]*invitesoutgoing.Ou
 	// Pass empty userID to list all invites (matches memory repo behaviour).
 	storeInvites, err := a.s.ListOutgoingInvites(ctx, "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repos: list outgoing invites: %w", err)
 	}
 
 	result := make([]*invitesoutgoing.OutgoingInvite, 0, len(storeInvites))
@@ -109,7 +109,7 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 			return invites.ErrInviteNotFound
 		}
 
-		return err
+		return fmt.Errorf("repos: get outgoing invite: %w", err)
 	}
 
 	argUserID := ""
@@ -121,7 +121,7 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 	}
 
 	if err := invites.ValidateUpdateAcceptedIdentity(string(status), argUserID, argHost, existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("repos: validate update accepted identity: %w", err)
 	}
 
 	existing.Status = string(status)
@@ -143,7 +143,7 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 			return invites.ErrInviteNotFound
 		}
 
-		return err
+		return fmt.Errorf("repos: update outgoing invite: %w", err)
 	}
 
 	return nil
@@ -162,7 +162,7 @@ func (a *outgoingInviteAdapter) FindAcceptedForRecipient(
 	// Pass empty userID to list all invites (matches List behaviour).
 	storeInvites, err := a.s.ListOutgoingInvites(ctx, "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repos: list outgoing invites: %w", err)
 	}
 
 	for _, s := range storeInvites {

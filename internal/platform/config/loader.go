@@ -290,7 +290,7 @@ func applySignatureDefaults(cfg *Config) {
 func normalizeAllowedAlgorithm(alg string) (string, error) {
 	normalized, err := sigalg.Normalize(alg)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("config: normalize signature algorithm: %w", err)
 	}
 
 	if !sigalg.IsImplemented(normalized) {

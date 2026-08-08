@@ -108,10 +108,15 @@ func ratelimitInputs(d *Deps) ratelimit.Inputs {
 }
 
 func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
-	return wellknown.New(wellknown.Inputs{
+	svc, err := wellknown.New(wellknown.Inputs{
 		Resolve:             resolveInputs(cfg, d),
 		SignatureMiddleware: d.SignatureMiddleware,
 	}, svcCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("wiring: wire wellknown service: %w", err)
+	}
+
+	return svc, nil
 }
 
 func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
@@ -122,7 +127,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 
 	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping, cfg.OCM.CompatibilityScope)
 
-	return ocm.New(ocm.Inputs{
+	svc, err := ocm.New(ocm.Inputs{
 		IncomingShareRepo:   d.IncomingShareRepo,
 		OutgoingShareRepo:   d.OutgoingShareRepo,
 		IncomingInviteRepo:  d.IncomingInviteRepo,
@@ -138,6 +143,11 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		KeyManager:          d.KeyManager,
 		MustInviteEnforced:  cfg.OCM.MustInviteEnforced(),
 	}, svcCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("wiring: wire ocm service: %w", err)
+	}
+
+	return svc, nil
 }
 
 func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
@@ -146,12 +156,17 @@ func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Log
 		profiles = cfg.HTTP.Interceptors
 	}
 
-	return ocmaux.New(ocmaux.Inputs{
+	svc, err := ocmaux.New(ocmaux.Inputs{
 		TrustGroupMgr:       d.TrustGroupMgr,
 		DiscoveryClient:     d.DiscoveryClient,
 		Ratelimit:           ratelimitInputs(d),
 		InterceptorProfiles: profiles,
 	}, svcCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("wiring: wire ocm auxiliary service: %w", err)
+	}
+
+	return svc, nil
 }
 
 func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
@@ -183,7 +198,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	resolved := resolve.Resolve(&providerCfg, rawOCMProvider, resolveInputs(cfg, d))
 	localTokenEndpoint := resolved.Params.TokenEndPoint
 
-	return api.New(api.Inputs{
+	svc, err := api.New(api.Inputs{
 		PartyRepo:             d.PartyRepo,
 		SessionRepo:           d.SessionRepo,
 		UserAuth:              d.UserAuth,
@@ -201,17 +216,32 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		Ratelimit:             ratelimitInputs(d),
 		InterceptorProfiles:   profiles,
 	}, svcCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("wiring: wire api service: %w", err)
+	}
+
+	return svc, nil
 }
 
 func buildUIService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
-	return ui.New(ui.Inputs{
+	svc, err := ui.New(ui.Inputs{
 		LocalIdentity: d.LocalIdentity,
 	}, svcCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("wiring: wire ui service: %w", err)
+	}
+
+	return svc, nil
 }
 
 func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
-	return webdav.New(webdav.Inputs{
+	svc, err := webdav.New(webdav.Inputs{
 		OutgoingShareRepo: d.OutgoingShareRepo,
 		TokenStore:        d.TokenStore,
 	}, svcCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("wiring: wire webdav service: %w", err)
+	}
+
+	return svc, nil
 }

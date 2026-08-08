@@ -7,6 +7,7 @@ package client_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -248,7 +249,7 @@ type blockingResolver struct {
 func (r *blockingResolver) LookupIPAddr(ctx context.Context, _ string) ([]net.IPAddr, error) {
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("http: cancel dns lookup: %w", ctx.Err())
 	case <-r.unblockCh:
 		return []net.IPAddr{{IP: net.ParseIP("1.2.3.4")}}, nil
 	}

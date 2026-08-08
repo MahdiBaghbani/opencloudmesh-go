@@ -7,6 +7,7 @@ package ocm
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -51,7 +52,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("services: decode service config: %w", err)
 	}
 
 	if len(unused) > 0 {
@@ -71,7 +72,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	if err := c.TokenExchange.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("services: validate token exchange config: %w", err)
 	}
 
 	sharesHandler := sharesincoming.NewHandler(

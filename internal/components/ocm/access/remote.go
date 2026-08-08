@@ -9,6 +9,7 @@ package access
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -295,7 +296,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 		SharedSecret:  share.SharedSecret,
 	}, disc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: exchange access token: %w", err)
 	}
 
 	accessToken := exchangeResult.AccessToken
@@ -307,7 +308,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 
 	req, err := http.NewRequestWithContext(ctx, opts.Method, webdavURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: build webdav request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
@@ -340,7 +341,7 @@ func (c *Client) accessSharedSecret(ctx context.Context, share *ShareInfo, opts 
 
 	req, err := http.NewRequestWithContext(ctx, opts.Method, webdavURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: build webdav request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)

@@ -54,8 +54,8 @@ var wireLiteralSet = []string{
 // wildcards are not allowed.
 var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/components/ocm/access/remote.go": {
-		// ProtocolWebDAV constant; modernize rollout added a "slices" import (+1).
-		34: {},
+		// ProtocolWebDAV constant; modernize rollout added a "slices" import (+1); wrapcheck rollout added a "fmt" import (+1).
+		35: {},
 	},
 	"internal/components/ocm/outbound/kinds.go": {
 		15: {},
@@ -90,8 +90,9 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		60: {},
 	},
 	"internal/services/ocm/ocm.go": {
-		58:  {},
-		145: {},
+		// wrapcheck rollout added a "fmt" import (+1).
+		59:  {},
+		146: {},
 	},
 	"internal/services/ocm/routes.go": {
 		40: {},
@@ -106,9 +107,10 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		25: {},
 	},
 	"internal/services/webdav/webdav.go": {
-		48: {},
-		54: {},
-		70: {},
+		// wrapcheck rollout added a "fmt" import (+1).
+		49: {},
+		55: {},
+		71: {},
 	},
 }
 
@@ -254,7 +256,7 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: validate wire constant: %w", err)
 	}
 
 	return violations, nil
@@ -274,7 +276,7 @@ func skipWireScanDir(d fs.DirEntry) error {
 func scanFileForRawWireLiterals(root, path string, literals map[string]struct{}, allowlist map[string]map[int]struct{}) ([]string, error) {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: validate wire constant: %w", err)
 	}
 
 	rel = filepath.ToSlash(rel)

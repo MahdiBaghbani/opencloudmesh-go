@@ -57,7 +57,7 @@ func StringProtocolRole(s string) ProtocolRole {
 func ObjectProtocolRole(v any) (ProtocolRole, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
-		return ProtocolRole{}, err
+		return ProtocolRole{}, fmt.Errorf("ocm: marshal protocol role object: %w", err)
 	}
 
 	if len(raw) == 0 || raw[0] != '{' {
@@ -82,7 +82,12 @@ func (p ProtocolRole) MarshalJSON() ([]byte, error) {
 	//nolint:exhaustive // protocolRoleUnset (zero value) intentionally handled by the default invalid-role error
 	switch p.kind {
 	case protocolRoleString:
-		return json.Marshal(p.string)
+		data, err := json.Marshal(p.string) //nolint:errchkjson // wrapcheck requires explicit error wrap
+		if err != nil {
+			return nil, fmt.Errorf("ocm: marshal protocol role string: %w", err)
+		}
+
+		return data, nil
 	case protocolRoleObject:
 		if len(p.object) == 0 {
 			return []byte("{}"), nil
@@ -103,7 +108,7 @@ func (p *ProtocolRole) UnmarshalJSON(data []byte) error {
 	if data[0] == '"' {
 		var s string
 		if err := json.Unmarshal(data, &s); err != nil {
-			return err
+			return fmt.Errorf("ocm: unmarshal protocol role string: %w", err)
 		}
 
 		p.kind = protocolRoleString

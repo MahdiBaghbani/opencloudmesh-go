@@ -8,6 +8,7 @@ package ui
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"net/http"
 )
@@ -27,7 +28,7 @@ type Handler struct {
 func NewHandler(basePath string, providerDomain string) (*Handler, error) {
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ui: parse ui templates: %w", err)
 	}
 
 	return &Handler{

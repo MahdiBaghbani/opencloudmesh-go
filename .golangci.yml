@@ -54,8 +54,6 @@ linters:
     - err113
     # Line length (~201); not a correctness gate.
     - lll
-    # Requires wrapping all external errors (~181); too strict for initial rollout.
-    - wrapcheck
     # External test package layout (~155); conflicts with in-package tests.
     - testpackage
     # Magic number literal bans (~69); noisy in HTTP status tests.

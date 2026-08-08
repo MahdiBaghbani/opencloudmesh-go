@@ -83,9 +83,14 @@ func (s Set) MarshalJSON() ([]byte, error) {
 		s.Keys = []Key{}
 	}
 
-	return json.Marshal(struct {
+	data, err := json.Marshal(struct { //nolint:errchkjson // wrapcheck requires wrapping external marshal errors
 		Keys []Key `json:"keys"`
 	}{Keys: s.Keys})
+	if err != nil {
+		return nil, fmt.Errorf("crypto: marshal jwks: %w", err)
+	}
+
+	return data, nil
 }
 
 // ErrKeyNotFound indicates the JWKS document does not contain the requested kid.
@@ -139,7 +144,7 @@ func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 	// rejected before the key is handed to the verifier.
 	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L914
 	if _, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg); err != nil {
-		return sigalg.ResolvedPublicKey{}, err
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("crypto: derive from jwk: %w", err)
 	}
 
 	pub, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
@@ -152,7 +157,7 @@ func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 		E:   key.E,
 	})
 	if err != nil {
-		return sigalg.ResolvedPublicKey{}, err
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("crypto: parse jwk: %w", err)
 	}
 
 	return sigalg.ResolvedPublicKey{
@@ -293,7 +298,7 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
 	if err != nil {
-		return Set{}, err
+		return Set{}, fmt.Errorf("crypto: build jwks request: %w", err)
 	}
 
 	req.Header.Set("Accept", "application/json")

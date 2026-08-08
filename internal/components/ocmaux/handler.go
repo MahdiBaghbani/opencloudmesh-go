@@ -9,6 +9,7 @@ package ocmaux
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -280,7 +281,7 @@ func normalizeToOrigin(rawURL string) (string, error) {
 
 	parsed, err := url.Parse(candidate)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("ocmaux: normalize provider origin: %w", err)
 	}
 
 	scheme := strings.ToLower(parsed.Scheme)

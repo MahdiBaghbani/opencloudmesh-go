@@ -6,6 +6,8 @@
 package address
 
 import (
+	"fmt"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
@@ -18,5 +20,10 @@ func NormalizedProviderFrom(addr, scheme string) (string, error) {
 		return "", err
 	}
 
-	return hostport.Normalize(provider, scheme)
+	normalized, err := hostport.Normalize(provider, scheme)
+	if err != nil {
+		return "", fmt.Errorf("ocm: normalize address: %w", err)
+	}
+
+	return normalized, nil
 }

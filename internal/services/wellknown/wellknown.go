@@ -50,7 +50,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	unused, err := svccfg.DecodeWithUnused(topLevel, &c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("services: decode service config: %w", err)
 	}
 
 	if len(unused) > 0 {

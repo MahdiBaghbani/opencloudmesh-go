@@ -86,7 +86,7 @@ func (km *KeyManager) LoadOrGenerate() error {
 func (km *KeyManager) generateKey() (*SigningKey, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("crypto: generate key: %w", err)
 	}
 
 	return &SigningKey{
@@ -100,7 +100,7 @@ func (km *KeyManager) generateKey() (*SigningKey, error) {
 func (km *KeyManager) loadKey() (*SigningKey, error) {
 	data, err := os.ReadFile(km.keyPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("crypto: read key file: %w", err)
 	}
 
 	block, _ := pem.Decode(data)
@@ -138,7 +138,7 @@ func (km *KeyManager) saveKey() error {
 
 	pkcs8, err := x509.MarshalPKCS8PrivateKey(km.signingKey.PrivateKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("crypto: marshal private key: %w", err)
 	}
 
 	block := &pem.Block{
@@ -148,7 +148,11 @@ func (km *KeyManager) saveKey() error {
 
 	data := pem.EncodeToMemory(block)
 
-	return os.WriteFile(km.keyPath, data, 0600)
+	if err := os.WriteFile(km.keyPath, data, 0600); err != nil {
+		return fmt.Errorf("crypto: write key file: %w", err)
+	}
+
+	return nil
 }
 
 // SetWireKeyID updates the keyId used for signatures and JWKS after
@@ -196,5 +200,10 @@ func (km *KeyManager) Sign(message []byte) ([]byte, error) {
 		return nil, errors.New("no signing key available")
 	}
 
-	return sigalg.Sign(km.signingKey.Algorithm, km.signingKey.PrivateKey, message)
+	sig, err := sigalg.Sign(km.signingKey.Algorithm, km.signingKey.PrivateKey, message)
+	if err != nil {
+		return nil, fmt.Errorf("crypto: sign message: %w", err)
+	}
+
+	return sig, nil
 }

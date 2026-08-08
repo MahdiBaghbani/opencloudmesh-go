@@ -51,7 +51,7 @@ func (a *incomingShareAdapter) Create(ctx context.Context, share *sharesincoming
 			return fmt.Errorf("share already exists: %w", store.ErrAlreadyExists)
 		}
 
-		return err
+		return fmt.Errorf("repos: create incoming share: %w", err)
 	}
 
 	return nil
@@ -68,7 +68,7 @@ func (a *incomingShareAdapter) GetByIDForRecipientUserID(
 			return nil, sharesincoming.ErrShareNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get incoming share: %w", err)
 	}
 
 	return storeIncomingShareToApp(s), nil
@@ -85,7 +85,7 @@ func (a *incomingShareAdapter) GetByProviderID(
 			return nil, sharesincoming.ErrShareNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("repos: get incoming share by provider key: %w", err)
 	}
 
 	return storeIncomingShareToApp(s), nil
@@ -97,7 +97,7 @@ func (a *incomingShareAdapter) ListByRecipientUserID(
 ) ([]*sharesincoming.IncomingShare, error) {
 	storeShares, err := a.s.ListIncomingSharesByRecipient(ctx, recipientUserID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repos: list incoming shares: %w", err)
 	}
 
 	result := make([]*sharesincoming.IncomingShare, 0, len(storeShares))
@@ -119,7 +119,7 @@ func (a *incomingShareAdapter) UpdateStatusForRecipientUserID(
 			return sharesincoming.ErrShareNotFound
 		}
 
-		return err
+		return fmt.Errorf("repos: update incoming share: %w", err)
 	}
 
 	return nil
@@ -135,7 +135,7 @@ func (a *incomingShareAdapter) DeleteForRecipientUserID(
 			return sharesincoming.ErrShareNotFound
 		}
 
-		return err
+		return fmt.Errorf("repos: delete incoming share: %w", err)
 	}
 
 	return nil

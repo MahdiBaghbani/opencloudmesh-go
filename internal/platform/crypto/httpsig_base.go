@@ -370,7 +370,7 @@ func ReadAndRestoreBody(req *http.Request) ([]byte, error) {
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("crypto: read request body: %w", err)
 	}
 
 	//nolint:errcheck // best-effort cleanup; error is not actionable

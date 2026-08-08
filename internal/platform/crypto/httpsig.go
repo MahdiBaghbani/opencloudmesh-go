@@ -152,7 +152,7 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 	}
 
 	if err := sigalg.ValidateAllowed(key.Algorithm, s.opts.AllowedAlgorithms); err != nil {
-		return err
+		return fmt.Errorf("crypto: validate allowed algorithm: %w", err)
 	}
 
 	// The default covered set is date-free, so no Date header is created.

@@ -228,7 +228,11 @@ func (ts *TestServer) LogFile(name string) string {
 // applies before any side-effecting bootstrap. It returns an error (rather than
 // calling t.Fatalf) so it can be unit-tested directly.
 func validatePreBootstrapStartup(cfg *config.Config) error {
-	return service.ValidatePreBootstrap(cfg)
+	if err := service.ValidatePreBootstrap(cfg); err != nil {
+		return fmt.Errorf("tests: validate pre-bootstrap startup: %w", err)
+	}
+
+	return nil
 }
 
 // localListenerScheme returns the scheme the in-process test server actually
@@ -257,7 +261,7 @@ func getFreePort(ctx context.Context) (int, error) {
 	// integration test harness: intentional bind for test network
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ":0")
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("tests: listen free port: %w", err)
 	}
 	//nolint:errcheck // test cleanup: ephemeral listener close
 	defer listener.Close()

@@ -111,6 +111,35 @@ hostile: the diff noise outweighs the readability gain, and the team has not
 adopted a fixed ordering convention to enforce. There is no burn-down
 trigger; this is a permanent style choice, not a deferred fix.
 
+## Error wrapping (wrapcheck)
+
+`wrapcheck` is enabled. Every error returned from an external package
+(stdlib or another package) must be wrapped with `fmt.Errorf` and `%w`
+so the call site adds context and the chain stays inspectable via
+`errors.Is` and `errors.As`.
+
+Voice convention: `<subsystem>: <verb> <noun>: %w`. The subsystem
+prefix names the current layer (for example `store`, `crypto`, `http`,
+`repos`, `identity`, `ocm`, `api`, `services`, `wiring`, `config`,
+`testsupport`, `tests`). The verb and noun describe the operation
+(for example `store: open database: %w`, `crypto: sign message: %w`,
+`http: read response body: %w`). Lowercase, no trailing period, a
+single colon-space after the subsystem, and `%w` (never `%v` or `%s`).
+
+Same-subsystem different-operation chains (for example
+`store: update outgoing invite: store: apply outgoing invite update: %w`)
+are intentional: each layer tags its own subsystem plus its concrete
+operation, so the chain records every stage. A repeated subsystem prefix
+with different operations is not a duplicate; it is hierarchical stage
+tagging.
+
+`//nolint:wrapcheck` is reserved for sites where wrapping would break
+sentinel detection. The one accepted case is
+`internal/platform/store/json/io.go`, where the raw `os.ReadFile` error is
+returned unwrapped so callers' `os.IsNotExist` detects a missing file during
+initialization; the directive carries an explanation comment. Do not add
+`//nolint:wrapcheck` for convenience or noise.
+
 ## Generated disable inventory
 
 The block below is generated from `.golangci.yml` by
@@ -144,7 +173,6 @@ linters:
     - paralleltest
     - err113
     - lll
-    - wrapcheck
     - testpackage
     - mnd
     - funlen

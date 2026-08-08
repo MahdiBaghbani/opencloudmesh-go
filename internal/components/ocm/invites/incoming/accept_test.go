@@ -7,6 +7,7 @@ package incoming_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -37,11 +38,16 @@ func (p *stubPoster) PostInviteAccepted(_ context.Context, _ string, _ []byte) (
 func sendTestInviteAccepted(t *testing.T, poster incoming.InviteAcceptedPoster) (incoming.AcceptResult, error) {
 	t.Helper()
 
-	return incoming.SendInviteAccepted(context.Background(), poster, spec.InviteAcceptedRequest{
+	result, err := incoming.SendInviteAccepted(context.Background(), poster, spec.InviteAcceptedRequest{
 		RecipientProvider: "receiver.example",
 		Token:             "tok",
 		UserID:            "user@receiver.example",
 	}, "sender.example")
+	if err != nil {
+		return result, fmt.Errorf("ocm: accept incoming invite: %w", err)
+	}
+
+	return result, nil
 }
 
 func TestSendInviteAccepted_OKWithIdentity(t *testing.T) {

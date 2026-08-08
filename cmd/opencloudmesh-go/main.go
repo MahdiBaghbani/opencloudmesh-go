@@ -40,8 +40,11 @@ func printVersion(showVersion bool, w io.Writer) (done bool, err error) {
 	}
 
 	_, err = fmt.Fprintln(w, version)
+	if err != nil {
+		return true, fmt.Errorf("main: write version: %w", err)
+	}
 
-	return true, err
+	return true, nil
 }
 
 func main() {
@@ -159,7 +162,7 @@ func loadConfigAndLogger(configPath, modeFlag string, overrides config.FlagOverr
 		Logger:        bootstrapLogger,
 	})
 	if err != nil {
-		return nil, bootstrapLogger, err
+		return nil, bootstrapLogger, fmt.Errorf("main: load config: %w", err)
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: parseLogLevel(cfg.Logging.Level)}))
@@ -206,13 +209,13 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 	if !explicitPasswordSet {
 		exists, err := bootstrap.SuperAdminExists(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("main: check super admin exists: %w", err)
 		}
 
 		if !exists {
 			generatedPassword, err := identity.GenerateRandomPassword()
 			if err != nil {
-				return err
+				return fmt.Errorf("main: generate random password: %w", err)
 			}
 
 			bootstrapFilePath, err := resolveBootstrapPasswordFilePath(cfg)
@@ -230,8 +233,11 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 				generatedPassword,
 				true,
 			)
+			if err != nil {
+				return fmt.Errorf("main: bootstrap super admin: %w", err)
+			}
 
-			return err
+			return nil
 		}
 	}
 
@@ -241,8 +247,11 @@ func bootstrapAdmin(ctx context.Context, cfg *config.Config, deps *wiring.Deps, 
 		password,
 		explicitPasswordSet,
 	)
+	if err != nil {
+		return fmt.Errorf("main: bootstrap super admin: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 func resolveBootstrapPasswordFilePath(cfg *config.Config) (string, error) {

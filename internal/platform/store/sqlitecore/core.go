@@ -90,10 +90,14 @@ func (c *Core) Close() error {
 
 	sqlDB, err := c.db.DB()
 	if err != nil {
-		return err
+		return fmt.Errorf("store: get sql db: %w", err)
 	}
 
-	return sqlDB.Close()
+	if err := sqlDB.Close(); err != nil {
+		return fmt.Errorf("store: close sql db: %w", err)
+	}
+
+	return nil
 }
 
 // normNotFound maps gorm.ErrRecordNotFound to store.ErrNotFound and passes

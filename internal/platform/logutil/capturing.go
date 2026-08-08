@@ -7,6 +7,7 @@ package logutil
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -32,7 +33,12 @@ func (c *CapturingLogger) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.buf.Write(p)
+	n, err := c.buf.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("logutil: capture log: %w", err)
+	}
+
+	return n, nil
 }
 
 // Output returns captured log text.

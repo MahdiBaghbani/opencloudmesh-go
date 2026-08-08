@@ -86,7 +86,7 @@ func NewRequest(ctx context.Context, method, baseURL, path, token string, payloa
 
 	req, err := http.NewRequestWithContext(ctx, method, baseURL+path, body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("testsupport: build request: %w", err)
 	}
 
 	if payload != nil {
@@ -109,13 +109,13 @@ func DoJSON(client *http.Client, req *http.Request, dst any) (int, []byte, error
 	//nolint:gosec // test-only helper; SSRF is not applicable to test infrastructure
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, fmt.Errorf("testsupport: send request: %w", err)
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort body cleanup; close error is not actionable on an abandoned response
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return resp.StatusCode, nil, err
+		return resp.StatusCode, nil, fmt.Errorf("testsupport: read response: %w", err)
 	}
 
 	if dst != nil && len(raw) > 0 {

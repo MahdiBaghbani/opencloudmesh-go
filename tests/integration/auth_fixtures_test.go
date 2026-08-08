@@ -8,6 +8,7 @@ package integration
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -101,7 +102,7 @@ func extractBootstrapPassword(tempDir string) (string, error) {
 			return "", nil
 		}
 
-		return "", err
+		return "", fmt.Errorf("tests: read bootstrap password: %w", err)
 	}
 
 	return strings.TrimSpace(string(content)), nil

@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -192,8 +193,11 @@ func scanPlanMetadataLeaks(root string) ([]string, error) {
 
 		return nil
 	})
+	if err != nil {
+		return violations, fmt.Errorf("architecture: check plan metadata: %w", err)
+	}
 
-	return violations, err
+	return violations, nil
 }
 
 // scanFilePlanMetadataLeaks parses one Go file and inspects comment nodes and
@@ -205,7 +209,7 @@ func scanFilePlanMetadataLeaks(root, path string) ([]string, error) {
 
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("architecture: check plan metadata: %w", err)
 	}
 
 	rel = filepath.ToSlash(rel)

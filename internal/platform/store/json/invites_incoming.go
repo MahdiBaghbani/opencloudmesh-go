@@ -7,6 +7,7 @@ package json
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
@@ -34,7 +35,7 @@ func (d *Driver) CreateIncomingInvite(_ context.Context, invite *store.IncomingI
 	}
 
 	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("store: validate create invite status: %w", err)
 	}
 
 	d.incomingInvites[invite.ID] = cloneIncomingInvite(invite)
@@ -127,7 +128,7 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 	}
 
 	if err := invites.ValidateUpdateAcceptedIdentity(status, senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("store: validate update accepted identity: %w", err)
 	}
 
 	senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(

@@ -108,7 +108,7 @@ func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest, gran
 		strings.NewReader(form.Encode()),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: build token request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")

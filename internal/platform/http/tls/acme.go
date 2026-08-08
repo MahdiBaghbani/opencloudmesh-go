@@ -339,17 +339,21 @@ func (m *ACMEManager) saveUser(user *ACMEUser) error {
 	// Save user data
 	userData, err := json.MarshalIndent(user, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("http: marshal acme user: %w", err)
 	}
 
 	if err := os.WriteFile(userFile, userData, 0600); err != nil {
-		return err
+		return fmt.Errorf("http: write acme user file: %w", err)
 	}
 
 	// Save key
 	keyPEM := certcrypto.PEMEncode(user.key)
 
-	return os.WriteFile(keyFile, keyPEM, 0600)
+	if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
+		return fmt.Errorf("http: write acme key file: %w", err)
+	}
+
+	return nil
 }
 
 func (m *ACMEManager) loadCertificate() (*cryptotls.Certificate, error) {
@@ -358,7 +362,7 @@ func (m *ACMEManager) loadCertificate() (*cryptotls.Certificate, error) {
 
 	cert, err := cryptotls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http: load x509 keypair: %w", err)
 	}
 
 	return &cert, nil
@@ -372,7 +376,7 @@ func (m *ACMEManager) obtainCertificate() error {
 
 	certificates, err := m.legoClient.Certificate.Obtain(request)
 	if err != nil {
-		return err
+		return fmt.Errorf("http: obtain acme certificate: %w", err)
 	}
 
 	// Save certificate

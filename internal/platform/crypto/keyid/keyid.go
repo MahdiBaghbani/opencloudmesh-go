@@ -108,5 +108,10 @@ func AuthorityForCompareFromKeyID(p Parsed) (string, error) {
 // On parse failure, an error is returned. Callers that enforce peer mismatch
 // should treat normalize errors as a mismatch failure.
 func AuthorityForCompareFromDeclaredPeer(peer string, scheme string) (string, error) {
-	return hostport.Normalize(peer, scheme)
+	normalized, err := hostport.Normalize(peer, scheme)
+	if err != nil {
+		return "", fmt.Errorf("crypto: normalize authority: %w", err)
+	}
+
+	return normalized, nil
 }

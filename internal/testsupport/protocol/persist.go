@@ -215,5 +215,10 @@ func tokenSnapshotFromShares(outgoing map[string]RedactedOutgoingShare) TokenPer
 }
 
 func canonicalSnapshotBytes(s PersistenceSnapshot) ([]byte, error) {
-	return json.Marshal(s)
+	b, err := json.Marshal(s) //nolint:errchkjson // wrapcheck requires explicit error handling before wrapping
+	if err != nil {
+		return nil, fmt.Errorf("testsupport: persist protocol: %w", err)
+	}
+
+	return b, nil
 }

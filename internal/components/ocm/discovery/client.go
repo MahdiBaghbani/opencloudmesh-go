@@ -137,7 +137,7 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("ocm: fetch discovery document: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -163,7 +163,7 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string, freshFetch bool) (spec.Discovery, error) {
 	var disc spec.Discovery
 	if err := json.Unmarshal(data, &disc); err != nil {
-		return spec.Discovery{}, err
+		return spec.Discovery{}, fmt.Errorf("ocm: decode discovery document: %w", err)
 	}
 
 	if disc.InviteAcceptDialog != "" {

@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
@@ -52,7 +53,7 @@ func findProductionImportSuffix(
 
 			rel, err := filepath.Rel(root, path)
 			if err != nil {
-				return err
+				return fmt.Errorf("architecture: scan imports: %w", err)
 			}
 
 			rel = filepath.ToSlash(rel)

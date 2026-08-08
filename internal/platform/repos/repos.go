@@ -38,7 +38,11 @@ type Repos struct {
 
 // Close releases resources held by the backing store driver.
 func (r *Repos) Close() error {
-	return r.driver.Close()
+	if err := r.driver.Close(); err != nil {
+		return fmt.Errorf("repos: close driver: %w", err)
+	}
+
+	return nil
 }
 
 // New constructs app repos from a PersistenceConfig.

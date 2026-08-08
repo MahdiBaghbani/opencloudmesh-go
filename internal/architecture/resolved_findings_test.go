@@ -108,8 +108,11 @@ func scanBannedIdentifiers(root string) ([]string, error) {
 
 		return nil
 	})
+	if err != nil {
+		return violations, fmt.Errorf("architecture: resolve findings: %w", err)
+	}
 
-	return violations, err
+	return violations, nil
 }
 
 // skipHeavyDir prunes directories that never carry first-party Go sources.
@@ -130,7 +133,7 @@ func scanFileForBannedIdentifiers(root, path string) ([]string, error) {
 
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("architecture: resolve findings: %w", err)
 	}
 
 	rel = filepath.ToSlash(rel)
@@ -140,7 +143,7 @@ func scanFileForBannedIdentifiers(root, path string) ([]string, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("architecture: resolve findings: %w", err)
 	}
 
 	return bannedIdentifierViolations(string(data), rel), nil

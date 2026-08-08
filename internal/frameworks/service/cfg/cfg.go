@@ -28,11 +28,11 @@ func Decode(input map[string]any, c any) error {
 
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
-		return err
+		return fmt.Errorf("cfg: create mapstructure decoder: %w", err)
 	}
 
 	if err := decoder.Decode(input); err != nil {
-		return err
+		return fmt.Errorf("cfg: decode config map: %w", err)
 	}
 
 	// Call ApplyDefaults if implemented
@@ -55,11 +55,11 @@ func DecodeWithUnused(input map[string]any, c any) ([]string, error) {
 
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cfg: create mapstructure decoder: %w", err)
 	}
 
 	if err := decoder.Decode(input); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cfg: decode config map: %w", err)
 	}
 
 	if s, ok := c.(Setter); ok {

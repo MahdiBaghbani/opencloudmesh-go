@@ -7,6 +7,7 @@ package sqlitecore
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -22,7 +23,7 @@ import (
 // CreateOutgoingInvite creates a new outgoing invite.
 func (c *Core) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
 	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("store: validate create invite status: %w", err)
 	}
 
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
@@ -70,7 +71,7 @@ func (c *Core) GetOutgoingInviteByToken(ctx context.Context, token string) (*sto
 // written back before the update; the raw FQDN follows replace semantics
 // and is not coalesced here.
 func (c *Core) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
-	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing store.OutgoingInvite
 
 		if err := tx.First(&existing, "id = ?", invite.ID).Error; err != nil {
@@ -80,7 +81,7 @@ func (c *Core) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingI
 		if err := invites.ValidateUpdateAcceptedIdentity(invite.Status,
 			invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
 			existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
-			return err
+			return fmt.Errorf("store: validate update accepted identity: %w", err)
 		}
 
 		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized = invites.CoalesceAcceptedIdentity(
@@ -101,7 +102,11 @@ func (c *Core) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingI
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return fmt.Errorf("store: apply outgoing invite update: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteOutgoingInvite deletes an outgoing invite by id.
@@ -141,7 +146,7 @@ func (c *Core) ListOutgoingInvites(ctx context.Context, userID string) ([]*store
 // CreateIncomingInvite creates a new incoming invite.
 func (c *Core) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
 	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
-		return err
+		return fmt.Errorf("store: validate create invite status: %w", err)
 	}
 
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
@@ -188,7 +193,7 @@ func (c *Core) GetIncomingInviteByToken(ctx context.Context, token string, recip
 // only the coalesced SenderUserID and SenderFQDNNormalized are written back;
 // no payload write occurs on partial-write paths.
 func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error {
-	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing store.IncomingInvite
 
 		if err := tx.First(&existing, "id = ? AND recipient_user_id = ?", id, recipientUserID).Error; err != nil {
@@ -196,7 +201,7 @@ func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id st
 		}
 
 		if err := invites.ValidateUpdateAcceptedIdentity(status, senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
-			return err
+			return fmt.Errorf("store: validate update accepted identity: %w", err)
 		}
 
 		senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(
@@ -228,7 +233,11 @@ func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id st
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return fmt.Errorf("store: apply incoming invite update: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
