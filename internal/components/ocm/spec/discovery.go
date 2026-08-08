@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -44,24 +45,12 @@ type ResourceType struct {
 
 // HasCapability reports whether the discovery advertises the given capability.
 func (d *Discovery) HasCapability(capability string) bool {
-	for _, c := range d.Capabilities {
-		if c == capability {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(d.Capabilities, capability)
 }
 
 // HasCriteria reports whether the discovery lists the given criterion.
 func (d *Discovery) HasCriteria(criterion string) bool {
-	for _, c := range d.Criteria {
-		if c == criterion {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(d.Criteria, criterion)
 }
 
 // RequiresHTTPSig reports whether the peer requires signed OCM requests per the
@@ -125,10 +114,8 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 
 func discoveryPathFromField(rows []service.RouteRow, field, origin string) string {
 	for _, row := range rows {
-		for _, f := range row.DiscoveryFields {
-			if f == field {
-				return absolutePathFromHostRoot(origin, row.FullPath)
-			}
+		if slices.Contains(row.DiscoveryFields, field) {
+			return absolutePathFromHostRoot(origin, row.FullPath)
 		}
 	}
 

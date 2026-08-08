@@ -19,8 +19,8 @@ type LogCapture struct {
 
 // NewLogCapture returns a slog.Logger writing JSON at warn level and above and a
 // capture buffer for substring assertions. Info and Debug records are filtered out.
-func NewLogCapture(t testing.TB) (*slog.Logger, *LogCapture) {
-	t.Helper()
+func NewLogCapture(tb testing.TB) (*slog.Logger, *LogCapture) {
+	tb.Helper()
 
 	c := &LogCapture{}
 	logger := slog.New(slog.NewJSONHandler(c, &slog.HandlerOptions{Level: slog.LevelWarn}))

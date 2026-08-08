@@ -197,7 +197,7 @@ func getTestDir(t *testing.T) string {
 	return filepath.Dir(filename)
 }
 
-func createServerCert(caCert *x509.Certificate, caKey interface{}, serverKey *ecdsa.PrivateKey) ([]byte, error) {
+func createServerCert(caCert *x509.Certificate, caKey any, serverKey *ecdsa.PrivateKey) ([]byte, error) {
 	template := x509.Certificate{
 		SerialNumber:          big.NewInt(2),
 		Subject:               pkix.Name{CommonName: "localhost"},

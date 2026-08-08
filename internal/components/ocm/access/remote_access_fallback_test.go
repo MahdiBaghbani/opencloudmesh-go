@@ -63,6 +63,8 @@ func fallbackDiscovery(host string, exchange, httpsigPolicy bool) spec.Discovery
 // jsonTokenHandler answers 200 with a raw JSON token payload.
 func jsonTokenHandler(payload string) func(t *testing.T) http.HandlerFunc {
 	return func(t *testing.T) http.HandlerFunc {
+		t.Helper()
+
 		return func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			tshttp.MustWrite(t, w, []byte(payload))
@@ -73,6 +75,8 @@ func jsonTokenHandler(payload string) func(t *testing.T) http.HandlerFunc {
 // oauthErrorHandler answers 401 with an RFC 6749 error payload.
 func oauthErrorHandler(code string) func(t *testing.T) http.HandlerFunc {
 	return func(t *testing.T) http.HandlerFunc {
+		t.Helper()
+
 		return func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)

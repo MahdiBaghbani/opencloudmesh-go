@@ -3,11 +3,12 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Wire-format DTOs for POST /ocm/shares.
-// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 package spec
 
+import "slices"
+
 // NewShareRequest carries the wire body for POST /ocm/shares.
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 type NewShareRequest struct {
 	ShareWith         string   `json:"shareWith"`
 	Name              string   `json:"name"`
@@ -54,13 +55,7 @@ type WebappProtocol struct {
 
 // HasRequirement reports whether the WebDAV arm advertises req.
 func (p *WebDAVProtocol) HasRequirement(req string) bool {
-	for _, r := range p.Requirements {
-		if r == req {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(p.Requirements, req)
 }
 
 // HasRequirement reports whether the webapp arm advertises req.
@@ -69,13 +64,7 @@ func (p *WebappProtocol) HasRequirement(req string) bool {
 		return false
 	}
 
-	for _, r := range p.Requirements {
-		if r == req {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(p.Requirements, req)
 }
 
 // CreateShareResponse carries the wire body returned after creating a share.

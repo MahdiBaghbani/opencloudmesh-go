@@ -3,16 +3,16 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Minimal protocol admission checks for the current OCM wire contract.
-// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 package spec
 
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 )
 
 // SupportedResourceTypes are the OCM resource types accepted for share creation.
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
 var SupportedResourceTypes = []string{"file", "folder"}
 
 // SupportedWebDAVRequirements are the WebDAV protocol requirement values
@@ -42,13 +42,7 @@ var SupportedWebappRequirements = []string{RequirementMustExchangeToken, Require
 
 // IsSupportedResourceType reports whether resourceType is accepted for share creation.
 func IsSupportedResourceType(resourceType string) bool {
-	for _, supported := range SupportedResourceTypes {
-		if resourceType == supported {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(SupportedResourceTypes, resourceType)
 }
 
 var errUnsupportedProtocolArm = errors.New("UNSUPPORTED")
@@ -165,33 +159,15 @@ func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
 }
 
 func isSupportedWebDAVRequirement(req string) bool {
-	for _, supported := range SupportedWebDAVRequirements {
-		if req == supported {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(SupportedWebDAVRequirements, req)
 }
 
 func isSupportedWebDAVAccessType(accessType string) bool {
-	for _, supported := range SupportedWebDAVAccessTypes {
-		if accessType == supported {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(SupportedWebDAVAccessTypes, accessType)
 }
 
 func isSupportedWebDAVPermission(perm string) bool {
-	for _, supported := range SupportedWebDAVPermissions {
-		if perm == supported {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(SupportedWebDAVPermissions, perm)
 }
 
 // ValidateWebappProtocolWire checks webapp wire fields: uri, targets,
@@ -301,21 +277,9 @@ func hasExactValidationError(errs []ValidationError, want ValidationError) bool 
 }
 
 func isSupportedWebappPermission(perm string) bool {
-	for _, supported := range SupportedWebappPermissions {
-		if perm == supported {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(SupportedWebappPermissions, perm)
 }
 
 func isSupportedWebappRequirement(req string) bool {
-	for _, supported := range SupportedWebappRequirements {
-		if req == supported {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(SupportedWebappRequirements, req)
 }

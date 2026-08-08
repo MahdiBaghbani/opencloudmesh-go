@@ -235,21 +235,7 @@ func TestWriteBootstrapPasswordFile_OverwritesPermissiveMode(t *testing.T) {
 
 func TestBootstrapAdmin_WritesGeneratedPasswordFile(t *testing.T) {
 	dir := t.TempDir()
-
-	prevDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-
-	if chdirErr := os.Chdir(dir); chdirErr != nil {
-		t.Fatalf("chdir: %v", chdirErr)
-	}
-
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(prevDir); chdirErr != nil {
-			t.Errorf("restore working directory: %v", chdirErr)
-		}
-	})
+	t.Chdir(dir)
 
 	var logBuf bytes.Buffer
 
@@ -375,20 +361,7 @@ func TestResolveBootstrapPasswordFilePath(t *testing.T) {
 		},
 	}
 
-	prevDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-
-	if chdirErr := os.Chdir(cwd); chdirErr != nil {
-		t.Fatalf("chdir: %v", chdirErr)
-	}
-
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(prevDir); chdirErr != nil {
-			t.Errorf("restore working directory: %v", chdirErr)
-		}
-	})
+	t.Chdir(cwd)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

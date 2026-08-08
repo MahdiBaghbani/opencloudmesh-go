@@ -15,36 +15,36 @@ import (
 
 // Deterministic reason codes for error classification; keep stable for clients.
 const (
-	// Authentication and authorization
+	// ReasonUnauthenticated is an authentication failure reason code.
 	ReasonUnauthenticated    = "unauthenticated"
 	ReasonUnauthorized       = "unauthorized"
 	ReasonSessionExpired     = "session_expired"
 	ReasonInvalidCredentials = "invalid_credentials"
 
-	// Signature verification
+	// ReasonSignatureRequired is a reason code for a request missing the required signature.
 	ReasonSignatureRequired = "signature_required"
 	ReasonSignatureInvalid  = "signature_invalid"
 	ReasonSignatureMismatch = "signature_mismatch"
 	ReasonDigestMismatch    = "digest_mismatch"
 
-	// Rate limiting
+	// ReasonRateLimited is a rate limiting failure reason code.
 	ReasonRateLimited = "rate_limited"
 
-	// Request validation
+	// ReasonBadRequest is a request validation failure reason code.
 	ReasonBadRequest   = "bad_request"
 	ReasonMissingField = "missing_field"
 	ReasonInvalidField = "invalid_field"
 	ReasonNotFound     = "not_found"
 	ReasonConflict     = "conflict"
 
-	// SSRF, network, and federation policy -- canonical source is the reason package.
+	// ReasonSSRFBlocked is an SSRF policy failure reason code; canonical source is the reason package.
 	ReasonSSRFBlocked      = reason.SSRFBlocked
 	ReasonNetworkError     = reason.NetworkError
 	ReasonPeerUnreachable  = reason.PeerUnreachable
 	ReasonDeniedByDenylist = reason.DeniedByDenylist
 	ReasonNotAllowed       = reason.NotAllowed
 
-	// Server errors
+	// ReasonInternalError is a server error reason code.
 	ReasonInternalError = "internal_error"
 )
 

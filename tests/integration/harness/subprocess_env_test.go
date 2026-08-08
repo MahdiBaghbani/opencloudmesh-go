@@ -7,6 +7,7 @@ package harness
 
 import (
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -142,10 +143,8 @@ func TestScrubSubprocessEnvEmptyAndNoop(t *testing.T) {
 // fallback knob remains in the blocklist, guarding the hermetic contract.
 func TestHermeticEnvBlocklistContainsUseEnvFallback(t *testing.T) {
 	want := "OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK"
-	for _, k := range hermeticEnvBlocklist {
-		if k == want {
-			return
-		}
+	if slices.Contains(hermeticEnvBlocklist, want) {
+		return
 	}
 
 	blocklisted := append([]string(nil), hermeticEnvBlocklist...)
@@ -176,14 +175,15 @@ func TestScrubParentConfigEnvRestoresBlocklistedVars(t *testing.T) {
 
 	t.Cleanup(func() {
 		for _, k := range hermeticEnvBlocklist {
-			var err error
 			if v, ok := originals[k]; ok && v != "" {
-				err = os.Setenv(k, v)
-			} else {
-				err = os.Unsetenv(k)
+				if err := os.Setenv(k, v); err != nil { //nolint:usetesting // manual env restore inside t.Cleanup; t.Setenv would register a nested cleanup that re-mutates the value
+					t.Errorf("restore %s: %v", k, err)
+				}
+
+				continue
 			}
 
-			if err != nil {
+			if err := os.Unsetenv(k); err != nil {
 				t.Errorf("restore %s: %v", k, err)
 			}
 		}
@@ -192,9 +192,7 @@ func TestScrubParentConfigEnvRestoresBlocklistedVars(t *testing.T) {
 	// Seed an ambient value for the primary blocklisted knob and any others
 	// so the scrub has something to remove and restore.
 	for _, k := range hermeticEnvBlocklist {
-		if err := os.Setenv(k, sentinel); err != nil {
-			t.Fatalf("os.Setenv(%q, %q): %v", k, sentinel, err)
-		}
+		t.Setenv(k, sentinel)
 	}
 
 	// The scrub contract requires callers to hold subprocessChdirMu across the

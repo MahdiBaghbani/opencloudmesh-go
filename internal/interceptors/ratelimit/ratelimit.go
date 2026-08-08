@@ -99,10 +99,7 @@ func (l *Limiter) Wrap(next http.Handler) http.Handler {
 		}
 
 		if count > l.limit {
-			retryAfter := int(time.Until(resetAt).Seconds())
-			if retryAfter < 1 {
-				retryAfter = 1
-			}
+			retryAfter := max(int(time.Until(resetAt).Seconds()), 1)
 
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			api.WriteTooManyRequests(w, "too many requests")

@@ -229,7 +229,7 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 		t.Fatal("error response missing 'error' field (should use api error envelope)")
 	}
 
-	errMap, ok := errObj.(map[string]interface{})
+	errMap, ok := errObj.(map[string]any)
 	if !ok {
 		t.Fatal("error field is not an object")
 	}

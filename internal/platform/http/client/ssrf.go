@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -226,11 +227,5 @@ func portAllowed(port string, policy *config.SSRFRoutePolicyConfig) bool {
 		return false
 	}
 
-	for _, p := range policy.AllowedPorts {
-		if p == n {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(policy.AllowedPorts, n)
 }

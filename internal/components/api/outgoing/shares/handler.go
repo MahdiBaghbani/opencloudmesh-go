@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -345,15 +346,7 @@ func (h *Handler) parseOutgoingRequest(w http.ResponseWriter, r *http.Request) (
 	}
 
 	for _, perm := range req.Permissions {
-		supported := false
-
-		for _, allowed := range spec.SupportedWebDAVPermissions {
-			if perm == allowed {
-				supported = true
-
-				break
-			}
-		}
+		supported := slices.Contains(spec.SupportedWebDAVPermissions, perm)
 
 		if !supported {
 			api.WriteBadRequest(w, api.ReasonInvalidField, "permissions must be read-only")

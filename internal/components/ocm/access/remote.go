@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
@@ -204,13 +205,7 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 }
 
 func hasRequirement(reqs []string, target string) bool {
-	for _, r := range reqs {
-		if r == target {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(reqs, target)
 }
 
 // Access authorizes and performs the remote access request. It performs exactly

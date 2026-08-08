@@ -14,19 +14,19 @@ import (
 
 // AssertClassifiedReason fatals when err is nil, not a *ocmreason.ClassifiedError, or
 // has a ReasonCode other than wantReason.
-func AssertClassifiedReason(t testing.TB, err error, wantReason string) {
-	t.Helper()
+func AssertClassifiedReason(tb testing.TB, err error, wantReason string) {
+	tb.Helper()
 
 	if err == nil {
-		t.Fatalf("expected a classified error, got nil")
+		tb.Fatalf("expected a classified error, got nil")
 	}
 
 	var ce *ocmreason.ClassifiedError
 	if !errors.As(err, &ce) {
-		t.Fatalf("error is not a ClassifiedError: %v", err)
+		tb.Fatalf("error is not a ClassifiedError: %v", err)
 	}
 
 	if ce.ReasonCode != wantReason {
-		t.Fatalf("classified reason mismatch: got %q, want %q", ce.ReasonCode, wantReason)
+		tb.Fatalf("classified reason mismatch: got %q, want %q", ce.ReasonCode, wantReason)
 	}
 }

@@ -3,7 +3,6 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Package shares provides the session-gated handler for POST /api/shares/outgoing.
 package shares
 
 import (

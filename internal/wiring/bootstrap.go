@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -284,17 +285,13 @@ func buildRatelimitCacheInstance(cfg *config.Config) (cache.CacheWithCounter, er
 // driver bounded to the locked discovery cardinality cap.
 func withMemoryMaxEntries(driversConfig map[string]any) map[string]any {
 	out := make(map[string]any, len(driversConfig)+1)
-	for k, v := range driversConfig {
-		out[k] = v
-	}
+	maps.Copy(out, driversConfig)
 
 	memoryCfg := map[string]any{}
 
 	if raw, ok := driversConfig["memory"]; ok {
 		if m, ok := raw.(map[string]any); ok {
-			for k, v := range m {
-				memoryCfg[k] = v
-			}
+			maps.Copy(memoryCfg, m)
 		}
 	}
 

@@ -42,13 +42,13 @@ linters:
     - exhaustruct
     # Blank-line-before-return style (~1240).
     - nlreturn
-    # String repetition hints (~875); defer until baseline stable.
+    # String repetition hints (~993); defer until baseline stable.
     - goconst
     # Inline error handling style enforcement (~711).
     - noinlineerr
     # Bans idiomatic short names in handlers/tests (~685).
     - varnamelen
-    # Mandates t.Parallel() (~1409); corpus not ready.
+    # Mandates t.Parallel() (~1409); see docs/lint-policy.md.
     - paralleltest
     # Sentinel error naming style (~392).
     - err113
@@ -58,8 +58,6 @@ linters:
     - wrapcheck
     # External test package layout (~155); conflicts with in-package tests.
     - testpackage
-    # Go version uplift hints (~71); phase after green baseline.
-    - modernize
     # Magic number literal bans (~69); noisy in HTTP status tests.
     - mnd
     # Function length (~49); overlaps cyclop complexity gates.
@@ -68,18 +66,12 @@ linters:
     - gochecknoglobals
     # Constructor/export ordering (~32).
     - funcorder
-    # t.Helper() enforcement (~32).
-    - thelper
     # Nested if depth (~24); overlaps cyclop.
     - nestif
     # Cognitive complexity (~35); redundant with cyclop.
     - gocognit
     # Deprecated import guard OFF; gomodguard_v2 is already on via default:all.
     - gomodguard
-    # Prefer testing helpers (t.Setenv/t.TempDir); high churn in existing tests.
-    - usetesting
-    # Godoc comment style lint; docs cleanup deferred until baseline is stable.
-    - godoclint
     # Bans named returns; style noise across handlers and helpers.
     - nonamedreturns
     # Restricts returning interfaces; conflicts with DI and factory patterns.
@@ -110,6 +102,9 @@ linters:
       # output and breaks positional struct literals. Disabled; not auto-fixed.
       disable:
         - fieldalignment
+    modernize:
+      disable:
+        - stringsseq
     staticcheck:
       checks:
         - all
@@ -164,6 +159,18 @@ linters:
         linters:
           - revive
         text: "unused-parameter: parameter 'ctx'"
+      - linters:
+          - modernize
+        text: "Goroutine creation can be simplified using WaitGroup.Go"
+      - linters:
+          - modernize
+        text: "var requestCount int32 may be simplified using atomic.Int32"
+      # ClearProxyEnv restores a snapshot inside Cleanup. Using tb.Setenv here
+      # registers another cleanup and changes nested subtest restore ordering.
+      - path: internal/testsupport/http/proxyenv\.go
+        linters:
+          - usetesting
+        text: "^os\\.Setenv\\(\\) could be replaced by tb\\.Setenv\\(\\) in ClearProxyEnv$"
 
 formatters:
   enable:

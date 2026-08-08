@@ -283,7 +283,7 @@ func (c *Core) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareI
 	result := c.db.WithContext(ctx).
 		Model(&store.IncomingShare{}).
 		Where("share_id = ? AND recipient_user_id = ?", shareID, recipientUserID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     status,
 			"updated_at": time.Now().Unix(),
 		})
@@ -501,7 +501,7 @@ func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id st
 		senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(
 			senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized)
 
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"status":     status,
 			"updated_at": time.Now().Unix(),
 		}

@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -310,9 +311,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	httpErr := s.httpServer.Shutdown(ctx)
 
-	for i := len(s.mountedServices) - 1; i >= 0; i-- {
-		svc := s.mountedServices[i]
-
+	for _, svc := range slices.Backward(s.mountedServices) {
 		prefix := svc.Prefix()
 		if prefix == "" {
 			prefix = "(root)"

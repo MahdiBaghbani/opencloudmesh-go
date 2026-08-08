@@ -3,7 +3,6 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Package incoming handles POST /ocm/shares. Resolves recipient by canonical ID, username, then email; provider via hostport.Normalize.
 package incoming
 
 import (

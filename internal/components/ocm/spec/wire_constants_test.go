@@ -54,8 +54,8 @@ var wireLiteralSet = []string{
 // wildcards are not allowed.
 var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/components/ocm/access/remote.go": {
-		// ProtocolWebDAV constant; short SPDX header rewritten to the 5-line form (+2).
-		33: {},
+		// ProtocolWebDAV constant; modernize rollout added a "slices" import (+1).
+		34: {},
 	},
 	"internal/components/ocm/outbound/kinds.go": {
 		15: {},
@@ -80,7 +80,8 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		85: {},
 	},
 	"internal/platform/config/loader.go": {
-		909: {},
+		// TOML instance-key "ocm" path segment; godoclint removed duplicate package doc from loader.go (-1).
+		908: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		9: {},

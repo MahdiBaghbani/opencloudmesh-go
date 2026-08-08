@@ -3,11 +3,10 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Wire-format DTOs for POST /ocm/invite-accepted.
-// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1#invite-acceptance-response-details
 package spec
 
 // InviteAcceptedRequest carries the wire body for POST /ocm/invite-accepted.
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1#invite-acceptance-response-details
 type InviteAcceptedRequest struct {
 	RecipientProvider string `json:"recipientProvider"`
 	Token             string `json:"token"`

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
@@ -74,14 +75,7 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 
 		// Should require auth or return bad request for invalid ID
 		validCodes := []int{http.StatusUnauthorized, http.StatusBadRequest}
-		found := false
-
-		for _, code := range validCodes {
-			if resp.StatusCode == code {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(validCodes, resp.StatusCode)
 
 		if !found {
 			t.Logf("WebDAV returned %d (expected 401 or 400)", resp.StatusCode)

@@ -14,6 +14,7 @@ permissions:
 
 env:
   GOLANGCI_LINT_VERSION: v2.12.2
+  NU_VERSION: 0.114.1
 
 jobs:
   lint:
@@ -38,3 +39,8 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m
+      - uses: ./.github/actions/install-nushell
+        with:
+          nu-version: ${{ env.NU_VERSION }}
+      - name: lint-policy drift check
+        run: make lint-policy-drift

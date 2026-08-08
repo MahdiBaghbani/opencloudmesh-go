@@ -8,6 +8,7 @@
 package routing
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -112,24 +113,12 @@ func IsKnownOutboundKind(kind service.OutboundProtocolKind) bool {
 		return false
 	}
 
-	for _, known := range KnownOutboundKinds() {
-		if kind == known {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(KnownOutboundKinds(), kind)
 }
 
 // HasDiscoveryField reports whether row discovery metadata includes field.
 func HasDiscoveryField(row service.RouteRow, field string) bool {
-	for _, f := range row.DiscoveryFields {
-		if f == field {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(row.DiscoveryFields, field)
 }
 
 // IsOCMProtocolPath reports whether fullPath is under the mounted OCM protocol prefix.

@@ -250,14 +250,7 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 				t.Fatalf("discovery should be enabled in %s mode", tt.mode)
 			}
 
-			hasHTTPReqSigs := false
-
-			for _, criterion := range disc.Criteria {
-				if criterion == spec.CriteriaMustUseHTTPSig {
-					hasHTTPReqSigs = true
-					break
-				}
-			}
+			hasHTTPReqSigs := slices.Contains(disc.Criteria, spec.CriteriaMustUseHTTPSig)
 
 			if hasHTTPReqSigs != tt.wantHTTPReqSigs {
 				t.Fatalf(
