@@ -256,7 +256,7 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: validate wire constant: %w", err)
 	}
 
 	return violations, nil
@@ -276,7 +276,7 @@ func skipWireScanDir(d fs.DirEntry) error {
 func scanFileForRawWireLiterals(root, path string, literals map[string]struct{}, allowlist map[string]map[int]struct{}) ([]string, error) {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ocm: validate wire constant: %w", err)
 	}
 
 	rel = filepath.ToSlash(rel)

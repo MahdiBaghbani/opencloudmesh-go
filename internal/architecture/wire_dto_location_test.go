@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -70,7 +71,7 @@ func scanWireDTOLocations(root, ocmDir string, patterns []*regexp.Regexp, wireDT
 
 		relPath, err := filepath.Rel(ocmDir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: locate wire dto: %w", err)
 		}
 
 		if strings.HasPrefix(filepath.ToSlash(relPath), "spec/") {
@@ -86,20 +87,23 @@ func scanWireDTOLocations(root, ocmDir string, patterns []*regexp.Regexp, wireDT
 
 		return nil
 	})
+	if err != nil {
+		return violations, fmt.Errorf("architecture: locate wire dto: %w", err)
+	}
 
-	return violations, err
+	return violations, nil
 }
 
 // scanFileForWireDTOs reports wire DTO struct definitions in one Go file.
 func scanFileForWireDTOs(root, path string, patterns []*regexp.Regexp, wireDTOTypes []string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("architecture: locate wire dto: %w", err)
 	}
 
 	fileRel, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("architecture: locate wire dto: %w", err)
 	}
 
 	content := string(data)

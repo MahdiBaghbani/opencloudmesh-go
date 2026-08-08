@@ -39,12 +39,17 @@ type testInviteAcceptedPoster struct {
 }
 
 func (p *testInviteAcceptedPoster) PostInviteAccepted(ctx context.Context, targetHost string, body []byte) (*http.Response, error) {
-	return p.poster.Send(ctx, outbound.Request{
+	resp, err := p.poster.Send(ctx, outbound.Request{
 		TargetHost:   targetHost,
 		EndpointPath: "invite-accepted",
 		Kind:         outbound.EndpointInvites,
 		Body:         body,
 	})
+	if err != nil {
+		return resp, fmt.Errorf("api: create inbox invite fixture: %w", err)
+	}
+
+	return resp, nil
 }
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))

@@ -7,6 +7,7 @@ package outgoing_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -412,10 +413,15 @@ func exchangeOnServer(t *testing.T, serverURL string, disc *spec.Discovery) (*to
 	}, nil))
 	client := tokenoutgoing.NewClient(httpClient, &mockSigner{}, "my-instance.example.com")
 
-	return client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: serverURL,
 		SharedSecret:  "test-secret",
 	}, disc)
+	if err != nil {
+		return result, fmt.Errorf("ocm: exchange token: %w", err)
+	}
+
+	return result, nil
 }
 
 func assertTokenInvalidFormat(t *testing.T, err error) {

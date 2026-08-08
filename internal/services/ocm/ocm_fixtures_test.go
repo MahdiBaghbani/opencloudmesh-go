@@ -126,19 +126,36 @@ type identityCapturingTokenStore struct {
 
 func (s *identityCapturingTokenStore) Store(ctx context.Context, issued *token.IssuedToken) error {
 	s.captured = inboundsignature.GetPeerIdentity(ctx)
-	return s.inner.Store(ctx, issued)
+	if err := s.inner.Store(ctx, issued); err != nil {
+		return fmt.Errorf("services: store token: %w", err)
+	}
+
+	return nil
 }
 
 func (s *identityCapturingTokenStore) Get(ctx context.Context, accessToken string) (*token.IssuedToken, error) {
-	return s.inner.Get(ctx, accessToken)
+	token, err := s.inner.Get(ctx, accessToken)
+	if err != nil {
+		return token, fmt.Errorf("services: get token: %w", err)
+	}
+
+	return token, nil
 }
 
 func (s *identityCapturingTokenStore) Delete(ctx context.Context, accessToken string) error {
-	return s.inner.Delete(ctx, accessToken)
+	if err := s.inner.Delete(ctx, accessToken); err != nil {
+		return fmt.Errorf("services: delete token: %w", err)
+	}
+
+	return nil
 }
 
 func (s *identityCapturingTokenStore) CleanExpired(ctx context.Context) error {
-	return s.inner.CleanExpired(ctx)
+	if err := s.inner.CleanExpired(ctx); err != nil {
+		return fmt.Errorf("services: clean expired tokens: %w", err)
+	}
+
+	return nil
 }
 
 func setupSignedTokenServiceInputs(

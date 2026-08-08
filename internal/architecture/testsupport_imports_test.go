@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -43,7 +44,7 @@ func TestTestsupportOnlyImportedFromTestFiles(t *testing.T) {
 
 		relPath, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check testsupport imports: %w", err)
 		}
 
 		relPath = filepath.ToSlash(relPath)
@@ -84,7 +85,7 @@ func parseGoImports(path string) ([]string, error) {
 
 	f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("architecture: check testsupport imports: %w", err)
 	}
 
 	imports := make([]string, 0, len(f.Imports))

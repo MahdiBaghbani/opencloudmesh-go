@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -90,8 +91,11 @@ func scanPackageSlogKeys(root, pkg string, snakeCaseRegex *regexp.Regexp, allowe
 
 		return nil
 	})
+	if err != nil {
+		return violations, fmt.Errorf("architecture: scan slog keys: %w", err)
+	}
 
-	return violations, err
+	return violations, nil
 }
 
 // scanFileSlogKeys parses one Go file and collects its non-snake_case slog keys.
@@ -105,7 +109,7 @@ func scanFileSlogKeys(root, path string, snakeCaseRegex *regexp.Regexp, allowedE
 
 	relPath, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("architecture: scan slog keys: %w", err)
 	}
 
 	var violations []string

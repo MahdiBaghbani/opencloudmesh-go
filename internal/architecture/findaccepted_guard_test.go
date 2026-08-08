@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -68,8 +69,11 @@ func scanFindAcceptedBodies(root string) (violations []string, found int, err er
 
 		return nil
 	})
+	if err != nil {
+		return violations, found, fmt.Errorf("architecture: check findaccepted guard: %w", err)
+	}
 
-	return violations, found, err
+	return violations, found, nil
 }
 
 // scanFileFindAcceptedBodies parses one Go file and inspects FindAccepted bodies.
@@ -80,7 +84,7 @@ func scanFileFindAcceptedBodies(root, path string) ([]string, int, error) {
 
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("architecture: check findaccepted guard: %w", err)
 	}
 
 	rel = filepath.ToSlash(rel)

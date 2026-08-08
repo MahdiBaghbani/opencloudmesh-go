@@ -6,6 +6,7 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +26,12 @@ func loadJwksURITOML(t *testing.T, tomlContent string) (*config.Config, error) {
 		t.Fatal(err)
 	}
 
-	return config.Load(config.LoaderOptions{ConfigPath: tomlPath})
+	cfg, err := config.Load(config.LoaderOptions{ConfigPath: tomlPath})
+	if err != nil {
+		return nil, fmt.Errorf("config: load signature jwks uri: %w", err)
+	}
+
+	return cfg, nil
 }
 
 func TestLoad_SignatureJwksURIDecodes(t *testing.T) {

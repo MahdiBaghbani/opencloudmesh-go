@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -58,7 +59,7 @@ func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 
 		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check forwarded header: %w", err)
 		}
 
 		content := string(data)

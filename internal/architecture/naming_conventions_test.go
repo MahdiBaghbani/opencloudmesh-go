@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -51,14 +52,14 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 
 		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check naming: %w", err)
 		}
 
 		content := string(data)
 
 		relPath, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check naming: %w", err)
 		}
 
 		if locs := standaloneDS.FindAllStringIndex(content, -1); len(locs) > 0 {
@@ -114,14 +115,14 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 
 		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check naming: %w", err)
 		}
 
 		content := string(data)
 
 		relPath, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check naming: %w", err)
 		}
 
 		for _, tag := range bannedTags {
@@ -166,14 +167,14 @@ func TestNoFirstAtOCMAddressParsing(t *testing.T) {
 
 		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check naming: %w", err)
 		}
 
 		content := string(data)
 
 		relPath, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check naming: %w", err)
 		}
 
 		if locs := pattern.FindAllStringIndex(content, -1); len(locs) > 0 {

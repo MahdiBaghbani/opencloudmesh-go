@@ -6,6 +6,7 @@
 package architecture
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -42,14 +43,14 @@ func TestOCMPackagesDoNotImportAPI(t *testing.T) {
 
 		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check layering: %w", err)
 		}
 
 		content := string(data)
 
 		fileRel, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("architecture: check layering: %w", err)
 		}
 
 		for i, line := range strings.Split(content, "\n") {
