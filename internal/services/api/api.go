@@ -78,7 +78,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	currentUser := func(ctx context.Context) (*identity.User, error) {
 		u := sessiongate.GetUserFromContext(ctx)
 		if u == nil {
-			return nil, fmt.Errorf("no authenticated user in context")
+			return nil, errors.New("no authenticated user in context")
 		}
 
 		return u, nil

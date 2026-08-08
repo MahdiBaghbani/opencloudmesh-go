@@ -27,7 +27,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
-	// Register cache drivers
+	// Register cache drivers.
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
@@ -45,6 +45,7 @@ type TestServer struct {
 // StartTestServer creates and starts a test server with dynamic port allocation.
 func StartTestServer(t *testing.T) *TestServer {
 	t.Helper()
+
 	return StartTestServerWithConfig(t, nil)
 }
 
@@ -53,6 +54,7 @@ func StartTestServer(t *testing.T) *TestServer {
 // need a specific policy or config setting at server-creation time.
 func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestServer {
 	t.Helper()
+
 	return startTestServer(t, patch, IntegrationBuildOpts())
 }
 
@@ -60,6 +62,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 // signing policy and keys wired for outgoing share consumer integration tests.
 func StartTestServerWithOutgoingSharePolicy(t *testing.T, patch func(*config.Config)) *TestServer {
 	t.Helper()
+
 	return startTestServer(t, patch, OutgoingSharePolicyBuildOpts())
 }
 

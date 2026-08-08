@@ -193,6 +193,7 @@ func compareDotTriple(a, b string) (int, bool) {
 // atLeast14 accepts valid dot-triple versions >= 1.4.0.
 func atLeast14(reported string) bool {
 	cmp, ok := compareDotTriple(reported, spec.APIVersionPin)
+
 	return ok && cmp >= 0
 }
 

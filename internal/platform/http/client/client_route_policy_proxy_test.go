@@ -126,6 +126,7 @@ func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 
 		if r.URL.Path == "/start" {
 			http.Redirect(w, r, "/target", http.StatusFound)
+
 			return
 		}
 

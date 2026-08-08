@@ -156,6 +156,7 @@ func TestParseCompatibilityScope(t *testing.T) {
 
 		if err != nil {
 			t.Errorf("ParseCompatibilityScope(%q) unexpected error: %v", tt.input, err)
+
 			continue
 		}
 

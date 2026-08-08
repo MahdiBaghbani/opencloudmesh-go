@@ -118,6 +118,7 @@ func TestTokenExchangeSettings_Validate(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Validate() error = nil, want error containing %q", tt.errMsg)
+
 					return
 				}
 

@@ -43,6 +43,7 @@ type TLSManager struct {
 // NewTLSManager creates a new TLS manager.
 func NewTLSManager(cfg *config.TLSConfig, logger *slog.Logger) *TLSManager {
 	logger = logutil.NoopIfNil(logger)
+
 	return &TLSManager{cfg: cfg, logger: logger}
 }
 
@@ -89,7 +90,7 @@ func (m *TLSManager) loadStaticCert() (*cryptotls.Config, error) {
 func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*cryptotls.Config, error) {
 	dir := strings.TrimSpace(m.cfg.SelfSignedDir)
 	if dir == "" {
-		return nil, fmt.Errorf("tls.self_signed_dir is not set; ensure tls.mode=selfsigned uses a preset or set self_signed_dir explicitly")
+		return nil, errors.New("tls.self_signed_dir is not set; ensure tls.mode=selfsigned uses a preset or set self_signed_dir explicitly")
 	}
 
 	certFile := filepath.Join(dir, "server.crt")

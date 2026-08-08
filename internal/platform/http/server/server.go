@@ -166,6 +166,7 @@ func (s *Server) startACME() error {
 
 	if initErr := acmeMgr.Init(context.Background()); initErr != nil {
 		s.closeChallengeServer()
+
 		return fmt.Errorf("ACME initialization failed: %w", initErr)
 	}
 
@@ -175,6 +176,7 @@ func (s *Server) startACME() error {
 	httpsListener, err := net.Listen("tcp", s.httpServer.Addr) //nolint:noctx // listener is bound once at server startup; no caller-supplied shutdown context is available here
 	if err != nil {
 		s.closeChallengeServer()
+
 		return fmt.Errorf("https listener bind failed on %s: %w", s.httpServer.Addr, err)
 	}
 
@@ -269,6 +271,7 @@ func (s *Server) runACMEServers(httpsErrCh, challengeErrCh chan error) error {
 	select {
 	case httpsErr := <-httpsErrCh:
 		s.closeChallengeServer()
+
 		return httpsErr
 	case challengeErr := <-challengeErrCh:
 		if errors.Is(challengeErr, http.ErrServerClosed) {

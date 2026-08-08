@@ -12,9 +12,9 @@
 package loader
 
 import (
-	// Register the memory cache driver
+	// Register the memory cache driver.
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
 
-	// Register the redis/valkey cache driver
+	// Register the redis/valkey cache driver.
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/redis"
 )

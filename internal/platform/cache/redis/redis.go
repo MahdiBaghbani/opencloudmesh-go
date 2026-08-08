@@ -171,6 +171,7 @@ func New(cfg *Config) (*Cache, error) {
 
 	if err := c.healthCheck(ctx); err != nil {
 		client.Close()
+
 		return nil, fmt.Errorf("redis health check failed: %w", err)
 	}
 
@@ -319,6 +320,7 @@ func (c *Cache) Reset(ctx context.Context, key string) error {
 // Close releases resources.
 func (c *Cache) Close() error {
 	c.client.Close()
+
 	return nil
 }
 

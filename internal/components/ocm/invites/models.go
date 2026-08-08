@@ -104,5 +104,6 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 // See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L127-L130
 func BuildInviteString(token, providerFQDN string) string {
 	inner := token + "@" + providerFQDN
+
 	return base64.RawURLEncoding.EncodeToString([]byte(inner))
 }

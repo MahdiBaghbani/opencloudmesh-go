@@ -107,12 +107,14 @@ func DefaultAllowed() []string {
 // IsImplemented reports whether native alg has a verify implementation.
 func IsImplemented(alg string) bool {
 	_, ok := implemented[strings.ToLower(strings.TrimSpace(alg))]
+
 	return ok
 }
 
 // IsSymmetric reports whether alg is a symmetric HMAC algorithm.
 func IsSymmetric(alg string) bool {
 	_, ok := symmetricAlgorithms[strings.ToLower(strings.TrimSpace(alg))]
+
 	return ok
 }
 

@@ -63,6 +63,7 @@ func (km *KeyManager) LoadOrGenerate() error {
 	if km.keyPath != "" {
 		if key, err := km.loadKey(); err == nil {
 			km.signingKey = key
+
 			return nil
 		}
 	}

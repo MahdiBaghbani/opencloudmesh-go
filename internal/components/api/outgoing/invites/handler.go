@@ -55,6 +55,7 @@ func NewHandler(
 func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -62,6 +63,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil && r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			api.WriteBadRequest(w, api.ReasonBadRequest, "failed to parse request body")
+
 			return
 		}
 	}
@@ -71,6 +73,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(ctx)
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 

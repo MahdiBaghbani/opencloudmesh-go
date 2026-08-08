@@ -60,6 +60,7 @@ func (cfg *PeerMappingConfig) GlobalKnobs() (includes, requires, http *bool) {
 // HostPlatformFor returns the platform mapped to host, if any.
 func (cfg *PeerMappingConfig) HostPlatformFor(host string) (string, bool) {
 	platform, ok := cfg.HostPlatform[host]
+
 	return platform, ok
 }
 

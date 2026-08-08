@@ -69,7 +69,7 @@ func (c *Core) Close() error {
 	return nil
 }
 
-// Compile-time interface checks
+// Compile-time interface checks.
 var _ store.OutgoingShareStore = (*Core)(nil)
 var _ store.IncomingShareStore = (*Core)(nil)
 var _ store.OutgoingInviteStore = (*Core)(nil)

@@ -30,6 +30,7 @@ func runSameHostRelativeRedirectTest(
 
 		if r.URL.Path == "/start" {
 			http.Redirect(w, r, "/target", http.StatusFound)
+
 			return
 		}
 

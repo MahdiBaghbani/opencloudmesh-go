@@ -26,6 +26,7 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for cross-user request")
+
 		return nil, nil //nolint:nilnil // test: unreachable after t.Fatal; satisfies the mock accessor signature
 	}}
 	router := newTestRouterWithAccess(repo, ac, userB)
@@ -46,6 +47,7 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for non-accepted share")
+
 		return nil, nil //nolint:nilnil // test: unreachable after t.Fatal; satisfies the mock accessor signature
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)

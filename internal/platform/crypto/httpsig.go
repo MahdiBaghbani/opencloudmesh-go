@@ -148,7 +148,7 @@ func NewRFC9421SignerWithOptions(km *KeyManager, opts RFC9421Options) *RFC9421Si
 func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 	key := s.keyManager.GetSigningKey()
 	if key == nil {
-		return fmt.Errorf("no signing key available")
+		return errors.New("no signing key available")
 	}
 
 	if err := sigalg.ValidateAllowed(key.Algorithm, s.opts.AllowedAlgorithms); err != nil {
@@ -183,7 +183,7 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 		return fmt.Errorf("failed to build signature base: %w", err)
 	}
 
-	fullBase := sigBase + fmt.Sprintf("\"@signature-params\": %s", sigParamsValue)
+	fullBase := sigBase + "\"@signature-params\": " + sigParamsValue
 
 	sig, err := s.keyManager.Sign([]byte(fullBase))
 	if err != nil {
@@ -220,6 +220,7 @@ func PresentComponents(req *http.Request, components []string) []string {
 		comp = strings.ToLower(comp)
 		if strings.HasPrefix(comp, "@") {
 			actual = append(actual, comp)
+
 			continue
 		}
 
@@ -318,23 +319,23 @@ func (v *RFC9421Verifier) VerifyRequest(
 
 func checkSignatureHeaders(sigInputHeader, sigHeader string) (*VerificationResult, bool) {
 	if sigInputHeader == "" && sigHeader == "" {
-		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing signature headers")}, true
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: errors.New("missing signature headers")}, true
 	}
 
 	if sigInputHeader == "" {
 		if sigparams.HasOCMSignatureAttempt(sigHeader) {
-			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature-Input header for OCM signature")}, true
+			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: errors.New("missing Signature-Input header for OCM signature")}, true
 		}
 
-		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature-Input header")}, true
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: errors.New("missing Signature-Input header")}, true
 	}
 
 	if sigHeader == "" {
 		if sigparams.HasOCMSignatureAttempt(sigInputHeader) {
-			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature header for OCM signature")}, true
+			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: errors.New("missing Signature header for OCM signature")}, true
 		}
 
-		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature header")}, true
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: errors.New("missing Signature header")}, true
 	}
 
 	return nil, false
@@ -347,7 +348,7 @@ func findOCMSignatureLabel(sigInputHeader, sigHeader string) (string, *Verificat
 	tagCount := sigparams.CountTags(sigInputHeader, sigparams.SignatureTagOCM)
 	if tagCount == 0 {
 		if sigparams.HasOCMTagAttempt(sigInputHeader) || sigparams.HasOCMTagAttempt(sigHeader) {
-			return "", &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("malformed OCM signature tag")}, true
+			return "", &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: errors.New("malformed OCM signature tag")}, true
 		}
 
 		return "", &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("no tag=%q signature", sigparams.SignatureTagOCM)}, true
@@ -385,14 +386,14 @@ func parseSignatureParams(sigInputHeader, sigHeader, label string) (sigparams.Pa
 	}
 
 	if params.Created == 0 {
-		return params, nil, &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: fmt.Errorf("missing created parameter")}, true
+		return params, nil, &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: errors.New("missing created parameter")}, true
 	}
 
 	// The keyid parameter is mandatory and selects the verification key, so a
 	// missing keyid fails here, before any JWKS resolution or network access.
 	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L842-L848
 	if params.KeyID == "" {
-		return params, nil, &VerificationResult{Verified: false, Reason: ReasonMissingKeyID, Error: fmt.Errorf("missing keyid parameter")}, true
+		return params, nil, &VerificationResult{Verified: false, Reason: ReasonMissingKeyID, Error: errors.New("missing keyid parameter")}, true
 	}
 
 	return params, sig, nil, false
@@ -456,7 +457,7 @@ func (v *RFC9421Verifier) verifySignature(
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: fmt.Errorf("failed to build signature base: %w", err)}
 	}
 
-	fullBase := sigBase + fmt.Sprintf("\"@signature-params\": %s", params.Raw)
+	fullBase := sigBase + "\"@signature-params\": " + params.Raw
 
 	if err := sigalg.Verify(resolvedAlg, resolvedKey.PublicKey, []byte(fullBase), sig); err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonCryptoFail, Error: fmt.Errorf("signature verification failed: %w", err)}

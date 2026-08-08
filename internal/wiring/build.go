@@ -28,6 +28,7 @@ func Build(cfg *config.Config, logger *slog.Logger, opts BuildOpts) (BuildResult
 	result, err := wireSharedDepsHook(cfg, logger, opts, persistenceRepos)
 	if err != nil {
 		closePersistenceOnBootstrapFailure(persistenceRepos, logger)
+
 		return BuildResult{}, fmt.Errorf("wire shared deps: %w", err)
 	}
 

@@ -27,6 +27,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
@@ -53,12 +54,14 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
 	shareID := chi.URLParam(r, "shareId")
 	if shareID == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "shareId is required")
+
 		return
 	}
 
@@ -68,6 +71,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
+
 			return
 		}
 
@@ -90,6 +94,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	if share.Status == shares.ShareStatusDeclined {
 		api.WriteConflict(w, "share has already been declined")
+
 		return
 	}
 
@@ -113,12 +118,14 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
 	shareID := chi.URLParam(r, "shareId")
 	if shareID == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "shareId is required")
+
 		return
 	}
 
@@ -126,6 +133,7 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
+
 			return
 		}
 
@@ -149,12 +157,14 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
 	shareID := chi.URLParam(r, "shareId")
 	if shareID == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "shareId is required")
+
 		return
 	}
 
@@ -164,6 +174,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
+
 			return
 		}
 
@@ -188,6 +199,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	if share.Status == shares.ShareStatusAccepted {
 		api.WriteConflict(w, "share has already been accepted")
+
 		return
 	}
 
@@ -213,12 +225,14 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
 		return
 	}
 
 	shareID := chi.URLParam(r, "shareId")
 	if shareID == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "shareId is required")
+
 		return
 	}
 
@@ -228,6 +242,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
+
 			return
 		}
 
@@ -239,6 +254,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 
 	if share.Status != shares.ShareStatusAccepted {
 		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share must be accepted before verifying access")
+
 		return
 	}
 
@@ -267,6 +283,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		h.writeAccessError(w, err)
+
 		return
 	}
 	defer func() {
@@ -346,16 +363,19 @@ func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message
 func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 	if errors.Is(err, access.ErrShareNotAccepted) {
 		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share not accepted")
+
 		return
 	}
 
 	if errors.Is(err, access.ErrTokenExchangeRequired) {
 		writeVerifyError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.VerifyCode(reason.PeerCapabilityMismatch), "token exchange required but not available")
+
 		return
 	}
 
 	if errors.Is(err, access.ErrRemoteAccessFailed) {
 		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable), "remote access failed: all methods exhausted")
+
 		return
 	}
 

@@ -9,6 +9,7 @@ package address
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -18,7 +19,7 @@ import (
 // Identifier may contain '@' (e.g. email). Provider must not contain scheme or path.
 func Parse(addr string) (identifier, provider string, err error) {
 	if addr == "" {
-		return "", "", fmt.Errorf("empty OCM address")
+		return "", "", errors.New("empty OCM address")
 	}
 
 	idx := strings.LastIndex(addr, "@")

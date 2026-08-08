@@ -131,7 +131,7 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 			}
 
 			paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
-			fullBase := sigBase + fmt.Sprintf(`"@signature-params": %s`, paramsRaw)
+			fullBase := sigBase + "\"@signature-params\": " + paramsRaw
 
 			sig, err := km.Sign([]byte(fullBase))
 			if err != nil {
@@ -192,7 +192,7 @@ func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
 	}
 
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
-	fullBase := sigBase + fmt.Sprintf(`"@signature-params": %s`, paramsRaw)
+	fullBase := sigBase + "\"@signature-params\": " + paramsRaw
 
 	sig, err := km.Sign([]byte(fullBase))
 	if err != nil {

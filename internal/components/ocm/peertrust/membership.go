@@ -108,6 +108,7 @@ func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVe
 
 		if !tg.lastRefresh.IsZero() && time.Since(tg.lastRefresh) > m.cacheConfig.MaxStale {
 			m.triggerRefreshIfNeeded(ctx, tg)
+
 			continue
 		}
 
@@ -181,6 +182,7 @@ func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGrou
 	tg.refreshMu.Lock()
 	if tg.refreshing {
 		tg.refreshMu.Unlock()
+
 		return
 	}
 

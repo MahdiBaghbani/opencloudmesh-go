@@ -67,12 +67,14 @@ func (d *Driver) saveFile(filename string, data any) error {
 	if err := f.Close(); err != nil {
 		//nolint:errcheck // best-effort cleanup; error is not actionable
 		os.Remove(tempPath)
+
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
 	if err := os.Rename(tempPath, path); err != nil {
 		//nolint:errcheck // best-effort cleanup; error is not actionable
 		os.Remove(tempPath)
+
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 

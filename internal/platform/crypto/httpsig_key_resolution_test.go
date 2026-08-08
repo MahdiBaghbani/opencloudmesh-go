@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	components := httpsigAppendixBComponents
 	created := opts.Now().Unix()
@@ -88,7 +89,7 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	keyID := "example.com#ec1"
 	components := httpsigAppendixBComponents
@@ -293,7 +294,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
-		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", fmt.Sprintf(
 			`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
@@ -319,7 +320,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 
 	t.Run("key_lookup_failed", func(t *testing.T) {
 		result := verifier.VerifyRequest(newReq(), body, func(string) (sigalg.ResolvedPublicKey, error) {
-			return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: fetch failed: connection refused")
+			return sigalg.ResolvedPublicKey{}, errors.New("jwks: fetch failed: connection refused")
 		})
 		if result.Verified {
 			t.Fatal("expected failure")

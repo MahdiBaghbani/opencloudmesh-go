@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -48,19 +49,19 @@ func validateSSRFRoutePolicyRef(cfg *Config) error {
 
 func validateSignatureFields(cfg *Config) error {
 	if cfg.Signature.Label == "" {
-		return fmt.Errorf("signature.label must not be empty")
+		return errors.New("signature.label must not be empty")
 	}
 
 	if cfg.Signature.KidFragment == "" {
-		return fmt.Errorf("signature.kid_fragment must not be empty")
+		return errors.New("signature.kid_fragment must not be empty")
 	}
 
 	if cfg.Signature.CreatedMaxAgeSeconds <= 0 {
-		return fmt.Errorf("signature.created_max_age_seconds must be positive")
+		return errors.New("signature.created_max_age_seconds must be positive")
 	}
 
 	if cfg.Signature.CreatedMaxSkewSeconds < 0 {
-		return fmt.Errorf("signature.created_max_skew_seconds must be non-negative")
+		return errors.New("signature.created_max_skew_seconds must be non-negative")
 	}
 
 	return nil
@@ -82,11 +83,11 @@ func validateSignatureJwksURI(cfg *Config) error {
 
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid signature.jwks_uri: malformed")
+		return errors.New("invalid signature.jwks_uri: malformed")
 	}
 
 	if u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("invalid signature.jwks_uri: must be absolute")
+		return errors.New("invalid signature.jwks_uri: must be absolute")
 	}
 
 	scheme := strings.ToLower(u.Scheme)
@@ -95,16 +96,16 @@ func validateSignatureJwksURI(cfg *Config) error {
 	}
 
 	if scheme == "http" && cfg.PublicScheme() != "http" {
-		return fmt.Errorf("invalid signature.jwks_uri: must use https outside development HTTP opt-in")
+		return errors.New("invalid signature.jwks_uri: must use https outside development HTTP opt-in")
 	}
 
 	if u.User != nil {
-		return fmt.Errorf("invalid signature.jwks_uri: must not contain credentials")
+		return errors.New("invalid signature.jwks_uri: must not contain credentials")
 	}
 
 	// Bare "#" leaves Fragment empty after url.Parse; reject any fragment delimiter.
 	if strings.Contains(raw, "#") {
-		return fmt.Errorf("invalid signature.jwks_uri: must not contain a fragment")
+		return errors.New("invalid signature.jwks_uri: must not contain a fragment")
 	}
 
 	return nil
@@ -125,7 +126,7 @@ func validatePeerTrust(cfg *Config) error {
 	}
 
 	if len(cfg.PeerTrust.ConfigPaths) == 0 {
-		return fmt.Errorf("peer_trust.config_paths must be non-empty when peer trust is enabled")
+		return errors.New("peer_trust.config_paths must be non-empty when peer trust is enabled")
 	}
 
 	for _, path := range cfg.PeerTrust.ConfigPaths {
@@ -153,19 +154,19 @@ func validateTokenExchangePath(cfg *Config) error {
 
 	path := cfg.TokenExchange.Path
 	if strings.TrimSpace(path) == "" {
-		return fmt.Errorf("invalid token_exchange.path: must not be empty")
+		return errors.New("invalid token_exchange.path: must not be empty")
 	}
 
 	if strings.Contains(path, "..") {
-		return fmt.Errorf("invalid token_exchange.path: must not contain '..'")
+		return errors.New("invalid token_exchange.path: must not contain '..'")
 	}
 
 	if strings.HasPrefix(path, "/") {
-		return fmt.Errorf("invalid token_exchange.path: must be relative (no leading slash)")
+		return errors.New("invalid token_exchange.path: must be relative (no leading slash)")
 	}
 
 	if strings.Contains(path, "://") {
-		return fmt.Errorf("invalid token_exchange.path: must not contain a scheme")
+		return errors.New("invalid token_exchange.path: must not contain a scheme")
 	}
 
 	return nil
@@ -272,19 +273,19 @@ func validateStrictModeGuardrails(cfg *Config) error {
 	}
 
 	if !cfg.OCM.MustInviteEnforced() {
-		return fmt.Errorf("mode=strict requires ocm.invite.enforce_must_invite!=false")
+		return errors.New("mode=strict requires ocm.invite.enforce_must_invite!=false")
 	}
 
 	if cfg.TLS.Mode == "off" {
-		return fmt.Errorf("mode=strict requires tls.mode!=off")
+		return errors.New("mode=strict requires tls.mode!=off")
 	}
 
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
-		return fmt.Errorf("mode=strict requires outbound_http.ssrf.mode=strict")
+		return errors.New("mode=strict requires outbound_http.ssrf.mode=strict")
 	}
 
 	if cfg.OutboundHTTP.InsecureSkipVerify {
-		return fmt.Errorf("mode=strict requires outbound_http.insecure_skip_verify=false")
+		return errors.New("mode=strict requires outbound_http.insecure_skip_verify=false")
 	}
 
 	return nil

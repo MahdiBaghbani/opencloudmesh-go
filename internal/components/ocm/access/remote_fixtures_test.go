@@ -57,6 +57,7 @@ type accessMockSigner struct{}
 
 func (accessMockSigner) Sign(req *http.Request) error {
 	req.Header.Set("Signature", "mock-signature")
+
 	return nil
 }
 
@@ -111,11 +112,13 @@ func exchangeDiscoveryHandler(t *testing.T, w http.ResponseWriter, r *http.Reque
 	if r.URL.Path == "/ocm/token" {
 		if r.Header.Get("Signature") == "" {
 			w.WriteHeader(http.StatusUnauthorized)
+
 			return true
 		}
 
 		if err := r.ParseForm(); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
+
 			return true
 		}
 

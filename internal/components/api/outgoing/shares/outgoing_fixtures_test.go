@@ -44,6 +44,7 @@ func testCurrentUser(user *identity.User) func(context.Context) (*identity.User,
 
 func makeDummyDiscoveryClient() *discovery.Client {
 	hc := httpclient.New(nil, nil)
+
 	return discovery.NewClient(hc, nil)
 }
 
@@ -269,6 +270,7 @@ func newStrictOutgoingHandler(
 	user *identity.User,
 ) *outgoingshares.Handler {
 	t.Helper()
+
 	return newOutgoingHandler(t, repo, discClient, ctxClient, user, nil, "")
 }
 

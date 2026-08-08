@@ -7,6 +7,7 @@ package invite
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -149,7 +150,7 @@ func ListInbox(ctx context.Context, client *http.Client, baseURL, token string) 
 // FindInboxInvite returns the invite with the given id from a list response.
 func FindInboxInvite(list *InboxListResponse, inviteID string) (*InboxInviteView, error) {
 	if list == nil {
-		return nil, fmt.Errorf("nil inbox list")
+		return nil, errors.New("nil inbox list")
 	}
 
 	for i := range list.Invites {

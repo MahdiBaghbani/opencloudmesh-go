@@ -11,5 +11,6 @@ import (
 
 func defaultSigTestConfig() *config.SignatureConfig {
 	cfg := config.DefaultSignatureConfig()
+
 	return &cfg
 }

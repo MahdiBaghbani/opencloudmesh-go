@@ -67,11 +67,13 @@ func openForBackend(name string) func(*testing.T) *platformrepos.Repos {
 	case config.BackendSQLite:
 		return func(t *testing.T) *platformrepos.Repos {
 			t.Helper()
+
 			return OpenDurable(t, context.Background(), config.BackendSQLite)
 		}
 	case config.BackendMirror:
 		return func(t *testing.T) *platformrepos.Repos {
 			t.Helper()
+
 			return OpenDurable(t, context.Background(), config.BackendMirror)
 		}
 	default:

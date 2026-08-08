@@ -28,6 +28,7 @@ const testPublicOrigin = "https://example.com:9200"
 
 func testLocalProvider(t *testing.T) string {
 	t.Helper()
+
 	return tslocalid.MustTestIdentity(t, testPublicOrigin, "").ProviderDomain
 }
 

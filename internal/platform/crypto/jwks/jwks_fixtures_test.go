@@ -65,6 +65,7 @@ func twoKeyRotationHandler(version *atomic.Int32, key1Pub, key2Pub ed25519.Publi
 
 		if version.Load() == 0 {
 			tshttp.WriteJSON(w, jwks.SetFromEd25519PublicKey(testJWKSKey1, key1Pub))
+
 			return
 		}
 

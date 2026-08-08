@@ -37,11 +37,13 @@ func scanTagValue(s string, valStart int) int {
 		for valEnd < len(s) {
 			if s[valEnd] == '\\' && valEnd+1 < len(s) {
 				valEnd += 2
+
 				continue
 			}
 
 			if s[valEnd] == quote {
 				valEnd++ // include closing quote
+
 				break
 			}
 
@@ -84,6 +86,7 @@ func skipMemberSeparators(s string, start int) int {
 		ch := s[start]
 		if ch == ' ' || ch == '\t' || ch == ',' {
 			start++
+
 			continue
 		}
 
@@ -149,6 +152,7 @@ func CountDictionaryMembers(header, label string) int {
 
 	visitDictionaryMembers(header, label, func(_, _ int) bool {
 		count++
+
 		return true
 	})
 

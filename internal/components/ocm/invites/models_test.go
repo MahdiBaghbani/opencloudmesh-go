@@ -127,6 +127,7 @@ func TestParseInviteString(t *testing.T) {
 
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
+
 				return
 			}
 

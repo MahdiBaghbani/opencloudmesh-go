@@ -8,6 +8,7 @@ package crypto
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,11 +26,11 @@ func (v *RFC9421Verifier) validateCreated(created int64) (string, error) {
 	maxAge := int64(v.opts.CreatedMaxAge / time.Second)
 
 	if created > now+maxSkew {
-		return ReasonFutureCreated, fmt.Errorf("created timestamp is too far in the future")
+		return ReasonFutureCreated, errors.New("created timestamp is too far in the future")
 	}
 
 	if now-created > maxAge {
-		return ReasonStaleCreated, fmt.Errorf("created timestamp is stale")
+		return ReasonStaleCreated, errors.New("created timestamp is stale")
 	}
 
 	return "", nil
@@ -58,7 +59,7 @@ func verifyRequiredBodyHeaders(req *http.Request, body []byte, requiredComponent
 
 	if _, ok := required["content-digest"]; ok {
 		if req.Header.Get("Content-Digest") == "" {
-			return fmt.Errorf("missing Content-Digest header")
+			return errors.New("missing Content-Digest header")
 		}
 	}
 
@@ -66,11 +67,11 @@ func verifyRequiredBodyHeaders(req *http.Request, body []byte, requiredComponent
 		cl := req.Header.Get("Content-Length")
 		if cl == "" {
 			if len(body) > 0 {
-				return fmt.Errorf("missing Content-Length header")
+				return errors.New("missing Content-Length header")
 			}
 
 			if req.ContentLength != 0 {
-				return fmt.Errorf("content length mismatch")
+				return errors.New("content length mismatch")
 			}
 
 			return nil
@@ -78,11 +79,11 @@ func verifyRequiredBodyHeaders(req *http.Request, body []byte, requiredComponent
 
 		n, err := strconv.Atoi(cl)
 		if err != nil {
-			return fmt.Errorf("invalid Content-Length header")
+			return errors.New("invalid Content-Length header")
 		}
 
 		if n != len(body) {
-			return fmt.Errorf("content length mismatch")
+			return errors.New("content length mismatch")
 		}
 	}
 
@@ -263,7 +264,7 @@ var recognizedDigestHashers = map[string]func([]byte) []byte{
 func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
 	header = strings.TrimSpace(header)
 	if header == "" {
-		return nil, fmt.Errorf("empty Content-Digest header")
+		return nil, errors.New("empty Content-Digest header")
 	}
 
 	var entries []contentDigestEntry
@@ -290,7 +291,7 @@ func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
 	}
 
 	if len(entries) == 0 {
-		return nil, fmt.Errorf("malformed Content-Digest header")
+		return nil, errors.New("malformed Content-Digest header")
 	}
 
 	return entries, nil
@@ -301,6 +302,7 @@ func skipContentDigestSeparators(header string, start int) int {
 		ch := header[start]
 		if ch == ' ' || ch == '\t' || ch == ',' {
 			start++
+
 			continue
 		}
 
@@ -313,7 +315,7 @@ func skipContentDigestSeparators(header string, start int) int {
 func parseContentDigestEntry(member string) (contentDigestEntry, error) {
 	member = strings.TrimSpace(member)
 	if member == "" {
-		return contentDigestEntry{}, fmt.Errorf("malformed Content-Digest entry")
+		return contentDigestEntry{}, errors.New("malformed Content-Digest entry")
 	}
 
 	eq := strings.Index(member, "=")
@@ -351,6 +353,7 @@ func scanContentDigestMemberEnd(header string, start int) int {
 
 		if ch == ':' {
 			inByteSeq = true
+
 			continue
 		}
 

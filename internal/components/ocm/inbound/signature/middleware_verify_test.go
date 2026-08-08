@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -241,7 +242,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	created := now.Unix()
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
@@ -357,7 +358,7 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	sigInput := fmt.Sprintf(

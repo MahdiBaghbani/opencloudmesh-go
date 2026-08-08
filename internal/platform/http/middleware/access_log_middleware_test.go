@@ -50,6 +50,7 @@ func (r *accessLogRecorder) Handle(_ context.Context, rec slog.Record) error {
 
 	rec.Attrs(func(a slog.Attr) bool {
 		attrs[a.Key] = a.Value.Any()
+
 		return true
 	})
 
@@ -107,6 +108,7 @@ func (r *accessLogRecorderWithAttrs) Handle(_ context.Context, rec slog.Record) 
 	// Add record attrs
 	rec.Attrs(func(a slog.Attr) bool {
 		attrs[a.Key] = a.Value.Any()
+
 		return true
 	})
 
@@ -173,6 +175,7 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	for i := range records {
 		if records[i].message == "request" {
 			accessLog = &records[i]
+
 			break
 		}
 	}
@@ -253,6 +256,7 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	for i := range records {
 		if records[i].message == "request" {
 			accessLog = &records[i]
+
 			break
 		}
 	}
@@ -320,6 +324,7 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 	for i := range records {
 		if records[i].message == "request" {
 			accessLog = &records[i]
+
 			break
 		}
 	}

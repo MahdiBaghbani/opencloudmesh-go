@@ -202,7 +202,7 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 // is enforced as a composite unique key across all backends:
 // - a duplicate pair returns ErrAlreadyExists
 // - the original record is still returned by GetIncomingShareByProviderKey
-// - the same providerID with a different sendingServer still succeeds
+// - the same providerID with a different sendingServer still succeeds.
 func runIncomingShareProviderKeyUniqueness(
 	t *testing.T,
 	ctx context.Context,

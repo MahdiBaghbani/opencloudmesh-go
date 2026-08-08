@@ -40,8 +40,6 @@ linters:
     - depguard
     # Zero-value struct literal noise (~1308); not correctness.
     - exhaustruct
-    # Blank-line-before-return style (~1240).
-    - nlreturn
     # String repetition hints (~993); defer until baseline stable.
     - goconst
     # Inline error handling style enforcement (~711).
@@ -74,10 +72,6 @@ linters:
     - nonamedreturns
     # Restricts returning interfaces; conflicts with DI and factory patterns.
     - ireturn
-    # fmt.Sprintf vs strconv micro-opts; not a correctness gate.
-    - perfsprint
-    # Comment-ending punctuation style; pure cosmetics.
-    - godot
     # Bans init(); conflicts with registry and package wiring patterns.
     - gochecknoinits
     # Redundant complexity linter; cyclop is the sole complexity gate.

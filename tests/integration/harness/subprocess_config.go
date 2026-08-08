@@ -22,6 +22,7 @@ import (
 // needsSecureTransport reports whether the mode requires HTTPS listener transport.
 func needsSecureTransport(mode string) bool {
 	m := strings.ToLower(strings.TrimSpace(mode))
+
 	return m == "strict" || m == ""
 }
 
@@ -61,6 +62,7 @@ func extraTLSMode(extra string) (mode string, hasTLSTable bool) {
 // test can override the listener transport without a duplicate-table TOML error.
 func extraDefinesTLSTable(extra string) bool {
 	_, hasTLSTable := extraTLSMode(extra)
+
 	return hasTLSTable
 }
 
@@ -90,6 +92,7 @@ func extraDefinesPublicOrigin(extra string) bool {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
 			inRootTable = false
+
 			continue
 		}
 
@@ -264,11 +267,13 @@ func splitExtraConfigRootKeys(extra string) (root string, tables string) {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			rootLines = append(rootLines, line)
+
 			continue
 		}
 
 		if strings.HasPrefix(trimmed, "[") {
 			tableStart = i
+
 			break
 		}
 
@@ -284,6 +289,7 @@ func splitExtraConfigRootKeys(extra string) (root string, tables string) {
 		trimmed := strings.TrimSpace(rootLines[len(rootLines)-1])
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			rootLines = rootLines[:len(rootLines)-1]
+
 			continue
 		}
 

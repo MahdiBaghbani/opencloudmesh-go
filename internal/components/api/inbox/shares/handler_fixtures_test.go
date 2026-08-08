@@ -7,7 +7,7 @@ package shares_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +34,7 @@ const (
 func currentUserFunc(user *identity.User) func(context.Context) (*identity.User, error) {
 	return func(_ context.Context) (*identity.User, error) {
 		if user == nil {
-			return nil, fmt.Errorf("no authenticated user in context")
+			return nil, errors.New("no authenticated user in context")
 		}
 
 		return user, nil

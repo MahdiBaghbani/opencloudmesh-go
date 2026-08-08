@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -128,7 +129,7 @@ func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
 
 			digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
 			req.Header.Set("Content-Digest", digest)
-			req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+			req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 			created := time.Now().Unix()
 			components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
@@ -144,7 +145,7 @@ func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			fullBase := base + fmt.Sprintf("\"@signature-params\": %s", paramsRaw)
+			fullBase := base + "\"@signature-params\": " + paramsRaw
 
 			sigBytes, err := km.Sign([]byte(fullBase))
 			if err != nil {

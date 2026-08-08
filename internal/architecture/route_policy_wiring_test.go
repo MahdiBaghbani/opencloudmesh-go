@@ -61,6 +61,7 @@ func assertSyntheticRowGroup(t *testing.T, opts service.RouteOpts, row service.R
 	g, ok := byPrefix[row.FullPath]
 	if !ok {
 		t.Errorf("missing subtree group for synthetic row %q", row.FullPath)
+
 		return
 	}
 

@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -209,11 +210,11 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	cleanPath := filepath.Clean(path)
 
 	if !filepath.IsAbs(cleanPath) {
-		return "", fmt.Errorf("path must be absolute")
+		return "", errors.New("path must be absolute")
 	}
 
 	if strings.Contains(cleanPath, "..") {
-		return "", fmt.Errorf("path traversal not allowed")
+		return "", errors.New("path traversal not allowed")
 	}
 
 	allowed := false
@@ -221,12 +222,13 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	for _, prefix := range h.allowedPaths {
 		if strings.HasPrefix(cleanPath, prefix) {
 			allowed = true
+
 			break
 		}
 	}
 
 	if !allowed {
-		return "", fmt.Errorf("path not in allowed directories")
+		return "", errors.New("path not in allowed directories")
 	}
 
 	return cleanPath, nil

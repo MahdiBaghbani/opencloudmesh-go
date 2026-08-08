@@ -66,6 +66,7 @@ func TestRouteIDSSOT_StaticTokenAndSubtreeDefault(t *testing.T) {
 			for i := range rows {
 				if rows[i].ID == service.RouteIDOCMToken {
 					tokenRow = &rows[i]
+
 					break
 				}
 			}

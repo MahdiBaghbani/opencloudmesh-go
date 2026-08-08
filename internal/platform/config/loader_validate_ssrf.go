@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -91,7 +92,7 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 		return nil
 	}
 
-	prefix := fmt.Sprintf("outbound_http.ssrf.route_policies.%s", activePolicy)
+	prefix := "outbound_http.ssrf.route_policies." + activePolicy
 
 	if err := validateSSRFRoutePolicyHostSuffixes(activePolicy, prefix, policy); err != nil {
 		return err
@@ -144,7 +145,7 @@ func validateRatelimitConfig(cfg *Config) error {
 						profiles[name] = true
 					}
 				} else {
-					return fmt.Errorf("http.interceptors.ratelimit.profiles must be a map")
+					return errors.New("http.interceptors.ratelimit.profiles must be a map")
 				}
 			}
 		}

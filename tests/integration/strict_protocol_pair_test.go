@@ -24,6 +24,7 @@ const strictProtocolTrustGroupFixtureJSON = `{
 
 func startStrictProtocolPair(t *testing.T) *harness.StrictProtocolPair {
 	t.Helper()
+
 	return startStrictProtocolPairWithExtraAllowedPorts(t, tsprotocol.VariantProtocolPair, nil)
 }
 

@@ -19,7 +19,7 @@ import (
 // - a duplicate non-empty secret on create returns ErrAlreadyExists
 // - the original record is preserved by GetOutgoingShareBySharedSecret
 // - attempting to steal the secret via update also returns ErrAlreadyExists
-// - multiple shares with an empty secret are allowed (not subject to the constraint)
+// - multiple shares with an empty secret are allowed (not subject to the constraint).
 func runOutgoingShareDuplicateSharedSecret(
 	t *testing.T,
 	ctx context.Context,

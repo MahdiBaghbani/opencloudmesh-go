@@ -41,7 +41,7 @@ type Driver struct {
 // NewDriver creates a new mirror driver instance.
 func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 	if cfg.DataDir == "" {
-		return nil, fmt.Errorf("data_dir is required for mirror driver")
+		return nil, errors.New("data_dir is required for mirror driver")
 	}
 
 	return &Driver{
@@ -380,7 +380,7 @@ func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserID string
 	return invites, nil
 }
 
-// Compile-time interface checks
+// Compile-time interface checks.
 var _ store.Driver = (*Driver)(nil)
 var _ store.OutgoingShareStore = (*Driver)(nil)
 var _ store.IncomingShareStore = (*Driver)(nil)

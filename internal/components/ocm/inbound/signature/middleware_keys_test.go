@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -50,7 +51,7 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 
 	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
 	req.Header.Set("Content-Digest", digest)
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	created := time.Now().Unix()
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
@@ -66,7 +67,7 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fullBase := base + fmt.Sprintf("\"@signature-params\": %s", paramsRaw)
+	fullBase := base + "\"@signature-params\": " + paramsRaw
 
 	sigBytes, err := km.Sign([]byte(fullBase))
 	if err != nil {
@@ -111,7 +112,7 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 
 	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
 	req.Header.Set("Content-Digest", digest)
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	created := time.Now().Unix()
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
@@ -127,7 +128,7 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 		t.Fatal(err)
 	}
 
-	fullBase := base + fmt.Sprintf("\"@signature-params\": %s", paramsRaw)
+	fullBase := base + "\"@signature-params\": " + paramsRaw
 
 	sigBytes, err := km.Sign([]byte(fullBase))
 	if err != nil {

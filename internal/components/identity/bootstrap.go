@@ -91,6 +91,7 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	for _, u := range users {
 		if u.Role == RoleSuperAdmin {
 			existingSuperAdmin = u
+
 			break
 		}
 	}
@@ -209,6 +210,7 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 	_, err := b.repo.GetByUsername(ctx, s.Username)
 	if err == nil {
 		b.log.Debug("user already exists", "username", s.Username)
+
 		return 0, nil
 	}
 

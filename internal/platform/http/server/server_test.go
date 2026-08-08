@@ -32,6 +32,7 @@ func (t *trackingService) Handler() http.Handler { return http.NotFoundHandler()
 func (t *trackingService) Prefix() string        { return t.prefix }
 func (t *trackingService) Close() error {
 	*t.closeOrder = append(*t.closeOrder, t.name)
+
 	return nil
 }
 
@@ -154,5 +155,5 @@ func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
 	}
 }
 
-// Verify trackingService implements service.Service
+// Verify trackingService implements service.Service.
 var _ service.Service = (*trackingService)(nil)

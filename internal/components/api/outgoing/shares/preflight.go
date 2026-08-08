@@ -24,6 +24,7 @@ import (
 // section, "Before constructing the notification...".
 func mustIncludeTokenExchange(facts policy.Facts, disc *spec.Discovery) bool {
 	peerForced := disc != nil && disc.HasCriteria(spec.CriteriaMustExchangeToken)
+
 	return peerForced || facts.IncludesTokenExchangeRequirement
 }
 

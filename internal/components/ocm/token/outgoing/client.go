@@ -8,6 +8,7 @@ package outgoing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -78,7 +79,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest, disc *spec.D
 			return nil, reason.NewClassifiedError(
 				reason.ReasonSignatureRequired,
 				"token exchange requires signing",
-				fmt.Errorf("no signer configured"),
+				errors.New("no signer configured"),
 			)
 		}
 

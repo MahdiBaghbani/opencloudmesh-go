@@ -33,6 +33,7 @@ func (h *recordingHandler) Enabled(_ context.Context, _ slog.Level) bool {
 
 func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
 	h.records = append(h.records, r)
+
 	return nil
 }
 
@@ -64,6 +65,7 @@ func (h *recordingHandler) WithGroup(name string) slog.Handler {
 
 func (h *recordingHandler) getAttr(key string) (any, bool) {
 	v, ok := h.attrs[key]
+
 	return v, ok
 }
 
@@ -109,6 +111,7 @@ func newTestPartyRepo() *testPartyRepo {
 
 func (r *testPartyRepo) Create(_ context.Context, user *identity.User) error {
 	r.users[user.ID] = user
+
 	return nil
 }
 
@@ -136,11 +139,13 @@ func (r *testPartyRepo) GetByEmail(_ context.Context, _ string) (*identity.User,
 
 func (r *testPartyRepo) Update(_ context.Context, user *identity.User) error {
 	r.users[user.ID] = user
+
 	return nil
 }
 
 func (r *testPartyRepo) Delete(_ context.Context, id string) error {
 	delete(r.users, id)
+
 	return nil
 }
 

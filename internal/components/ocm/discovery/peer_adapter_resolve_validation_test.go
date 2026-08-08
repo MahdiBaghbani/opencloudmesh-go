@@ -119,6 +119,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_MissingJwksUri(t *testing.T
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -181,6 +182,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksInvalidAdvertisedJwks
 			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != "/.well-known/ocm" {
 					http.NotFound(w, r)
+
 					return
 				}
 

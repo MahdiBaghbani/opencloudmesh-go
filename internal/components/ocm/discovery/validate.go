@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -64,15 +65,15 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 
 func validateDiscoveryEndpoint(disc *spec.Discovery, discoveryOrigin string) error {
 	if disc.EndPoint == "" {
-		return fmt.Errorf("endPoint is required")
+		return errors.New("endPoint is required")
 	}
 
 	if !isAbsoluteURL(disc.EndPoint) {
-		return fmt.Errorf("endPoint must be absolute")
+		return errors.New("endPoint must be absolute")
 	}
 
 	if !sameAuthority(disc.EndPoint, discoveryOrigin) {
-		return fmt.Errorf("endPoint authority must match discovery origin")
+		return errors.New("endPoint authority must match discovery origin")
 	}
 
 	return nil
@@ -93,11 +94,11 @@ func validateDiscoveryTokenEndpoint(disc *spec.Discovery, discoveryOrigin string
 	}
 
 	if !isAbsoluteURL(disc.TokenEndPoint) {
-		return fmt.Errorf("tokenEndPoint must be absolute")
+		return errors.New("tokenEndPoint must be absolute")
 	}
 
 	if !sameAuthority(disc.TokenEndPoint, discoveryOrigin) {
-		return fmt.Errorf("tokenEndPoint authority must match discovery origin")
+		return errors.New("tokenEndPoint authority must match discovery origin")
 	}
 
 	return nil
@@ -109,11 +110,11 @@ func validateDiscoveryInviteDialog(disc *spec.Discovery, discoveryOrigin string)
 	}
 
 	if !isAbsoluteURL(disc.InviteAcceptDialog) {
-		return fmt.Errorf("inviteAcceptDialog must be absolute after normalization")
+		return errors.New("inviteAcceptDialog must be absolute after normalization")
 	}
 
 	if !sameAuthority(disc.InviteAcceptDialog, discoveryOrigin) {
-		return fmt.Errorf("inviteAcceptDialog authority must match discovery origin")
+		return errors.New("inviteAcceptDialog authority must match discovery origin")
 	}
 
 	return nil
@@ -136,11 +137,11 @@ func validateDiscoveryJwksUri(disc *spec.Discovery, discoveryOrigin string) erro
 
 	u, err := url.Parse(disc.JwksUri)
 	if err != nil {
-		return fmt.Errorf("jwksUri is malformed")
+		return errors.New("jwksUri is malformed")
 	}
 
 	if u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("jwksUri must be absolute")
+		return errors.New("jwksUri must be absolute")
 	}
 
 	scheme := strings.ToLower(u.Scheme)
@@ -150,20 +151,20 @@ func validateDiscoveryJwksUri(disc *spec.Discovery, discoveryOrigin string) erro
 
 	devAllowHTTP := strings.HasPrefix(strings.ToLower(discoveryOrigin), "http://")
 	if scheme == "http" && !devAllowHTTP {
-		return fmt.Errorf("jwksUri must use https outside development HTTP opt-in")
+		return errors.New("jwksUri must use https outside development HTTP opt-in")
 	}
 
 	if u.User != nil {
-		return fmt.Errorf("jwksUri must not contain credentials")
+		return errors.New("jwksUri must not contain credentials")
 	}
 
 	// Bare "#" leaves Fragment empty after url.Parse; reject any fragment delimiter.
 	if strings.Contains(disc.JwksUri, "#") {
-		return fmt.Errorf("jwksUri must not contain a fragment")
+		return errors.New("jwksUri must not contain a fragment")
 	}
 
 	if !sameAuthority(disc.JwksUri, discoveryOrigin) {
-		return fmt.Errorf("jwksUri authority must match discovery origin")
+		return errors.New("jwksUri authority must match discovery origin")
 	}
 
 	return nil
@@ -183,7 +184,7 @@ func ValidateLocalJwksURIOverride(jwksURI, discoveryOrigin string) error {
 
 func validateResourceType(rt spec.ResourceType, warnings *[]string) error {
 	if rt.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	for name, role := range rt.Protocols {
@@ -204,18 +205,18 @@ func validateProtocolRole(name string, role spec.ProtocolRole) (warning string, 
 	switch name {
 	case spec.ProtocolWebDAV:
 		if _, ok := role.StringValue(); !ok {
-			return "", fmt.Errorf("must be a string path")
+			return "", errors.New("must be a string path")
 		}
 	case spec.ProtocolWebDAVReceive:
 		wr, ok := role.WebDAVReceive()
 		if !ok {
-			return "", fmt.Errorf("must be an object with uri")
+			return "", errors.New("must be an object with uri")
 		}
 
 		switch wr.URI {
 		case spec.WebDAVReceiveURIAbsolute, spec.WebDAVReceiveURIRelative:
 		default:
-			return "", fmt.Errorf("uri must be absolute or relative")
+			return "", errors.New("uri must be absolute or relative")
 		}
 	default:
 		return fmt.Sprintf("protocol role %q preserved but not locally shape-validated", name), nil

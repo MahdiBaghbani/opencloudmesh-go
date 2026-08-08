@@ -12,6 +12,7 @@ import "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 
 func cloneOutgoingShare(s *store.OutgoingShare) *store.OutgoingShare {
 	c := *s
+
 	return &c
 }
 
@@ -26,10 +27,12 @@ func cloneIncomingShare(s *store.IncomingShare) *store.IncomingShare {
 
 func cloneOutgoingInvite(i *store.OutgoingInvite) *store.OutgoingInvite {
 	c := *i
+
 	return &c
 }
 
 func cloneIncomingInvite(i *store.IncomingInvite) *store.IncomingInvite {
 	c := *i
+
 	return &c
 }

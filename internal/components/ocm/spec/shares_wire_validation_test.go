@@ -52,6 +52,7 @@ func TestWebappProtocolWire_RejectsMustUseMFAWithGapNote(t *testing.T) {
 	for i := range errs {
 		if errs[i].Name == "protocol.webapp.requirements" && errs[i].Message == wantMsg {
 			mfaErr = &errs[i]
+
 			break
 		}
 	}

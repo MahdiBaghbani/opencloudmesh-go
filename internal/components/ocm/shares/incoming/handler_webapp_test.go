@@ -30,6 +30,7 @@ func assertShareNotStored(t *testing.T, repo incoming.IncomingShareRepo, senderH
 	stored, err := repo.GetByProviderID(context.Background(), senderHost, providerID)
 	if err == nil && stored != nil {
 		t.Errorf("share %q from %q must not be persisted, got %+v", providerID, senderHost, stored)
+
 		return
 	}
 
@@ -383,6 +384,7 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 		if resp.ValidationErrors[i].Name == "protocol.webapp.requirements" &&
 			resp.ValidationErrors[i].Message == wantMsg {
 			mfaErr = &resp.ValidationErrors[i]
+
 			break
 		}
 	}

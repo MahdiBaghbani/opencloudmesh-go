@@ -40,6 +40,7 @@ func TestCoreServiceBuildersCoverDescriptors(t *testing.T) {
 	for _, d := range descs {
 		if d.Build == "" {
 			t.Errorf("descriptor %q has no build key", d.Name)
+
 			continue
 		}
 

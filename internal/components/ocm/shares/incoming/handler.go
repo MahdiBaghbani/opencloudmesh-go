@@ -126,6 +126,7 @@ func writeProtocolValidationErrors(w http.ResponseWriter, errs []spec.Validation
 	for _, e := range errs {
 		if e.Message == "UNSUPPORTED" {
 			spec.WriteProtocolNotSupported(w)
+
 			return
 		}
 	}

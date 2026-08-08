@@ -7,6 +7,7 @@ package wiring
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -78,7 +79,7 @@ type BuildResult struct {
 // this function.
 func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, persistence *repos.Repos) (BuildResult, error) {
 	if persistence == nil {
-		return BuildResult{}, fmt.Errorf("wire shared deps: persistence repos must be non-nil")
+		return BuildResult{}, errors.New("wire shared deps: persistence repos must be non-nil")
 	}
 
 	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
@@ -112,7 +113,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	facts := codeFlow.Evaluate()
 	if facts.RequiresHTTPRequestSignatures && keyManager == nil {
-		return BuildResult{}, fmt.Errorf("ocm: code flow requires HTTP request signatures but no signing key is configured")
+		return BuildResult{}, errors.New("ocm: code flow requires HTTP request signatures but no signing key is configured")
 	}
 
 	outboundCfg := resolveOutboundConfig(cfg, opts)
@@ -326,6 +327,7 @@ func buildPeerTrust(
 		tgCfg, err := peertrust.LoadTrustGroupConfig(cfgPath)
 		if err != nil {
 			logger.Warn("failed to load trust group config", "path", cfgPath, "error", err)
+
 			continue
 		}
 

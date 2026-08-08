@@ -105,6 +105,7 @@ func newFallbackServer(t *testing.T, tt fallbackAccessCase, webdavHits, tokenHit
 
 			if tt.tokenHandler != nil {
 				tt.tokenHandler(t)(w, r)
+
 				return
 			}
 
@@ -118,6 +119,7 @@ func newFallbackServer(t *testing.T, tt fallbackAccessCase, webdavHits, tokenHit
 
 			if r.Header.Get("Authorization") == "Bearer "+tt.wantToken {
 				w.WriteHeader(http.StatusOK)
+
 				return
 			}
 

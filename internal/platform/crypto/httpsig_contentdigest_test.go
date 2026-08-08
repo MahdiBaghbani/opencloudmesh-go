@@ -8,6 +8,7 @@ package crypto_test
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -136,7 +137,8 @@ func runMissingHeaderRejectionCase(t *testing.T, header string) {
 
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
 		fetched = true
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
+
+		return sigalg.ResolvedPublicKey{}, errors.New("should not fetch")
 	})
 	if result.Verified {
 		t.Fatalf("expected missing %s rejection", header)
@@ -173,7 +175,7 @@ func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T
 	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
+		return sigalg.ResolvedPublicKey{}, errors.New("should not fetch")
 	})
 	if result.Verified {
 		t.Fatal("expected missing component rejection")
@@ -284,7 +286,8 @@ func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.
 
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
 		fetched = true
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
+
+		return sigalg.ResolvedPublicKey{}, errors.New("should not fetch")
 	})
 	if result.Verified {
 		t.Fatal("expected missing Content-Length rejection on non-empty body")

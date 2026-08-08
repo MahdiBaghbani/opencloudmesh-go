@@ -265,6 +265,7 @@ func ensureServiceConfig(cfg *config.Config, name string, patch map[string]any) 
 	existing := cfg.HTTP.Services[name]
 	if existing == nil {
 		cfg.HTTP.Services[name] = patch
+
 		return
 	}
 
@@ -446,6 +447,7 @@ func TestRoutePathMatrix_WebDAVCompoundPrefixUnderBasePath(t *testing.T) {
 	for _, row := range tsrouting.InventoryRows(opts) {
 		if row.Service == "webdav" {
 			webdavRow = &row
+
 			break
 		}
 	}

@@ -101,6 +101,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 func serveRecordingDiscovery(w http.ResponseWriter, srv *httptest.Server, km *crypto.KeyManager) {
 	if km == nil {
 		http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
+
 		return
 	}
 
@@ -123,6 +124,7 @@ func serveRecordingDiscovery(w http.ResponseWriter, srv *httptest.Server, km *cr
 func serveRecordingJWKS(w http.ResponseWriter, km *crypto.KeyManager) {
 	if km == nil {
 		http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
+
 		return
 	}
 
@@ -135,17 +137,20 @@ func (r *strictRecordingReceiver) serveRecordingShare(w http.ResponseWriter, req
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		http.Error(w, "failed to read share body", http.StatusBadRequest)
+
 		return
 	}
 
 	var shareReq spec.NewShareRequest
 	if err := json.Unmarshal(body, &shareReq); err != nil {
 		http.Error(w, "failed to parse share body", http.StatusBadRequest)
+
 		return
 	}
 
 	if shareReq.Protocol.WebDAV == nil {
 		http.Error(w, "missing webdav payload", http.StatusBadRequest)
+
 		return
 	}
 
@@ -173,6 +178,7 @@ func (r *strictRecordingReceiver) serveRecordingToken(w http.ResponseWriter, req
 
 	if err := req.ParseForm(); err != nil {
 		http.Error(w, "invalid token form", http.StatusBadRequest)
+
 		return
 	}
 
@@ -192,11 +198,13 @@ func (r *strictRecordingReceiver) serveRecordingToken(w http.ResponseWriter, req
 func (r *strictRecordingReceiver) serveRecordingWebDAV(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	if req.Header.Get("Authorization") == "" {
 		http.Error(w, "missing authorization", http.StatusUnauthorized)
+
 		return
 	}
 

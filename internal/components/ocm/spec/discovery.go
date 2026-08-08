@@ -8,6 +8,7 @@
 package spec
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -93,6 +94,7 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 		for _, row := range rows {
 			if row.ID == service.SubtreeDefaultID("ocm") {
 				paths.EndPoint = absolutePathFromHostRoot(id.Origin, row.FullPath)
+
 				break
 			}
 		}
@@ -224,7 +226,7 @@ func (d *Discovery) WebDAVReceiveURIKind() WebDAVReceiveURIKind {
 func (d *Discovery) BuildWebDAVURL(shareID string) (string, error) {
 	webdavPath := d.GetWebDAVPath()
 	if webdavPath == "" {
-		return "", fmt.Errorf("no WebDAV path in discovery")
+		return "", errors.New("no WebDAV path in discovery")
 	}
 
 	endpointURL, err := url.Parse(d.EndPoint)

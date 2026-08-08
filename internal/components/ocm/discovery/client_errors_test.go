@@ -42,6 +42,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/.well-known/ocm" {
 				http.NotFound(w, r)
+
 				return
 			}
 
@@ -69,6 +70,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/.well-known/ocm" {
 				http.NotFound(w, r)
+
 				return
 			}
 

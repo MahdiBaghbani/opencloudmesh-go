@@ -73,9 +73,10 @@ func BuildBinary(t *testing.T) string {
 	return binaryPath
 }
 
-// findProjectRoot finds the project root by looking for go.mod
+// findProjectRoot finds the project root by looking for go.mod.
 func findProjectRoot(t *testing.T) string {
 	t.Helper()
+
 	return FindProjectRoot(t)
 }
 
@@ -328,6 +329,7 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Logf("failed to read logs for %s: %v", s.Name, err)
+
 		return
 	}
 

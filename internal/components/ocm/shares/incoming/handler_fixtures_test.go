@@ -152,6 +152,7 @@ func newAcceptedShareHandler(
 	partyRepo identity.PartyRepo,
 ) (*incoming.Handler, string) {
 	t.Helper()
+
 	return newTestHandler(repo, partyRepo), "sender.com"
 }
 
