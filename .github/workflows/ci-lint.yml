@@ -32,3 +32,5 @@ jobs:
     uses: ./.github/workflows/ci-lint-yamllint.yml
   shellcheck:
     uses: ./.github/workflows/ci-lint-shellcheck.yml
+  file-length:
+    uses: ./.github/workflows/ci-lint-file-length.yml

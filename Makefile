@@ -9,7 +9,7 @@ SHELL := /bin/bash
 	test fuzz clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
 	actionlint security licenses licenses-check licenses-save licenses-install check ci \
 	pre-commit-install pre-commit-run \
-	generate-action-inventory lint-policy-drift verify-action-pins reuse-lint \
+	generate-action-inventory lint-policy-drift file-length verify-action-pins reuse-lint \
 	markdownlint markdownlint-fix typos hadolint yamllint hygiene-tools
 
 # Version embedded into binaries via -ldflags; falls back to "dev" outside git.
@@ -279,7 +279,7 @@ pre-commit-run:
 # License and hygiene targets are strict locally and blocking in CI.
 ci: fmt-check vet lint shellcheck actionlint security licenses licenses-check \
 	markdownlint typos hadolint yamllint \
-	test build verify-action-pins lint-policy-drift reuse-lint
+	test build verify-action-pins lint-policy-drift reuse-lint file-length
 
 # List immutable action@sha references found in workflow files (audit helper).
 generate-action-inventory:
@@ -294,6 +294,12 @@ verify-action-pins:
 # --write` to regenerate the block.
 lint-policy-drift:
 	nu .github/scripts/lint-policy-drift-check.nu
+
+# Fail when any tracked Go file exceeds the 500-line cap unless it carries a
+# valid // ocmgo:file-length-ignore directive in the header. Run
+# `nu .github/scripts/check-file-length.nu` directly for the same check.
+file-length:
+	nu .github/scripts/check-file-length.nu
 
 # REUSE licensing compliance; reuse comes from the uv dev group.
 reuse-lint:
