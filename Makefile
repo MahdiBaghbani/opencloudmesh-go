@@ -9,7 +9,7 @@ SHELL := /bin/bash
 	test fuzz clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
 	actionlint security licenses licenses-check licenses-save licenses-install check ci \
 	pre-commit-install pre-commit-run \
-	generate-action-inventory verify-action-pins reuse-lint \
+	generate-action-inventory lint-policy-drift verify-action-pins reuse-lint \
 	markdownlint markdownlint-fix typos hadolint yamllint hygiene-tools
 
 # Version embedded into binaries via -ldflags; falls back to "dev" outside git.
@@ -279,7 +279,7 @@ pre-commit-run:
 # License and hygiene targets are strict locally and blocking in CI.
 ci: fmt-check vet lint shellcheck actionlint security licenses licenses-check \
 	markdownlint typos hadolint yamllint \
-	test build verify-action-pins reuse-lint
+	test build verify-action-pins lint-policy-drift reuse-lint
 
 # List immutable action@sha references found in workflow files (audit helper).
 generate-action-inventory:
@@ -288,6 +288,12 @@ generate-action-inventory:
 # Fail on mutable tags or SHAs that diverge from .github/action-pins.yml.
 verify-action-pins:
 	nu .github/scripts/verify-action-pins.nu
+
+# Fail when docs/lint-policy.md generated disable inventory drifts from
+# .golangci.yml (SSOT). Run `nu .github/scripts/lint-policy-drift-check.nu
+# --write` to regenerate the block.
+lint-policy-drift:
+	nu .github/scripts/lint-policy-drift-check.nu
 
 # REUSE licensing compliance; reuse comes from the uv dev group.
 reuse-lint:
