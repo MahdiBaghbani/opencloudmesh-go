@@ -307,9 +307,9 @@ func (m *ACMEManager) loadOrCreateUser() (*ACMEUser, error) {
 	keyFile := filepath.Join(m.cfg.StorageDir, "account.key")
 
 	// Try to load existing user
-	userData, err := os.ReadFile(userFile)
+	userData, err := os.ReadFile(userFile) //nolint:gosec // G304: userFile is filepath.Join of the operator-configured ACME storage dir and the constant "account.json"
 	if err == nil {
-		keyData, keyErr := os.ReadFile(keyFile)
+		keyData, keyErr := os.ReadFile(keyFile) //nolint:gosec // G304: keyFile is filepath.Join of the operator-configured ACME storage dir and the constant "account.key"
 		if keyErr == nil {
 			user := &ACMEUser{}
 			if unmarshalErr := json.Unmarshal(userData, user); unmarshalErr == nil {
@@ -389,7 +389,7 @@ func (m *ACMEManager) obtainCertificate() error {
 	certFile := filepath.Join(m.cfg.StorageDir, "cert.pem")
 	keyFile := filepath.Join(m.cfg.StorageDir, "key.pem")
 
-	if writeErr := os.WriteFile(certFile, certificates.Certificate, 0644); writeErr != nil {
+	if writeErr := os.WriteFile(certFile, certificates.Certificate, 0644); writeErr != nil { //nolint:gosec // G306: 0644 is intentional for the public certificate; the private key is written 0600 below
 		return fmt.Errorf("failed to save certificate: %w", writeErr)
 	}
 

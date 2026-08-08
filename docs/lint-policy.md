@@ -38,8 +38,8 @@ it conform.
 `.golangci.yml` enables `nolintlint` with `require-explanation: true` and
 `require-specific: true`.
 
-As of the standing inventory, the repository retains 370 `//nolint`
-directives: 256 under `internal/`, 111 under `tests/`, and 3 under `cmd/`.
+As of the standing inventory, the repository retains 383 `//nolint`
+directives: 268 under `internal/`, 111 under `tests/`, and 4 under `cmd/`.
 Suppressions are spread across production and test packages rather than
 clustered in one tree; the largest single-package concentration is
 `tests/integration` (108 directives in 33 files). All are governed by
@@ -53,7 +53,7 @@ Seventeen linters are disabled globally in `.golangci.yml`. One of them
 needs a narrative rationale beyond its inline config comment; the entry
 below documents that linter. The remaining sixteen disabled linters carry
 their rationale as inline comments in `.golangci.yml`.
-Unlike the gosec global excludes (which run the linter and suppress accepted
+Unlike the gosec scoped exclusions (which run the linter and suppress accepted
 findings), this one does not run at all. The entry states whether the
 disable is structural (needs an architectural change to turn on), deferred
 (has a concrete burn-down trigger), or permanent (a deliberate style choice
@@ -262,12 +262,7 @@ linters:
         rules:
           json: camel
     gosec:
-      excludes:
-        - G304
-        - G306
-        - G104
-        - G101
-        - G115
+      excludes: []
   exclusions:
     generated: strict
     presets: []
@@ -275,6 +270,10 @@ linters:
       - linters:
           - gosec
         text: "G104:"
+      - path: _test\.go$|^tests/|/testsupport/
+        linters:
+          - gosec
+        text: "G30[46]:|G101:"
       - path: internal/platform/crypto/
         linters:
           - canonicalheader
@@ -323,20 +322,47 @@ production code; no replacement exclusions were added for those scaffolding
 rules. The goconst and mnd test-file settings are separate linter policies
 documented above.
 
-## Gosec global excludes
+## Gosec scoped policy
 
-`.golangci.yml` sets global gosec excludes (not inline `//nolint` directives)
-so accepted-as-is findings are auditable in one place:
+Gosec is enabled with `linters.default: all` and no global gosec rule
+excludes. Accepted findings are scoped in `.golangci.yml` or documented
+inline `//nolint:gosec` directives on production sites.
+
+**G104 text exclusion.** Residual G104 matches are suppressed by the
+unchanged `exclusions.rules` entry `text: "G104:"` because G104 is redundant
+with strict errcheck for meaningful errors. Remaining G104 sites are
+best-effort cleanup such as deferred `Close` and `WriteHeader`-adjacent
+writes.
+
+**Test and testsupport path exclusion.** G304, G306, and G101 findings in test
+files and test-support code are suppressed by a path-scoped
+`exclusions.rules` entry (`path: '_test\.go$|^tests/|/testsupport/'`,
+`text: G30[46]:|G101:`). The path regex matches every `*_test.go` file
+wherever it lives in the tree, plus the non-test harness and support code under
+`tests/` and `internal/testsupport/`. Those sites are test fixtures:
+config-derived paths, test-file permissions, and fake secrets on controlled
+test servers.
+
+**Production inline nolints and fixes.** Real production G304, G306, G101,
+and G115 sites carry inline `//nolint:gosec` directives naming the accepted
+constraint, or a safe fix. The PR8 audit identified 14 production findings
+(10 G304, 2 G306, 1 G101, 1 G115); the implementation is 13 inline
+directives plus one fix: 10 G304 inline nolints, 2 G306 inline nolints, 1
+G101 inline nolint, and G115 fixed with a bounds check rather than
+suppressed. Per-code rationale:
 
 - **G304**: paths are config-controlled, not user input.
 - **G306**: 0644 is correct for public certs; private keys use 0600.
-- **G104**: best-effort cleanup; meaningful errors are covered by errcheck.
-  `.golangci.yml` `exclusions.rules` also carries a gosec G104 text
-  exclusion for residual matches.
 - **G101**: matches reason-code strings and test-fixture labels, not real
   secrets; real secrets are env/config-injected.
-- **G115**: conversions are over fixed small values (lengths, argon2 params);
-  no unbounded input.
+- **G115**: the one production site was fixed with a bounds check; no G115
+  inline nolint exists.
+
+Test fixtures live throughout the tree, not only under `tests/` and
+`internal/testsupport/`, so the path-scoped exclusion matches `*_test.go`
+files everywhere. No per-test inline `//nolint:gosec` directives are
+added; the zero-issue lint result for the test tree comes from this path
+scope, not from silent global suppression.
 
 ## Retained justified categories
 

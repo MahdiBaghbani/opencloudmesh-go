@@ -19,7 +19,7 @@ const (
 	ReasonUnauthenticated    = "unauthenticated"
 	ReasonUnauthorized       = "unauthorized"
 	ReasonSessionExpired     = "session_expired"
-	ReasonInvalidCredentials = "invalid_credentials"
+	ReasonInvalidCredentials = "invalid_credentials" //nolint:gosec // G101: matches a reason-code string, not a real secret; real secrets are env/config-injected
 
 	// ReasonSignatureRequired is a reason code for a request missing the required signature.
 	ReasonSignatureRequired = "signature_required"

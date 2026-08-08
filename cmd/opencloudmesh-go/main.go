@@ -375,7 +375,7 @@ func writeBootstrapPasswordFile(filePath, password string, logger *slog.Logger) 
 }
 
 func syncBootstrapPasswordDir(dir string) error {
-	dirFile, err := os.Open(dir)
+	dirFile, err := os.Open(dir) //nolint:gosec // G304: dir is filepath.Dir of the bootstrap credential file path from operator config (server bootstrap credential_file or persistence data_dir), not request input
 	if err != nil {
 		return fmt.Errorf("open bootstrap password file directory %q: %w", dir, err)
 	}

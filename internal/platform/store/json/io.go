@@ -24,7 +24,7 @@ const (
 func (d *Driver) loadFile(filename string, target any) error {
 	path := filepath.Join(d.dataDir, filename)
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path is filepath.Join of the operator-configured persistence data dir and one of four fixed package file-name constants
 	if err != nil {
 		return err //nolint:wrapcheck // preserve raw fs.PathError so callers' os.IsNotExist detects missing-file init
 	}
@@ -47,7 +47,7 @@ func (d *Driver) saveFile(filename string, data any) error {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600) //nolint:gosec // G304: tempPath derives from the operator-configured persistence data dir and a fixed package file-name constant plus the ".tmp" suffix
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}

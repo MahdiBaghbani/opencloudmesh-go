@@ -43,7 +43,7 @@ func BuildRootCAPool(caFile, caDir string) (*x509.CertPool, error) {
 }
 
 func appendCertsFromFile(pool *x509.CertPool, path, label string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path is the operator-configured tls_root_ca_file passed down from BuildRootCAPool, not request input
 	if err != nil {
 		return fmt.Errorf("%s: read failed: %w", label, err)
 	}
@@ -82,7 +82,7 @@ func appendCertsFromDir(pool *x509.CertPool, caDir string) error {
 			continue
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G304: path is filepath.Join of the operator-configured tls_root_ca_dir and a base name from os.ReadDir filtered to regular .pem/.crt files; base names cannot escape the dir
 		if err != nil {
 			return fmt.Errorf("tls_root_ca_dir: read %q failed: %w", path, err)
 		}
