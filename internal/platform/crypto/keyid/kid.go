@@ -135,7 +135,7 @@ func KidFromPublicOrigin(publicOrigin, fragment string) (string, error) {
 
 	rawHost, err := instanceid.ProviderFQDN(publicOrigin)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("crypto: compute key id: %w", err)
 	}
 
 	scheme := "https"

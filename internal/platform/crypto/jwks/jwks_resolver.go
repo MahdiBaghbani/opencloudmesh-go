@@ -86,7 +86,7 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 		return result{set: set, fresh: true}, nil
 	})
 	if err != nil {
-		return Set{}, false, err
+		return Set{}, false, fmt.Errorf("crypto: resolve jwks: %w", err)
 	}
 
 	out, ok := v.(result)
@@ -174,7 +174,7 @@ func (r *Resolver) rememberNegative(jwksURL, kid string) {
 func AuthorityFromBaseURL(baseURL string) (scheme, authority string, err error) {
 	u, err := url.Parse(strings.TrimSpace(baseURL))
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("crypto: parse base url: %w", err)
 	}
 
 	scheme = strings.ToLower(u.Scheme)

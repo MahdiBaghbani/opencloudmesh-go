@@ -5,10 +5,18 @@
 
 package sigparams
 
-import "encoding/base64"
+import (
+	"encoding/base64"
+	"fmt"
+)
 
 func decodeStdBase64(s string) ([]byte, error) {
-	return base64.StdEncoding.DecodeString(s)
+	raw, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("crypto: decode base64: %w", err)
+	}
+
+	return raw, nil
 }
 
 func encodeStdBase64(raw []byte) string {

@@ -27,7 +27,7 @@ func decodeBase64URL(s string) ([]byte, error) {
 
 	raw, err := base64.URLEncoding.DecodeString(padded)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("crypto: decode base64url: %w", err)
 	}
 
 	return raw, nil
