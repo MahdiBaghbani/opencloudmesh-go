@@ -5,7 +5,7 @@
 
 # OpenCloudMesh server build and test targets.
 SHELL := /bin/bash
-.PHONY: build test-go test-integration test-e2e test-e2e-install \
+.PHONY: build reproduce test-go test-integration test-e2e test-e2e-install \
 	test coverage-check fuzz clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
 	actionlint security licenses licenses-check licenses-save licenses-install check ci \
 	pre-commit-install pre-commit-run \
@@ -18,6 +18,23 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # Build the server binary (pure-Go; no CGO/sqlite toolchain).
 build:
 	CGO_ENABLED=0 go build -ldflags "-X main.version=$(VERSION)" -o bin/opencloudmesh-go ./cmd/opencloudmesh-go
+
+# Reproducible-build flags, matching the goreleaser release build: trim paths,
+# strip symbols, pure-Go, version stamped from git. The Go toolchain is pinned
+# by go.mod. See docs/reproducible-builds.md.
+REPRO_FLAGS := -trimpath
+REPRO_LDFLAGS := -s -w -X main.version=$(VERSION)
+
+# Verify the binary builds bit-for-bit reproducibly. Builds twice into separate
+# output paths and compares SHA-256; fails on mismatch.
+reproduce:
+	@tmp=$$(mktemp -d); \
+	CGO_ENABLED=0 go build $(REPRO_FLAGS) -ldflags "$(REPRO_LDFLAGS)" -o $$tmp/a ./cmd/opencloudmesh-go; \
+	CGO_ENABLED=0 go build $(REPRO_FLAGS) -ldflags "$(REPRO_LDFLAGS)" -o $$tmp/b ./cmd/opencloudmesh-go; \
+	s1=$$(sha256sum $$tmp/a | awk '{print $$1}'); s2=$$(sha256sum $$tmp/b | awk '{print $$1}'); \
+	echo "$$s1  build-1"; echo "$$s2  build-2"; \
+	if [ "$$s1" = "$$s2" ]; then echo "reproduce: OK (bit-for-bit identical)"; rm -rf $$tmp; \
+	else echo "reproduce: FAILED (binaries differ)" >&2; rm -rf $$tmp; exit 1; fi
 
 # Run unit tests with race detector (excludes integration tests).
 # -count=1 disables cached results; -shuffle=on randomizes test execution
