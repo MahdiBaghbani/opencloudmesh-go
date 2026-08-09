@@ -150,6 +150,16 @@ Useful sample configs:
 - [docs/development.md](docs/development.md)
 - [docs/testing.md](docs/testing.md)
 
+### Governance and security
+
+- [GOVERNANCE.md](GOVERNANCE.md)
+- [MAINTAINERS.md](MAINTAINERS.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [ROADMAP.md](ROADMAP.md)
+- [SECURITY.md](SECURITY.md)
+- [docs/security-requirements.md](docs/security-requirements.md)
+- [docs/assurance-case.md](docs/assurance-case.md)
+
 ### Protocol and runtime behavior
 
 - [docs/protocol-endpoints.md](docs/protocol-endpoints.md)
