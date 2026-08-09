@@ -76,6 +76,9 @@ pins:
   ossf/scorecard-action:
     release: v2.4.4
     sha: 2d1146689b8cda280b9bc96326124645441f03bc
+  sigstore/cosign-installer:
+    release: v4.1.2
+    sha: 6f9f17788090df1f26f669e9d70d6ae9567deba6
   # Action lives in crate-ci/typos (not a separate typos-action repo).
   crate-ci/typos:
     release: v1.49.0
