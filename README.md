@@ -164,6 +164,7 @@ Useful sample configs:
 - [docs/security-requirements.md](docs/security-requirements.md)
 - [docs/assurance-case.md](docs/assurance-case.md)
 - [docs/crypto-agility.md](docs/crypto-agility.md)
+- [docs/reproducible-builds.md](docs/reproducible-builds.md)
 
 ### Protocol and runtime behavior
 

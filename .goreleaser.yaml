@@ -21,6 +21,11 @@ builds:
     binary: opencloudmesh-go
     env:
       - CGO_ENABLED=0
+    # Reproducible builds: pin the binary file mtime to the commit timestamp so
+    # release archives are byte-identical across machines. -trimpath strips
+    # absolute build paths; -s -w strips symbols; the toolchain is pinned by
+    # go.mod. See docs/reproducible-builds.md.
+    mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath
     ldflags:
@@ -44,6 +49,11 @@ archives:
       - goos: windows
         formats:
           - zip
+    # Pin the mtime of bundled notice/license files to the commit date so the
+    # archive is byte-identical regardless of when it is built. The binary's
+    # mtime is pinned by builds.mod_timestamp above.
+    info:
+      mtime: "{{ .CommitDate }}"
     # Binary is included automatically. Notices: curated index, REUSE SQLite
     # text, and the go-licenses tree prepared by make licenses-save
     # (paths keep bin/licenses/ so modernc module dirs stay nested).
