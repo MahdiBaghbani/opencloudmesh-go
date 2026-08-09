@@ -65,3 +65,29 @@ Replace `<version>` and the OS/arch archive name with the file you downloaded.
 GitHub also records a build-provenance attestation for each artifact in the
 GitHub Attestations API; the cosign bundles above are the release-asset form
 that the OpenSSF Scorecard signed-releases check recognizes.
+
+## 3. Verify the release tag
+
+The release tag itself is cryptographically signed with gitsign keyless
+(Sigstore) in the release workflow, so you can confirm a tag was created by
+the project's release workflow and not forged.
+
+Check the tag's signature:
+
+```sh
+git tag -v <version>
+```
+
+For a gitsign-signed tag, `git tag -v` reports a valid CMS/X.509 signature.
+To inspect the signing certificate (issuer, workflow identity) and verify it
+against the Sigstore log, use gitsign:
+
+```sh
+gitsign verify-tags <version> \
+  --certificate-identity-regexp 'https://github.com/MahdiBaghbani/opencloudmesh-go/.github/workflows/release.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+A successful verification ties the tag to a GitHub Actions run of
+`release.yml` on this repository, authenticated by GitHub Actions OIDC. No
+long-lived GPG key is involved.
