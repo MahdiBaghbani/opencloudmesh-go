@@ -33,6 +33,25 @@ naming. If `make test` complains about an import boundary, that is the guard
 doing its job, and [docs/architecture.md](docs/architecture.md) explains the
 rules.
 
+## Small tasks for new contributors
+
+If you are new to the project, look for issues labeled `good first issue` and
+`help wanted` in the
+[issue tracker](https://github.com/MahdiBaghbani/opencloudmesh-go/issues).
+These are scoped to be approachable without a deep understanding of the whole
+codebase.
+
+Typical small tasks that are friendly to new or casual contributors:
+
+- Add or tighten unit tests around the strict contract paths (see
+  [docs/testing.md](docs/testing.md)).
+- Fix typos or clarify docs that tripped you up while getting started.
+- Add examples to existing docs.
+- Pick up a `good first issue` and send a small focused PR.
+
+If you want to work on something but no issue matches, open an issue first so
+we can scope it together before you start.
+
 ## Git hooks (pre-commit)
 
 Pre-commit runs a fail-closed check set before each commit. Any hook
@@ -155,6 +174,35 @@ make test-e2e
 - Explain the problem you are solving, not just the diff.
 - Mention any follow-up work if the change is intentionally partial.
 - Update the docs when behavior changes.
+
+## Code review
+
+All changes land through pull requests on GitHub. This section documents how
+review is conducted, what must be checked, and what is required for a change to
+be acceptable.
+
+How review is conducted:
+
+- Changes are proposed as pull requests against `master`.
+- Review happens on the GitHub pull request, comment by comment.
+- The maintainer reviews the diff; CI runs the automated gate set on every push
+  to the pull request.
+
+What must be checked before a change is acceptable:
+
+- `make ci` is green (fmt, vet, lint, tests, security scans, licenses, reuse,
+  action pins, file-length, markdownlint). See the `ci` target in the Makefile.
+- Architecture guard tests pass; no forbidden import boundaries are introduced
+  (see [docs/architecture.md](docs/architecture.md)).
+- Tests cover new or changed behavior, and existing tests still pass.
+- Docs are updated when behavior changes.
+- The pull request is focused and explains the problem it solves.
+
+A change is acceptable when all CI checks pass, review comments are resolved,
+and the maintainer approves the merge. The project currently has a single
+maintainer, so human review is by the maintainer and CI is the automated
+reviewer; see [MAINTAINERS.md](MAINTAINERS.md) and
+[GOVERNANCE.md](GOVERNANCE.md) for roles and the succession plan.
 
 By contributing, you agree that your contributions are licensed under
 AGPL-3.0-or-later, consistent with this repository.
