@@ -165,6 +165,7 @@ Useful sample configs:
 - [docs/assurance-case.md](docs/assurance-case.md)
 - [docs/crypto-agility.md](docs/crypto-agility.md)
 - [docs/reproducible-builds.md](docs/reproducible-builds.md)
+- [docs/verification.md](docs/verification.md)
 
 ### Protocol and runtime behavior
 

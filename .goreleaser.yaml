@@ -66,6 +66,25 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+# Cosign keyless signing of release artifacts (Sigstore). The release workflow
+# installs cosign and supplies the OIDC token via id-token: write; cosign
+# records the signature in Rekor and writes a .sigstore.json bundle per
+# artifact, which GoReleaser attaches to the GitHub Release. No long-lived key.
+# Verify with `cosign verify-blob --bundle <file>.sigstore.json <file>`; see
+# docs/verification.md. artifacts: all signs every archive plus the checksum
+# manifest (best for the OpenSSF Scorecard signed-releases check).
+signs:
+  - id: cosign
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: all
+    output: true
+
 release:
   prerelease: auto
   mode: replace
