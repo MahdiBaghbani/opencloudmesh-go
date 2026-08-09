@@ -28,6 +28,8 @@ env:
   CHANGIE_VERSION: v1.25.1
   GOLANGCI_LINT_VERSION: v2.12.2
   NU_VERSION: 0.114.1
+  # Pinned gitsign release; used to keyless-sign the release tag (Sigstore).
+  GITSIGN_VERSION: v0.17.1
 
 concurrency:
   group: release
@@ -39,8 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     # contents: write is required for the DCO-signed commit, tag, and push.
     # GitHub Release creation is owned by the binary (GoReleaser) lane.
+    # id-token: write is required for gitsign keyless (Sigstore) tag signing.
     permissions:
       contents: write
+      id-token: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -105,10 +109,21 @@ jobs:
       - name: Verify immutable action pins
         run: make verify-action-pins
 
+      - name: Install gitsign
+        run: go install "github.com/sigstore/gitsign@${GITSIGN_VERSION}"
+
+      # Configure git to sign tags with gitsign keyless (Sigstore X.509).
+      # Only -s tag signing is routed through gitsign; the DCO release commit
+      # uses `git commit -s` (lowercase = Signed-off-by trailer, not crypto).
+      - name: Configure gitsign for tag signing
+        run: |
+          git config gpg.format x509
+          git config gpg.x509.program gitsign
+
       - name: Tag release
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: git tag -a "${VERSION}" -m "Release ${VERSION}"
+        run: git tag -s "${VERSION}" -m "Release ${VERSION}"
 
       - name: Push release commit and tag
         env:
