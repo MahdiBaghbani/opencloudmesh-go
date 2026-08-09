@@ -1,0 +1,7 @@
+kind: added
+body: >-
+  governance and security documentation: GOVERNANCE.md (adapted from the CNCF
+  maintainer template), MAINTAINERS.md, .github/CODEOWNERS, CODE_OF_CONDUCT.md
+  (Contributor Covenant 2.1, official text), ROADMAP.md,
+  docs/security-requirements.md, docs/assurance-case.md, and a formal test
+  policy section in docs/testing.md

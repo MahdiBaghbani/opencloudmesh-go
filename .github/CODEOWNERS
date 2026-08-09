@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict,
+# WebDAV-centered subset of the protocol.
+#
+# CODEOWNERS for OpenCloudMesh Go.
+# Every part of the repository is owned by the maintainer listed in
+# MAINTAINERS.md and GOVERNANCE.md. Add owners here as the project grows
+# maintainers; see GOVERNANCE.md "Becoming a Maintainer".
+
+* @MahdiBaghbani

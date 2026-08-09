@@ -10,6 +10,31 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
 How unit, integration, E2E, and CA pool tests are organized and run in
 opencloudmesh-go.
 
+## Test policy
+
+This is the project's formal written test policy.
+
+- **Tests are mandatory for new functionality.** Any change that adds
+  non-trivial new behavior to the software MUST add automated tests for that
+  behavior to the same pull request. A pull request that adds functionality
+  without tests is blocked, not deferred.
+- **Bug fixes add regression tests.** A fix for a reproducible bug MUST add a
+  regression test that fails before the fix and passes after it.
+- **Where tests live.** Unit tests live next to the code they cover under
+  `internal/**/*_test.go`. Integration tests live under
+  `tests/integration/`. E2E tests live under `tests/e2e/`. Shared test
+  helpers live under `internal/testsupport/` and must not be imported by
+  production code (enforced by architecture guard tests).
+- **What must pass.** The `ci` rollup gate requires unit and integration
+  tests to pass on every pull request. E2E and fuzz run as separate surfaces
+  so a slow layer never blocks the others.
+- **Coverage must not regress.** Statement coverage is tracked; a pull
+  request must not lower coverage of the strict contract it touches.
+
+The behavior verification map below cites the packages and tests that prove
+each behavior. When you change invite, discovery, or route-policy code, add
+or update the corresponding entry.
+
 ## Test layers
 
 | Layer | Location | Command | What it exercises |
