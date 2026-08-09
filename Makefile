@@ -6,7 +6,7 @@
 # OpenCloudMesh server build and test targets.
 SHELL := /bin/bash
 .PHONY: build test-go test-integration test-e2e test-e2e-install \
-	test fuzz clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
+	test coverage-check fuzz clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
 	actionlint security licenses licenses-check licenses-save licenses-install check ci \
 	pre-commit-install pre-commit-run \
 	generate-action-inventory lint-policy-drift file-length verify-action-pins reuse-lint \
@@ -68,6 +68,17 @@ test-e2e: build
 
 # Run all tests (excluding E2E - run separately with test-e2e)
 test: test-go test-integration
+
+# Enforce a minimum statement-coverage floor on the unit suite. The unit
+# profile (coverage-unit.out) is produced by test-go; run `make test-go` first.
+# The threshold is the CII/OCM silver bar (80%). Raise the floor, not lower it.
+COVERAGE_THRESHOLD ?= 80
+coverage-check:
+	@test -f coverage-unit.out || { echo "coverage-check: coverage-unit.out missing; run 'make test-go' first" >&2; exit 1; }
+	@pct=$$(go tool cover -func=coverage-unit.out | awk '/^total:/ { gsub(/%/, "", $$3); print $$3 }'); \
+	echo "unit statement coverage: $$pct% (threshold $(COVERAGE_THRESHOLD)%)"; \
+	awk -v p="$$pct" -v t="$(COVERAGE_THRESHOLD)" 'BEGIN { exit (p+0 < t) }' \
+		|| { echo "coverage-check: unit coverage $$pct% is below the $(COVERAGE_THRESHOLD)% threshold" >&2; exit 1; }
 
 # Clean build artifacts
 clean:
@@ -279,7 +290,7 @@ pre-commit-run:
 # License and hygiene targets are strict locally and blocking in CI.
 ci: fmt-check vet lint shellcheck actionlint security licenses licenses-check \
 	markdownlint typos hadolint yamllint \
-	test build verify-action-pins lint-policy-drift reuse-lint file-length
+	test coverage-check build verify-action-pins lint-policy-drift reuse-lint file-length
 
 # List immutable action@sha references found in workflow files (audit helper).
 generate-action-inventory:
