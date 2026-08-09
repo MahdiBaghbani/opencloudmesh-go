@@ -1,0 +1,6 @@
+kind: added
+body: >-
+  scorecard branch-protection: the Scorecard workflow now passes the
+  SCORECARD_TOKEN PAT (Administration: Read-only) to the scorecard-action so
+  the Branch-Protection check can read classic branch-protection rules, which
+  the default GITHUB_TOKEN cannot
