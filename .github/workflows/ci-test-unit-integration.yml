@@ -29,6 +29,8 @@ jobs:
         run: make test-integration
       - name: Verify coverage artifact names
         run: test -f coverage-unit.out && test -f coverage-integration.out
+      - name: Enforce coverage threshold
+        run: make coverage-check
       - name: Upload coverage profiles
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:

@@ -28,12 +28,33 @@ This is the project's formal written test policy.
 - **What must pass.** The `ci` rollup gate requires unit and integration
   tests to pass on every pull request. E2E and fuzz run as separate surfaces
   so a slow layer never blocks the others.
-- **Coverage must not regress.** Statement coverage is tracked; a pull
-  request must not lower coverage of the strict contract it touches.
+- **Coverage must not regress.** Statement coverage is tracked and enforced:
+  the unit suite must stay at or above 80% statement coverage, checked by
+  `make coverage-check` (run in CI after `make test-go`). A pull request that
+  drops unit coverage below 80% is blocked. See the Coverage policy section
+  below for how the floor is measured.
 
 The behavior verification map below cites the packages and tests that prove
 each behavior. When you change invite, discovery, or route-policy code, add
 or update the corresponding entry.
+
+### Coverage policy
+
+The project enforces a minimum statement-coverage floor on its automated
+test suites:
+
+- `make test-go` writes `coverage-unit.out` with
+  `-coverpkg=./internal/...,./cmd/...`.
+- `make coverage-check` reads that profile, prints the unit statement
+  coverage percentage, and fails if it is below `COVERAGE_THRESHOLD`
+  (default 80, the CII/OCM silver bar).
+- CI runs `make coverage-check` after the unit tests, so a pull request that
+  drops unit coverage below 80% fails the `ci` rollup.
+
+The unit suite alone currently exceeds 80%; the integration suite
+(`coverage-integration.out`) adds further coverage on top. The live number is
+reported by `make coverage-check` and by the Coveralls badge in the README, so
+this doc does not hard-code a percentage that would drift.
 
 ## Test layers
 
