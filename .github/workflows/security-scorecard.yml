@@ -29,6 +29,11 @@ jobs:
       - name: Run Scorecard analysis
         uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc
         with:
+          # A fine-grained PAT (repo secret SCORECARD_TOKEN, Administration:
+          # Read-only) is required so Scorecard can read classic branch-
+          # protection rules; the default GITHUB_TOKEN cannot. See
+          # https://github.com/ossf/scorecard-action/blob/main/docs/authentication/fine-grained-auth-token.md
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
           results_file: results.sarif
           results_format: sarif
           publish_results: true
