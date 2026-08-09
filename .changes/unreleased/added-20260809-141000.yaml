@@ -1,0 +1,5 @@
+kind: added
+body: >-
+  release-time dynamic analysis: the release workflow now runs the Go race
+  detector (make test-go) and the fuzz targets (make fuzz) before tagging a
+  release, asserting parser invariants at run time as a release gate

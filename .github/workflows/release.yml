@@ -102,6 +102,15 @@ jobs:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m
 
+      # Dynamic analysis before release: the Go race detector (go test -race)
+      # and the fuzz targets (Makefile FUZZ_TARGETS) assert parser invariants
+      # at run time. This is the release-time dynamic analysis gate; see
+      # docs/assurance-case.md and the `fuzz` target in the Makefile.
+      - name: Dynamic analysis (race detector + fuzz)
+        run: |
+          make test-go
+          make fuzz FUZZ_TIME=60s
+
       - uses: ./.github/actions/install-nushell
         with:
           nu-version: ${{ env.NU_VERSION }}
