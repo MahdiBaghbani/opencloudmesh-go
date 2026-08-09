@@ -173,7 +173,7 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 
 	// Write certificate
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	if writeErr := os.WriteFile(certFile, certPEM, 0644); writeErr != nil {
+	if writeErr := os.WriteFile(certFile, certPEM, 0644); writeErr != nil { //nolint:gosec // G306: 0644 is intentional for the public certificate; the private key is written 0600 below
 		return cryptotls.Certificate{}, fmt.Errorf("failed to write certificate: %w", writeErr)
 	}
 

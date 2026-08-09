@@ -11,6 +11,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"math"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -102,7 +103,12 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 		return ErrInvalidPassword
 	}
 
-	computedHash := argon2.IDKey([]byte(password), salt, time, memory, threads, uint32(len(expectedHash)))
+	keyLen, ok := safeUint32Len(expectedHash)
+	if !ok {
+		return ErrInvalidPassword
+	}
+
+	computedHash := argon2.IDKey([]byte(password), salt, time, memory, threads, keyLen)
 	if subtle.ConstantTimeCompare(expectedHash, computedHash) != 1 {
 		return ErrInvalidPassword
 	}
@@ -126,4 +132,13 @@ func (a *UserAuth) Authenticate(ctx context.Context, repo PartyRepo, username, p
 	}
 
 	return user, nil
+}
+
+func safeUint32Len(b []byte) (uint32, bool) {
+	n := len(b)
+	if n > math.MaxUint32 {
+		return 0, false
+	}
+
+	return uint32(n), true
 }

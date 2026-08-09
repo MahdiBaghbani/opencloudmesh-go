@@ -27,7 +27,7 @@ type TrustGroupConfig struct {
 // LoadTrustGroupConfig loads a trust group config from a JSON file.
 // Unknown JSON keys fail the load.
 func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path comes from the operator-configured peer trust config_paths list, not from request input
 	if err != nil {
 		return nil, fmt.Errorf("reading trust group config %s: %w", path, err)
 	}

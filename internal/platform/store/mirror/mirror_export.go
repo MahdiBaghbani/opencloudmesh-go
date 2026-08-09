@@ -126,7 +126,7 @@ func (d *Driver) writeJSON(filename string, data any) error {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600) //nolint:gosec // G304: tempPath derives from the operator-configured persistence data dir, the fixed "mirror" subdir, and a constant file name passed by each export caller
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}

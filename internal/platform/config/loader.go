@@ -73,7 +73,7 @@ type FlagOverrides struct {
 func readConfigFile(configPath string) (fileConfig, toml.MetaData, error) {
 	var fc fileConfig
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) //nolint:gosec // G304: configPath is the operator-supplied --config CLI flag read once at startup, not request input
 	if err != nil {
 		return fc, toml.MetaData{}, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 	}
