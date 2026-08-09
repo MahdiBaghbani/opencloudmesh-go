@@ -23,6 +23,19 @@ merge authority.
 
 None.
 
+## Successors
+
+The succession plan is defined in the
+[Succession and access continuity](GOVERNANCE.md#succession-and-access-continuity)
+section of [GOVERNANCE.md](GOVERNANCE.md). If the active maintainer is unable to
+continue, the following named successors are authorized to take over the project:
+
+| Name | GitHub | Affiliation |
+| ---- | ------ | ----------- |
+| Giuseppe Lo Presti | [@glpatcern](https://github.com/glpatcern) | [CERN](https://github.com/CERN) |
+| Micke Nordin | [@mickenordin](https://github.com/mickenordin) | [SUNET](https://github.com/SUNET) |
+| Michiel de Jong | [@michielbdejong](https://github.com/michielbdejong) | [PonderSource](https://github.com/pondersource) |
+
 ## Adding or removing maintainers
 
 See the "Becoming a Maintainer" and "Removing a Maintainer" sections of

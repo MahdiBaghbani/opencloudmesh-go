@@ -11,9 +11,13 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
 > subset of the protocol.
 
 [![Go version](https://img.shields.io/github/go-mod/go-version/MahdiBaghbani/opencloudmesh-go)](https://github.com/MahdiBaghbani/opencloudmesh-go/blob/master/go.mod)
+[![Go Reference](https://pkg.go.dev/badge/github.com/MahdiBaghbani/opencloudmesh-go.svg)](https://pkg.go.dev/github.com/MahdiBaghbani/opencloudmesh-go)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![REUSE compliance status](https://api.reuse.software/badge/github.com/MahdiBaghbani/opencloudmesh-go)](https://api.reuse.software/info/github.com/MahdiBaghbani/opencloudmesh-go)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/MahdiBaghbani/opencloudmesh-go/badge)](https://scorecard.dev/viewer/?uri=github.com/MahdiBaghbani/opencloudmesh-go)
+[![CII Best Practices](https://www.bestpractices.dev/projects/13993/badge)](https://www.bestpractices.dev/en/projects/13993)
 [![CI status](https://img.shields.io/github/actions/workflow/status/MahdiBaghbani/opencloudmesh-go/ci.yml?branch=master&label=CI)](https://github.com/MahdiBaghbani/opencloudmesh-go/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/MahdiBaghbani/opencloudmesh-go/security-codeql.yml?branch=master&label=CodeQL)](https://github.com/MahdiBaghbani/opencloudmesh-go/actions/workflows/security-codeql.yml)
 [![Playwright E2E](https://img.shields.io/github/actions/workflow/status/MahdiBaghbani/opencloudmesh-go/ci-test-e2e.yml?branch=master&label=playwright%20e2e)](https://github.com/MahdiBaghbani/opencloudmesh-go/actions/workflows/ci-test-e2e.yml)
 [![Coverage status](https://coveralls.io/repos/github/MahdiBaghbani/opencloudmesh-go/badge.svg?branch=master)](https://coveralls.io/github/MahdiBaghbani/opencloudmesh-go?branch=master)
 [![Release](https://img.shields.io/github/v/release/MahdiBaghbani/opencloudmesh-go?label=release)](https://github.com/MahdiBaghbani/opencloudmesh-go/releases)
@@ -159,6 +163,7 @@ Useful sample configs:
 - [SECURITY.md](SECURITY.md)
 - [docs/security-requirements.md](docs/security-requirements.md)
 - [docs/assurance-case.md](docs/assurance-case.md)
+- [docs/crypto-agility.md](docs/crypto-agility.md)
 
 ### Protocol and runtime behavior
 
