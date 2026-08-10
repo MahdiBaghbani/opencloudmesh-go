@@ -10,7 +10,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/internal/dirsync"
 )
+
+// dirSync fsyncs a directory after atomic rename. Tests may replace this seam.
+var dirSync = dirsync.SyncDirectory
+
+func tolerateDirSync(dir string) error {
+	//nolint:wrapcheck // adapter injects replaceable dirSync seam; TolerateDirSync already wraps real failures
+	return dirsync.TolerateDirSync(dir, dirSync)
+}
 
 // JSON file names for each data surface.
 const (
@@ -76,6 +86,10 @@ func (d *Driver) saveFile(filename string, data any) error {
 		os.Remove(tempPath)
 
 		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	if err := tolerateDirSync(filepath.Dir(path)); err != nil {
+		return err
 	}
 
 	return nil

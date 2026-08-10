@@ -12,6 +12,9 @@ import "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 
 func cloneOutgoingShare(s *store.OutgoingShare) *store.OutgoingShare {
 	c := *s
+	if len(s.Requirements) > 0 {
+		c.Requirements = append([]string(nil), s.Requirements...)
+	}
 
 	return &c
 }
@@ -20,6 +23,10 @@ func cloneIncomingShare(s *store.IncomingShare) *store.IncomingShare {
 	c := *s
 	if len(s.Requirements) > 0 {
 		c.Requirements = append([]string(nil), s.Requirements...)
+	}
+
+	if len(s.WebappTargets) > 0 {
+		c.WebappTargets = append([]string(nil), s.WebappTargets...)
 	}
 
 	return &c
