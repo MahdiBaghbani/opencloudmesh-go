@@ -79,46 +79,6 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 }
-func TestCreateShare_DuplicateReturns200(t *testing.T) {
-	t.Parallel()
-	repo := tsrepos.OpenMemory(t).IncomingShares
-	partyRepo := setupTestPartyRepo(t)
-	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
-
-	body := validShareBodyWithHosts("alice@localhost:9200", ownerHost)
-
-	// First request: 201
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("first request: expected 201, got %d: %s", w.Code, w.Body.String())
-	}
-
-	// Second request with same providerID + sender: 200 (idempotent)
-	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req2.Header.Set("Content-Type", "application/json")
-
-	w2 := httptest.NewRecorder()
-	handler.CreateShare(w2, req2)
-
-	if w2.Code != http.StatusOK {
-		t.Fatalf("duplicate request: expected 200, got %d: %s", w2.Code, w2.Body.String())
-	}
-
-	var resp spec.CreateShareResponse
-	if err := json.NewDecoder(w2.Body).Decode(&resp); err != nil {
-		t.Fatalf("Decode: %v", err)
-	}
-
-	if resp.RecipientDisplayName != "Alice A" {
-		t.Errorf("duplicate response: expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
-	}
-}
-
 func TestCreateShare_AcceptsFolderResourceType(t *testing.T) {
 	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares

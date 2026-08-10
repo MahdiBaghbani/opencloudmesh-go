@@ -100,7 +100,7 @@ func TestMustInviteGate_OutgoingInviteExactMatchAdmits(t *testing.T) {
 	}
 }
 
-func TestMustInviteGate_DuplicateAdmittedReturns200(t *testing.T) {
+func TestMustInviteGate_DuplicateAdmittedReturns201(t *testing.T) {
 	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
@@ -124,8 +124,8 @@ func TestMustInviteGate_DuplicateAdmittedReturns200(t *testing.T) {
 	}
 
 	second := postShare(t, handler, body)
-	if second.Code != http.StatusOK {
-		t.Fatalf("expected 200 on duplicate post, got %d: %s", second.Code, second.Body.String())
+	if second.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on duplicate post, got %d: %s", second.Code, second.Body.String())
 	}
 }
 

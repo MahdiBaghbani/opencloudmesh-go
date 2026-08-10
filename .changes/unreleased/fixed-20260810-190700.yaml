@@ -1,0 +1,8 @@
+kind: fixed
+body: >-
+  Incoming duplicate shares (same senderHost and providerId) are now compared
+  against the stored payload: an identical retransmission returns 201
+  idempotently, while a re-send with changed material fields (name,
+  resourceType, shareWith, WebDAV URI/secret/permissions/requirements,
+  etc.) returns 409 instead of silently keeping the stale stored row.
+  Create success is aligned with the spec-normative 201.
