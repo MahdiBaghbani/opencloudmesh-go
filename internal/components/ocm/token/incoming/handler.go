@@ -7,6 +7,7 @@ package incoming
 
 import (
 	"encoding/json"
+	"fmt"
 	"mime"
 	"net/http"
 	"time"
@@ -22,12 +23,13 @@ import (
 
 // Handler serves POST /ocm/token (token exchange).
 type Handler struct {
-	outgoingRepo outgoing.OutgoingShareRepo
-	tokenStore   token.TokenStore
-	tokenTTL     time.Duration
-	settings     *TokenExchangeSettings
-	codeFlow     *policy.CodeFlow
-	localScheme  string // "http" or "https", derived from PublicOrigin
+	outgoingRepo          outgoing.OutgoingShareRepo
+	tokenStore            token.TokenStore
+	tokenTTL              time.Duration
+	settings              *TokenExchangeSettings
+	codeFlow              *policy.CodeFlow
+	localScheme           string // "http" or "https", derived from PublicOrigin
+	generateAccessTokenFn func() (string, error)
 }
 
 // NewHandler builds a token handler. Settings must have ApplyDefaults() called (done by cfg.Decode).
@@ -71,7 +73,8 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 // sendOAuthError sends an OAuth-style error response.
 // ocmgo emits invalid_request, invalid_client, invalid_grant, and
-// unsupported_grant_type per https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1566-L1576.
+// unsupported_grant_type for HTTP 400 per https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1566-L1576.
+// HTTP 500 internal errors map to server_error.
 // ErrorUnauthorized ("unauthorized_client") is defined in
 // internal/components/ocm/spec/token_exchange.go and reserved for future
 // per-client grant-authorization enforcement; there is no current emission
@@ -146,7 +149,7 @@ func (h *Handler) parseTokenRequest(w http.ResponseWriter, r *http.Request) (tok
 
 	if h.outgoingRepo == nil {
 		appctx.GetLogger(r.Context()).Error("token exchange attempted but outgoing share repo not configured")
-		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorServerError, "token exchange not available")
 
 		return token.TokenRequest{}, false
 	}
@@ -208,15 +211,15 @@ func (h *Handler) issueTokenResponse(w http.ResponseWriter, r *http.Request, req
 
 	if h.tokenTTL <= 0 {
 		log.Error("token exchange misconfigured: non-positive token TTL")
-		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorServerError, "token exchange not available")
 
 		return
 	}
 
-	accessToken, err := token.GenerateAccessToken()
+	accessToken, err := h.generateAccessToken()
 	if err != nil {
 		log.Error("failed to generate access token", "error", err)
-		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token generation failed")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorServerError, "token generation failed")
 
 		return
 	}
@@ -232,7 +235,7 @@ func (h *Handler) issueTokenResponse(w http.ResponseWriter, r *http.Request, req
 
 	if err := h.tokenStore.Store(ctx, issuedToken); err != nil {
 		log.Error("failed to store token", "error", err)
-		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token storage failed")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorServerError, "token storage failed")
 
 		return
 	}
@@ -255,4 +258,17 @@ func (h *Handler) issueTokenResponse(w http.ResponseWriter, r *http.Request, req
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("failed to encode token response", "error", err)
 	}
+}
+
+func (h *Handler) generateAccessToken() (string, error) {
+	if h.generateAccessTokenFn != nil {
+		return h.generateAccessTokenFn()
+	}
+
+	accessToken, err := token.GenerateAccessToken()
+	if err != nil {
+		return "", fmt.Errorf("ocm: generate access token: %w", err)
+	}
+
+	return accessToken, nil
 }

@@ -1,0 +1,5 @@
+kind: fixed
+body: >-
+  Peer-trust refresh now claims the refresh flag and releases the lock before
+  spawning the refresh goroutine, so concurrent stale triggers coordinate as
+  single-flight and exactly one refresh runs.

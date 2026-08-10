@@ -89,6 +89,20 @@ func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 	}
 }
 
+func TestValidateCredential_RejectsNearMissSecret(t *testing.T) {
+	t.Parallel()
+
+	repo := newMockOutgoingShareRepo()
+	share := seedShare(t, repo)
+
+	handler := NewHandler(repo, newMockTokenStore(), nil)
+
+	authorized := handler.validateCredential(context.Background(), share, "secret124")
+	if authorized {
+		t.Error("expected equal-length near-miss shared secret to be rejected")
+	}
+}
+
 func TestValidateCredential_RejectsUnknownToken(t *testing.T) {
 	t.Parallel()
 

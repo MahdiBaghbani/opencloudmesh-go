@@ -218,6 +218,16 @@ func (m *TrustGroupManager) triggerRefreshIfNeeded(_ context.Context, tg *TrustG
 
 		timeout := m.refreshTimeout * time.Duration(enabledCount)
 
+		tg.refreshMu.Lock()
+		if tg.refreshing {
+			tg.refreshMu.Unlock()
+
+			return
+		}
+
+		tg.refreshing = true
+		tg.refreshMu.Unlock()
+
 		//nolint:gosec,contextcheck // intentional fire-and-forget background work that must outlive the request; cannot use the request context
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -229,17 +239,9 @@ func (m *TrustGroupManager) triggerRefreshIfNeeded(_ context.Context, tg *TrustG
 }
 
 // refreshTrustGroup fetches and updates membership for a trust group.
+// The caller must have set tg.refreshing under tg.refreshMu before launching
+// the refresh goroutine.
 func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGroup) {
-	tg.refreshMu.Lock()
-	if tg.refreshing {
-		tg.refreshMu.Unlock()
-
-		return
-	}
-
-	tg.refreshing = true
-	tg.refreshMu.Unlock()
-
 	defer func() {
 		tg.refreshMu.Lock()
 		tg.refreshing = false

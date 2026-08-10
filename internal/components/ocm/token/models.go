@@ -36,6 +36,8 @@ const (
 	ErrorUnauthorized = spec.ErrorUnauthorized
 	// ErrorUnsupportedGrantType is the unsupported-grant-type OAuth error code.
 	ErrorUnsupportedGrantType = spec.ErrorUnsupportedGrantType
+	// ErrorServerError is the server-error OAuth error code.
+	ErrorServerError = spec.ErrorServerError
 )
 
 // IssuedToken holds an access token issued by the OCM token endpoint.

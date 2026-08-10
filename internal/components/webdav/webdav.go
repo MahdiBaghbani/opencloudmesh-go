@@ -8,6 +8,7 @@ package webdav
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log/slog"
 	"mime"
@@ -114,7 +115,8 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 
 	// Legacy shared-secret bearer is sanctioned for shares that do not
 	// require token exchange.
-	if !shareRequires(share.Requirements, spec.RequirementMustExchangeToken) && token == share.SharedSecret {
+	if !shareRequires(share.Requirements, spec.RequirementMustExchangeToken) &&
+		subtle.ConstantTimeCompare([]byte(token), []byte(share.SharedSecret)) == 1 {
 		return true
 	}
 

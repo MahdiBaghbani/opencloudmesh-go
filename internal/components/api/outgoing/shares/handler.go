@@ -8,12 +8,8 @@ package shares
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -28,7 +24,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
@@ -154,8 +149,8 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.sendShareToReceiver(r.Context(), origin, disc, payload); err != nil {
-		h.logger.Warn("failed to send share to receiver", "receiver", req.ReceiverDomain, "error", err)
-		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, err.Error())
+		h.logger.Warn("failed to deliver share to receiver", "receiver", req.ReceiverDomain, "error", err)
+		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, "failed to deliver share to receiver")
 
 		return
 	}
@@ -232,74 +227,6 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	}
 
 	return cleanPath, nil
-}
-
-func (h *Handler) sendShareToReceiver(
-	ctx context.Context,
-	origin resolvedPeerOrigin,
-	disc *spec.Discovery,
-	payload spec.NewShareRequest,
-) error {
-	body, err := json.Marshal(payload) //nolint:errchkjson // payload type cannot fail to encode, so the checked error is always nil
-	if err != nil {
-		return fmt.Errorf("failed to encode payload: %w", err)
-	}
-
-	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.peerOrigin)
-
-	resp, err := poster.SendResolved(ctx, outbound.Request{
-		TargetHost:   origin.peerDomain,
-		EndpointPath: "shares",
-		Kind:         outbound.EndpointShares,
-		Body:         body,
-	}, outbound.ResolvedPeer{
-		Discovery: disc,
-	})
-	if err != nil {
-		return fmt.Errorf("api: send outgoing share: %w", err)
-	}
-	defer func() {
-		//nolint:errcheck // best-effort cleanup; error is not actionable
-		resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		respBody, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("receiver returned status %d: %w", resp.StatusCode, readErr)
-		}
-
-		return fmt.Errorf("receiver returned status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	return nil
-}
-
-func generateSharedSecret() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to generate shared secret: %w", err)
-	}
-
-	return base64.URLEncoding.EncodeToString(b), nil
-}
-
-type resolvedPeerOrigin struct {
-	baseURL    string
-	peerDomain string
-}
-
-func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
-	if h.peerOrigin == nil {
-		return resolvedPeerOrigin{}
-	}
-
-	decision := h.peerOrigin.Resolve(peerDomain)
-
-	return resolvedPeerOrigin{
-		baseURL:    decision.BaseURL,
-		peerDomain: decision.PeerDomain,
-	}
 }
 
 func (h *Handler) parseOutgoingRequest(w http.ResponseWriter, r *http.Request) (sharesoutgoing.OutgoingShareRequest, *identity.User, bool) {
