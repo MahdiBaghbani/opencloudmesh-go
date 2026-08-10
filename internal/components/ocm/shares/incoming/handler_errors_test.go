@@ -10,13 +10,19 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
+	tsidentity "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/identity"
 )
 
 func TestCreateShare_MissingRequiredFields(t *testing.T) {
@@ -207,6 +213,54 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 		t.Error("expected validationError {shareWith, NOT_FOUND}")
 	}
 }
+
+func TestHandler_ResolveRecipient_InfraError_Returns500(t *testing.T) {
+	t.Parallel()
+
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	capture := logutil.NewCapturingLogger(slog.LevelWarn)
+	handler := incoming.NewHandler(
+		repo,
+		&tsidentity.FailingPartyRepo{},
+		nil,
+		nil,
+		nil,
+		false,
+		"localhost:9200",
+		"https",
+		nil,
+	)
+
+	body := validShareBody("alice@localhost:9200")
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(appctx.WithLogger(req.Context(), capture.Logger))
+
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if !capture.Contains("error=") {
+		t.Fatalf("expected warning with error attribute, got: %s", capture.Output())
+	}
+
+	if strings.Contains(w.Body.String(), tsidentity.ErrUnavailable.Error()) {
+		t.Fatalf("response leaked backend error: %s", w.Body.String())
+	}
+
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
+	if resp.Message != "STORAGE_ERROR" {
+		t.Errorf("expected STORAGE_ERROR, got %q", resp.Message)
+	}
+}
+
 func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
 	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares

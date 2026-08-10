@@ -1,0 +1,4 @@
+kind: security
+body: >-
+  POST /api/auth/login now bounds the request body to 4096 bytes and returns 413
+  on overflow, mirroring the OCM body-limit pattern.

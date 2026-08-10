@@ -98,6 +98,28 @@ func (r *testSessionRepo) DeleteExpired(_ context.Context) (int, error) {
 	return 0, nil
 }
 
+type expiredSessionRepo struct{}
+
+func (expiredSessionRepo) Create(_ context.Context, _ string, _ time.Duration) (*identity.Session, error) {
+	return nil, identity.ErrSessionNotFound
+}
+
+func (expiredSessionRepo) Get(_ context.Context, _ string) (*identity.Session, error) {
+	return nil, identity.ErrSessionExpired
+}
+
+func (expiredSessionRepo) Delete(_ context.Context, _ string) error {
+	return nil
+}
+
+func (expiredSessionRepo) DeleteByUser(_ context.Context, _ string) error {
+	return nil
+}
+
+func (expiredSessionRepo) DeleteExpired(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 // testPartyRepo is a simple party repo for testing.
 type testPartyRepo struct {
 	users map[string]*identity.User

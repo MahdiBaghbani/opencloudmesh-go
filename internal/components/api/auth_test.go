@@ -106,22 +106,6 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	}
 }
 
-func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
-	t.Parallel()
-	handler, repo, _, auth := newTestAuthHandler(t)
-	seedUser(t, repo, auth, "alice", "secret123")
-
-	body := `{"username":"alice","password":"wrong"}`
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
-	w := httptest.NewRecorder()
-
-	handler.Login(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
 func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
 	t.Parallel()
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -359,7 +360,7 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 	}
 }
 
-func TestLimiter_AllowsOnCacheError(t *testing.T) {
+func TestLimiter_FailsClosedOnCacheError(t *testing.T) {
 	t.Parallel()
 
 	counter := newMockCounter()
@@ -379,13 +380,16 @@ func TestLimiter_AllowsOnCacheError(t *testing.T) {
 		tshttp.MustWrite(t, w, []byte("ok"))
 	}))
 
-	// Request should be allowed even though cache fails
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200 on cache error (fail open), got %d", rec.Code)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503 on cache error (fail closed), got %d", rec.Code)
+	}
+
+	if strings.Contains(rec.Body.String(), context.DeadlineExceeded.Error()) {
+		t.Errorf("response leaked cache error: %s", rec.Body.String())
 	}
 }
 

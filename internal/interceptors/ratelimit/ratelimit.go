@@ -94,7 +94,7 @@ func (l *Limiter) Wrap(next http.Handler) http.Handler {
 		count, resetAt, err := l.cache.Increment(r.Context(), "ratelimit:"+key, 1, l.window)
 		if err != nil {
 			l.log.Warn("rate limit check failed", "error", err)
-			next.ServeHTTP(w, r)
+			api.WriteError(w, http.StatusServiceUnavailable, api.ReasonInternalError, "service temporarily unavailable")
 
 			return
 		}

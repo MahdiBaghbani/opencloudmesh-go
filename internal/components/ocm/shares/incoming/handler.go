@@ -7,7 +7,6 @@ package incoming
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -136,18 +135,29 @@ func writeProtocolValidationErrors(w http.ResponseWriter, errs []spec.Validation
 
 // resolveRecipient: canonical ID -> username -> email -> federated opaque ID (if no @, base64-like, idp matches).
 func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*identity.User, error) {
-	user, err := h.partyRepo.Get(ctx, identifier)
-	if err == nil {
+	var infraErr error
+
+	recordLookup := func(user *identity.User, err error) (*identity.User, bool) {
+		if err == nil {
+			return user, true
+		}
+
+		if identity.IsInfrastructureError(err) {
+			infraErr = err
+		}
+
+		return nil, false
+	}
+
+	if user, ok := recordLookup(h.partyRepo.Get(ctx, identifier)); ok {
 		return user, nil
 	}
 
-	user, err = h.partyRepo.GetByUsername(ctx, identifier)
-	if err == nil {
+	if user, ok := recordLookup(h.partyRepo.GetByUsername(ctx, identifier)); ok {
 		return user, nil
 	}
 
-	user, err = h.partyRepo.GetByEmail(ctx, identifier)
-	if err == nil {
+	if user, ok := recordLookup(h.partyRepo.GetByEmail(ctx, identifier)); ok {
 		return user, nil
 	}
 
@@ -156,13 +166,16 @@ func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*ide
 		if ok {
 			normalizedIDP, normErr := hostport.Normalize(decodedIDP, h.localScheme)
 			if normErr == nil && strings.EqualFold(normalizedIDP, h.localProviderFQDNForCompare) {
-				user, err := h.partyRepo.Get(ctx, decodedUserID)
-				if err == nil {
+				if user, lookupOK := recordLookup(h.partyRepo.Get(ctx, decodedUserID)); lookupOK {
 					return user, nil
 				}
 			}
 		}
 	}
 
-	return nil, errors.New("recipient not found")
+	if infraErr != nil {
+		return nil, infraErr
+	}
+
+	return nil, identity.ErrUserNotFound
 }

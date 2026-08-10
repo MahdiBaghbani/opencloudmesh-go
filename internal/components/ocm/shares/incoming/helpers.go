@@ -197,10 +197,23 @@ func (h *Handler) resolveShareRecipient(
 
 	resolvedUser, err := h.resolveRecipient(r.Context(), identifier)
 	if err != nil {
-		log.Warn("recipient not found", "identifier", identifier)
-		spec.WriteValidationError(w, "RECIPIENT_NOT_FOUND", []spec.ValidationError{
-			{Name: fieldShareWith, Message: "NOT_FOUND"},
-		})
+		if errors.Is(err, identity.ErrUserNotFound) {
+			spec.WriteValidationError(w, "RECIPIENT_NOT_FOUND", []spec.ValidationError{
+				{Name: fieldShareWith, Message: "NOT_FOUND"},
+			})
+
+			return nil, false
+		}
+
+		if identity.IsInfrastructureError(err) {
+			log.Warn("recipient lookup failed", "error", err)
+			spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
+
+			return nil, false
+		}
+
+		log.Warn("unexpected recipient lookup error", "error", err)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
 
 		return nil, false
 	}
@@ -248,6 +261,8 @@ func (h *Handler) authenticateSenderAndResolveOwner(
 		}
 	}
 
+	// nil policyEngine means peer-trust is off (or omitted in tests); policy
+	// checks are skipped intentionally, not a fail-closed state.
 	if h.policyEngine != nil {
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
 		if !decision.Allowed {

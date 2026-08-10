@@ -7,13 +7,20 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 )
 
-const SessionTTL = 24 * time.Hour //nolint:revive // exported: obvious default auth session TTL duration constant
+const (
+	SessionTTL = 24 * time.Hour //nolint:revive // exported: obvious default auth session TTL duration constant
+
+	maxLoginBodyBytes = 4096
+)
 
 // AuthHandler serves login, logout, and current-user endpoints.
 type AuthHandler struct {
@@ -57,8 +64,24 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxLoginBodyBytes)
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeJSONError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "request body too large")
+
+			return
+		}
+
+		writeJSONError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+
+		return
+	}
+
 	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if unmarshalErr := json.Unmarshal(body, &req); unmarshalErr != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 
 		return
@@ -74,6 +97,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.auth.Authenticate(ctx, h.repo, req.Username, req.Password)
 	if err != nil {
+		if identity.IsInfrastructureError(err) {
+			appctx.GetLogger(ctx).Warn("login authentication failed", "error", err)
+			WriteInternalError(w, "internal server error")
+
+			return
+		}
+
 		writeJSONError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 
 		return
@@ -160,6 +190,13 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 
 	session, err := h.sessions.Get(ctx, token)
 	if err != nil {
+		if identity.IsInfrastructureError(err) {
+			appctx.GetLogger(ctx).Warn("session lookup failed", "error", err)
+			WriteInternalError(w, "internal server error")
+
+			return
+		}
+
 		writeJSONError(w, http.StatusUnauthorized, "invalid_session", "session expired or invalid")
 
 		return
@@ -167,6 +204,13 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.repo.Get(ctx, session.UserID)
 	if err != nil {
+		if identity.IsInfrastructureError(err) {
+			appctx.GetLogger(ctx).Warn("user lookup failed", "error", err)
+			WriteInternalError(w, "internal server error")
+
+			return
+		}
+
 		writeJSONError(w, http.StatusUnauthorized, "user_not_found", "user not found")
 
 		return

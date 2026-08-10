@@ -57,6 +57,7 @@ func AccessLogMiddleware(log *slog.Logger, trustedProxies *realip.TrustedProxies
 				// IMPORTANT: The context logger already has request_id, method, path,
 				// client_ip attached by RequestLoggerMiddleware. We only add response
 				// fields here. Do NOT re-add base fields or you will get duplicate keys.
+				// Alerting should key off the structured status field, not log level.
 				logger.Info("request",
 					"status", ww.Status(),
 					"bytes", ww.BytesWritten(),
