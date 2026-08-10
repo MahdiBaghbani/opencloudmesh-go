@@ -83,6 +83,13 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 			// Validate session
 			session, err := cfg.SessionRepo.Get(r.Context(), sessionToken)
 			if err != nil {
+				if identity.IsInfrastructureError(err) {
+					appctx.GetLogger(r.Context()).Warn("session lookup failed", "error", err)
+					api.WriteInternalError(w, "internal server error")
+
+					return
+				}
+
 				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "session not found or expired")
 
 				return
@@ -98,6 +105,13 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 			// Get associated user
 			user, err := cfg.PartyRepo.Get(r.Context(), session.UserID)
 			if err != nil {
+				if identity.IsInfrastructureError(err) {
+					appctx.GetLogger(r.Context()).Warn("user lookup failed", "error", err)
+					api.WriteInternalError(w, "internal server error")
+
+					return
+				}
+
 				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "session user not found")
 
 				return
