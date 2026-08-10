@@ -7,6 +7,7 @@ package store
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -30,10 +31,26 @@ var (
 // Register registers a driver factory by name.
 // This is typically called from init() in driver packages.
 func Register(name string, factory DriverFactory) {
+	if factory == nil {
+		panic("store: nil driver factory")
+	}
+
+	if strings.TrimSpace(name) == "" {
+		panic("store: empty driver name")
+	}
+
 	driversMu.Lock()
 	defer driversMu.Unlock()
 
 	drivers[name] = factory
+}
+
+// Unregister removes a driver factory by name. Intended for test isolation.
+func Unregister(name string) {
+	driversMu.Lock()
+	defer driversMu.Unlock()
+
+	delete(drivers, name)
 }
 
 // New creates a driver instance based on the configuration.
