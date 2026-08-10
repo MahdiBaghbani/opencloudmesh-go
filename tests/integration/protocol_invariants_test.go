@@ -6,9 +6,11 @@
 package integration
 
 import (
+	"maps"
 	"strings"
 	"testing"
 
+	ocmshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	tsprotocol "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/protocol"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -122,6 +124,47 @@ func assertPersistenceUnchanged(t *testing.T, before, after tsprotocol.Persisten
 		}
 
 		t.Fatalf("persistence changed\nbefore: %s\nafter: %s", string(b), string(a))
+	}
+}
+
+// assertFailedOutgoingShareAdded fails unless after adds exactly one outgoing
+// share over before, that share has status failed with a shared secret, and
+// every pre-existing share row is unchanged. Persist-before-deliver keeps a
+// failed record for audit when delivery fails; the peer never received the
+// share, so the record is not an orphan.
+func assertFailedOutgoingShareAdded(t *testing.T, before, after tsprotocol.PersistenceSnapshot) {
+	t.Helper()
+
+	if !maps.Equal(before.Shares.Incoming, after.Shares.Incoming) {
+		t.Fatalf("incoming shares changed\nbefore: %v\nafter: %v", before.Shares.Incoming, after.Shares.Incoming)
+	}
+
+	for providerID, share := range before.Shares.Outgoing {
+		if after.Shares.Outgoing[providerID] != share {
+			t.Fatalf("pre-existing outgoing share %s changed\nbefore: %+v\nafter: %+v",
+				providerID, share, after.Shares.Outgoing[providerID])
+		}
+	}
+
+	added := []tsprotocol.RedactedOutgoingShare{}
+
+	for providerID, share := range after.Shares.Outgoing {
+		if _, ok := before.Shares.Outgoing[providerID]; !ok {
+			added = append(added, share)
+		}
+	}
+
+	if len(added) != 1 {
+		t.Fatalf("expected exactly one added outgoing share, got %d\nbefore: %v\nafter: %v",
+			len(added), before.Shares.Outgoing, after.Shares.Outgoing)
+	}
+
+	if added[0].Status != string(ocmshares.OutgoingShareStatusFailed) {
+		t.Fatalf("expected added outgoing share status %q, got %q", ocmshares.OutgoingShareStatusFailed, added[0].Status)
+	}
+
+	if !added[0].HasSharedSecret {
+		t.Fatal("expected added failed share to keep its shared secret")
 	}
 }
 

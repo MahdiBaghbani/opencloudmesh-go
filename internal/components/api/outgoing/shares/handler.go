@@ -147,14 +147,6 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if err := h.sendShareToReceiver(r.Context(), origin, disc, payload); err != nil {
-		h.logger.Warn("failed to deliver share to receiver", "receiver", req.ReceiverDomain, "error", err)
-		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, "failed to deliver share to receiver")
-
-		return
-	}
-
-	now := time.Now()
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:       providerID.String(),
 		WebDAVID:         webdavID.String(),
@@ -169,13 +161,38 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		Permissions:      req.Permissions,
 		Owner:            owner,
 		Sender:           sender,
-		Status:           ocmshares.OutgoingShareStatusSent,
-		SentAt:           &now,
+		Status:           ocmshares.OutgoingShareStatusPending,
 		Requirements:     requirements,
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
 		h.logger.Error("failed to store outgoing share", "error", err)
+		api.WriteInternalError(w, "failed to create share")
+
+		return
+	}
+
+	if err := h.sendShareToReceiver(r.Context(), origin, disc, payload); err != nil {
+		h.logger.Warn("failed to deliver share to receiver", "receiver", req.ReceiverDomain, "error", err)
+
+		share.Status = ocmshares.OutgoingShareStatusFailed
+		share.Error = err.Error()
+
+		if uerr := h.repo.Update(r.Context(), share); uerr != nil {
+			h.logger.Error("failed to mark outgoing share as failed", "share_id", share.ShareID, "error", uerr)
+		}
+
+		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, "failed to deliver share to receiver")
+
+		return
+	}
+
+	share.Status = ocmshares.OutgoingShareStatusSent
+	sentAt := time.Now()
+	share.SentAt = &sentAt
+
+	if err := h.repo.Update(r.Context(), share); err != nil {
+		h.logger.Error("failed to mark outgoing share as sent", "share_id", share.ShareID, "error", err)
 		api.WriteInternalError(w, "share sent but local persistence failed")
 
 		return

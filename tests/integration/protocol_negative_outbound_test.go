@@ -113,7 +113,9 @@ func runOutboundStaleTrustMembershipCase(
 		t.Fatalf("snapshot persistence after stale-trust membership: %v", err)
 	}
 
-	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
+	// Persist-before-deliver keeps one failed outgoing share for audit; the
+	// peer rejected delivery, so the record is not an orphan.
+	assertFailedOutgoingShareAdded(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
 	assertNoSecretInLogs(t, nil, provider, consumer)
