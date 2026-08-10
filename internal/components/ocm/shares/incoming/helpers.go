@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -402,7 +403,10 @@ func (h *Handler) gateMustInvite(
 	return false
 }
 
-// storeIncomingShare returns an existing duplicate or persists a new share and writes the response.
+// storeIncomingShare looks up an existing share by sender host and provider ID.
+// When a duplicate exists with identical compared payload fields, it responds 201
+// idempotently. When a duplicate exists with a mismatched payload, it responds
+// 409. When no duplicate exists, it persists a new share and responds 201.
 func (h *Handler) storeIncomingShare(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -421,35 +425,11 @@ func (h *Handler) storeIncomingShare(
 		return
 	}
 
-	if existing != nil {
-		log.Info("duplicate share, returning existing",
-			"provider_id", req.ProviderID,
-			"sender", senderHost)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-
-		if err := json.NewEncoder(w).Encode(spec.CreateShareResponse{
-			RecipientDisplayName: resolvedUser.DisplayName,
-		}); err != nil {
-			log.Error("failed to encode share response", "error", err)
-		}
-
+	if handleExistingIncomingShare(w, log, existing, req, senderHost, resolvedUser) {
 		return
 	}
 
-	webdav := req.Protocol.WebDAV
-
-	var (
-		webdavURI, webdavSharedSecret         string
-		webdavPermissions, webdavRequirements []string
-	)
-
-	if webdav != nil {
-		webdavURI = webdav.URI
-		webdavSharedSecret = webdav.SharedSecret
-		webdavPermissions = webdav.Permissions
-		webdavRequirements = append([]string(nil), webdav.Requirements...)
-	}
+	webdavURI, webdavSharedSecret, webdavPermissions, webdavRequirements := extractWebDAV(req)
 
 	share := &IncomingShare{
 		ProviderID:           req.ProviderID,
@@ -487,11 +467,15 @@ func (h *Handler) storeIncomingShare(
 		"provider_id", share.ProviderID,
 		"sender", senderHost,
 		"recipient_user_id", share.RecipientUserID)
+	writeIncomingCreateShareResponse(w, log, share.RecipientDisplayName)
+}
+
+func writeIncomingCreateShareResponse(w http.ResponseWriter, log *slog.Logger, recipientDisplayName string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(spec.CreateShareResponse{
-		RecipientDisplayName: share.RecipientDisplayName,
+		RecipientDisplayName: recipientDisplayName,
 	}); err != nil {
 		log.Error("failed to encode share response", "error", err)
 	}

@@ -269,13 +269,13 @@ func assertDuplicateInboundIdempotent(t *testing.T, provider, consumer *harness.
 	dupResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	defer tshttp.MustClose(t, dupResp.Body)
 
-	if dupResp.StatusCode != http.StatusOK {
+	if dupResp.StatusCode != http.StatusCreated {
 		respBody, rerr := io.ReadAll(dupResp.Body)
 		if rerr != nil {
 			t.Fatalf("read response body: %v", rerr)
 		}
 
-		t.Fatalf("duplicate webdav inbound share: expected 200, got %d: %s", dupResp.StatusCode, respBody)
+		t.Fatalf("duplicate webdav inbound share: expected 201, got %d: %s", dupResp.StatusCode, respBody)
 	}
 
 	afterSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
