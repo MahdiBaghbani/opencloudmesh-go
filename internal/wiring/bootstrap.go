@@ -154,6 +154,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient, discoveryClient)
 	peerDiscoveryAdapter.SetPeerOrigin(peerOrigin)
+
 	signatureMiddleware := signature.NewSignatureMiddleware(
 		peerDiscoveryAdapter,
 		localIdentity.Origin,

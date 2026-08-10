@@ -20,12 +20,39 @@ import (
 	"strings"
 )
 
+// VerifyOptions configures signature verification behavior.
+type VerifyOptions struct {
+	// MinRSAModulusBits is the minimum RSA modulus size for RSA algorithms.
+	// Zero or negative values use MinRSAModulusBits.
+	MinRSAModulusBits int
+}
+
+func (o VerifyOptions) effectiveMinRSAModulusBits() int {
+	if o.MinRSAModulusBits <= 0 {
+		return MinRSAModulusBits
+	}
+
+	return o.MinRSAModulusBits
+}
+
 // Verify verifies message signature with the given algorithm and public key.
 func Verify(alg string, publicKey crypto.PublicKey, message, signature []byte) error {
+	return VerifyWithOptions(alg, publicKey, message, signature, VerifyOptions{})
+}
+
+// VerifyWithOptions verifies a message signature with explicit verification policy.
+func VerifyWithOptions(
+	alg string,
+	publicKey crypto.PublicKey,
+	message, signature []byte,
+	opts VerifyOptions,
+) error {
 	native, err := Normalize(alg)
 	if err != nil {
 		return err
 	}
+
+	minRSAModulusBits := opts.effectiveMinRSAModulusBits()
 
 	switch native {
 	case Ed25519:
@@ -44,11 +71,11 @@ func Verify(alg string, publicKey crypto.PublicKey, message, signature []byte) e
 	case ECDSAP384SHA384:
 		return verifyECDSA(publicKey, elliptic.P384(), sha512.New384, 48, message, signature)
 	case RSAPKCS1SHA256:
-		return verifyRSAPKCS1(publicKey, crypto.SHA256, sha256.New, message, signature)
+		return verifyRSAPKCS1(publicKey, crypto.SHA256, sha256.New, minRSAModulusBits, message, signature)
 	case RSAPKCS1SHA384:
-		return verifyRSAPKCS1(publicKey, crypto.SHA384, sha512.New384, message, signature)
+		return verifyRSAPKCS1(publicKey, crypto.SHA384, sha512.New384, minRSAModulusBits, message, signature)
 	case RSAPKCS1SHA512:
-		return verifyRSAPKCS1(publicKey, crypto.SHA512, sha512.New, message, signature)
+		return verifyRSAPKCS1(publicKey, crypto.SHA512, sha512.New, minRSAModulusBits, message, signature)
 	default:
 		return fmt.Errorf("%w: verification for %q", ErrNotImplemented, native)
 	}
@@ -98,11 +125,16 @@ func verifyRSAPKCS1(
 	publicKey crypto.PublicKey,
 	hash crypto.Hash,
 	newHash func() hash.Hash,
+	minModulusBits int,
 	message, signature []byte,
 ) error {
 	key, ok := publicKey.(*rsa.PublicKey)
 	if !ok || key == nil {
 		return fmt.Errorf("%w: expected *rsa.PublicKey", ErrWrongKeyType)
+	}
+
+	if key.N.BitLen() < minModulusBits {
+		return fmt.Errorf("%w: RSA modulus %d bits below minimum %d", ErrWeakKey, key.N.BitLen(), minModulusBits)
 	}
 
 	h := newHash()

@@ -1,0 +1,6 @@
+kind: security
+body: >-
+  JWK verification now rejects RSA keys below 2048 bits by default
+  (configurable via signature.min_rsa_modulus_bits). Breaking for weak RSA
+  peers that remain OCM-valid; lower the floor to interoperate with legacy
+  1024-bit RSA peers.

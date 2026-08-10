@@ -31,6 +31,13 @@ compile-time constant.
 To switch algorithms, an operator changes `signature.allowed_algorithms` in the
 config and restarts the server. No code change or recompilation is required.
 
+## RSA modulus floor
+
+JWK verification applies a stricter-than-OCM local policy to RSA keys:
+`signature.min_rsa_modulus_bits` defaults to 2048. OCM does not define an RSA
+bit minimum, so lowering this setting can interoperate with legacy peers using
+1024-bit RSA keys that remain OCM-valid.
+
 ## TLS
 
 The server's TLS configuration lives in `internal/platform/http/tls/tls.go`.

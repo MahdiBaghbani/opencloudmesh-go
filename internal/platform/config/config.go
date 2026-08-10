@@ -250,6 +250,10 @@ type SignatureConfig struct {
 	// discovery. Empty derives it from the route inventory as
 	// <endPoint>/jwks.
 	JwksURI string `toml:"jwks_uri"`
+
+	// MinRSAModulusBits is the local minimum RSA modulus size for inbound
+	// signature verification. Zero means use the default (2048).
+	MinRSAModulusBits int `toml:"min_rsa_modulus_bits"`
 }
 
 // TLSConfig holds TLS-related settings.

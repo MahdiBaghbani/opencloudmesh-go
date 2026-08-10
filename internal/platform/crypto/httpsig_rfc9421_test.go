@@ -64,6 +64,30 @@ func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
 	}
 }
 
+func TestRFC9421OptionsFromConfig_MinRSAModulusBits(t *testing.T) {
+	t.Parallel()
+
+	defaultOpts := crypto.RFC9421OptionsFromConfig(config.DefaultSignatureConfig())
+	if defaultOpts.MinRSAModulusBits != config.DefaultMinRSAModulusBits {
+		t.Fatalf("default MinRSAModulusBits = %d, want %d", defaultOpts.MinRSAModulusBits, config.DefaultMinRSAModulusBits)
+	}
+
+	zeroOpts := crypto.RFC9421OptionsFromConfig(config.SignatureConfig{MinRSAModulusBits: 0})
+	if zeroOpts.MinRSAModulusBits != config.DefaultMinRSAModulusBits {
+		t.Fatalf("zero MinRSAModulusBits = %d, want %d", zeroOpts.MinRSAModulusBits, config.DefaultMinRSAModulusBits)
+	}
+
+	customOpts := crypto.RFC9421OptionsFromConfig(config.SignatureConfig{MinRSAModulusBits: 1024})
+	if customOpts.MinRSAModulusBits != 1024 {
+		t.Fatalf("custom MinRSAModulusBits = %d, want 1024", customOpts.MinRSAModulusBits)
+	}
+
+	verifier := crypto.NewRFC9421VerifierWithOptions(customOpts)
+	if verifier == nil {
+		t.Fatal("NewRFC9421VerifierWithOptions returned nil")
+	}
+}
+
 func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 	t.Parallel()
 
