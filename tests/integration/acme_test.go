@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -57,6 +58,7 @@ func TestACME_SubprocessTwoListeners(t *testing.T) {
 
 	httpPort := getFreeTCPPort(t)
 	httpsPort := getFreeTCPPort(t)
+	acmeDomain := "localhost"
 
 	configPath := filepath.Join(tempDir, "config.toml")
 	configContent := fmt.Sprintf(`# ACME integration test config
@@ -72,7 +74,7 @@ https_port = %d
 
 [tls.acme]
 storage_dir = %q
-domain = "localhost"
+domain = %q
 email = "test@test.local"
 directory = "https://192.0.2.1:14000/dir"
 
@@ -88,7 +90,7 @@ connect_timeout_ms = 2000
 max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = true
-`, httpsPort, httpPort, httpsPort, acmeDir)
+`, httpsPort, httpPort, httpsPort, acmeDir, acmeDomain)
 
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		t.Fatal(err)
@@ -155,7 +157,7 @@ insecure_skip_verify = true
 	)
 
 	// 2. Non-challenge HTTP request returns 308 redirect to HTTPS.
-	assertRedirectToHTTPS(t, httpAddr, httpsPort)
+	assertRedirectToHTTPS(t, httpAddr, httpsPort, acmeDomain)
 
 	// 3. HTTPS listener serves the application (healthz returns 200).
 	tlsClient := &http.Client{Transport: &http.Transport{
@@ -216,8 +218,8 @@ func assertHTTPStatus(t *testing.T, name string, client *http.Client, url string
 }
 
 // assertRedirectToHTTPS fetches an HTTP URL without following redirects and
-// expects a 308 to the corresponding HTTPS URL.
-func assertRedirectToHTTPS(t *testing.T, httpAddr string, httpsPort int) {
+// expects a 308 to the corresponding HTTPS URL on the configured ACME domain.
+func assertRedirectToHTTPS(t *testing.T, httpAddr string, httpsPort int, acmeDomain string) {
 	t.Helper()
 
 	noRedirectClient := &http.Client{
@@ -250,7 +252,8 @@ func assertRedirectToHTTPS(t *testing.T, httpAddr string, httpsPort int) {
 	}
 
 	loc := resp.Header.Get("Location")
-	wantLoc := fmt.Sprintf("https://127.0.0.1:%d/some/path?q=1", httpsPort)
+	wantHostPort := net.JoinHostPort(acmeDomain, strconv.Itoa(httpsPort))
+	wantLoc := fmt.Sprintf("https://%s/some/path?q=1", wantHostPort)
 
 	if loc != wantLoc {
 		t.Errorf("redirect Location = %q, want %q", loc, wantLoc)

@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -79,11 +78,12 @@ func New(
 	router := s.setupRoutes()
 
 	s.httpServer = &http.Server{
-		Addr:         cfg.ListenAddr,
-		Handler:      router,
-		ReadTimeout:  config.DefaultServerReadTimeout,
-		WriteTimeout: config.DefaultServerWriteTimeout,
-		IdleTimeout:  config.DefaultServerIdleTimeout,
+		Addr:              cfg.ListenAddr,
+		Handler:           router,
+		ReadTimeout:       config.DefaultServerReadTimeout,
+		ReadHeaderTimeout: config.DefaultServerReadHeaderTimeout,
+		WriteTimeout:      config.DefaultServerWriteTimeout,
+		IdleTimeout:       config.DefaultServerIdleTimeout,
 	}
 
 	return s, nil
@@ -235,6 +235,10 @@ func validateACMEConfig(cfg *config.Config) error {
 		return errors.New("tls.https_port must be set for ACME mode")
 	}
 
+	if cfg.TLS.ACME.Domain == "" {
+		return errors.New("tls.acme.domain must be set for ACME mode")
+	}
+
 	if cfg.PublicOrigin == "" {
 		return nil
 	}
@@ -264,15 +268,16 @@ func validateACMEConfig(cfg *config.Config) error {
 func (s *Server) startChallengeServer(acmeMgr *tlspkg.ACMEManager, host string) (*http.Server, net.Listener, error) {
 	challengeMux := http.NewServeMux()
 	challengeMux.Handle("/.well-known/acme-challenge/", acmeMgr.ChallengeHandler())
-	challengeMux.Handle("/", newHTTPSRedirectHandler(s.cfg.TLS.HTTPSPort))
+	challengeMux.Handle("/", newHTTPSRedirectHandler(s.cfg.TLS.ACME.Domain, s.cfg.TLS.HTTPSPort))
 
 	httpAddr := net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPPort))
 	challengeServer := &http.Server{
-		Addr:         httpAddr,
-		Handler:      challengeMux,
-		ReadTimeout:  config.DefaultChallengeReadTimeout,
-		WriteTimeout: config.DefaultChallengeWriteTimeout,
-		IdleTimeout:  config.DefaultChallengeIdleTimeout,
+		Addr:              httpAddr,
+		Handler:           challengeMux,
+		ReadTimeout:       config.DefaultChallengeReadTimeout,
+		ReadHeaderTimeout: config.DefaultChallengeReadHeaderTimeout,
+		WriteTimeout:      config.DefaultChallengeWriteTimeout,
+		IdleTimeout:       config.DefaultChallengeIdleTimeout,
 	}
 
 	s.challengeServer = challengeServer
@@ -320,25 +325,15 @@ func (s *Server) runACMEServers(httpsErrCh, challengeErrCh chan error) error {
 	}
 }
 
-func newHTTPSRedirectHandler(httpsPort int) http.Handler {
+func newHTTPSRedirectHandler(domain string, httpsPort int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hostOnly := r.Host
-		if h, _, err := net.SplitHostPort(hostOnly); err == nil {
-			hostOnly = h
-		}
-
-		if strings.Contains(hostOnly, ":") && (!strings.HasPrefix(hostOnly, "[") || !strings.HasSuffix(hostOnly, "]")) {
-			hostOnly = "[" + hostOnly + "]"
-		}
-
 		var target string
 		if httpsPort == defaultHTTPSPort {
-			target = "https://" + hostOnly + r.URL.RequestURI()
+			target = "https://" + domain + r.URL.RequestURI()
 		} else {
-			target = "https://" + net.JoinHostPort(strings.Trim(hostOnly, "[]"), strconv.Itoa(httpsPort)) + r.URL.RequestURI()
+			target = "https://" + net.JoinHostPort(domain, strconv.Itoa(httpsPort)) + r.URL.RequestURI()
 		}
 
-		//nolint:gosec // target is same-host HTTPS upgrade built from r.Host and r.URL, not a user-supplied URL
-		http.Redirect(w, r, target, http.StatusPermanentRedirect)
+		http.Redirect(w, r, target, http.StatusPermanentRedirect) //nolint:gosec // G710: target is derived from the validated operator-configured cfg.TLS.ACME.Domain, not request input
 	})
 }

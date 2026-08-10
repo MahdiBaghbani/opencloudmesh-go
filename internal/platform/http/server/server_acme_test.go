@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -152,7 +153,7 @@ func TestACME_TwoListeners(t *testing.T) {
 	}
 
 	assertUnknownChallenge404(t, httpAddr)
-	assertHTTPRedirectsToHTTPS(t, httpAddr, httpsPort)
+	assertHTTPRedirectsToHTTPS(t, httpAddr, httpsPort, cfg.TLS.ACME.Domain)
 	assertHTTPSListenerServesTLS(t, httpsAddr)
 	shutdownAndDrainStart(t, srv, startErr)
 }
@@ -180,8 +181,8 @@ func assertUnknownChallenge404(t *testing.T, httpAddr string) {
 }
 
 // assertHTTPRedirectsToHTTPS checks a non-challenge HTTP request gets a 308
-// redirect to the HTTPS listener.
-func assertHTTPRedirectsToHTTPS(t *testing.T, httpAddr string, httpsPort int) {
+// redirect to the canonical ACME HTTPS origin.
+func assertHTTPRedirectsToHTTPS(t *testing.T, httpAddr string, httpsPort int, domain string) {
 	t.Helper()
 
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -206,7 +207,7 @@ func assertHTTPRedirectsToHTTPS(t *testing.T, httpAddr string, httpsPort int) {
 
 	loc := resp.Header.Get("Location")
 
-	expected := fmt.Sprintf("https://127.0.0.1:%d/some/path?q=1", httpsPort)
+	expected := "https://" + net.JoinHostPort(domain, strconv.Itoa(httpsPort)) + "/some/path?q=1"
 	if loc != expected {
 		t.Errorf("redirect Location = %q, want %q", loc, expected)
 	}
@@ -259,6 +260,19 @@ func shutdownAndDrainStart(t *testing.T, srv *Server, startErr <-chan error) {
 		}
 	case <-time.After(tshttp.DefaultShutdownWait):
 		t.Error("Start() did not return after shutdown")
+	}
+}
+
+func TestValidateACMEConfig_RequiresDomain(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DevConfig()
+	cfg.TLS.HTTPPort = 9080
+	cfg.TLS.HTTPSPort = 9443
+	cfg.TLS.ACME.Domain = ""
+
+	if err := validateACMEConfig(cfg); err == nil {
+		t.Fatal("expected error for empty ACME domain")
 	}
 }
 

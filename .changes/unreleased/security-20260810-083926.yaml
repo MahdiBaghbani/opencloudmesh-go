@@ -1,0 +1,4 @@
+kind: security
+body: >-
+  HTTP servers now set ReadHeaderTimeout (10s) on both the main and ACME
+  challenge listeners to bound slowloris-style header reads.

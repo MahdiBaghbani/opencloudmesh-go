@@ -19,6 +19,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // trackingService is a test service that records when Close() is called.
@@ -92,6 +94,37 @@ func TestNew_FailsWithMissingServerDeps(t *testing.T) {
 	})
 }
 
+func TestNew_SetsReadHeaderTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DevConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	srv, err := New(cfg, logger, nil, testServerDeps(t, cfg, logger))
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	if got := srv.httpServer.ReadHeaderTimeout; got != config.DefaultServerReadHeaderTimeout {
+		t.Errorf("main server ReadHeaderTimeout = %v, want %v", got, config.DefaultServerReadHeaderTimeout)
+	}
+
+	cfg.TLS.HTTPPort = getFreePort(t)
+	cfg.TLS.ACME.Domain = "localhost"
+	acmeMgr := tlspkg.NewACMEManager(&cfg.TLS.ACME, logger, nil)
+
+	challengeServer, listener, err := srv.startChallengeServer(acmeMgr, "127.0.0.1")
+	if err != nil {
+		t.Fatalf("startChallengeServer failed: %v", err)
+	}
+
+	tshttp.MustClose(t, listener)
+
+	if got := challengeServer.ReadHeaderTimeout; got != config.DefaultChallengeReadHeaderTimeout {
+		t.Errorf("challenge server ReadHeaderTimeout = %v, want %v", got, config.DefaultChallengeReadHeaderTimeout)
+	}
+}
+
 func TestNew_SucceedsWithServerDeps(t *testing.T) {
 	t.Parallel()
 
@@ -149,20 +182,41 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	}
 }
 
-func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
+func TestHTTPSRedirectHandler_CanonicalDomain(t *testing.T) {
 	t.Parallel()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://[::1]:9080/x?q=1", nil)
 	req.Host = "[::1]:9080"
 	rec := httptest.NewRecorder()
 
-	newHTTPSRedirectHandler(9443).ServeHTTP(rec, req)
+	newHTTPSRedirectHandler("example.com", 9443).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusPermanentRedirect {
 		t.Fatalf("status = %d, want 308", rec.Code)
 	}
 
-	if got := rec.Header().Get("Location"); got != "https://[::1]:9443/x?q=1" {
-		t.Fatalf("Location = %q, want %q", got, "https://[::1]:9443/x?q=1")
+	if got := rec.Header().Get("Location"); got != "https://example.com:9443/x?q=1" {
+		t.Fatalf("Location = %q, want %q", got, "https://example.com:9443/x?q=1")
+	}
+}
+
+func TestHTTPSRedirect_IgnoresSpoofedHost(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1/evil/path", nil)
+	req.Host = "evil.example"
+	rec := httptest.NewRecorder()
+
+	newHTTPSRedirectHandler("localhost", 9443).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("status = %d, want 308", rec.Code)
+	}
+
+	got := rec.Header().Get("Location")
+
+	want := "https://localhost:9443/evil/path"
+	if got != want {
+		t.Fatalf("Location = %q, want %q", got, want)
 	}
 }
 
