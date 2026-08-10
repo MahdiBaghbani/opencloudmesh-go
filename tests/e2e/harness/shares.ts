@@ -29,7 +29,7 @@ export async function sendOutgoingShare(
   serverB: ServerInstance,
   options: SendOutgoingShareOptions,
 ): Promise<SentShare> {
-  const shareFilePath = createShareableFile();
+  const shareFilePath = createShareableFile(serverA);
   try {
     const response = await page.request.post(`${serverA.baseURL}/api/shares/outgoing`, {
       data: {
