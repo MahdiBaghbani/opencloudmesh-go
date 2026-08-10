@@ -9,7 +9,7 @@
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
-import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
@@ -29,6 +29,7 @@ export interface ServerInstance {
   baseURL: string;
   port: number;
   tempDir: string;
+  contentDir: string;
   process: ChildProcess;
   logs: string[];
 }
@@ -124,6 +125,7 @@ function generateConfig(
   name: string,
   port: number,
   tempDir: string,
+  contentDir: string,
   mode: string,
   extraConfig?: string,
   peerPort?: number,
@@ -170,6 +172,9 @@ trusted_proxies = ["127.0.0.0/8", "::1/128"]
 username = "admin"
 password = "testpassword123"
 
+[persistence]
+content_dir = "${contentDir}"
+
 [outbound_http]
 timeout_ms = 5000
 connect_timeout_ms = 2000
@@ -195,6 +200,7 @@ key_path = "${join(tempDir, 'signing.pem')}"
  */
 export async function startServer(binaryPath: string, config: ServerConfig): Promise<ServerInstance> {
   const tempDir = mkdtempSync(join(tmpdir(), `ocm-e2e-${config.name}-`));
+  const contentDir = join(tempDir, 'files');
   const port = typeof config.port === 'number' ? config.port : await getAvailablePort();
   const mode = config.mode || 'dev';
 
@@ -204,6 +210,7 @@ export async function startServer(binaryPath: string, config: ServerConfig): Pro
     config.name,
     port,
     tempDir,
+    contentDir,
     mode,
     config.extraConfig,
     config.peerPort,
@@ -233,6 +240,7 @@ export async function startServer(binaryPath: string, config: ServerConfig): Pro
     baseURL,
     port,
     tempDir,
+    contentDir,
     process: proc,
     logs,
   };
@@ -367,8 +375,9 @@ export async function startTwoServers(
  * Creates a temp file suitable for outgoing share tests.
  * Returns the absolute path; caller cleans up via rmSync(path, { force: true }).
  */
-export function createShareableFile(content?: string): string {
-  const filePath = join(tmpdir(), 'ocm-e2e-share-' + randomUUID() + '.txt');
+export function createShareableFile(server: ServerInstance, content?: string): string {
+  mkdirSync(server.contentDir, { recursive: true });
+  const filePath = join(server.contentDir, 'ocm-e2e-share-' + randomUUID() + '.txt');
   writeFileSync(filePath, content ?? 'E2E test file content');
   return filePath;
 }

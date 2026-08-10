@@ -20,6 +20,10 @@ import (
 // checks, and server lifecycle. On wireSharedDeps failure, Build closes
 // persistenceRepos before returning the error.
 func Build(cfg *config.Config, logger *slog.Logger, opts BuildOpts) (BuildResult, error) {
+	if err := ensureContentRoot(cfg); err != nil {
+		return BuildResult{}, fmt.Errorf("ensure content root: %w", err)
+	}
+
 	persistenceRepos, err := repos.New(context.Background(), cfg.Persistence)
 	if err != nil {
 		return BuildResult{}, fmt.Errorf("wire persistence repos: %w", err)

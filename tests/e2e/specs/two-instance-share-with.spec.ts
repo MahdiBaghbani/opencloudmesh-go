@@ -125,7 +125,7 @@ test.describe('Two-Instance Share With (UI)', () => {
 
   test.beforeEach(async () => {
     [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'strict' });
-    shareFilePath = createShareableFile();
+    shareFilePath = createShareableFile(serverA);
   });
 
   test.afterEach(async () => {

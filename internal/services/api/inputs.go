@@ -41,6 +41,7 @@ type Inputs struct {
 	OutgoingFactsResolver outgoingFactsResolver
 	LocalTokenEndpoint    string
 	LocalIdentity         localidentity.Identity
+	ContentDir            string
 	Ratelimit             ratelimit.Inputs
 	InterceptorProfiles   map[string]map[string]any
 }
