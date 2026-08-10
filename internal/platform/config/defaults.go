@@ -26,13 +26,15 @@ const (
 
 // Server HTTP listener defaults.
 const (
-	DefaultServerReadTimeout     = 30 * time.Second
-	DefaultServerWriteTimeout    = 30 * time.Second
-	DefaultServerIdleTimeout     = 60 * time.Second
-	DefaultChallengeReadTimeout  = 10 * time.Second
-	DefaultChallengeWriteTimeout = 10 * time.Second
-	DefaultChallengeIdleTimeout  = 60 * time.Second
-	DefaultServerShutdownTimeout = 2 * time.Second
+	DefaultServerReadTimeout          = 30 * time.Second
+	DefaultServerReadHeaderTimeout    = 10 * time.Second
+	DefaultServerWriteTimeout         = 30 * time.Second
+	DefaultServerIdleTimeout          = 60 * time.Second
+	DefaultChallengeReadTimeout       = 10 * time.Second
+	DefaultChallengeReadHeaderTimeout = 10 * time.Second
+	DefaultChallengeWriteTimeout      = 10 * time.Second
+	DefaultChallengeIdleTimeout       = 60 * time.Second
+	DefaultServerShutdownTimeout      = 2 * time.Second
 )
 
 // Peer trust membership cache defaults (seconds, TOML-facing).
