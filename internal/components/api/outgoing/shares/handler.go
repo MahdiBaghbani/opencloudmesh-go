@@ -82,7 +82,6 @@ func NewHandler(
 		localTokenEndPoint: localTokenEndPoint,
 		currentUser:        currentUser,
 		logger:             logger,
-		allowedPaths:       []string{"/tmp", os.TempDir()},
 		resolver:           resolver,
 	}
 }
@@ -200,33 +199,49 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// validateLocalPath ensures path is absolute, under allowedPaths, and has no traversal.
+// validateLocalPath resolves relative paths under the managed content root,
+// then ensures the result is under allowedPaths with no traversal.
 func (h *Handler) validateLocalPath(path string) (string, error) {
 	cleanPath := filepath.Clean(path)
-
-	if !filepath.IsAbs(cleanPath) {
-		return "", errors.New("path must be absolute")
-	}
 
 	if strings.Contains(cleanPath, "..") {
 		return "", errors.New("path traversal not allowed")
 	}
 
-	allowed := false
-
-	for _, prefix := range h.allowedPaths {
-		if strings.HasPrefix(cleanPath, prefix) {
-			allowed = true
-
-			break
+	if !filepath.IsAbs(cleanPath) {
+		if len(h.allowedPaths) == 0 {
+			return "", errors.New("path not in allowed directories")
 		}
+
+		contentRoot := filepath.Clean(h.allowedPaths[0])
+		cleanPath = filepath.Clean(filepath.Join(contentRoot, cleanPath))
 	}
 
-	if !allowed {
+	if !h.isPathAllowed(cleanPath) {
 		return "", errors.New("path not in allowed directories")
 	}
 
 	return cleanPath, nil
+}
+
+func (h *Handler) isPathAllowed(cleanPath string) bool {
+	for _, prefix := range h.allowedPaths {
+		cleanPrefix := filepath.Clean(prefix)
+		if cleanPrefix == string(os.PathSeparator) {
+			if filepath.IsAbs(cleanPath) {
+				return true
+			}
+
+			continue
+		}
+
+		if cleanPath == cleanPrefix ||
+			strings.HasPrefix(cleanPath, cleanPrefix+string(os.PathSeparator)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h *Handler) parseOutgoingRequest(w http.ResponseWriter, r *http.Request) (sharesoutgoing.OutgoingShareRequest, *identity.User, bool) {

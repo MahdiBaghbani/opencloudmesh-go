@@ -213,6 +213,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		OutgoingFactsResolver: peerMappingResolver,
 		LocalTokenEndpoint:    localTokenEndpoint,
 		LocalIdentity:         d.LocalIdentity,
+		ContentDir:            cfg.Persistence.ContentDir,
 		Ratelimit:             ratelimitInputs(d),
 		InterceptorProfiles:   profiles,
 	}, svcCfg, log)

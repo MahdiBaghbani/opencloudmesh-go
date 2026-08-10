@@ -34,8 +34,9 @@ type outboundHTTPFileConfig struct {
 
 // persistenceFileConfig holds persistence settings from TOML.
 type persistenceFileConfig struct {
-	Backend string `toml:"backend"`
-	DataDir string `toml:"data_dir"`
+	Backend    string `toml:"backend"`
+	DataDir    string `toml:"data_dir"`
+	ContentDir string `toml:"content_dir"`
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -392,6 +393,10 @@ func overlayPersistenceConfig(cfg *Config, fc *persistenceFileConfig) {
 
 	if fc.DataDir != "" {
 		cfg.Persistence.DataDir = fc.DataDir
+	}
+
+	if fc.ContentDir != "" {
+		cfg.Persistence.ContentDir = fc.ContentDir
 	}
 }
 

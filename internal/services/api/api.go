@@ -30,6 +30,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -116,8 +117,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	)
 	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
 
-	if len(c.AllowedPaths) > 0 {
-		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
+	allowedPaths, err := resolveOutgoingAllowedPaths(inputs.ContentDir, c.AllowedPaths)
+	if err != nil {
+		return nil, fmt.Errorf("api: resolve allowed paths: %w", err)
+	}
+
+	if len(allowedPaths) > 0 {
+		outgoingHandler.SetAllowedPaths(allowedPaths)
 	}
 
 	inboxInvitesHandler := inboxinvites.NewHandler(
@@ -188,6 +194,19 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	r.Post(RouteInvitesOutgoing, outgoingInvitesHandler.HandleCreateOutgoing)
 
 	return s, nil
+}
+
+func resolveOutgoingAllowedPaths(contentDir string, configured []string) ([]string, error) {
+	if len(configured) > 0 {
+		return configured, nil
+	}
+
+	root, err := config.ResolveContentDir(contentDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve content directory: %w", err)
+	}
+
+	return []string{root}, nil
 }
 
 func validateInputs(in Inputs) error {

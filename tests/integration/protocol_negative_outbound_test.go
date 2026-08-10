@@ -7,8 +7,6 @@ package integration
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
 	"testing"
 
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
@@ -38,7 +36,7 @@ func runOutboundDiscoveryFailureCase(
 	}
 
 	token := loginSubprocessAdminWithClient(t, provider)
-	shareFile := writeNegativeShareFile(t, label)
+	shareFile := writeNegativeShareFile(t, provider.TempDir, label)
 
 	beforeSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
 	if err != nil {
@@ -89,7 +87,7 @@ func runOutboundStaleTrustMembershipCase(
 	consumerHost := hostFromBaseURL(t, consumer.BaseURL)
 
 	token := loginSubprocessAdminWithClient(t, provider)
-	shareFile := writeNegativeShareFile(t, "stale-trust-membership")
+	shareFile := writeNegativeShareFile(t, provider.TempDir, "stale-trust-membership")
 
 	beforeSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
 	if err != nil {
@@ -121,15 +119,15 @@ func runOutboundStaleTrustMembershipCase(
 	assertNoSecretInLogs(t, nil, provider, consumer)
 }
 
-func writeNegativeShareFile(t *testing.T, label string) string {
+func writeNegativeShareFile(t *testing.T, serverTempDir, label string) string {
 	t.Helper()
 
-	path := filepath.Join(t.TempDir(), "negative-share-"+label+".txt")
-	if err := os.WriteFile(path, []byte("negative integration share payload for "+label), 0644); err != nil {
-		t.Fatalf("write share file: %v", err)
-	}
-
-	return path
+	return writeShareFileInContentRoot(
+		t,
+		serverTempDir,
+		"negative-share-"+label+".txt",
+		[]byte("negative integration share payload for "+label),
+	)
 }
 
 func startCrossAuthorityDiscoveryPeer(t *testing.T) *trustedProtocolPeer {

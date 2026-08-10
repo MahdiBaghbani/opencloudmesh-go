@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -46,10 +45,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 
 	testContent := []byte("strict positive protocol proof file content")
 
-	testFile := filepath.Join(t.TempDir(), "protocol-positive.txt")
-	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
-		t.Fatalf("write test file: %v", err)
-	}
+	testFile := writeShareFileInContentRoot(t, provider.TempDir, "protocol-positive.txt", testContent)
 
 	providerToken := loginSubprocessAdminWithClient(t, provider)
 	consumerToken := loginSubprocessAdminWithClient(t, consumer)

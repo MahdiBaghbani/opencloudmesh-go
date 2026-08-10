@@ -41,6 +41,11 @@ func TestPersistencePresetDefaults(t *testing.T) {
 				t.Errorf("%s preset: expected DataDir=%q, got %q",
 					p.name, p.wantDataDir, cfg.Persistence.DataDir)
 			}
+
+			if cfg.Persistence.ContentDir != DefaultContentDir {
+				t.Errorf("%s preset: expected ContentDir=%q, got %q",
+					p.name, DefaultContentDir, cfg.Persistence.ContentDir)
+			}
 		})
 	}
 }
@@ -98,6 +103,7 @@ public_origin = "http://localhost:9200"
 [persistence]
 backend = "json"
 data_dir = "/tmp/ocm-data"
+content_dir = "/tmp/ocm-content"
 `
 	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -114,6 +120,10 @@ data_dir = "/tmp/ocm-data"
 
 	if cfg.Persistence.DataDir != "/tmp/ocm-data" {
 		t.Errorf("expected DataDir=/tmp/ocm-data, got %q", cfg.Persistence.DataDir)
+	}
+
+	if cfg.Persistence.ContentDir != "/tmp/ocm-content" {
+		t.Errorf("expected ContentDir=/tmp/ocm-content, got %q", cfg.Persistence.ContentDir)
 	}
 }
 
@@ -293,5 +303,35 @@ data_dir = "/some/path"
 
 	if cfg.Persistence.DataDir != "/some/path" {
 		t.Errorf("expected DataDir=/some/path, got %q", cfg.Persistence.DataDir)
+	}
+}
+
+// TestPersistenceLoad_ContentDirOverlayFromTOML verifies that content_dir in
+// TOML overlays the preset default content root.
+func TestPersistenceLoad_ContentDirOverlayFromTOML(t *testing.T) {
+	// Clear ambient env override so the overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "dev"
+public_origin = "http://localhost:9200"
+
+[persistence]
+backend = "memory"
+content_dir = "/custom/content"
+`
+	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: tomlPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Persistence.ContentDir != "/custom/content" {
+		t.Errorf("expected ContentDir=/custom/content, got %q", cfg.Persistence.ContentDir)
 	}
 }

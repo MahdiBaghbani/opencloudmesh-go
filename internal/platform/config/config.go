@@ -125,6 +125,9 @@ type PersistenceConfig struct {
 	// DataDir is the data directory for durable backends (json, sqlite, mirror).
 	// Required when backend is json, sqlite, or mirror.
 	DataDir string `toml:"data_dir"`
+
+	// ContentDir is the managed local content root for demo shares.
+	ContentDir string `toml:"content_dir"`
 }
 
 // HTTPConfig holds per-service HTTP configuration.

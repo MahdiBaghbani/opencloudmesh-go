@@ -101,8 +101,9 @@ func StrictConfig() *Config {
 			Path: "token",
 		},
 		Persistence: PersistenceConfig{
-			Backend: BackendSQLite,
-			DataDir: DefaultPersistenceDataDir,
+			Backend:    BackendSQLite,
+			DataDir:    DefaultPersistenceDataDir,
+			ContentDir: DefaultContentDir,
 		},
 		OCM: OCMConfig{
 			CompatibilityScope: CompatibilityScopeGlobal,
@@ -143,6 +144,7 @@ func DevConfig() *Config {
 	cfg.Logging.Level = "debug"
 	cfg.Persistence.Backend = BackendMemory
 	cfg.Persistence.DataDir = ""
+	cfg.Persistence.ContentDir = DefaultContentDir
 
 	return cfg
 }

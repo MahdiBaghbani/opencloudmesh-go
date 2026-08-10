@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,14 +36,6 @@ func TestTokenExchangeFlow(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	tmpDir := t.TempDir()
-	testFile := filepath.Join(tmpDir, "test.txt")
-
-	testContent := []byte("Hello from token exchange test - this is the file content!")
-	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
-
 	binaryPath := harness.BuildBinary(t)
 
 	sender := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
@@ -56,6 +47,9 @@ mode = "off"
 `,
 	})
 	defer sender.Stop(t)
+
+	testContent := []byte("Hello from token exchange test - this is the file content!")
+	testFile := writeShareFileInContentRoot(t, sender.TempDir, "test.txt", testContent)
 
 	receiver := startStrictCodeFlowReceiver(t)
 	defer receiver.Close()

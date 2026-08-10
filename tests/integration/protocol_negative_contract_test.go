@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -33,10 +32,7 @@ func runUnexchangedSharedSecretBearer401Case(
 
 	testContent := []byte("strict negative shared-secret bearer proof")
 
-	testFile := filepath.Join(t.TempDir(), "protocol-negative-bearer.txt")
-	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
-		t.Fatalf("write test file: %v", err)
-	}
+	testFile := writeShareFileInContentRoot(t, provider.TempDir, "protocol-negative-bearer.txt", testContent)
 
 	providerToken := loginSubprocessAdminWithClient(t, provider)
 	consumerToken := loginSubprocessAdminWithClient(t, consumer)

@@ -45,6 +45,7 @@ func testAPIInputs(t *testing.T) Inputs {
 		HTTPClient:         httpclient.NewContextClient(rawHTTP),
 		DiscoveryClient:    discovery.NewClient(rawHTTP, nil),
 		LocalIdentity:      testLocalIdentity(),
+		ContentDir:         cfg.Persistence.ContentDir,
 		Ratelimit: ratelimit.Inputs{
 			KeyFunc: realIP.GetClientIPString,
 		},
