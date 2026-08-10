@@ -37,4 +37,5 @@ const (
 	ErrorInvalidClient        = "invalid_client"
 	ErrorUnauthorized         = "unauthorized_client"
 	ErrorUnsupportedGrantType = "unsupported_grant_type"
+	ErrorServerError          = "server_error"
 )

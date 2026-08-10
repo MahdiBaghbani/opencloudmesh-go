@@ -41,6 +41,24 @@ func TestHasCriteria_CanonicalEqualityOnly(t *testing.T) {
 	}
 }
 
+func TestDiscovery_NilReceiver(t *testing.T) {
+	t.Parallel()
+
+	var disc *spec.Discovery
+
+	if disc.HasCapability(spec.CapabilityExchangeToken) {
+		t.Error("HasCapability on nil discovery should be false")
+	}
+
+	if disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+		t.Error("HasCriteria on nil discovery should be false")
+	}
+
+	if disc.SupportsTokenExchange() {
+		t.Error("SupportsTokenExchange on nil discovery should be false")
+	}
+}
+
 func TestRequiresHTTPSigAndIsHTTPSigCapable(t *testing.T) {
 	t.Parallel()
 

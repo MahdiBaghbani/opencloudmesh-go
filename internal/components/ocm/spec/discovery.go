@@ -46,11 +46,19 @@ type ResourceType struct {
 
 // HasCapability reports whether the discovery advertises the given capability.
 func (d *Discovery) HasCapability(capability string) bool {
+	if d == nil {
+		return false
+	}
+
 	return slices.Contains(d.Capabilities, capability)
 }
 
 // HasCriteria reports whether the discovery lists the given criterion.
 func (d *Discovery) HasCriteria(criterion string) bool {
+	if d == nil {
+		return false
+	}
+
 	return slices.Contains(d.Criteria, criterion)
 }
 
@@ -187,6 +195,10 @@ func ResolveInviteAcceptDialog(baseURL, dialog string) string {
 // SupportsTokenExchange reports whether the peer advertises a complete
 // token-exchange capability set (capability + token endpoint).
 func (d *Discovery) SupportsTokenExchange() bool {
+	if d == nil {
+		return false
+	}
+
 	return d.HasCapability(CapabilityExchangeToken) && d.TokenEndPoint != ""
 }
 

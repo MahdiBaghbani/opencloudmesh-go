@@ -1,0 +1,3 @@
+kind: fixed
+body: >-
+  Discovery capability lookups no longer panic on a nil receiver.

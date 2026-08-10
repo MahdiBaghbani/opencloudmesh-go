@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -302,9 +303,18 @@ func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
 
 	var fetchCount atomic.Int32
 
+	var signalFetchStarted sync.Once
+
+	fetchStarted := make(chan struct{})
+	releaseFetch := make(chan struct{})
+	refreshDone := make(chan struct{})
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fetchCount.Add(1)
+		signalFetchStarted.Do(func() { close(fetchStarted) })
+		<-releaseFetch
 		w.WriteHeader(http.StatusInternalServerError)
+		close(refreshDone)
 	}))
 	defer ts.Close()
 
@@ -333,18 +343,50 @@ func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
 		},
 	}, staleRefresh)
 
-	_ = m.IsMember(context.Background(), "member.example.com", false)
+	const workers = 20
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if fetchCount.Load() > 0 {
-			return
-		}
+	workerReturned := make(chan struct{}, workers)
 
-		time.Sleep(10 * time.Millisecond)
+	// One stale IsMember starts the refresh; block its HTTP fetch until overlap is set up.
+	go func() {
+		_ = m.IsMember(context.Background(), "member.example.com", false)
+
+		workerReturned <- struct{}{}
+	}()
+
+	select {
+	case <-fetchStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for directory service fetch to start")
 	}
 
-	t.Error("expected directory service refresh when cache age exceeds MaxStale")
+	for range workers - 1 {
+		go func() {
+			_ = m.IsMember(context.Background(), "member.example.com", false)
+
+			workerReturned <- struct{}{}
+		}()
+	}
+
+	for range workers {
+		select {
+		case <-workerReturned:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for worker IsMember to return")
+		}
+	}
+
+	close(releaseFetch)
+
+	select {
+	case <-refreshDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for refresh to finish")
+	}
+
+	if got := fetchCount.Load(); got != 1 {
+		t.Errorf("expected exactly one directory service fetch, got %d", got)
+	}
 }
 
 func TestTrustGroupManager_MembershipRequiresVerifiedListings(t *testing.T) {
