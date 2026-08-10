@@ -27,6 +27,7 @@ type RFC9421Options struct {
 	CreatedMaxSkew     time.Duration
 	AllowedAlgorithms  []string
 	RequiredComponents []string
+	MinRSAModulusBits  int
 	Now                func() time.Time
 }
 
@@ -56,6 +57,11 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 	if len(allowed) == 0 {
 		allowed = sigalg.DefaultAllowed()
 	}
+
+	minRSA := sig.MinRSAModulusBits
+	if minRSA <= 0 {
+		minRSA = config.DefaultMinRSAModulusBits
+	}
 	// RequiredComponents is intentionally left empty so signer and verifier
 	// constructors apply role-specific defaults; both default to the
 	// date-free canonical set in MandatorySignatureComponents(). The OCM
@@ -69,6 +75,7 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 		CreatedMaxAge:     maxAge,
 		CreatedMaxSkew:    maxSkew,
 		AllowedAlgorithms: append([]string(nil), allowed...),
+		MinRSAModulusBits: minRSA,
 		Now:               time.Now,
 	}
 }
@@ -258,6 +265,10 @@ func NewRFC9421VerifierWithOptions(opts RFC9421Options) *RFC9421Verifier {
 
 	if len(opts.RequiredComponents) == 0 {
 		opts.RequiredComponents = MandatorySignatureComponents()
+	}
+
+	if opts.MinRSAModulusBits <= 0 {
+		opts.MinRSAModulusBits = config.DefaultMinRSAModulusBits
 	}
 
 	return &RFC9421Verifier{opts: opts}
@@ -459,7 +470,8 @@ func (v *RFC9421Verifier) verifySignature(
 
 	fullBase := sigBase + "\"@signature-params\": " + params.Raw
 
-	if err := sigalg.Verify(resolvedAlg, resolvedKey.PublicKey, []byte(fullBase), sig); err != nil {
+	verifyOpts := sigalg.VerifyOptions{MinRSAModulusBits: v.opts.MinRSAModulusBits}
+	if err := sigalg.VerifyWithOptions(resolvedAlg, resolvedKey.PublicKey, []byte(fullBase), sig, verifyOpts); err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonCryptoFail, Error: fmt.Errorf("signature verification failed: %w", err)}
 	}
 

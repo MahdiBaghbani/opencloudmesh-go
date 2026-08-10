@@ -36,6 +36,10 @@ func TestDefaultSignatureConfig_IETFDefaults(t *testing.T) {
 		t.Fatalf("CreatedMaxAgeSeconds = %d", sig.CreatedMaxAgeSeconds)
 	}
 
+	if sig.MinRSAModulusBits != config.DefaultMinRSAModulusBits {
+		t.Fatalf("MinRSAModulusBits = %d, want %d", sig.MinRSAModulusBits, config.DefaultMinRSAModulusBits)
+	}
+
 	want := sigalg.DefaultAllowed()
 	if len(sig.AllowedAlgorithms) != len(want) || sig.AllowedAlgorithms[0] != "ed25519" {
 		t.Fatalf("AllowedAlgorithms = %v, want %v", sig.AllowedAlgorithms, want)

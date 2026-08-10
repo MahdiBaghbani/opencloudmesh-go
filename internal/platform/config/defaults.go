@@ -47,6 +47,7 @@ const (
 	DefaultSignatureKidFragment    = "key1"
 	DefaultSignatureCreatedMaxAge  = 300
 	DefaultSignatureCreatedMaxSkew = 60
+	DefaultMinRSAModulusBits       = 2048
 )
 
 // Test-oriented outbound and wait defaults (integration harness + unit tests).
@@ -113,5 +114,6 @@ func DefaultSignatureConfig() SignatureConfig {
 		CreatedMaxAgeSeconds:  DefaultSignatureCreatedMaxAge,
 		CreatedMaxSkewSeconds: DefaultSignatureCreatedMaxSkew,
 		AllowedAlgorithms:     append([]string(nil), sigalg.DefaultAllowed()...),
+		MinRSAModulusBits:     DefaultMinRSAModulusBits,
 	}
 }

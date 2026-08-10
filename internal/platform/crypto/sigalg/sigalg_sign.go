@@ -55,7 +55,13 @@ var (
 	// values; the JWK alg MUST identify an algorithm in the IANA JSON Web
 	// Signature and Encryption Algorithms registry (RFC 7518).
 	ErrUnsupportedJWKAlg = errors.New("sigalg: unsupported JWK alg")
+	// ErrWeakKey reports an RSA modulus below the configured local minimum.
+	ErrWeakKey = errors.New("sigalg: weak key")
 )
+
+// MinRSAModulusBits is the default minimum RSA modulus size accepted during
+// signature verification when callers do not supply an explicit floor.
+const MinRSAModulusBits = 2048
 
 // ResolvedPublicKey is key material plus the JWK algorithm inputs (kty, crv,
 // alg) needed to derive the RFC 9421 native algorithm. Callers run

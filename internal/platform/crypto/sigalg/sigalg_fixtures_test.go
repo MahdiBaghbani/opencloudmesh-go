@@ -41,7 +41,13 @@ func mustECDSAKey(t *testing.T, curve elliptic.Curve) *ecdsa.PrivateKey {
 func mustRSAKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
 
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	return mustRSAKeyBits(t, 2048)
+}
+
+func mustRSAKeyBits(t *testing.T, bits int) *rsa.PrivateKey {
+	t.Helper()
+
+	priv, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		t.Fatal(err)
 	}
