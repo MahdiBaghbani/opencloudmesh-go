@@ -19,7 +19,7 @@ const (
 	ShareStatusDeclined ShareStatus = "declined"
 )
 
-// OutgoingShareStatus tracks the lifecycle state of an outgoing share (sent, accepted, declined).
+// OutgoingShareStatus tracks the lifecycle state of an outgoing share (pending, sent, accepted, declined, failed).
 type OutgoingShareStatus string
 
 const (
@@ -29,4 +29,8 @@ const (
 	OutgoingShareStatusAccepted OutgoingShareStatus = "accepted"
 	// OutgoingShareStatusDeclined is the declined share status.
 	OutgoingShareStatusDeclined OutgoingShareStatus = "declined"
+	// OutgoingShareStatusPending is the pending share status (persisted, not yet delivered).
+	OutgoingShareStatusPending OutgoingShareStatus = "pending"
+	// OutgoingShareStatusFailed is the failed share status (delivery failed; record kept for audit).
+	OutgoingShareStatusFailed OutgoingShareStatus = "failed"
 )
