@@ -1,5 +1,0 @@
-kind: security
-body: >-
-  Outgoing share delivery no longer echoes the peer response body in error
-  messages; only the peer HTTP status and response size are logged, and the
-  client receives a stable message.

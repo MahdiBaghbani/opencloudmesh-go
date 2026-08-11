@@ -1,9 +1,0 @@
-kind: changed
-body: >-
-  ocmgo now advertises and accepts only the "file" OCM resource type.
-  Discovery no longer lists "folder", incoming shares with resourceType
-  "folder" are rejected with 501 RESOURCE_TYPE_NOT_SUPPORTED, and outgoing
-  share creation refuses directory paths and explicit non-"file" resource
-  types with 400. This aligns the advertised contract with what the
-  single-file WebDAV server actually serves, so peers no longer receive
-  folder shares they cannot honor.

@@ -1,6 +1,0 @@
-kind: added
-body: >-
-  coverage threshold gate: `make coverage-check` enforces a minimum 80% unit
-  statement coverage floor (COVERAGE_THRESHOLD), wired into the
-  ci-test-unit-integration workflow after the unit tests, with a Coverage
-  policy section in docs/testing.md
