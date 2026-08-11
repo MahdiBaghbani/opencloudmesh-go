@@ -355,23 +355,38 @@ func assertStrictCapabilities(t *testing.T, disc *spec.Discovery) {
 	}
 }
 
-// assertStrictResourceTypes checks the file/folder resource type rows of a
-// strict discovery document.
+// assertStrictResourceTypes checks the file-only resource type row of a strict
+// discovery document.
 func assertStrictResourceTypes(t *testing.T, disc *spec.Discovery) {
 	t.Helper()
 
-	if len(disc.ResourceTypes) != 2 {
-		t.Fatalf("ResourceTypes = %+v, want file and folder", disc.ResourceTypes)
+	if len(disc.ResourceTypes) != 1 {
+		t.Fatalf("ResourceTypes = %+v, want file only", disc.ResourceTypes)
 	}
 
-	for i, wantName := range []string{"file", "folder"} {
-		if disc.ResourceTypes[i].Name != wantName {
-			t.Errorf("ResourceTypes[%d].Name = %q, want %q", i, disc.ResourceTypes[i].Name, wantName)
-		}
+	if disc.ResourceTypes[0].Name != "file" {
+		t.Errorf("ResourceTypes[0].Name = %q, want file", disc.ResourceTypes[0].Name)
+	}
 
-		if len(disc.ResourceTypes[i].ShareTypes) != 1 || disc.ResourceTypes[i].ShareTypes[0] != "user" {
-			t.Errorf("ResourceTypes[%d].ShareTypes = %v, want [user]", i, disc.ResourceTypes[i].ShareTypes)
-		}
+	if len(disc.ResourceTypes[0].ShareTypes) != 1 || disc.ResourceTypes[0].ShareTypes[0] != "user" {
+		t.Errorf("ResourceTypes[0].ShareTypes = %v, want [user]", disc.ResourceTypes[0].ShareTypes)
+	}
+}
+
+func TestBuildDiscovery_AdvertisesFileOnlyResourceType(t *testing.T) {
+	t.Parallel()
+
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:   "https://example.com/ocm",
+		WebDAVRoot: "/webdav/ocm/",
+	}, nil)
+
+	if len(disc.ResourceTypes) != 1 {
+		t.Fatalf("ResourceTypes = %+v, want exactly one entry", disc.ResourceTypes)
+	}
+
+	if disc.ResourceTypes[0].Name != "file" {
+		t.Errorf("ResourceTypes[0].Name = %q, want file", disc.ResourceTypes[0].Name)
 	}
 }
 

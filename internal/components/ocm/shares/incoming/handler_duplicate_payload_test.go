@@ -315,19 +315,6 @@ func TestCreateShare_DuplicateMismatchedPayloadReturns409(t *testing.T) {
 			},
 		},
 		{
-			name: "resourceType",
-			mutate: func(body string) string {
-				return strings.Replace(body, `"resourceType": "file"`, `"resourceType": "folder"`, 1)
-			},
-			checkFn: func(t *testing.T, original, stored *incoming.IncomingShare) {
-				t.Helper()
-
-				if stored.ResourceType != original.ResourceType {
-					t.Errorf("ResourceType changed: got %q want %q", stored.ResourceType, original.ResourceType)
-				}
-			},
-		},
-		{
 			name: "shareWith",
 			mutate: func(body string) string {
 				return strings.Replace(body, `"shareWith": "alice@localhost:9200"`, `"shareWith": "bob@localhost:9200"`, 1)

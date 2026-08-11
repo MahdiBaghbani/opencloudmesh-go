@@ -219,18 +219,22 @@ func TestWebDAVReceiveURIKind(t *testing.T) {
 func TestSupportedResourceTypes(t *testing.T) {
 	t.Parallel()
 
-	if len(spec.SupportedResourceTypes) != 2 {
-		t.Fatalf("SupportedResourceTypes = %v, want [file folder]", spec.SupportedResourceTypes)
+	if len(spec.SupportedResourceTypes) != 1 {
+		t.Fatalf("SupportedResourceTypes = %v, want [file]", spec.SupportedResourceTypes)
 	}
 
-	for _, rt := range []string{"file", "folder"} {
-		if !spec.IsSupportedResourceType(rt) {
-			t.Errorf("IsSupportedResourceType(%q) = false, want true", rt)
+	if spec.SupportedResourceTypes[0] != "file" {
+		t.Errorf("SupportedResourceTypes[0] = %q, want file", spec.SupportedResourceTypes[0])
+	}
+
+	if !spec.IsSupportedResourceType("file") {
+		t.Error("IsSupportedResourceType(file) = false, want true")
+	}
+
+	for _, rt := range []string{"folder", "calendar"} {
+		if spec.IsSupportedResourceType(rt) {
+			t.Errorf("IsSupportedResourceType(%q) = true, want false", rt)
 		}
-	}
-
-	if spec.IsSupportedResourceType("calendar") {
-		t.Error("IsSupportedResourceType(calendar) = true, want false")
 	}
 }
 

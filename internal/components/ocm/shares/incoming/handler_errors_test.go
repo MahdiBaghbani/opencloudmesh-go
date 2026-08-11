@@ -288,6 +288,34 @@ func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
 		t.Fatalf("expected 501 for invalid resourceType, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestCreateShare_FolderResourceType_Returns501(t *testing.T) {
+	t.Parallel()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "folder",
+		"providerId": "folder-test",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "folder",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
+	}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for folder resourceType, got %d: %s", w.Code, w.Body.String())
+	}
+}
 func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	t.Parallel()
 
