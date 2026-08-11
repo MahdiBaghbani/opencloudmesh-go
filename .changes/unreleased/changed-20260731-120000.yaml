@@ -1,5 +1,0 @@
-kind: changed
-body: >-
-  enable the wrapcheck linter project-wide and wrap every external
-  error return with fmt.Errorf using the %w verb and the subsystem
-  voice convention so merges fail on unwrapped external errors

@@ -1,4 +1,0 @@
-kind: changed
-body: >-
-  Documented that a nil peer-trust policy engine means peer-trust is off
-  (test-skip), not a fail-closed state.

@@ -1,5 +1,0 @@
-kind: changed
-body: >-
-  split 22 Go files that exceeded the 500-line cap and add a blocking
-  file-length gate (make file-length plus nested CI lint job under
-  ci-lint.yml) so merges fail when any tracked Go file exceeds the limit

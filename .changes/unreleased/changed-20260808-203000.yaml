@@ -1,9 +1,0 @@
-kind: changed
-body: >-
-  enable the paralleltest linter project-wide so CI enforces t.Parallel() in
-  every test; the 26 tests that genuinely cannot run concurrently (t.Setenv,
-  t.Chdir, slog.SetDefault, shared parent env/cwd, package-level hooks) carry
-  justified //nolint:paralleltest exceptions verified at their exact finding
-  lines, and the module-root resolvers (testsupport/modroot and the
-  integration harness) are made CWD-independent via runtime.Caller so parallel
-  subtests no longer race with the harness os.Chdir.

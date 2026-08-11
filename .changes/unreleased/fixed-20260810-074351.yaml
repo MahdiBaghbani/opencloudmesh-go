@@ -1,4 +1,0 @@
-kind: fixed
-body: >-
-  JSON and mirror stores now fsync the data directory after the temp-file
-  rename so crashes do not lose the directory entry linking the new file.

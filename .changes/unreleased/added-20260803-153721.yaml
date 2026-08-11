@@ -1,5 +1,0 @@
-kind: added
-body: >-
-  automation and release tooling: dependabot config, changie changelog
-  system with PR gate, release workflow with --version, PR and issue
-  templates, and CI workflow name and badge cleanup

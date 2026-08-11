@@ -1,7 +1,0 @@
-kind: fixed
-body: >-
-  Outgoing shares are now persisted locally before being delivered to the
-  receiver, with a pending/sent/failed state machine, so a successful
-  delivery can no longer leave an orphan share that the sender has no record
-  of; failed deliveries retain the delivery error on the share record for
-  audit.

@@ -1,8 +1,0 @@
-kind: changed
-body: >-
-  narrow the gosec global excludes (G304, G306, G104, G101, G115) into a scoped
-  policy: G104 stays suppressed by its text exclusion as redundant with the
-  strict errcheck, test and testsupport findings are suppressed by a path-scoped
-  exclusion, and the 13 real-production G304/G306/G101 findings carry inline
-  //nolint:gosec directives naming the specific accepted constraint while the
-  one G115 finding is fixed with a bounds check.

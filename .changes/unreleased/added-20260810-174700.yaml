@@ -1,7 +1,0 @@
-kind: added
-body: >-
-  Outgoing shares now default to a managed content root at .ocm/files
-  (config persistence.content_dir) instead of ad-hoc /tmp paths: the root is
-  created on boot, a hello-ocm.txt seed file is written if absent, and the
-  share allowlist defaults to it, so a share can be created by entering a
-  filename relative to the managed root.
