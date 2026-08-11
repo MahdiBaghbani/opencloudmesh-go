@@ -164,6 +164,30 @@ func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 	}
 }
 
+func TestSendResolved_SignerSignsNotifications(t *testing.T) {
+	t.Parallel()
+
+	hc := &captureHTTPClient{}
+	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
+
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{ //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+		TargetHost:   "peer.example",
+		EndpointPath: "notifications",
+		Kind:         outbound.EndpointNotifications,
+		Body:         []byte(`{}`),
+	}, outbound.ResolvedPeer{
+		Discovery: httpSigDiscovery(),
+	})
+	if err != nil {
+		t.Fatalf("SendResolved returned error: %v", err)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if hc.gotSignature == "" {
+		t.Fatal("expected signed notification dispatch")
+	}
+}
+
 func TestSendResolved_SignerSignsShares(t *testing.T) {
 	t.Parallel()
 

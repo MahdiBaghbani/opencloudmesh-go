@@ -85,6 +85,19 @@ func (p *Poster) Send(ctx context.Context, req Request) (*http.Response, error) 
 	})
 }
 
+// DiscoverPeer fetches the remote discovery document for targetHost using the
+// same origin resolution and discovery client as Send.
+func (p *Poster) DiscoverPeer(ctx context.Context, targetHost string) (*spec.Discovery, error) {
+	origin := p.peerOrigin.Resolve(targetHost)
+
+	disc, err := p.discoveryClient.Discover(ctx, origin.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("discovery failed for %s: %w", targetHost, err)
+	}
+
+	return disc, nil
+}
+
 // SendResolved builds and optionally signs the POST against an already-resolved
 // peer origin and discovery, then sends it. It performs no origin resolution or
 // discovery of its own. On success the caller owns the returned response and
@@ -116,7 +129,7 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 
 func (p *Poster) applySigning(httpReq *http.Request, req Request, disc *spec.Discovery) error {
 	switch req.Kind {
-	case EndpointShares, EndpointInvites:
+	case EndpointShares, EndpointInvites, EndpointNotifications:
 		// Only sign when the peer advertises the http-sig capability.
 		// A server implementing http-sig MUST use it when interacting with a
 		// peer advertising http-sig, and MAY interact unsigned with a peer not

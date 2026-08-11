@@ -68,7 +68,6 @@ var bannedTokens = []string{
 	"draft-cavage",
 	"DraftCavage",
 	"global_enforce",
-	"EndpointNotifications",
 }
 
 var peerMappingIdent = regexp.MustCompile(`PeerMapping\w*`)

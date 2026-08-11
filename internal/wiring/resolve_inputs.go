@@ -26,16 +26,17 @@ func resolveInputs(cfg *config.Config, d *Deps) resolve.ResolveInputs {
 	}
 
 	return resolve.ResolveInputs{
-		LocalIdentity:       d.LocalIdentity,
-		RouteOpts:           service.RouteOptsFromConfig(cfg),
-		TokenExchangePath:   tokenPath,
-		KeyManager:          d.KeyManager,
-		CodeFlow:            d.CodeFlow,
-		Resolver:            resolver,
-		JwksURIOverride:     cfg.Signature.JwksURI,
-		AdvertiseDenylist:   advertiseDenylist,
-		AdvertiseAllowlist:  advertiseAllowlist,
-		AdvertiseMustInvite: cfg.OCM.MustInviteEnforced(),
+		LocalIdentity:          d.LocalIdentity,
+		RouteOpts:              service.RouteOptsFromConfig(cfg),
+		TokenExchangePath:      tokenPath,
+		KeyManager:             d.KeyManager,
+		CodeFlow:               d.CodeFlow,
+		Resolver:               resolver,
+		JwksURIOverride:        cfg.Signature.JwksURI,
+		AdvertiseDenylist:      advertiseDenylist,
+		AdvertiseAllowlist:     advertiseAllowlist,
+		AdvertiseMustInvite:    cfg.OCM.MustInviteEnforced(),
+		AdvertiseNotifications: true,
 	}
 }
 

@@ -23,7 +23,7 @@ Built by `internal/components/ocm/discovery` and served by
 | `endPoint` | Route-derived projection from local identity |
 | `tokenEndPoint` | Projected when token exchange is capable |
 | `resourceTypes[].protocols` | `webdav` path plus `webdav-receive` with `uri: relative` |
-| `capabilities` | `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invites` when `InvitesEnabled` is true (defaults true; OCM invite protocol routes are always mounted), `invite-wayf` only when the WAYF route is enabled |
+| `capabilities` | `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invites` when `InvitesEnabled` is true (defaults true; OCM invite protocol routes are always mounted), `notifications` when notification routes are enabled, `invite-wayf` only when the WAYF route is enabled |
 | `criteria` | Strictness requirements (HTTP sig, token exchange, denylist/allowlist when configured) |
 | `inviteAcceptDialog` | Derived when invite accept route is active |
 
@@ -76,7 +76,7 @@ Payloads, and OCM Notification Types.
 
 [iana-ocm-params]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1801-L1809
 
-### Capabilities (4 of 7)
+### Capabilities (5 of 7)
 
 Full OCM capability enumeration (7 total):
 [OCM-API capabilities][ocm-capabilities].
@@ -88,7 +88,7 @@ Full OCM capability enumeration (7 total):
 | `invites` | advertised |
 | `invite-wayf` | advertised when WAYF route is enabled |
 | `enforce-mfa` | omitted |
-| `notifications` | omitted |
+| `notifications` | advertised |
 | `protocol-object` | omitted |
 
 [ocm-capabilities]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L709-L738

@@ -16,6 +16,8 @@ const (
 	RouteShares = "/shares"
 	// RouteInviteAccepted is the OCM invite-accepted route path.
 	RouteInviteAccepted = "/invite-accepted"
+	// RouteNotifications is the OCM notifications route path.
+	RouteNotifications = "/notifications"
 	// RouteJWKS is the OCM local JWKS route path.
 	RouteJWKS = "/jwks"
 )
@@ -60,6 +62,18 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 			TrustClass:     service.TrustPeerRequired,
 			BodyLimitBytes: service.OCMProtocolBodyLimitBytes,
 			PeerResolution: service.PeerResolutionInviteAccepted,
+		},
+		{
+			ID:             "ocm-notifications",
+			Service:        string(service.BuildOCM),
+			Method:         http.MethodPost,
+			Pattern:        RouteNotifications,
+			SessionPolicy:  service.SessionPublic,
+			HandlerAuth:    service.HandlerAuthRequiredHTTPSig,
+			SurfaceClass:   service.SurfaceProtocol,
+			TrustClass:     service.TrustPeerRequired,
+			BodyLimitBytes: service.OCMProtocolBodyLimitBytes,
+			PeerResolution: service.PeerResolutionNotifications,
 		},
 		{
 			ID:              service.RouteIDOCMToken,

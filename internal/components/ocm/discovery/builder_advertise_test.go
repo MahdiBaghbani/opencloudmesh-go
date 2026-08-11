@@ -14,6 +14,34 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
+func TestBuildDiscovery_AdvertisesNotificationsWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:               "https://example.com/ocm",
+		WebDAVRoot:             "/webdav/ocm/",
+		AdvertiseNotifications: true,
+	}, nil)
+
+	if !disc.HasCapability(spec.CapabilityNotifications) {
+		t.Fatal("expected notifications capability when enabled")
+	}
+}
+
+func TestBuildDiscovery_OmitsNotificationsWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:               "https://example.com/ocm",
+		WebDAVRoot:             "/webdav/ocm/",
+		AdvertiseNotifications: false,
+	}, nil)
+
+	if disc.HasCapability(spec.CapabilityNotifications) {
+		t.Fatal("did not expect notifications capability when disabled")
+	}
+}
+
 func TestBuildDiscovery_MustUseHTTPSig_RequiresAdvertise(t *testing.T) {
 	t.Parallel()
 

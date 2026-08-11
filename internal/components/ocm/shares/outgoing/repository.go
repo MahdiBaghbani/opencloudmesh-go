@@ -7,7 +7,11 @@ package outgoing
 
 import (
 	"context"
+	"errors"
 )
+
+// ErrShareNotFound is returned when an outgoing share is not found.
+var ErrShareNotFound = errors.New("share not found")
 
 type OutgoingShareRepo interface { //nolint:revive // exported: self-explanatory CRUD interface for outgoing shares
 	Create(ctx context.Context, share *OutgoingShare) error

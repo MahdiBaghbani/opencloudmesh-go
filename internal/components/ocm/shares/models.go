@@ -7,7 +7,7 @@
 // and outgoing share packages.
 package shares
 
-// ShareStatus tracks the lifecycle state of an incoming share (pending, accepted, declined).
+// ShareStatus tracks the lifecycle state of an incoming share.
 type ShareStatus string
 
 const (
@@ -17,6 +17,9 @@ const (
 	ShareStatusAccepted ShareStatus = "accepted"
 	// ShareStatusDeclined is the declined share status.
 	ShareStatusDeclined ShareStatus = "declined"
+	// ShareStatusUnshared means the sender revoked the share; local access is revoked.
+	// There is no separate schema column for this state beyond the status value.
+	ShareStatusUnshared ShareStatus = "unshared"
 )
 
 // OutgoingShareStatus tracks the lifecycle state of an outgoing share (pending, sent, accepted, declined, failed).

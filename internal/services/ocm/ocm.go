@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing/accepted"
+	notificationsincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
@@ -100,6 +101,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.CodeFlow,
 		inputs.LocalIdentity.Origin,
 	)
+	notificationsHandler := notificationsincoming.NewHandler(
+		inputs.OutgoingShareRepo,
+		inputs.IncomingShareRepo,
+		inputs.LocalIdentity.Scheme,
+		log,
+	)
 
 	peerResolver := peer.NewResolver()
 	r := chi.NewRouter()
@@ -112,6 +119,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		shares:         sharesHandler.CreateShare,
 		inviteAccepted: invitesHandler.HandleInviteAccepted,
 		token:          tokenHandler.HandleToken,
+		notifications:  notificationsHandler.HandleNotification,
 	}, peerResolver); err != nil {
 		return nil, err
 	}

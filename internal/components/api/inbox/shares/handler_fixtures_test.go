@@ -43,7 +43,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 
 // newTestRouter mounts the inbox shares handler; nil accessClient/cfg suffice for list/accept/decline.
 func newTestRouter(repo sharesincoming.IncomingShareRepo, user *identity.User) http.Handler {
-	h := inboxshares.NewHandler(repo, nil, currentUserFunc(user), testLogger)
+	h := inboxshares.NewHandler(repo, nil, nil, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
 		r.Get("/", h.HandleList)

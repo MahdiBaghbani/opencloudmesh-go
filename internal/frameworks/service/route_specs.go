@@ -97,6 +97,8 @@ const (
 	PeerResolutionInviteAccepted PeerResolution = "invite-accepted"
 	// PeerResolutionToken is the token peer resolution strategy.
 	PeerResolutionToken PeerResolution = "token"
+	// PeerResolutionNotifications is the notifications peer resolution strategy.
+	PeerResolutionNotifications PeerResolution = "notifications"
 )
 
 // OCMProtocolBodyLimitBytes is the pre-verification request body limit for OCM POST routes.

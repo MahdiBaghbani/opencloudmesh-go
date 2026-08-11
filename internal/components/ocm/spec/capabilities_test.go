@@ -28,6 +28,7 @@ func TestCapabilityWireValues(t *testing.T) {
 		{name: "exchange-token", got: spec.CapabilityExchangeToken, want: "exchange-token"},
 		{name: "invites", got: spec.CapabilityInvite, want: "invites"},
 		{name: "invite-wayf", got: spec.CapabilityInviteWAYF, want: "invite-wayf"},
+		{name: "notifications", got: spec.CapabilityNotifications, want: "notifications"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -84,6 +85,7 @@ var capabilityWireLiterals = []string{
 	`"exchange-token"`,
 	`"invites"`,
 	`"invite-wayf"`,
+	`"notifications"`,
 }
 
 func TestCapabilityClosedPathNoRawWireLiterals(t *testing.T) {

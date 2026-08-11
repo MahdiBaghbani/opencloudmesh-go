@@ -56,6 +56,7 @@ func expectedOCMPostPaths(t *testing.T) []string {
 	paths := []string{
 		"/ocm" + RouteShares,
 		"/ocm" + RouteInviteAccepted,
+		"/ocm" + RouteNotifications,
 		tokenPath,
 	}
 	slices.Sort(paths)
@@ -170,6 +171,7 @@ func TestService_RoutingSmoke(t *testing.T) {
 	}{
 		{"shares", "/shares"},
 		{"invite-accepted", "/invite-accepted"},
+		{"notifications", "/notifications"},
 		{"token", "/token"},
 	}
 
