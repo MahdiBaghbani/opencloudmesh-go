@@ -258,10 +258,13 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	protocol := access.ProtocolWebDAV
 	if share.WebappURI != "" || strings.EqualFold(share.ProtocolName, access.ProtocolWebapp) {
-		protocol = access.ProtocolWebapp
+		writeVerifyError(w, http.StatusNotImplemented, verifyReasonUnsupportedProtocol, "webapp access is not supported; only webdav is served")
+
+		return
 	}
+
+	protocol := access.ProtocolWebDAV
 
 	shareInfo := access.ShareInfo{
 		Status:            string(share.Status),
