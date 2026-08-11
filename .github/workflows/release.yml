@@ -28,7 +28,8 @@ env:
   CHANGIE_VERSION: v1.25.1
   GOLANGCI_LINT_VERSION: v2.12.2
   NU_VERSION: 0.114.1
-  # Pinned gitsign release; used to keyless-sign the release tag (Sigstore).
+  # Pinned gitsign release; used to keyless-sign the release commit (Sigstore).
+  # The release tag is created by release-finalize.yml after the PR merges.
   GITSIGN_VERSION: v0.17.1
 
 concurrency:
@@ -39,14 +40,14 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest
-    # contents: write is required for the DCO-signed commit, tag, and push.
-    # GitHub Release creation is owned by the binary (GoReleaser) lane.
-    # id-token: write is required for gitsign keyless (Sigstore) tag signing.
+    # contents: write is required to push the release branch and open the PR.
+    # id-token: write is required for gitsign keyless (Sigstore) commit signing.
     permissions:
       contents: write
       id-token: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+      pr_url: ${{ steps.pr.outputs.PR_URL }}
     steps:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -79,6 +80,17 @@ jobs:
       - name: Configure git identity
         run: git config user.name "github-actions[bot]" && git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Install gitsign
+        run: go install "github.com/sigstore/gitsign@${GITSIGN_VERSION}"
+
+      # Sign the release commit with gitsign keyless (Sigstore X.509) so it
+      # satisfies the master "require signed commits" rule after the PR merges.
+      - name: Configure gitsign for commit signing
+        run: |
+          git config gpg.format x509
+          git config gpg.x509.program gitsign
+          git config commit.gpgsign true
+
       - name: Stage release changes
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -88,7 +100,7 @@ jobs:
       - name: Commit release
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: 'git commit -s -m "chore(release): ${VERSION}"'
+        run: 'git commit -s -S -m "chore(release): ${VERSION}"'
 
       - name: go vet
         run: go vet ./...
@@ -118,61 +130,35 @@ jobs:
       - name: Verify immutable action pins
         run: make verify-action-pins
 
-      - name: Install gitsign
-        run: go install "github.com/sigstore/gitsign@${GITSIGN_VERSION}"
-
-      # Configure git to sign tags with gitsign keyless (Sigstore X.509).
-      # Only -s tag signing is routed through gitsign; the DCO release commit
-      # uses `git commit -s` (lowercase = Signed-off-by trailer, not crypto).
-      - name: Configure gitsign for tag signing
-        run: |
-          git config gpg.format x509
-          git config gpg.x509.program gitsign
-
-      - name: Tag release
+      # master is protected (require signed commits + require PR + status
+      # checks + enforce_admins), so the signed release commit cannot be
+      # pushed directly. Push it on a release branch and open a PR; GitHub
+      # signs the merge commit, satisfying "require signed commits".
+      - name: Push release branch
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: git tag -s "${VERSION}" -m "Release ${VERSION}"
-
-      - name: Push release commit and tag
-        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # persist-credentials is off, so authenticate pushes explicitly.
-          # The token never hits logs: nothing here echoes the URL (no set -x)
-          # and Actions masks the GITHUB_TOKEN value in git's push output.
+          BRANCH="release/${VERSION}"
+          git checkout -b "${BRANCH}"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --atomic origin HEAD:"${GITHUB_REF#refs/heads/}" "${{ steps.version.outputs.version }}"
+          git push -u origin "${BRANCH}"
 
-  binary:
-    name: binary
-    needs: release
-    # The called workflow can only maintain or downgrade this token, so the
-    # binary release and attestation permissions must be granted here.
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    uses: ./.github/workflows/release-binary.yml
-    with:
-      tag: ${{ needs.release.outputs.version }}
-
-  image:
-    name: image
-    needs: release
-    # The called workflow can only maintain or downgrade this token, so the
-    # image publish and attestation permissions must be granted here.
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    # GITHUB_TOKEN is a reserved secret name and cannot be declared in
-    # `on.workflow_call.secrets`; every job (including reusable-workflow
-    # calls) already receives its own ephemeral GITHUB_TOKEN automatically,
-    # so it is not passed through here.
-    uses: ./.github/workflows/docker-build.yml
-    with:
-      push: true
-      semver: ${{ needs.release.outputs.version }}
+      - name: Open release pull request
+        id: pr
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PR_URL="$(gh pr create \
+            --base "${GITHUB_REF#refs/heads/}" \
+            --head "release/${VERSION}" \
+            --title "chore(release): ${VERSION}" \
+            --body "Batched changelog for ${VERSION}. Merge to publish; the finalize lane tags and builds on merge.")"
+          echo "PR_URL=${PR_URL}" >> "$GITHUB_OUTPUT"
+          # Auto-merge is a convenience; if it is not enabled for the repo the
+          # operator can merge the PR manually and finalize still runs on push.
+          gh pr merge --auto --merge "${PR_URL}" || \
+            echo "auto-merge not available; merge ${PR_URL} manually"
