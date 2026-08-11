@@ -40,6 +40,9 @@ pins:
   coverallsapp/github-action:
     release: v2.3.8
     sha: 8d6379e14d29928660c4ba802d8e85393440b329
+  crazy-max/ghaction-import-gpg:
+    release: v7.0.0
+    sha: 2dc316deee8e90f13e1a351ab510b4d5bc0c82cd
   github/codeql-action/init:
     release: v4.37.6
     sha: 5595ccaf912efad79be6eef63a5619ff05969be3
