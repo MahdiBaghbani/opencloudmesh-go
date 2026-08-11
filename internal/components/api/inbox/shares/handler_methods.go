@@ -98,12 +98,20 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if share.Status == shares.ShareStatusUnshared {
+		api.WriteConflict(w, "share was unshared by the sender and cannot be accepted")
+
+		return
+	}
+
 	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, shares.ShareStatusAccepted); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
 
 		return
 	}
+
+	h.notifyShareAcceptedAsync(r, share.SenderHost, share.ProviderID, share.ResourceType)
 
 	w.Header().Set("Content-Type", "application/json")
 	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
@@ -203,12 +211,27 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if share.Status == shares.ShareStatusUnshared {
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(map[string]string{
+			jsonKeyStatus:  string(shares.ShareStatusUnshared),
+			jsonKeyShareID: shareID,
+		}); err != nil {
+			h.log.Error("failed to encode unshared share", "error", err)
+		}
+
+		return
+	}
+
 	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, shares.ShareStatusDeclined); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
 
 		return
 	}
+
+	h.notifyShareDeclinedAsync(r, share.SenderHost, share.ProviderID, share.ResourceType)
 
 	w.Header().Set("Content-Type", "application/json")
 

@@ -175,6 +175,7 @@ const maxPreviewBytes = 4096
 type Handler struct {
 	repo         sharesincoming.IncomingShareRepo
 	accessClient access.RemoteAccessor
+	notifier     Notifier
 	currentUser  func(context.Context) (*identity.User, error)
 	log          *slog.Logger
 }
@@ -183,6 +184,7 @@ type Handler struct {
 func NewHandler(
 	repo sharesincoming.IncomingShareRepo,
 	accessClient access.RemoteAccessor,
+	notifier Notifier,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
@@ -191,6 +193,7 @@ func NewHandler(
 	return &Handler{
 		repo:         repo,
 		accessClient: accessClient,
+		notifier:     notifier,
 		currentUser:  currentUser,
 		log:          log,
 	}

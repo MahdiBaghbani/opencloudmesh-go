@@ -23,6 +23,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
+	notificationsoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -100,6 +101,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	inboxSharesHandler := inboxshares.NewHandler(
 		inputs.IncomingShareRepo,
 		accessClient,
+		notificationsoutgoing.NewSender(outbound.NewPoster(
+			inputs.HTTPClient,
+			inputs.DiscoveryClient,
+			inputs.Signer,
+			inputs.PeerOrigin,
+		)),
 		currentUser,
 		log,
 	)

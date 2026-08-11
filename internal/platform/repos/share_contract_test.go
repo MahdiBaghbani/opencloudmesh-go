@@ -432,8 +432,8 @@ func runOutgoingShareRepoContractNotFoundSentinel(t *testing.T, ctx context.Cont
 	}
 
 	_, err = r.OutgoingShares.GetByProviderID(ctx, "ct-out-missing-provider")
-	if err == nil {
-		t.Error("GetByProviderID nonexistent: expected error, got nil")
+	if !errors.Is(err, sharesoutgoing.ErrShareNotFound) {
+		t.Errorf("GetByProviderID nonexistent: expected ErrShareNotFound, got %v", err)
 	}
 
 	_, err = r.OutgoingShares.GetBySharedSecret(ctx, "ct-out-missing-secret")

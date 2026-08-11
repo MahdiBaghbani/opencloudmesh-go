@@ -118,6 +118,13 @@ func (m *SignatureMiddleware) VerifyOCMRequestRequireSignatureAndPeer(
 	return m.verifyOCMRequest(declaredPeerResolver, true, false)
 }
 
+// VerifyOCMRequestRequireSignature requires a verified signature and binds the
+// sender identity from the signature keyId alone. Use on routes such as
+// notifications where the wire body does not declare a peer host.
+func (m *SignatureMiddleware) VerifyOCMRequestRequireSignature() func(http.Handler) http.Handler {
+	return m.verifyOCMRequest(nil, false, false)
+}
+
 func (m *SignatureMiddleware) verifyOCMRequest(
 	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
 	requireDeclaredPeer bool,

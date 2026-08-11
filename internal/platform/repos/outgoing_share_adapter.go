@@ -69,7 +69,7 @@ func (a *outgoingShareAdapter) GetByProviderID(ctx context.Context, providerID s
 	s, err := a.s.GetOutgoingShare(ctx, providerID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, fmt.Errorf("share not found for providerId: %s", providerID)
+			return nil, sharesoutgoing.ErrShareNotFound
 		}
 
 		return nil, fmt.Errorf("repos: get outgoing share: %w", err)

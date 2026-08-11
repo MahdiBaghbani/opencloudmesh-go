@@ -58,6 +58,9 @@ type BuildParams struct {
 	// (wiring) sets this when must-invite enforcement is enabled, which is the
 	// default; an explicit ocm.invite.enforce_must_invite=false opt-out clears it.
 	AdvertiseMustInvite bool
+
+	// AdvertiseNotifications emits the notifications capability when true.
+	AdvertiseNotifications bool
 }
 
 // BuildDiscovery constructs the static discovery document (Reva pattern:
@@ -136,6 +139,10 @@ func buildDiscoveryCapabilities(p BuildParams, disc *spec.Discovery, log *slog.L
 
 	if p.WayfEnabled {
 		capabilities = append(capabilities, spec.CapabilityInviteWAYF)
+	}
+
+	if p.AdvertiseNotifications {
+		capabilities = append(capabilities, spec.CapabilityNotifications)
 	}
 
 	return capabilities

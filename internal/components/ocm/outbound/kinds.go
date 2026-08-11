@@ -13,4 +13,6 @@ const (
 	EndpointShares EndpointKind = "shares"
 	// EndpointInvites is the invites outbound endpoint kind.
 	EndpointInvites EndpointKind = "invites"
+	// EndpointNotifications is the notifications outbound endpoint kind.
+	EndpointNotifications EndpointKind = "notifications"
 )

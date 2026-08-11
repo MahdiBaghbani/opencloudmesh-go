@@ -31,6 +31,10 @@ var wireLiteralSet = []string{
 	"exchange-token",
 	"invites",
 	"invite-wayf",
+	"notifications",
+
+	// Routes
+	"/notifications",
 
 	// Criteria
 	"must-use-http-sig",
@@ -59,6 +63,10 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 	},
 	"internal/components/ocm/outbound/kinds.go": {
 		15: {},
+		17: {},
+	},
+	"internal/components/ocm/notifications/outgoing/sender.go": {
+		62: {},
 	},
 	"internal/frameworks/service/descriptors.go": {
 		16: {},
@@ -76,8 +84,9 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		55: {},
 	},
 	"internal/frameworks/service/route_specs.go": {
-		51: {},
-		85: {},
+		51:  {},
+		85:  {},
+		101: {},
 	},
 	"internal/platform/config/loader_validate_ssrf.go": {
 		// loader.go split into loader_*.go; literal moved to loader_validate_ssrf.go:300.
@@ -91,14 +100,15 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 	},
 	"internal/services/ocm/ocm.go": {
 		// wrapcheck rollout added a "fmt" import (+1).
-		59:  {},
-		146: {},
+		60: {},
 	},
 	"internal/services/ocm/routes.go": {
+		20: {},
 		40: {},
 		52: {},
 		64: {},
-		77: {},
+		76: {},
+		89: {},
 	},
 	"internal/services/ui/routes.go": {
 		69: {},

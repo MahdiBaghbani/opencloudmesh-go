@@ -16,4 +16,5 @@ const (
 	CapabilityExchangeToken = "exchange-token"
 	CapabilityInvite        = "invites"
 	CapabilityInviteWAYF    = "invite-wayf"
+	CapabilityNotifications = "notifications"
 )

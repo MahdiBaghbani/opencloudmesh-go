@@ -115,6 +115,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			AdvertiseDenylist:      in.AdvertiseDenylist,
 			AdvertiseAllowlist:     in.AdvertiseAllowlist,
 			AdvertiseMustInvite:    in.AdvertiseMustInvite,
+			AdvertiseNotifications: in.AdvertiseNotifications,
 		},
 	}
 }

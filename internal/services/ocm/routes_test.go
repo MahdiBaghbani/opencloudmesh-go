@@ -18,8 +18,8 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 	opts := service.DefaultRouteOpts()
 
 	specs := registeredRouteSpecs(opts)
-	if len(specs) != 4 {
-		t.Fatalf("expected 4 route specs, got %d", len(specs))
+	if len(specs) != 5 {
+		t.Fatalf("expected 5 route specs, got %d", len(specs))
 	}
 
 	for i := range specs {
@@ -115,8 +115,8 @@ func TestRegisteredRouteSpecs_ProtocolPostInvariants(t *testing.T) {
 		postRows = append(postRows, spec)
 	}
 
-	if len(postRows) != 3 {
-		t.Fatalf("expected 3 OCM POST protocol route specs, got %d", len(postRows))
+	if len(postRows) != 4 {
+		t.Fatalf("expected 4 OCM POST protocol route specs, got %d", len(postRows))
 	}
 
 	for _, spec := range postRows {

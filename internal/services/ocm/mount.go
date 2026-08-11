@@ -19,6 +19,7 @@ type routeHandlers struct {
 	shares         http.HandlerFunc
 	inviteAccepted http.HandlerFunc
 	token          http.HandlerFunc
+	notifications  http.HandlerFunc
 }
 
 func mountProtocolRoutes(
@@ -74,6 +75,8 @@ func handlerForRow(row service.RouteRow, handlers routeHandlers) (http.HandlerFu
 		return handlers.shares, nil
 	case "ocm-invite-accepted":
 		return handlers.inviteAccepted, nil
+	case "ocm-notifications":
+		return handlers.notifications, nil
 	case service.RouteIDOCMToken:
 		return handlers.token, nil
 	default:
@@ -110,6 +113,8 @@ func middlewaresForRow(
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest))
 	case service.PeerResolutionToken:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest))
+	case service.PeerResolutionNotifications:
+		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignature())
 	default:
 		return nil, fmt.Errorf("ocm: route %q missing peer resolution metadata", row.ID)
 	}

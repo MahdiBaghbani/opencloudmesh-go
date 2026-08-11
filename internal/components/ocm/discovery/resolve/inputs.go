@@ -37,4 +37,7 @@ type ResolveInputs struct {
 	// AdvertiseMustInvite reflects must-invite enforcement wired by the caller.
 	// Enforcement is on by default; an explicit opt-out clears this flag.
 	AdvertiseMustInvite bool
+
+	// AdvertiseNotifications reflects whether the local notifications handler is wired.
+	AdvertiseNotifications bool
 }

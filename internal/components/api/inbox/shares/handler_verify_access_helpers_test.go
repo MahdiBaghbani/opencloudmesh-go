@@ -32,7 +32,7 @@ func newTestRouterWithAccess(
 	ac access.RemoteAccessor,
 	user *identity.User,
 ) http.Handler {
-	h := inboxshares.NewHandler(repo, ac, currentUserFunc(user), testLogger)
+	h := inboxshares.NewHandler(repo, ac, nil, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
 		r.Get("/", h.HandleList)
