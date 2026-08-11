@@ -28,9 +28,6 @@ env:
   CHANGIE_VERSION: v1.25.1
   GOLANGCI_LINT_VERSION: v2.12.2
   NU_VERSION: 0.114.1
-  # Pinned gitsign release; used to keyless-sign the release commit (Sigstore).
-  # The release tag is created by release-finalize.yml after the PR merges.
-  GITSIGN_VERSION: v0.17.1
 
 concurrency:
   group: release
@@ -40,11 +37,11 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest
-    # contents: write is required to push the release branch and open the PR.
-    # id-token: write is required for gitsign keyless (Sigstore) commit signing.
+    # contents: write is required to push the release branch.
+    # pull-requests: write is required to open the release PR.
     permissions:
       contents: write
-      id-token: write
+      pull-requests: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       pr_url: ${{ steps.pr.outputs.PR_URL }}
@@ -77,19 +74,21 @@ jobs:
       - name: Merge changelog
         run: changie merge
 
-      - name: Configure git identity
-        run: git config user.name "github-actions[bot]" && git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Install gitsign
-        run: go install "github.com/sigstore/gitsign@${GITSIGN_VERSION}"
-
-      # Sign the release commit with gitsign keyless (Sigstore X.509) so it
-      # satisfies the master "require signed commits" rule after the PR merges.
-      - name: Configure gitsign for commit signing
-        run: |
-          git config gpg.format x509
-          git config gpg.x509.program gitsign
-          git config commit.gpgsign true
+      # Import the dedicated release-signing GPG key and configure git to sign
+      # commits as the key owner. gitsign (Sigstore) is NOT used for commits:
+      # GitHub does not recognize Sigstore signatures as verified, so they
+      # cannot satisfy the master "require signed commits" rule. The release
+      # tag is still gitsign-signed by release-finalize.yml for Rekor provenance.
+      - name: Import GPG signing key
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd
+        with:
+          gpg_private_key: ${{ secrets.GPG_SIGNING_KEY }}
+          passphrase: ${{ secrets.GPG_SIGNING_PASSPHRASE }}
+          git_config_global: true
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_committer_name: Mahdi Baghbani
+          git_committer_email: mahdi-baghbani@azadehafzar.io
 
       - name: Stage release changes
         env:
