@@ -21,7 +21,8 @@ import (
 
 // Verify-access reason codes for structured error responses.
 const (
-	verifyReasonShareNotAccepted = "share_not_accepted"
+	verifyReasonShareNotAccepted    = "share_not_accepted"
+	verifyReasonUnsupportedProtocol = "unsupported_protocol"
 )
 
 // InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.

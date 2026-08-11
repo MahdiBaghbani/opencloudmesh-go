@@ -8,14 +8,15 @@ package shares_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
+	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
@@ -120,61 +121,46 @@ func TestHandleVerifyAccess_PassesEmptySubPath(t *testing.T) {
 	}
 }
 
-func TestHandleVerifyAccess_SelectsWebappProtocolAndPopulatesShareInfo(t *testing.T) {
+// assertVerifyAccessUnsupportedProtocol posts verify-access and expects HTTP 501
+// with reasonCode unsupported_protocol without calling the access client.
+func assertVerifyAccessUnsupportedProtocol(t *testing.T, repo sharesincoming.IncomingShareRepo, shareID string) {
+	t.Helper()
+
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
+		t.Fatal("access client should not be called for unsupported webapp protocol")
+
+		return nil, nil //nolint:nilnil // test: unreachable after t.Fatal; satisfies the mock accessor signature
+	}}
+	router := newTestRouterWithAccess(repo, ac, userA)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+shareID+"/verify-access", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp inboxshares.VerifyAccessResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if resp.ReasonCode != "unsupported_protocol" {
+		t.Errorf("expected reasonCode unsupported_protocol, got %s", resp.ReasonCode)
+	}
+}
+
+func TestHandleVerifyAccess_RejectsWebappShare(t *testing.T) {
 	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp", "sender.example.com", "webapp-file.txt")
 
-	userA := &identity.User{ID: userAID, Username: "alice"}
-
-	gotProtocol, gotShareInfo := runVerifyAccess(t, repo, userA, share.ShareID, "text/html", "<html></html>")
-
-	if gotProtocol != access.ProtocolWebapp {
-		t.Errorf("expected protocol %q, got %q", access.ProtocolWebapp, gotProtocol)
-	}
-
-	assertWebappShareInfo(t, gotShareInfo, share)
+	assertVerifyAccessUnsupportedProtocol(t, repo, share.ShareID)
 }
 
-// assertWebappShareInfo checks the ShareInfo handed to the access client for a
-// webapp share, including both webapp arm fields and the WebDAV credentials.
-func assertWebappShareInfo(t *testing.T, got *access.ShareInfo, share *sharesincoming.IncomingShare) {
-	t.Helper()
-
-	if got == nil {
-		t.Fatal("expected ShareInfo to be passed to access client")
-	}
-
-	if got.ProtocolName != share.ProtocolName {
-		t.Errorf("expected ProtocolName %q, got %q", share.ProtocolName, got.ProtocolName)
-	}
-
-	if got.WebappURI != share.WebappURI {
-		t.Errorf("expected WebappURI %q, got %q", share.WebappURI, got.WebappURI)
-	}
-
-	if !slices.Equal(got.WebappTargets, share.WebappTargets) {
-		t.Errorf("expected WebappTargets %v, got %v", share.WebappTargets, got.WebappTargets)
-	}
-
-	if !slices.Equal(got.WebappPermissions, share.WebappPermissions) {
-		t.Errorf("expected WebappPermissions %v, got %v", share.WebappPermissions, got.WebappPermissions)
-	}
-
-	if got.WebDAVID != share.WebDAVID {
-		t.Errorf("expected WebDAVID %q, got %q", share.WebDAVID, got.WebDAVID)
-	}
-
-	if got.SharedSecret != share.SharedSecret {
-		t.Errorf("expected SharedSecret to be passed to access client")
-	}
-
-	if !slices.Equal(got.Requirements, share.Requirements) {
-		t.Errorf("expected Requirements %v, got %v", share.Requirements, got.Requirements)
-	}
-}
-
-func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
+func TestHandleVerifyAccess_RejectsWebappByWebappURI(t *testing.T) {
 	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 
@@ -202,28 +188,10 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	userA := &identity.User{ID: userAID, Username: "alice"}
-
-	gotProtocol, gotShareInfo := runVerifyAccess(t, repo, userA, share.ShareID, "text/html", "<html></html>")
-
-	if gotProtocol != access.ProtocolWebapp {
-		t.Errorf("expected protocol %q, got %q", access.ProtocolWebapp, gotProtocol)
-	}
-
-	if gotShareInfo == nil {
-		t.Fatal("expected ShareInfo to be passed to access client")
-	}
-
-	if gotShareInfo.ProtocolName != "webdav" {
-		t.Errorf("expected ProtocolName %q, got %q", "webdav", gotShareInfo.ProtocolName)
-	}
-
-	if gotShareInfo.WebappURI != share.WebappURI {
-		t.Errorf("expected WebappURI %q, got %q", share.WebappURI, gotShareInfo.WebappURI)
-	}
+	assertVerifyAccessUnsupportedProtocol(t, repo, share.ShareID)
 }
 
-func TestHandleVerifyAccess_SelectsWebappProtocolByProtocolName(t *testing.T) {
+func TestHandleVerifyAccess_RejectsWebappByProtocolName(t *testing.T) {
 	t.Parallel()
 	repo := tsrepos.OpenMemory(t).IncomingShares
 
@@ -250,23 +218,5 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByProtocolName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	userA := &identity.User{ID: userAID, Username: "alice"}
-
-	gotProtocol, gotShareInfo := runVerifyAccess(t, repo, userA, share.ShareID, "text/html", "<html></html>")
-
-	if gotProtocol != access.ProtocolWebapp {
-		t.Errorf("expected protocol %q, got %q", access.ProtocolWebapp, gotProtocol)
-	}
-
-	if gotShareInfo == nil {
-		t.Fatal("expected ShareInfo to be passed to access client")
-	}
-
-	if gotShareInfo.ProtocolName != share.ProtocolName {
-		t.Errorf("expected ProtocolName %q, got %q", share.ProtocolName, gotShareInfo.ProtocolName)
-	}
-
-	if gotShareInfo.WebappURI != "" {
-		t.Errorf("expected empty WebappURI, got %q", gotShareInfo.WebappURI)
-	}
+	assertVerifyAccessUnsupportedProtocol(t, repo, share.ShareID)
 }

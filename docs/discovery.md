@@ -104,7 +104,7 @@ Full OCM criteria enumeration (5 total):
 | `must-exchange-token` | advertised when token exchange is required |
 | `denylist` | advertised when `[peer_trust] enabled` is true and `[peer_trust.policy] deny_list` is nonempty |
 | `allowlist` | advertised when `[peer_trust] enabled` is true and `[peer_trust.policy] allow_list` is nonempty |
-| `must-invite` | omitted (not yet enforced) |
+| `must-invite` | advertised and enforced by default; cleared by `ocm.invite.enforce_must_invite=false` |
 
 [ocm-criteria]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L739-L764
 
