@@ -1,6 +1,0 @@
-kind: added
-body: >-
-  contributor onboarding docs: CONTRIBUTING.md now identifies small tasks for
-  new or casual contributors (good first issue / help wanted labels and example
-  tasks) and documents the code review process (how review is conducted, what
-  must be checked, and the acceptance bar)

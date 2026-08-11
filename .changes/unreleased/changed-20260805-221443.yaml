@@ -1,9 +1,0 @@
-kind: changed
-body: >-
-  test, policy, and rollup CI: group test workflows under a ci-test
-  dispatcher (unit, e2e, and scheduled native Go fuzz targets), extract the reuse
-  and action-pins checks into reusable workflows with hierarchical
-  ci-*/policy-*/scheduled-* naming, slim the ci.yml rollup with
-  hardened !cancelled() gating and a parity invariant across CI jobs,
-  and declare minimal contents:read permission scope on reusable build,
-  test, fmt-vet, and shellcheck workflows

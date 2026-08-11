@@ -1,6 +1,0 @@
-kind: added
-body: >-
-  signed releases: cosign keyless (Sigstore) signing of release archives and
-  checksums via goreleaser signs, attaching .sigstore.json bundles to the
-  GitHub Release; documented verification in docs/verification.md (also closes
-  the OpenSSF Scorecard signed-releases gap)

@@ -1,4 +1,0 @@
-kind: fixed
-body: >-
-  OutgoingShare.Requirements and IncomingShare.WebappTargets are deep-copied
-  at store boundaries so callers cannot mutate cached share state.

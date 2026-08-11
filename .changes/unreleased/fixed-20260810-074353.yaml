@@ -1,4 +1,0 @@
-kind: fixed
-body: >-
-  Driver Register panics on nil factory or empty name at startup; duplicate
-  registration overwrites. Added Unregister for test isolation.

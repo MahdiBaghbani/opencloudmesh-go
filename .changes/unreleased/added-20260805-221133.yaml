@@ -1,8 +1,0 @@
-kind: added
-body: >-
-  release, lint, and security CI: add a GoReleaser binary
-  release lane with semver tag validation and third-party license
-  bundling, group linters under a ci-lint dispatcher (golangci,
-  fmt-vet, shellcheck, actionlint, yamllint, hadolint, markdownlint,
-  typos), and split security checks into per-tool leaves (gosec,
-  govulncheck, zizmor, codeql, scorecard, dependency-review)

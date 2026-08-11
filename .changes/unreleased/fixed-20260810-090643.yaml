@@ -1,5 +1,0 @@
-kind: fixed
-body: >-
-  Auth, session, and recipient-lookup handlers now return 500 on non-sentinel
-  repository errors instead of masking them as 401/400, so a real backend
-  outage is no longer indistinguishable from a missing user.

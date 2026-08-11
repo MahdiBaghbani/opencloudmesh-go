@@ -1,6 +1,0 @@
-kind: changed
-body: >-
-  enable the goconst and mnd linters project-wide; goconst excludes test
-  files and extracts production repeated strings to constants, and mnd
-  uses an idiomatic-value allowlist so only genuine magic numbers (HTTP
-  statuses, ports, bit masks) require named constants.
