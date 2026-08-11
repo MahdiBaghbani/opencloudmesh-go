@@ -1,5 +1,0 @@
-kind: fixed
-body: >-
-  GoReleaser archive config used an invalid `info` field that aborted
-  binary release builds; archives now pin file mtimes via `builds_info`
-  and per-file `info` so binary releases publish again

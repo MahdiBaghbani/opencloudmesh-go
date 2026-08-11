@@ -12,6 +12,11 @@ All notable changes to this project are documented using changie.
 See `.changie.yaml` for the configuration and the changie workflow for how
 fragments are authored and released.
 
+## v1.2.1
+
+### Fixed
+
+* GoReleaser archive config used an invalid `info` field that aborted binary release builds; archives now pin file mtimes via `builds_info` and per-file `info` so binary releases publish again
 ## v1.2.0
 
 ### Added
