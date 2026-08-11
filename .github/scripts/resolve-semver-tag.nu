@@ -10,17 +10,16 @@
 use ./release-semver-common.nu [semver-ok, append-output, git-head-sha]
 
 def main [] {
-  let event_name = ($env.GITHUB_EVENT_NAME? | default '')
   let ref_type = ($env.GITHUB_REF_TYPE? | default '')
   let github_ref = ($env.GITHUB_REF? | default '')
   let dispatch_semver = ($env.DISPATCH_SEMVER? | default '')
 
   mut semver_tag = ''
-  if $event_name == 'workflow_dispatch' or $event_name == 'workflow_call' {
-    if ($dispatch_semver | is-empty) {
-      print 'workflow_dispatch/workflow_call requires inputs.semver'
-      exit 1
-    }
+  # An explicit semver from the caller wins. Reusable workflows inherit the
+  # caller's GITHUB_EVENT_NAME (e.g. push) and GITHUB_REF_TYPE (branch), so
+  # event_name == workflow_call is not a reliable signal for a workflow_call;
+  # a non-empty DISPATCH_SEMVER is.
+  if not ($dispatch_semver | is-empty) {
     $semver_tag = $dispatch_semver
   } else if $ref_type == 'tag' {
     if ($github_ref | str starts-with 'refs/tags/') {
