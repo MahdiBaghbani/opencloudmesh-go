@@ -262,3 +262,146 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 		t.Error("error response missing reasonCode field (should use api error envelope)")
 	}
 }
+
+func TestHandleCreate_RejectsUnsupportedResourceTargets(t *testing.T) {
+	t.Parallel()
+
+	user := &identity.User{ID: "user-uuid", Username: "alice"}
+	handler := newTestHandler(t, testCurrentUser(user))
+	handler.SetAllowedPaths([]string{"/tmp"})
+
+	cases := []struct {
+		name       string
+		body       func(t *testing.T) string
+		wantMsg    string
+		wantNotMsg string
+	}{
+		{
+			name: "directory path",
+			body: func(t *testing.T) string {
+				t.Helper()
+
+				tmpDir, err := os.MkdirTemp("/tmp", "ocm-dir-*") //nolint:usetesting // must stay under /tmp to match SetAllowedPaths allowlist
+				if err != nil {
+					t.Fatalf("failed to create temp directory: %v", err)
+				}
+
+				t.Cleanup(func() {
+					if err := os.RemoveAll(tmpDir); err != nil {
+						t.Errorf("remove temp directory: %v", err)
+					}
+				})
+
+				return `{
+					"receiverDomain": "example.com",
+					"shareWith": "user@example.com",
+					"localPath": "` + tmpDir + `",
+					"permissions": ["read"]
+				}`
+			},
+			wantMsg: "directory shares are not supported",
+		},
+		{
+			name: "explicit folder resourceType",
+			body: func(t *testing.T) string {
+				t.Helper()
+
+				tmpFile := createTempShareFile(t, "outgoing-folder-type-*")
+
+				return `{
+					"receiverDomain": "example.com",
+					"shareWith": "user@example.com",
+					"localPath": "` + tmpFile + `",
+					"resourceType": "folder",
+					"permissions": ["read"]
+				}`
+			},
+			wantMsg: `resource type \"folder\" is not supported; only \"file\" is supported`,
+		},
+		{
+			name: "explicit calendar resourceType",
+			body: func(t *testing.T) string {
+				t.Helper()
+
+				tmpFile := createTempShareFile(t, "outgoing-calendar-type-*")
+
+				return `{
+					"receiverDomain": "example.com",
+					"shareWith": "user@example.com",
+					"localPath": "` + tmpFile + `",
+					"resourceType": "calendar",
+					"permissions": ["read"]
+				}`
+			},
+			wantMsg:    `resource type \"calendar\" is not supported; only \"file\" is supported`,
+			wantNotMsg: "folder shares",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/shares/outgoing",
+				bytes.NewBufferString(tc.body(t)),
+			)
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			handler.HandleCreate(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+
+			if !bytes.Contains(w.Body.Bytes(), []byte(tc.wantMsg)) {
+				t.Fatalf("expected error containing %q, got: %s", tc.wantMsg, w.Body.String())
+			}
+
+			if tc.wantNotMsg != "" && bytes.Contains(w.Body.Bytes(), []byte(tc.wantNotMsg)) {
+				t.Fatalf("expected error not to contain %q, got: %s", tc.wantNotMsg, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandleCreate_FileWithoutResourceType_SucceedsWithFile(t *testing.T) {
+	t.Parallel()
+
+	srv, postCount, captured := makeCapturingReceiverTLSServer(t, []string{"exchange-token"}, []string{})
+	defer srv.Close()
+
+	user := &identity.User{ID: "user-uuid", Username: "alice"}
+	repo := tsrepos.OpenMemory(t).OutgoingShares
+	discClient, ctxClient := makeTLSClients()
+	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
+
+	tmpFile := createTempShareFile(t, "outgoing-file-type-*")
+	receiverHost := srv.Listener.Addr().String()
+
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/api/shares/outgoing",
+		bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	handler.HandleCreate(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if postCount.Load() != 1 {
+		t.Fatalf("expected one delivery POST, got %d", postCount.Load())
+	}
+
+	if captured.ResourceType != "file" {
+		t.Fatalf("expected resourceType file in delivered payload, got %q", captured.ResourceType)
+	}
+}

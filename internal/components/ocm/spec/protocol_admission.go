@@ -12,8 +12,10 @@ import (
 )
 
 // SupportedResourceTypes are the OCM resource types accepted for share creation.
+// Only "file" is supported: ocm-go serves a single read-only file via singleFileFS;
+// folder shares are not implemented.
 // See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1
-var SupportedResourceTypes = []string{"file", "folder"}
+var SupportedResourceTypes = []string{"file"}
 
 // SupportedWebDAVRequirements are the WebDAV protocol requirement values
 // this implementation currently recognizes.

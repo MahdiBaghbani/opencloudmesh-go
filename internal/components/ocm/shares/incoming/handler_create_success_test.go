@@ -79,33 +79,6 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 }
-func TestCreateShare_AcceptsFolderResourceType(t *testing.T) {
-	t.Parallel()
-	repo := tsrepos.OpenMemory(t).IncomingShares
-	partyRepo := setupTestPartyRepo(t)
-	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
-
-	body := `{
-		"shareWith": "alice@localhost:9200",
-		"name": "folder",
-		"providerId": "folder-test",
-		"owner": "owner@` + ownerHost + `",
-		"sender": "sender@` + ownerHost + `",
-		"shareType": "user",
-		"resourceType": "folder",
-		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
-	}`
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 for folder resourceType, got %d: %s", w.Code, w.Body.String())
-	}
-}
 func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 	t.Parallel()
 

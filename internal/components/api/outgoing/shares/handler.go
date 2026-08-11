@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -334,13 +335,23 @@ func (h *Handler) resolveLocalResource(w http.ResponseWriter, _ *http.Request, r
 		return "", "", "", false
 	}
 
+	if stat.IsDir() {
+		api.WriteBadRequest(w, api.ReasonInvalidField, "directory shares are not supported; only single files")
+
+		return "", "", "", false
+	}
+
 	resourceType := req.ResourceType
 	if resourceType == "" {
-		if stat.IsDir() {
-			resourceType = "folder"
-		} else {
-			resourceType = "file"
-		}
+		resourceType = "file"
+	} else if resourceType != spec.SupportedResourceTypes[0] {
+		api.WriteBadRequest(w, api.ReasonInvalidField, fmt.Sprintf(
+			"resource type %q is not supported; only %q is supported",
+			resourceType,
+			spec.SupportedResourceTypes[0],
+		))
+
+		return "", "", "", false
 	}
 
 	name := req.Name

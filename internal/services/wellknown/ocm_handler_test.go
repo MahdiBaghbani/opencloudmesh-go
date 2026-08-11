@@ -65,14 +65,12 @@ func TestNewOCMHandler_EnabledWithProjectedPaths(t *testing.T) {
 		t.Errorf("expected EndPoint 'https://example.com/myapp/ocm', got %q", h.data.EndPoint)
 	}
 
-	if len(h.data.ResourceTypes) != 2 {
-		t.Fatalf("expected 2 resource types, got %d", len(h.data.ResourceTypes))
+	if len(h.data.ResourceTypes) != 1 {
+		t.Fatalf("expected 1 resource type, got %d", len(h.data.ResourceTypes))
 	}
 
-	for i, wantName := range []string{"file", "folder"} {
-		if h.data.ResourceTypes[i].Name != wantName {
-			t.Errorf("resource type[%d] = %q, want %q", i, h.data.ResourceTypes[i].Name, wantName)
-		}
+	if h.data.ResourceTypes[0].Name != "file" {
+		t.Errorf("resource type[0] = %q, want file", h.data.ResourceTypes[0].Name)
 	}
 
 	rt := h.data.ResourceTypes[0]

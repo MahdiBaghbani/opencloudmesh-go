@@ -53,7 +53,8 @@ provider. The accepted share grammar is:
 - Required fields: `shareWith`, `name`, `providerId`, `owner`, `sender`,
   `shareType`, `resourceType`, and `protocol`
 - `shareType`: `user`
-- `resourceType`: `file` or `folder`
+- `resourceType`: `file` (single read-only files; folder shares are not
+  implemented)
 - `protocol.name`: `multi` or `webdav`
 - `protocol.webdav`: `uri`, `sharedSecret`, `permissions: ["read"]`, and
   `requirements: ["must-exchange-token"]`
