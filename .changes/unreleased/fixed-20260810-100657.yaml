@@ -1,5 +1,0 @@
-kind: fixed
-body: >-
-  OCM token exchange now returns the OAuth 2.0 server_error code (RFC 6749 5.2)
-  on internal 500 errors instead of invalid_request, while keeping the 501
-  not_implemented path unchanged.

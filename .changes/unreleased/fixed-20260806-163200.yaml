@@ -1,7 +1,0 @@
-kind: fixed
-body: >-
-  CodeQL SAST fixes: stop logging auto-generated admin passwords to
-  slog/stdout/stderr and write them to a mode-0600 file with only the
-  path logged; harden external base-path redirect validation with
-  backslash rejection, a shared validator, and safe fallback to close
-  the open-redirect vector

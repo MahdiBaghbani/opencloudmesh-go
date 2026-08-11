@@ -1,6 +1,0 @@
-kind: added
-body: >-
-  reproducible builds: goreleaser mod_timestamp + archive info.mtime pin
-  release archive mtimes, a `make reproduce` target verifies the binary is
-  bit-for-bit identical across two builds, documented in
-  docs/reproducible-builds.md

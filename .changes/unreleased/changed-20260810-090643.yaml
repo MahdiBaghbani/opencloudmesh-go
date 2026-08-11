@@ -1,5 +1,0 @@
-kind: changed
-body: >-
-  The rate-limit middleware now fails closed with 503 when the counter cache
-  errors instead of allowing the request through. Latent until a Redis cache is
-  wired; in-memory caches never error.

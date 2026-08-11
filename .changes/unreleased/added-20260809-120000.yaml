@@ -1,6 +1,0 @@
-kind: added
-body: >-
-  maintainer succession plan in GOVERNANCE.md and MAINTAINERS.md naming Giuseppe
-  Lo Presti, Micke Nordin, and Michiel de Jong as successors; achievement badges
-  (CII Best Practices, OpenSSF Scorecard) in the README; and a cryptographic
-  algorithm agility note in docs/crypto-agility.md

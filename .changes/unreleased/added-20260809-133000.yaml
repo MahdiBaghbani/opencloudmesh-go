@@ -1,5 +1,0 @@
-kind: added
-body: >-
-  signed version tags: release workflow signs the release tag with gitsign
-  keyless (Sigstore X.509) via git tag -s, using GitHub Actions OIDC
-  (id-token: write); documented tag verification in docs/verification.md

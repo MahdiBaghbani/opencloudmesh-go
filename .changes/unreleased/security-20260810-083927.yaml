@@ -1,6 +1,0 @@
-kind: security
-body: >-
-  ACME HTTPS redirect now builds the Location from the configured ACME domain
-  instead of the request Host, preventing Host-header spoofing from
-  redirecting clients to an attacker-chosen host. ACME mode now requires
-  tls.acme.domain.

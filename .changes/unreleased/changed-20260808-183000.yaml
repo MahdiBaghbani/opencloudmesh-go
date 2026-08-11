@@ -1,5 +1,0 @@
-kind: changed
-body: >-
-  enable the nlreturn, perfsprint, and godot style linters project-wide and
-  auto-fix all violations so CI enforces blank-line-before-return, strconv
-  over fmt.Sprintf, and comment-ending punctuation.
