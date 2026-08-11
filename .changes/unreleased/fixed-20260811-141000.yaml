@@ -1,0 +1,7 @@
+kind: fixed
+body: >-
+  Docker image publish job failed to resolve the semver tag when the
+  release lane ran on a push to master, because reusable workflows
+  inherit the caller's GITHUB_EVENT_NAME (push) and GITHUB_REF_TYPE
+  (branch); the resolver now uses the explicit semver input, so release
+  images publish again
