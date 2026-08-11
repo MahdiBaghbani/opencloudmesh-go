@@ -45,8 +45,8 @@ custom:
 
 newlines:
   afterChangelogHeader: 1
-  beforeChangelogVersion: 1
-  afterChangelogVersion: 1
+  beforeChangelogVersion: 0
+  afterChangelogVersion: 0
   beforeVersion: 0
   afterVersion: 1
   beforeKind: 0

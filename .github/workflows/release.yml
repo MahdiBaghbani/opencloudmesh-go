@@ -150,12 +150,17 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          # The repo may keep "Allow GitHub Actions to create and approve
+          # pull requests" off for security. When it is off, gh pr create is
+          # rejected; the branch is already pushed, so the operator opens the
+          # release PR manually and finalize still runs on merge to master.
           PR_URL="$(gh pr create \
             --base "${GITHUB_REF#refs/heads/}" \
             --head "release/${VERSION}" \
             --title "chore(release): ${VERSION}" \
-            --body "Batched changelog for ${VERSION}. Merge to publish; the finalize lane tags and builds on merge.")"
+            --body "Batched changelog for ${VERSION}. Merge to publish; the finalize lane tags and builds on merge.")" || \
+            { echo "PR creation blocked by repo settings; open the release PR manually from release/${VERSION}"; exit 0; }
           echo "PR_URL=${PR_URL}" >> "$GITHUB_OUTPUT"
           # Auto-merge is a convenience; if it is not enabled for the repo the
           # operator can merge the PR manually and finalize still runs on push.
