@@ -49,18 +49,25 @@ archives:
       - goos: windows
         formats:
           - zip
-    # Pin the mtime of bundled notice/license files to the commit date so the
-    # archive is byte-identical regardless of when it is built. The binary's
+    # Pin the binary's archive-entry mtime to the commit date so archives are
+    # byte-identical regardless of when they are built. The binary's embedded
     # mtime is pinned by builds.mod_timestamp above.
-    info:
+    builds_info:
       mtime: "{{ .CommitDate }}"
     # Binary is included automatically. Notices: curated index, REUSE SQLite
     # text, and the go-licenses tree prepared by make licenses-save
-    # (paths keep bin/licenses/ so modernc module dirs stay nested).
+    # (paths keep bin/licenses/ so modernc module dirs stay nested). Each
+    # bundled file's mtime is pinned to the commit date for reproducibility.
     files:
-      - LICENSE-3RD-PARTY.md
-      - LICENSES/LicenseRef-SQLite-Public-Domain.txt
-      - bin/licenses/**/*
+      - src: LICENSE-3RD-PARTY.md
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: LICENSES/LicenseRef-SQLite-Public-Domain.txt
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: bin/licenses/**/*
+        info:
+          mtime: "{{ .CommitDate }}"
 
 checksum:
   name_template: checksums.txt

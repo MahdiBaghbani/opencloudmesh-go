@@ -38,6 +38,19 @@ def main [] {
     exit 1
   }
 
+  # Release PRs (branch release/<v> or title "chore(release): <v>") never
+  # carry a changelog fragment: changie batch already moved fragments into
+  # .changes/<v>.md, so the fragment gate would fail and post a reminder.
+  # Skip deterministically from the event payload, not the label, so the
+  # opened event itself skips before any label is added.
+  let head_ref = ($event.pull_request?.head?.ref? | default '')
+  let title = ($event.pull_request?.title? | default '')
+  if ($head_ref | str starts-with 'release/') or ($title | str starts-with 'chore(release):') {
+    append-output 'skip' 'true'
+    print 'Skipping changelog check: release PR'
+    return
+  }
+
   let labels = (
     $event.pull_request?.labels?
     | default []
