@@ -101,7 +101,7 @@ export def validate-archives-manifest [manifest: record, root: string] {
       $errors = ($errors | append $"($prefix) sha256 must be a string")
       continue
     }
-    if $raw_sha != ($raw_sha | str downcase) {
+    if $raw_sha != ($raw_sha | str lowercase) {
       $errors = ($errors | append $"($prefix) sha256 must be lowercase")
     }
     if not (is-hex64-lowercase $raw_sha) {

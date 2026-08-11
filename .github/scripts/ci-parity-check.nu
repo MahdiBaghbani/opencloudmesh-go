@@ -11,7 +11,7 @@ def get-needs-names [] {
     print --stderr 'ci-parity-check: NEEDS_JSON env required'
     exit 1
   }
-  $needs_json | from json | columns | each {|k| $k | str downcase} | sort
+  $needs_json | from json | columns | each {|k| $k | str lowercase} | sort
 }
 
 def get-env-names [] {
@@ -19,7 +19,7 @@ def get-env-names [] {
   | transpose k v
   | get k
   | where {|k| ($k | str ends-with '_RESULT')}
-  | each {|k| $k | str replace -a '_RESULT' '' | str downcase}
+  | each {|k| $k | str replace -a '_RESULT' '' | str lowercase}
   | sort
 }
 
@@ -31,7 +31,7 @@ def get-script-names [] {
   let capture_col = if ('capture1' in ($parsed | columns)) { 'capture1' } else { 'capture0' }
   $parsed
   | get $capture_col
-  | each {|name| $name | str replace -a '_RESULT' '' | str downcase}
+  | each {|name| $name | str replace -a '_RESULT' '' | str lowercase}
   | sort
   | uniq
 }

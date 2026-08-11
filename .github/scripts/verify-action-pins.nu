@@ -47,7 +47,7 @@ def main [] {
       $errors = ($errors | append $"manifest: ($item.action) sha must be a string")
       continue
     }
-    if $raw_sha != ($raw_sha | str downcase) {
+    if $raw_sha != ($raw_sha | str lowercase) {
       $errors = ($errors | append $"manifest: ($item.action) sha must be lowercase")
     }
     if not (is-hex40-lowercase $raw_sha) {

@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi.baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: Release Finalize
+
+# Fires on every push to master (including the release PR merge). The finalize
+# job no-ops unless a .changes/vX.Y.Z.md exists with no matching tag, so normal
+# merges cost only a checkout plus a fast detection step. workflow_dispatch
+# allows re-running finalize for a known version if a prior run failed.
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing v-prefixed release version to finalize (example v1.2.3)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GITSIGN_VERSION: v0.17.1
+
+concurrency:
+  group: release-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    name: finalize
+    runs-on: ubuntu-latest
+    permissions:
+      # contents: write to push the release tag.
+      # id-token: write for gitsign keyless (Sigstore) tag signing.
+      contents: write
+      id-token: write
+    outputs:
+      pending: ${{ steps.detect.outputs.pending }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Detect pending release
+        id: detect
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Manual dispatch pins the version; otherwise scan .changes for the
+          # newest vX.Y.Z.md whose tag does not yet exist on the remote.
+          if [ -n "${INPUT_VERSION}" ]; then
+            VERSION="${INPUT_VERSION}"
+          else
+            VERSION=""
+            shopt -s nullglob
+            for f in .changes/v*.md; do
+              v="$(basename "$f" .md)"
+              if git rev-parse -q --verify "refs/tags/${v}" >/dev/null 2>&1; then
+                continue
+              fi
+              if [ -z "${VERSION}" ] || \
+                [ "$(printf '%s\n%s' "${VERSION}" "${v}" | sort -V | tail -1)" = "${v}" ]; then
+                VERSION="${v}"
+              fi
+            done
+          fi
+
+          if [ -z "${VERSION}" ] || \
+             git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+            echo "no pending release; skipping"
+          else
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "pending release: ${VERSION}"
+          fi
+
+      - name: Install gitsign
+        if: steps.detect.outputs.pending == 'true'
+        run: go install "github.com/sigstore/gitsign@${GITSIGN_VERSION}"
+
+      - name: Configure gitsign for tag signing
+        if: steps.detect.outputs.pending == 'true'
+        run: |
+          git config gpg.format x509
+          git config gpg.x509.program gitsign
+
+      - name: Tag and push release
+        if: steps.detect.outputs.pending == 'true'
+        env:
+          VERSION: ${{ steps.detect.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git tag -s "${VERSION}" -m "Release ${VERSION}"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "${VERSION}"
+
+  binary:
+    name: binary
+    needs: finalize
+    if: needs.finalize.outputs.pending == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/release-binary.yml
+    with:
+      tag: ${{ needs.finalize.outputs.version }}
+
+  image:
+    name: image
+    needs: finalize
+    if: needs.finalize.outputs.pending == 'true'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      push: true
+      semver: ${{ needs.finalize.outputs.version }}
