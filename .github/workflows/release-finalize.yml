@@ -23,9 +23,6 @@ on:
 permissions:
   contents: read
 
-env:
-  GITSIGN_VERSION: v0.17.1
-
 concurrency:
   group: release-finalize
   cancel-in-progress: false
@@ -36,9 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       # contents: write to push the release tag.
-      # id-token: write for gitsign keyless (Sigstore) tag signing.
       contents: write
-      id-token: write
     outputs:
       pending: ${{ steps.detect.outputs.pending }}
       version: ${{ steps.detect.outputs.version }}
@@ -85,15 +80,21 @@ jobs:
             echo "pending release: ${VERSION}"
           fi
 
-      - name: Install gitsign
+      # Import the release GPG key and set the committer identity so
+      # `git tag -s` does not fail with "empty ident name". GPG tag
+      # signatures are recognized by GitHub as verified (Sigstore/gitsign
+      # tags are shown unverified).
+      - name: Import GPG signing key
         if: steps.detect.outputs.pending == 'true'
-        run: go install "github.com/sigstore/gitsign@${GITSIGN_VERSION}"
-
-      - name: Configure gitsign for tag signing
-        if: steps.detect.outputs.pending == 'true'
-        run: |
-          git config gpg.format x509
-          git config gpg.x509.program gitsign
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd
+        with:
+          gpg_private_key: ${{ secrets.GPG_SIGNING_KEY }}
+          passphrase: ${{ secrets.GPG_SIGNING_PASSPHRASE }}
+          git_config_global: true
+          git_user_signingkey: true
+          git_tag_gpgsign: true
+          git_committer_name: Mahdi Baghbani
+          git_committer_email: mahdi-baghbani@azadehafzar.io
 
       - name: Tag and push release
         if: steps.detect.outputs.pending == 'true'

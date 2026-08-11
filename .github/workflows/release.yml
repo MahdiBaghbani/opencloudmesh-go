@@ -129,6 +129,17 @@ jobs:
       - name: Verify immutable action pins
         run: make verify-action-pins
 
+      # Mint a short-lived GitHub App installation token. A PR authored by the
+      # App runs pull_request CI without the GITHUB_TOKEN "approve workflows
+      # to run" hold, and the auto-merge push to master (attributed to the
+      # App, not GITHUB_TOKEN) fires push-triggered workflows (release-finalize).
+      - name: Generate release token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       # master is protected (require signed commits + require PR + status
       # checks + enforce_admins), so the signed release commit cannot be
       # pushed directly. Push it on a release branch and open a PR; GitHub
@@ -136,7 +147,7 @@ jobs:
       - name: Push release branch
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           BRANCH="release/${VERSION}"
@@ -148,7 +159,7 @@ jobs:
         id: pr
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -uo pipefail
           # The repo may keep "Allow GitHub Actions to create and approve
@@ -158,6 +169,7 @@ jobs:
           PR_URL="$(gh pr create \
             --base "${GITHUB_REF#refs/heads/}" \
             --head "release/${VERSION}" \
+            --label skip-changelog \
             --title "chore(release): ${VERSION}" \
             --body "Batched changelog for ${VERSION}. Merge to publish; the finalize lane tags and builds on merge.")" || \
             { echo "PR creation blocked by repo settings; open the release PR manually from release/${VERSION}"; exit 0; }

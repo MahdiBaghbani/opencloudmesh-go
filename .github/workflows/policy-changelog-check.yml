@@ -45,6 +45,15 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: nu .github/scripts/changelog-skip-check.nu
 
+      # When the gate is skipped (release PR, dependabot, or skip-changelog
+      # label), remove any prior reminder comment so it does not linger.
+      - if: steps.skip.outputs.skip == 'true'
+        name: Remove changelog reminder
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88
+        with:
+          header: changie-reminder
+          delete: true
+
       # Require at least one changie fragment under .changes/unreleased/.
       - if: steps.skip.outputs.skip != 'true'
         name: Check for changelog fragment
