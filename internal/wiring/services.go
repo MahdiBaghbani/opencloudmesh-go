@@ -249,8 +249,19 @@ func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logge
 	return svc, nil
 }
 
-func buildValidatorService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, _ *Deps) (service.Service, error) {
-	svc, err := validator.New(validator.Inputs{}, svcCfg, log)
+func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
+	var profiles map[string]map[string]any
+	if cfg.HTTP.Interceptors != nil {
+		profiles = cfg.HTTP.Interceptors
+	}
+
+	svc, err := validator.New(validator.Inputs{
+		Store:               d.ValidatorStore,
+		Config:              cfg,
+		Ratelimit:           ratelimitInputs(d),
+		InterceptorProfiles: profiles,
+		Log:                 log,
+	}, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire validator service: %w", err)
 	}

@@ -34,6 +34,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/statistics"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
 // ErrMsgNilDepsAfterBuild is logged when Build returns a nil Deps pointer.
@@ -177,6 +178,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, err
 	}
 
+	validatorStore, err := buildValidatorStore(cfg)
+	if err != nil {
+		return BuildResult{}, err
+	}
+
 	built := &Deps{
 		PartyRepo:           partyRepo,
 		SessionRepo:         sessionRepo,
@@ -200,6 +206,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		Cache:               ratelimitCacheInstance,
 		RealIP:              realIPExtractor,
 		ValidatorCore:       validatorCore,
+		ValidatorStore:      validatorStore,
 	}
 
 	return BuildResult{
@@ -398,4 +405,19 @@ func buildValidatorCore(cfg *config.Config) (*core.Core, error) {
 	}
 
 	return validatorCore, nil
+}
+
+func buildValidatorStore(cfg *config.Config) (*validatorcore.Core, error) {
+	if !config.IsValidatorMode(cfg) {
+		return nil, nil //nolint:nilnil // validator store is absent outside validator mode
+	}
+
+	sessionCfg := config.SessionConfigFromValidator(cfg)
+
+	store, err := validatorcore.Open(cfg.Persistence.DataDir, sessionCfg)
+	if err != nil {
+		return nil, fmt.Errorf("open validator store: %w", err)
+	}
+
+	return store, nil
 }

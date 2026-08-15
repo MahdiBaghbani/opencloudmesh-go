@@ -1,0 +1,309 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+package validatorcore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// TerminalUpdate carries fields written on a terminal transition.
+type TerminalUpdate struct {
+	State          string
+	SessionKind    string
+	TerminalReason string
+	OverallGrade   *string
+	FinishedAt     int64
+}
+
+// GetTestRun loads one test_run row by primary key.
+func (c *Core) GetTestRun(ctx context.Context, testRunID string) (*TestRun, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("validatorcore: store is not configured")
+	}
+
+	var row TestRun
+
+	err := c.db.WithContext(ctx).First(&row, "test_run_id = ?", testRunID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSessionNotFound
+		}
+
+		return nil, err
+	}
+
+	return &row, nil
+}
+
+// CountInFlightPassive returns passive in-flight sessions (created or passive_running).
+func (c *Core) CountInFlightPassive(ctx context.Context) (int64, error) {
+	if c == nil || c.db == nil {
+		return 0, errors.New("validatorcore: store is not configured")
+	}
+
+	var count int64
+
+	err := c.db.WithContext(ctx).Model(&TestRun{}).
+		Where("is_active = 0 AND state IN ?", []string{StateCreated, StatePassiveRunning}).
+		Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// CreatePassiveSession inserts a passive-core session without taking the active lock.
+func (c *Core) CreatePassiveSession(ctx context.Context, row *TestRun) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if row == nil {
+		return errors.New("validatorcore: nil test run")
+	}
+
+	cfg := c.SessionConfig()
+
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if countErr := tx.Model(&TestRun{}).
+			Where("is_active = 0 AND state IN ?", []string{StateCreated, StatePassiveRunning}).
+			Count(&count).Error; countErr != nil {
+			return countErr
+		}
+
+		if count >= int64(cfg.InFlightPassiveLimit) {
+			return ErrInFlightPassiveLimit
+		}
+
+		if createErr := tx.Create(row).Error; createErr != nil {
+			return NewStoreError(OpCreateSessionInsert, createErr)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("validatorcore: create passive session: %w", err)
+	}
+
+	return nil
+}
+
+// ExtendToActive promotes a passive_complete session to the one-active-run lock.
+func (c *Core) ExtendToActive(ctx context.Context, testRunID string) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	now := time.Now().Unix()
+
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&TestRun{}).
+			Where("test_run_id = ? AND is_active = 0 AND state = ?", testRunID, StatePassiveComplete).
+			Updates(map[string]any{
+				"is_active":    true,
+				colState:       StateActiveRunning,
+				colSessionKind: SessionKindActiveFull,
+				colUpdatedAt:   now,
+			})
+		if res.Error != nil {
+			if errors.Is(res.Error, gorm.ErrDuplicatedKey) {
+				return NewStoreError(OpExtendUpdate, res.Error)
+			}
+
+			return res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			var row TestRun
+
+			loadErr := tx.First(&row, "test_run_id = ?", testRunID).Error
+			if errors.Is(loadErr, gorm.ErrRecordNotFound) {
+				return ErrSessionNotFound
+			}
+
+			if loadErr != nil {
+				return loadErr
+			}
+
+			if row.IsActive {
+				return ErrInteractiveRunInProgress
+			}
+
+			if row.State == StateCreated || row.State == StatePassiveRunning {
+				return ErrSessionNotReady
+			}
+
+			return ErrSessionNotReady
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("validatorcore: extend to active: %w", err)
+	}
+
+	return nil
+}
+
+// TransitionState performs a guarded state update for passive sessions.
+func (c *Core) TransitionState(
+	ctx context.Context,
+	testRunID string,
+	expectedIsActive bool,
+	expectedState, newState string,
+) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	now := time.Now().Unix()
+	isActive := boolToInt(expectedIsActive)
+
+	res := c.db.WithContext(ctx).Model(&TestRun{}).
+		Where("test_run_id = ? AND is_active = ? AND state = ?", testRunID, isActive, expectedState).
+		Updates(map[string]any{
+			colState:     newState,
+			colUpdatedAt: now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+
+	if res.RowsAffected == 0 {
+		return ErrStateTransitionMiss
+	}
+
+	return nil
+}
+
+// EnterTerminalState terminalizes a passive session with is_active=0 guard.
+func (c *Core) EnterTerminalState(
+	ctx context.Context,
+	testRunID string,
+	expectedIsActive bool,
+	expectedState string,
+	update TerminalUpdate,
+) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if update.SessionKind == "" {
+		return errors.New("validatorcore: terminal transition requires session_kind")
+	}
+
+	isActive := boolToInt(expectedIsActive)
+	reason := update.TerminalReason
+
+	res := c.db.WithContext(ctx).Model(&TestRun{}).
+		Where("test_run_id = ? AND is_active = ? AND state = ?", testRunID, isActive, expectedState).
+		Updates(map[string]any{
+			colState:          update.State,
+			colSessionKind:    update.SessionKind,
+			"terminal_reason": reason,
+			"overall_grade":   update.OverallGrade,
+			"finished_at":     update.FinishedAt,
+			colUpdatedAt:      update.FinishedAt,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+
+	if res.RowsAffected == 0 {
+		return ErrStateTransitionMiss
+	}
+
+	return nil
+}
+
+// RunStartProbe transitions created -> passive_running for a passive session.
+func (c *Core) RunStartProbe(ctx context.Context, testRunID string) error {
+	return c.TransitionState(ctx, testRunID, false, StateCreated, StatePassiveRunning)
+}
+
+// CompletePassiveProbe transitions passive_running -> passive_complete.
+func (c *Core) CompletePassiveProbe(ctx context.Context, testRunID string) error {
+	return c.TransitionState(ctx, testRunID, false, StatePassiveRunning, StatePassiveComplete)
+}
+
+// FailRunTerminal transitions a passive created session directly to terminal_fail.
+func (c *Core) FailRunTerminal(ctx context.Context, testRunID, reason string) error {
+	now := time.Now().Unix()
+
+	return c.EnterTerminalState(ctx, testRunID, false, StateCreated, TerminalUpdate{
+		State:          StateTerminalFail,
+		SessionKind:    SessionKindPassiveOnly,
+		TerminalReason: reason,
+		FinishedAt:     now,
+	})
+}
+
+// FailPassiveRunningTerminal terminalizes a passive_running session as fail.
+func (c *Core) FailPassiveRunningTerminal(ctx context.Context, testRunID, reason string) error {
+	now := time.Now().Unix()
+
+	return c.EnterTerminalState(ctx, testRunID, false, StatePassiveRunning, TerminalUpdate{
+		State:          StateTerminalFail,
+		SessionKind:    SessionKindPassiveOnly,
+		TerminalReason: reason,
+		FinishedAt:     now,
+	})
+}
+
+// StopPassiveComplete terminalizes a passive_complete core-only session on stop.
+func (c *Core) StopPassiveComplete(ctx context.Context, testRunID string) error {
+	now := time.Now().Unix()
+	pass := GradePass
+
+	return c.EnterTerminalState(ctx, testRunID, false, StatePassiveComplete, TerminalUpdate{
+		State:          StateTerminalPass,
+		SessionKind:    SessionKindPassiveOnly,
+		TerminalReason: "stopped",
+		OverallGrade:   &pass,
+		FinishedAt:     now,
+	})
+}
+
+// PruneTerminalSessions deletes terminal test_run rows older than retentionDays.
+func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if retentionDays <= 0 {
+		return nil
+	}
+
+	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
+
+	err := c.db.WithContext(ctx).
+		Where(
+			"state IN ? AND finished_at IS NOT NULL AND finished_at < ?",
+			[]string{StateTerminalPass, StateTerminalFail},
+			cutoff,
+		).
+		Delete(&TestRun{}).Error
+	if err != nil {
+		return fmt.Errorf("validatorcore: delete terminal sessions: %w", err)
+	}
+
+	return nil
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+
+	return 0
+}

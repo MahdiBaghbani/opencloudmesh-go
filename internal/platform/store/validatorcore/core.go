@@ -18,7 +18,8 @@ import (
 
 // Core provides federation validator persistence on a shared GORM handle.
 type Core struct {
-	db *gorm.DB
+	db         *gorm.DB
+	sessionCfg SessionConfig
 }
 
 // NewCore wraps an existing GORM DB handle for validator persistence.

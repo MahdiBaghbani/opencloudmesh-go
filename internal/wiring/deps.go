@@ -24,6 +24,7 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
 // Deps holds shared dependencies built by wiring.Build for service construction.
@@ -72,4 +73,7 @@ type Deps struct {
 
 	// ValidatorCore holds federation validator shared state in validator mode.
 	ValidatorCore *core.Core
+
+	// ValidatorStore holds federation validator session persistence in validator mode.
+	ValidatorStore *validatorcore.Core
 }

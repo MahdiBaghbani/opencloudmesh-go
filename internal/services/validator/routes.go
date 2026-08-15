@@ -12,6 +12,11 @@ import (
 )
 
 const (
+	// RouteStartCreateSession is POST /validator/start for passive-core create
+	// and active extension.
+	RouteStartCreateSession = "/start"
+	// RouteStopSession is POST /validator/stop for core-only terminalization.
+	RouteStopSession = "/stop"
 	// RouteAPIScan is GET /validator/api/scan.
 	RouteAPIScan = "/api/scan"
 	// RouteAPISession is GET /validator/api/session/{id}.
@@ -30,6 +35,29 @@ func init() {
 
 func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 	return []service.RouteSpec{
+		{
+			ID:               "validator-start-create-session",
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodPost,
+			Pattern:          RouteStartCreateSession,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthRateLimitOnly,
+			Middleware:       []string{"ratelimit"},
+			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               "validator-stop-session",
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodPost,
+			Pattern:          RouteStopSession,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthNone,
+			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
 		{
 			ID:               "validator-api-scan",
 			Service:          string(service.BuildValidator),

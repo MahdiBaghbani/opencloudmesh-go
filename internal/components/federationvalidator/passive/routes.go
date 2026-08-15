@@ -15,6 +15,9 @@ const (
 	// RouteStartCreateSession is POST /start for passive-core session creation.
 	RouteStartCreateSession = "/start"
 
+	// RouteStopSession is POST /stop for core-only terminalization.
+	RouteStopSession = "/stop"
+
 	// ValidatorServiceName is the HTTP service key for federation validator routes.
 	ValidatorServiceName = "validator"
 )
@@ -31,6 +34,20 @@ func CreateSessionRouteSpec() service.RouteSpec {
 		SessionPolicy: service.SessionPublic,
 		HandlerAuth:   service.HandlerAuthRateLimitOnly,
 		Middleware:    []string{"ratelimit"},
+		SurfaceClass:  service.SurfaceAPI,
+		TrustClass:    service.TrustPeerNone,
+	}
+}
+
+// StopSessionRouteSpec returns POST /stop for passive_complete terminalization.
+func StopSessionRouteSpec() service.RouteSpec {
+	return service.RouteSpec{
+		ID:            "validator-stop-session",
+		Service:       ValidatorServiceName,
+		Method:        http.MethodPost,
+		Pattern:       RouteStopSession,
+		SessionPolicy: service.SessionPublic,
+		HandlerAuth:   service.HandlerAuthNone,
 		SurfaceClass:  service.SurfaceAPI,
 		TrustClass:    service.TrustPeerNone,
 	}

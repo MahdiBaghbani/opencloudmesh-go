@@ -3,22 +3,24 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// Package validator provides the federation validator HTTP service shell.
-// Route mounts and handlers are added in later waves; startup only registers
-// the inert service so validator mode can pass pre-bootstrap checks.
 package validator
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
 // Config holds validator service configuration (service-local knobs only).
@@ -35,7 +37,13 @@ type RatelimitConfig struct {
 func (c *Config) ApplyDefaults() {}
 
 // Inputs holds dependencies for the validator service constructor.
-type Inputs struct{}
+type Inputs struct {
+	Store               *validatorcore.Core
+	Config              *config.Config
+	Ratelimit           ratelimit.Inputs
+	InterceptorProfiles map[string]map[string]any
+	Log                 *slog.Logger
+}
 
 // Service is the federation validator HTTP service shell.
 type Service struct {
@@ -45,8 +53,12 @@ type Service struct {
 }
 
 // New creates the validator service from narrow injected inputs.
-func New(_ Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
+func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
 	log = logutil.NoopIfNil(log)
+
+	if err := validateInputs(inputs); err != nil {
+		return nil, err
+	}
 
 	var c Config
 
@@ -61,7 +73,26 @@ func New(_ Inputs, m map[string]any, log *slog.Logger) (service.Service, error) 
 
 	r := chi.NewRouter()
 
+	if inputs.Store != nil {
+		passiveHandler := passive.NewHandler(inputs.Store, log)
+
+		startRatelimit, ratelimitErr := buildStartRatelimit(inputs, c.Ratelimit.Profile)
+		if ratelimitErr != nil {
+			return nil, ratelimitErr
+		}
+
+		mountPlaneARoutes(r, passiveHandler, startRatelimit)
+	}
+
 	return &Service{router: r, conf: &c, log: log}, nil
+}
+
+func validateInputs(in Inputs) error {
+	if in.Ratelimit.KeyFunc == nil {
+		return errors.New("validator: Ratelimit.KeyFunc is required")
+	}
+
+	return nil
 }
 
 // Handler returns the service HTTP handler; implements service.Service.
