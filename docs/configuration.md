@@ -14,7 +14,7 @@ example TOML files.
 
 Effective configuration is resolved in this order (later wins):
 
-1. **Preset bundle** - selected by `mode` (`strict` or `dev`)
+1. **Preset bundle** - selected by `mode` (`strict`, `dev`, or `validator`)
 2. **TOML file** - path from `-config` or `CONFIG` env in containers
 3. **CLI flags** - overrides from `cmd/opencloudmesh-go/main.go`
 
@@ -28,7 +28,7 @@ The binary entrypoint is `cmd/opencloudmesh-go/main.go`. Notable CLI flags:
 | Flag | Purpose |
 | ---- | ------- |
 | `-config` | TOML file path |
-| `-mode` | Preset bundle (`strict` or `dev`) |
+| `-mode` | Preset bundle (`strict`, `dev`, or `validator`) |
 | `-listen` | Listen address |
 | `-public-origin` | Public origin URL |
 | `-external-base-path` | External base path prefix |
@@ -48,6 +48,7 @@ trust axes.
 | ---- | ------ |
 | `strict` | Production-safe defaults |
 | `dev` | Local development; more permissive transport and logging |
+| `validator` | Federation validator; statistics, trusted proxies, public scan rate limits |
 
 ## Major config sections
 
@@ -58,6 +59,7 @@ TOML sections map to `internal/platform/config.Config`:
 | `mode` | Preset bundle selector |
 | `public_origin`, `listen_addr`, `external_base_path` | Identity and binding (see [identity-and-public-origin.md](identity-and-public-origin.md)) |
 | `[server]` | Trusted proxies |
+| `[statistics]` | Federation statistics (`enabled`; required in validator mode) |
 | `[tls]` | TLS mode (selfsigned, static, acme, ...) |
 | `[outbound_http]` | Outbound client, SSRF, proxy, TLS roots (see [outbound-http-ssrf.md](outbound-http-ssrf.md)) |
 | `[http.services.ui.wayf]` | WAYF UI and `invite-wayf` discovery (see [invite-wayf-and-accept.md](invite-wayf-and-accept.md)) |
@@ -77,6 +79,7 @@ The strict preset defaults `[persistence]` to sqlite with data stored under
 
 | Path | Use |
 | ---- | --- |
+| `configs/validator.toml` | Federation validator preset sample (`mode = "validator"`) |
 | `docker/configs/config.toml` | Minimal dev preset for containers (`mode = "dev"`) |
 | `docker/configs/config-tls.toml` | Strict preset with static TLS cert paths |
 | `tests/ca_pool/configs/valid.toml` | Valid outbound root CA path (manual runs) |

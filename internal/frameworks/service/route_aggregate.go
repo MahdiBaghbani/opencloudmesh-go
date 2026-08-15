@@ -142,6 +142,8 @@ func surfaceClassForService(serviceName string) SurfaceClass {
 		return SurfaceUI
 	case string(BuildWebDAV):
 		return SurfaceWebDAV
+	case string(BuildValidator):
+		return SurfaceAPI
 	default:
 		return ""
 	}

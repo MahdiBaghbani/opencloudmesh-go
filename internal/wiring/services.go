@@ -20,6 +20,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocmaux"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/validator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/wellknown"
 )
@@ -39,6 +40,7 @@ var coreServiceBuilders = map[service.BuildKey]coreServiceBuilder{
 	service.BuildAPI:       buildAPIService,
 	service.BuildUI:        buildUIService,
 	service.BuildWebDAV:    buildWebDAVService,
+	service.BuildValidator: buildValidatorService,
 }
 
 // RegisteredBuildKeys returns the build keys wired in this package.
@@ -242,6 +244,15 @@ func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logge
 	}, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire webdav service: %w", err)
+	}
+
+	return svc, nil
+}
+
+func buildValidatorService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, _ *Deps) (service.Service, error) {
+	svc, err := validator.New(validator.Inputs{}, svcCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("wiring: wire validator service: %w", err)
 	}
 
 	return svc, nil

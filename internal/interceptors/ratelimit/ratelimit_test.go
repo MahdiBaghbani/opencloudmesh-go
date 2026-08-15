@@ -473,3 +473,60 @@ func TestNew_WithInputs(t *testing.T) {
 		t.Errorf("expected status 200, got %d", rec.Code)
 	}
 }
+
+func TestNewFromNamedProfile_NestedScanPublicStartPublic(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockCache{counter: newMockCounter()}
+	realIP := realip.NewTrustedProxies(nil)
+	in := Inputs{
+		Cache:   mock,
+		KeyFunc: realIP.GetClientIPString,
+	}
+
+	interceptorsCfg := map[string]map[string]any{
+		"ratelimit": {
+			"profiles": map[string]any{
+				"scan_public": map[string]any{
+					"start_public": map[string]any{
+						"requests_per_window": int64(10),
+						"window_seconds":      60,
+					},
+				},
+			},
+		},
+	}
+
+	middleware, err := NewFromNamedProfile(in, interceptorsCfg, "scan_public", "start_public", slog.Default())
+	if err != nil {
+		t.Fatalf("NewFromNamedProfile() = %v, want nil", err)
+	}
+
+	if middleware == nil {
+		t.Fatal("expected non-nil middleware")
+	}
+
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	for i := 1; i <= 10; i++ {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("middleware request %d: expected status 200, got %d", i, rec.Code)
+		}
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("middleware request 11: expected status 429, got %d", rec.Code)
+	}
+}

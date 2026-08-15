@@ -9,6 +9,8 @@
 package realip
 
 import (
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -25,30 +27,70 @@ func NewTrustedProxies(cidrs []string) *TrustedProxies {
 	tp := &TrustedProxies{}
 
 	for _, cidr := range cidrs {
-		_, network, err := net.ParseCIDR(cidr)
-		if err != nil {
-			// Try as single IP
-			ip := net.ParseIP(cidr)
-			if ip != nil {
-				var parseErr error
-				if ip.To4() != nil {
-					_, network, parseErr = net.ParseCIDR(ip.String() + "/32")
-				} else {
-					_, network, parseErr = net.ParseCIDR(ip.String() + "/128")
-				}
-
-				if parseErr != nil {
-					network = nil
-				}
-			}
+		network, err := parseTrustedProxyCIDR(cidr)
+		if err != nil || network == nil {
+			continue
 		}
 
-		if network != nil {
-			tp.networks = append(tp.networks, network)
-		}
+		tp.networks = append(tp.networks, network)
 	}
 
 	return tp
+}
+
+// NewTrustedProxiesStrict creates a TrustedProxies and fails on the first
+// invalid trusted proxy entry. Bare IPs are normalized to /32 or /128, matching
+// NewTrustedProxies semantics.
+func NewTrustedProxiesStrict(cidrs []string) (*TrustedProxies, error) {
+	tp := &TrustedProxies{}
+
+	for _, cidr := range cidrs {
+		network, err := parseTrustedProxyCIDR(cidr)
+		if err != nil {
+			return nil, fmt.Errorf("trusted proxy %q: %w", cidr, err)
+		}
+
+		if network == nil {
+			return nil, fmt.Errorf("trusted proxy %q: invalid CIDR or IP", cidr)
+		}
+
+		tp.networks = append(tp.networks, network)
+	}
+
+	return tp, nil
+}
+
+func parseTrustedProxyCIDR(cidr string) (*net.IPNet, error) {
+	cidr = strings.TrimSpace(cidr)
+	if cidr == "" {
+		return nil, errors.New("empty trusted proxy entry")
+	}
+
+	_, network, err := net.ParseCIDR(cidr)
+	if err == nil {
+		return network, nil
+	}
+
+	ip := net.ParseIP(cidr)
+	if ip == nil {
+		return nil, fmt.Errorf("invalid CIDR or IP: %w", err)
+	}
+
+	if ip.To4() != nil {
+		_, v4Net, parseErr := net.ParseCIDR(ip.String() + "/32")
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse IPv4 /32 for %q: %w", cidr, parseErr)
+		}
+
+		return v4Net, nil
+	}
+
+	_, v6Net, parseErr := net.ParseCIDR(ip.String() + "/128")
+	if parseErr != nil {
+		return nil, fmt.Errorf("parse IPv6 /128 for %q: %w", cidr, parseErr)
+	}
+
+	return v6Net, nil
 }
 
 // IsTrusted returns true if the IP is within any trusted proxy range.

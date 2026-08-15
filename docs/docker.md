@@ -72,7 +72,7 @@ Mode:
 
 | Variable    | Default | Description |
 | ----------- | ------- | ----------- |
-| OCM_GO_MODE | (none)  | Override the preset bundle: `strict` or `dev`. |
+| OCM_GO_MODE | (none)  | Preset bundle: `strict`, `dev`, or `validator`. Use `validator` for federation-validator defaults (statistics, trusted proxies, public scan rate limiting). Mount repo `configs/validator.toml` via `CONFIG` for the shipped sample TOML. |
 
 Config:
 

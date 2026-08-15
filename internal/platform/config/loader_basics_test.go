@@ -21,6 +21,7 @@ func TestParseMode(t *testing.T) {
 	}{
 		{"strict", "strict", ModeStrict, false},
 		{"dev", "dev", ModeDev, false},
+		{"validator", "validator", ModeValidator, false},
 		{"empty defaults to strict", "", ModeStrict, false},
 		{"uppercase", "STRICT", ModeStrict, false},
 		{"whitespace", "  dev  ", ModeDev, false},

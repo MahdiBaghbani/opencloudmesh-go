@@ -6,6 +6,7 @@
 package wiring
 
 import (
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
@@ -68,4 +69,7 @@ type Deps struct {
 
 	// RealIP provides trusted-proxy-aware client IP extraction.
 	RealIP *realip.TrustedProxies
+
+	// ValidatorCore holds federation validator shared state in validator mode.
+	ValidatorCore *core.Core
 }

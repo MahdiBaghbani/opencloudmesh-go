@@ -22,6 +22,8 @@ const (
 	BuildUI BuildKey = "ui"
 	// BuildWebDAV is the WebDAV service build key.
 	BuildWebDAV BuildKey = "webdav"
+	// BuildValidator is the federation validator service build key.
+	BuildValidator BuildKey = "validator"
 )
 
 // Descriptor is the canonical registration entry for one core HTTP service.
@@ -70,6 +72,12 @@ var descriptors = []Descriptor{
 		MountAtRoot: false,
 		Prefix:      "webdav",
 		Build:       BuildWebDAV,
+	},
+	{
+		Name:        string(BuildValidator),
+		MountAtRoot: false,
+		Prefix:      "validator",
+		Build:       BuildValidator,
 	},
 }
 

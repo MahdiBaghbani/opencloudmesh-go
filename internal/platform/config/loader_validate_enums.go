@@ -247,6 +247,9 @@ func validateEnums(cfg *Config) error {
 		validateSSRFRoutePolicyGuardrails,
 		validateStrictModeGuardrails,
 		validateRatelimitConfig,
+		validateValidatorTrustedProxies,
+		validateValidatorStatistics,
+		validateValidatorScanPublicRatelimit,
 	}
 
 	for _, validator := range validators {

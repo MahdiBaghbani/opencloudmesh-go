@@ -57,7 +57,7 @@ func run(args []string, stdout io.Writer) int {
 	fs.Usage = func() {}
 
 	configPath := fs.String("config", "", "Path to TOML config file (optional)")
-	modeFlag := fs.String("mode", "", "Preset bundle: strict or dev")
+	modeFlag := fs.String("mode", "", "Preset bundle: strict, dev, or validator")
 	listenAddr := fs.String("listen", "", "Listen address (overrides config)")
 	publicOrigin := fs.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := fs.String("external-base-path", "", "External base path (overrides config)")

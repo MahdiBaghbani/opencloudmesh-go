@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -32,6 +33,7 @@ import (
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/statistics"
 )
 
 // ErrMsgNilDepsAfterBuild is logged when Build returns a nil Deps pointer.
@@ -164,7 +166,16 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	signatureMiddleware.SetLocalHTTPSigPolicy(facts.RequiresHTTPRequestSignatures, keyManager != nil)
 
 	tokenStore := token.NewMemoryTokenStore()
-	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
+
+	realIPExtractor, err := buildRealIPExtractor(cfg)
+	if err != nil {
+		return BuildResult{}, err
+	}
+
+	validatorCore, err := buildValidatorCore(cfg)
+	if err != nil {
+		return BuildResult{}, err
+	}
 
 	built := &Deps{
 		PartyRepo:           partyRepo,
@@ -188,6 +199,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		Config:              cfg,
 		Cache:               ratelimitCacheInstance,
 		RealIP:              realIPExtractor,
+		ValidatorCore:       validatorCore,
 	}
 
 	return BuildResult{
@@ -351,4 +363,39 @@ func buildSigner(cfg *config.Config, keyManager *crypto.KeyManager) *crypto.RFC9
 	signerOpts := crypto.RFC9421OptionsFromConfig(cfg.Signature)
 
 	return crypto.NewRFC9421SignerWithOptions(keyManager, signerOpts)
+}
+
+func buildRealIPExtractor(cfg *config.Config) (*realip.TrustedProxies, error) {
+	if config.IsValidatorMode(cfg) {
+		tp, err := realip.NewTrustedProxiesStrict(cfg.Server.TrustedProxies)
+		if err != nil {
+			return nil, fmt.Errorf("build real IP extractor: %w", err)
+		}
+
+		return tp, nil
+	}
+
+	return realip.NewTrustedProxies(cfg.Server.TrustedProxies), nil
+}
+
+func buildValidatorCore(cfg *config.Config) (*core.Core, error) {
+	if !config.IsValidatorMode(cfg) {
+		return nil, nil //nolint:nilnil // validator core is absent outside validator mode
+	}
+
+	if !cfg.Statistics.Enabled {
+		return nil, errors.New("validator mode requires statistics.enabled=true")
+	}
+
+	salt, err := statistics.LoadRedactionSalt(cfg.Persistence.DataDir)
+	if err != nil {
+		return nil, fmt.Errorf("load redaction salt: %w", err)
+	}
+
+	validatorCore, err := core.New(salt)
+	if err != nil {
+		return nil, fmt.Errorf("build federation validator core: %w", err)
+	}
+
+	return validatorCore, nil
 }

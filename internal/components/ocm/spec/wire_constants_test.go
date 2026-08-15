@@ -71,10 +71,10 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/frameworks/service/descriptors.go": {
 		16: {},
 		24: {},
-		45: {},
-		47: {},
-		69: {},
-		71: {},
+		49: {},
+		51: {},
+		73: {},
+		75: {},
 	},
 	"internal/frameworks/service/route_aggregate.go": {
 		135: {},
