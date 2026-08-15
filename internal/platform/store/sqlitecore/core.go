@@ -23,6 +23,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
 // Core holds an open GORM/SQLite handle and provides the full four-surface
@@ -70,6 +71,17 @@ func Open(dataDir string) (*Core, error) {
 		&store.IncomingInvite{},
 	); migrErr != nil {
 		migrErr = fmt.Errorf("failed to migrate database: %w", migrErr)
+		if sqlDB, dbErr := db.DB(); dbErr != nil {
+			return nil, errors.Join(migrErr, dbErr)
+		} else if closeErr := sqlDB.Close(); closeErr != nil {
+			return nil, errors.Join(migrErr, closeErr)
+		}
+
+		return nil, migrErr
+	}
+
+	if migrErr := validatorcore.MigrateModels(db); migrErr != nil {
+		migrErr = fmt.Errorf("failed to migrate validator models: %w", migrErr)
 		if sqlDB, dbErr := db.DB(); dbErr != nil {
 			return nil, errors.Join(migrErr, dbErr)
 		} else if closeErr := sqlDB.Close(); closeErr != nil {

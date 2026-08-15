@@ -16,6 +16,8 @@ const (
 	RouteIDUIWAYF = "ui-wayf"
 	// RouteIDAPIHealthz is the API health check route identifier.
 	RouteIDAPIHealthz = "api-healthz"
+	// RouteIDValidatorAPIStatistics is the validator statistics route identifier.
+	RouteIDValidatorAPIStatistics = "validator-api-statistics"
 )
 
 const subtreeDefaultIDSuffix = "-subtree-default"

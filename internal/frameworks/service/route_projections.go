@@ -110,7 +110,7 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 			continue
 		}
 
-		if pathMatchesRoute(path, row.FullPath) {
+		if pathMatchesRoute(path, row.FullPath, row.MatchExact) {
 			return sessionAuthRequired(row.SessionPolicy, opts)
 		}
 	}
@@ -120,7 +120,7 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 			continue
 		}
 
-		if pathMatchesRoute(path, row.FullPath) {
+		if pathMatchesRoute(path, row.FullPath, row.MatchExact) {
 			return sessionAuthRequired(row.SessionPolicy, opts)
 		}
 	}
@@ -138,7 +138,11 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 	return true
 }
 
-func pathMatchesRoute(path, pattern string) bool {
+func pathMatchesRoute(path, pattern string, matchExact bool) bool {
+	if matchExact {
+		return path == pattern
+	}
+
 	if path == pattern {
 		return true
 	}

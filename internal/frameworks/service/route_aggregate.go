@@ -42,6 +42,7 @@ func Routes(opts RouteOpts) []RouteRow {
 			ServicePrefix: desc.Prefix,
 			FullPath:      fullPathForSpec(desc, opts.ExternalBasePath, spec.Pattern),
 			AtHostRoot:    desc.MountAtRoot,
+			MatchExact:    spec.ID == RouteIDValidatorAPIStatistics,
 		})
 	}
 
@@ -121,6 +122,8 @@ func subtreePrefix(desc Descriptor, basePath string) string {
 
 func defaultSubtreeSessionPolicy(serviceName string) SessionPolicy {
 	switch serviceName {
+	case string(BuildValidator):
+		return SessionProtected
 	case string(BuildAPI), string(BuildUI):
 		return SessionProtected
 	default:

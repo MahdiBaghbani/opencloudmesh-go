@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+package validatorcore
+
+// Grade values stored in stats_raw grade columns.
+const (
+	GradePass = "pass"
+	GradeWarn = "warn"
+	GradeFail = "fail"
+)
+
+// StatsRaw is one append-only terminal statistics snapshot row.
+type StatsRaw struct {
+	ID                     uint    `gorm:"column:id;primaryKey;autoIncrement"`
+	HostHash               string  `gorm:"column:host_hash;index:idx_stats_raw_host_hash"`
+	SessionKind            string  `gorm:"column:session_kind;index:idx_stats_raw_session_kind"`
+	ReverseInviteExercised bool    `gorm:"column:reverse_invite_exercised;not null"`
+	Platform               string  `gorm:"column:platform;index:idx_stats_raw_platform"`
+	APIVersion             string  `gorm:"column:api_version"`
+	GradeDiscovery         *string `gorm:"column:grade_discovery"`
+	GradeTLS               *string `gorm:"column:grade_tls"`
+	GradeJWKS              *string `gorm:"column:grade_jwks"`
+	GradeHTTPSig           *string `gorm:"column:grade_httpsig"`
+	GradeSharing           *string `gorm:"column:grade_sharing"`
+	GradeNotification      *string `gorm:"column:grade_notification"`
+	GradeToken             *string `gorm:"column:grade_token"`
+	GradeCapability        *string `gorm:"column:grade_capability"`
+	CreatedAt              int64   `gorm:"column:created_at;index:idx_stats_raw_created_at"`
+	WindowBucket           *int64  `gorm:"column:window_bucket;index:idx_stats_raw_window_bucket"`
+}
+
+// TableName returns the GORM table name for StatsRaw.
+func (StatsRaw) TableName() string {
+	return "stats_raw"
+}
+
+// StatsAggregate holds per-host_hash rolling counters (no raw host names).
+type StatsAggregate struct {
+	HostHash        string `gorm:"column:host_hash;primaryKey"`
+	TotalSessions   int64  `gorm:"column:total_sessions;not null"`
+	HealthySessions int64  `gorm:"column:healthy_sessions;not null"`
+	LastPlatform    string `gorm:"column:last_platform"`
+	LastHealthy     bool   `gorm:"column:last_healthy;not null"`
+	FirstSeenTS     int64  `gorm:"column:first_seen_ts"`
+	LastSeenTS      int64  `gorm:"column:last_seen_ts;index:idx_stats_agg_last_seen"`
+}
+
+// TableName returns the GORM table name for StatsAggregate.
+func (StatsAggregate) TableName() string {
+	return "stats_aggregate"
+}
+
+// StatsSnapshot is an in-memory terminal snapshot copied into stats_raw. It is
+// not a database table.
+type StatsSnapshot struct {
+	HostHash               string
+	SessionKind            string
+	ReverseInviteExercised bool
+	Platform               string
+	APIVersion             string
+	GradeDiscovery         *string
+	GradeTLS               *string
+	GradeJWKS              *string
+	GradeHTTPSig           *string
+	GradeSharing           *string
+	GradeNotification      *string
+	GradeToken             *string
+	GradeCapability        *string
+	CreatedAt              int64
+	WindowBucket           *int64
+}
+
+// ToStatsRaw copies the snapshot into a StatsRaw row.
+func (s StatsSnapshot) ToStatsRaw() StatsRaw {
+	return StatsRaw{
+		HostHash:               s.HostHash,
+		SessionKind:            s.SessionKind,
+		ReverseInviteExercised: s.ReverseInviteExercised,
+		Platform:               s.Platform,
+		APIVersion:             s.APIVersion,
+		GradeDiscovery:         s.GradeDiscovery,
+		GradeTLS:               s.GradeTLS,
+		GradeJWKS:              s.GradeJWKS,
+		GradeHTTPSig:           s.GradeHTTPSig,
+		GradeSharing:           s.GradeSharing,
+		GradeNotification:      s.GradeNotification,
+		GradeToken:             s.GradeToken,
+		GradeCapability:        s.GradeCapability,
+		CreatedAt:              s.CreatedAt,
+		WindowBucket:           s.WindowBucket,
+	}
+}

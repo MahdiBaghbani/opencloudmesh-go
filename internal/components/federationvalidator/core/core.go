@@ -16,14 +16,15 @@ import (
 // Core holds federation validator infrastructure shared across passive and active
 // scan surfaces. Statistics salt plumbing is wired at startup.
 //
-// Deferred fields (plan section 1.3; intentionally omitted in this milestone, not accidental):
-//   - FindOneActive: deferred until federation schema lands
-//   - FindActiveCorrelation (confirmed-only): deferred until federation schema lands
-//   - FindCorrelationAnyStatus (pending-inclusive): deferred until federation schema lands
-//   - BPlaneOpen: deferred until reverse-invite wiring lands
+// Shared-core integration hooks remain intentionally unwired on Core; session and
+// correlation persistence is provided by the validatorcore package instead:
+//   - FindOneActive
+//   - FindActiveCorrelation (confirmed-only)
+//   - FindCorrelationAnyStatus (pending-inclusive)
+//   - reverse-plane open window
 //
-// Do not add members, interfaces, SQL, or logic for these items until their
-// planned delivery lands.
+// Do not add members, interfaces, SQL, or logic for these hooks on Core until
+// their wiring is implemented.
 type Core struct {
 	// statsSalt is the shared 32-byte redaction salt (additive).
 	statsSalt []byte

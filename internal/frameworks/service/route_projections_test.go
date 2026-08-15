@@ -82,11 +82,23 @@ func TestPathMatchesRoute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := pathMatchesRoute(tt.path, tt.pattern)
+			got := pathMatchesRoute(tt.path, tt.pattern, false)
 			if got != tt.want {
 				t.Errorf("pathMatchesRoute(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPathMatchesRoute_MatchExact(t *testing.T) {
+	t.Parallel()
+
+	if !pathMatchesRoute("/validator/api/statistics", "/validator/api/statistics", true) {
+		t.Fatal("expected exact statistics path to match")
+	}
+
+	if pathMatchesRoute("/validator/api/statistics/foo", "/validator/api/statistics", true) {
+		t.Fatal("expected statistics subpath to not match with MatchExact")
 	}
 }
 

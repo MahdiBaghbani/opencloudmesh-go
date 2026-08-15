@@ -13,6 +13,7 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocmaux"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/validator"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/wellknown"
 )
@@ -21,6 +22,7 @@ func TestRegisteredRouteSpecs_IncludesAllCoreServices(t *testing.T) {
 	t.Parallel()
 
 	opts := service.DefaultRouteOpts()
+	opts.ValidatorEnabled = true
 
 	specs := service.RegisteredRouteSpecs(opts)
 	if len(specs) == 0 {
@@ -58,9 +60,7 @@ func TestRegisteredRouteSpecs_IncludesAllCoreServices(t *testing.T) {
 	}
 
 	// Shell services may register descriptors and builders before route specs land.
-	shellServicesWithoutRouteSpecs := map[string]struct{}{
-		"validator": {},
-	}
+	shellServicesWithoutRouteSpecs := map[string]struct{}{}
 
 	for _, name := range service.CoreServices {
 		if _, skip := shellServicesWithoutRouteSpecs[name]; skip {

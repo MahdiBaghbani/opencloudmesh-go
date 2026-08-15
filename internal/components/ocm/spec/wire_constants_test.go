@@ -81,12 +81,12 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		143: {},
 	},
 	"internal/frameworks/service/route_opts.go": {
-		55: {},
+		56: {},
 	},
 	"internal/frameworks/service/route_specs.go": {
 		51:  {},
-		85:  {},
-		101: {},
+		87:  {},
+		103: {},
 	},
 	"internal/platform/config/loader_validate_ssrf.go": {
 		// loader.go split into loader_*.go; literal moved to loader_validate_ssrf.go:300.

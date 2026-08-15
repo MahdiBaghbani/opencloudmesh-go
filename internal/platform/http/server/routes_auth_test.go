@@ -156,3 +156,32 @@ func TestSessionGate_AcceptInviteProtectedAtServer(t *testing.T) {
 		t.Fatalf("expected redirect to login, got %q", rr.Header().Get("Location"))
 	}
 }
+
+func TestIsAuthRequired_ValidatorStatisticsExactMatch(t *testing.T) {
+	t.Parallel()
+
+	enabled := service.RouteOpts{
+		ValidatorEnabled:  true,
+		TokenExchangePath: "token",
+	}
+	disabled := service.RouteOpts{
+		ValidatorEnabled:  false,
+		TokenExchangePath: "token",
+	}
+
+	if service.SessionAuthRequiredForPath("/validator/api/statistics", enabled) {
+		t.Error("expected /validator/api/statistics public when validator enabled")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/statistics/foo", enabled) {
+		t.Error("expected /validator/api/statistics/foo protected when validator enabled")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/statistics", disabled) {
+		t.Error("expected /validator/api/statistics protected when validator disabled")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/statistics/foo", disabled) {
+		t.Error("expected /validator/api/statistics/foo protected when validator disabled")
+	}
+}
