@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -39,6 +40,7 @@ func (c *Config) ApplyDefaults() {}
 // Inputs holds dependencies for the validator service constructor.
 type Inputs struct {
 	Store               *validatorcore.Core
+	FedCore             *core.Core
 	Config              *config.Config
 	Ratelimit           ratelimit.Inputs
 	InterceptorProfiles map[string]map[string]any
@@ -74,6 +76,10 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	r := chi.NewRouter()
 
 	if inputs.Store != nil {
+		if inputs.FedCore != nil {
+			inputs.Store.SetStatsHostHasher(inputs.FedCore)
+		}
+
 		passiveHandler := passive.NewHandler(inputs.Store, log)
 
 		startRatelimit, ratelimitErr := buildStartRatelimit(inputs, c.Ratelimit.Profile)

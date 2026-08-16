@@ -7,9 +7,12 @@ package passive
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,13 +20,20 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	fedcore "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/statistics"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
 func openHandlerTestStore(t *testing.T) *validatorcore.Core {
 	t.Helper()
 
-	db, err := gorm.Open(gormsqlite.Open(":memory:"), &gorm.Config{
+	dsn := fmt.Sprintf(
+		"file:%s?mode=memory&cache=shared",
+		strings.NewReplacer("/", "_", " ", "_").Replace(t.Name()),
+	)
+
+	db, err := gorm.Open(gormsqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
@@ -31,14 +41,60 @@ func openHandlerTestStore(t *testing.T) *validatorcore.Core {
 		t.Fatalf("open memory db: %v", err)
 	}
 
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+
+	sqlDB.SetMaxOpenConns(1)
+
 	if err := validatorcore.MigrateModels(db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
 	core := validatorcore.NewCore(db)
 	core.SetSessionConfig(validatorcore.SessionConfig{InFlightPassiveLimit: 10})
+	core.SetStatsHostHasher(testFedCore(t))
 
 	return core
+}
+
+func testFedCore(t *testing.T) *fedcore.Core {
+	t.Helper()
+
+	salt := make([]byte, statistics.RedactionSaltSize)
+	for i := range salt {
+		salt[i] = byte(i + 1)
+	}
+
+	c, err := fedcore.New(salt)
+	if err != nil {
+		t.Fatalf("fedcore.New: %v", err)
+	}
+
+	return c
+}
+
+func waitForState(t *testing.T, store *validatorcore.Core, ctx context.Context, runID, wantState string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+
+	for time.Now().Before(deadline) {
+		got, err := store.GetTestRun(ctx, runID)
+		if err == nil && got.State == wantState {
+			return
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	got, err := store.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun while waiting for %q: %v", wantState, err)
+	}
+
+	t.Fatalf("state = %q, want %q before deadline", got.State, wantState)
 }
 
 func mustJSON(t *testing.T, payload any) []byte {
@@ -397,6 +453,157 @@ func TestParseTarget(t *testing.T) {
 
 	if _, _, parseErr := parseTarget("not-a-url"); parseErr == nil {
 		t.Fatal("expected parse error for invalid target")
+	}
+}
+
+func TestHandleScan_ContributeOptInPersistsOnStop(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	ctx := t.Context()
+
+	createReq := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/scan?target=https://peer.example&contribute=1",
+		nil,
+	)
+	createRec := httptest.NewRecorder()
+	h.HandleScan(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("scan status = %d, want 201", createRec.Code)
+	}
+
+	var created startCreateResponse
+	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+
+	if created.ID == "" {
+		t.Fatal("expected non-empty session id")
+	}
+
+	waitForState(t, store, ctx, created.ID, validatorcore.StatePassiveComplete)
+
+	stopBody := mustJSON(t, map[string]string{"id": created.ID})
+
+	stopReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/stop", bytes.NewReader(stopBody))
+	stopRec := httptest.NewRecorder()
+	h.HandleStop(stopRec, stopReq)
+
+	if stopRec.Code != http.StatusOK {
+		t.Fatalf("stop status = %d, want 200", stopRec.Code)
+	}
+
+	var rawCount int64
+	if err := store.DB().WithContext(ctx).Model(&validatorcore.StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 1 {
+		t.Fatalf("stats_raw count = %d, want 1", rawCount)
+	}
+
+	var raw validatorcore.StatsRaw
+	if err := store.DB().WithContext(ctx).First(&raw).Error; err != nil {
+		t.Fatalf("load stats_raw: %v", err)
+	}
+
+	if strings.Contains(raw.HostHash, "peer.example") {
+		t.Fatalf("host_hash must not contain raw host, got %q", raw.HostHash)
+	}
+}
+
+func TestHandleScan_IncognitoDoesNotPersistOnStop(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	ctx := t.Context()
+
+	createReq := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/scan?target=https://peer.example&contribute=0",
+		nil,
+	)
+	createRec := httptest.NewRecorder()
+	h.HandleScan(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("scan status = %d, want 201", createRec.Code)
+	}
+
+	var created startCreateResponse
+	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+
+	waitForState(t, store, ctx, created.ID, validatorcore.StatePassiveComplete)
+
+	stopBody := mustJSON(t, map[string]string{"id": created.ID})
+
+	stopReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/stop", bytes.NewReader(stopBody))
+	stopRec := httptest.NewRecorder()
+	h.HandleStop(stopRec, stopReq)
+
+	if stopRec.Code != http.StatusOK {
+		t.Fatalf("stop status = %d, want 200", stopRec.Code)
+	}
+
+	var rawCount int64
+	if err := store.DB().WithContext(ctx).Model(&validatorcore.StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 0 {
+		t.Fatalf("stats_raw count = %d, want 0", rawCount)
+	}
+}
+
+func TestHandleStart_DoesNotOptInStatistics(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	ctx := t.Context()
+
+	createBody := mustJSON(t, map[string]string{"target": "https://peer.example"})
+
+	createReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/start", bytes.NewReader(createBody))
+	createRec := httptest.NewRecorder()
+	h.HandleStart(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201", createRec.Code)
+	}
+
+	var created startCreateResponse
+	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+
+	waitForState(t, store, ctx, created.ID, validatorcore.StatePassiveComplete)
+
+	stopBody := mustJSON(t, map[string]string{"id": created.ID})
+
+	stopReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/stop", bytes.NewReader(stopBody))
+	stopRec := httptest.NewRecorder()
+	h.HandleStop(stopRec, stopReq)
+
+	if stopRec.Code != http.StatusOK {
+		t.Fatalf("stop status = %d, want 200", stopRec.Code)
+	}
+
+	var rawCount int64
+	if err := store.DB().WithContext(ctx).Model(&validatorcore.StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 0 {
+		t.Fatalf("stats_raw count = %d, want 0 for POST /start default incognito", rawCount)
 	}
 }
 

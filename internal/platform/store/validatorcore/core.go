@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -18,8 +19,11 @@ import (
 
 // Core provides federation validator persistence on a shared GORM handle.
 type Core struct {
-	db         *gorm.DB
-	sessionCfg SessionConfig
+	db                     *gorm.DB
+	sessionCfg             SessionConfig
+	statsHasher            StatsHostHasher
+	sessionContrib         sync.Map
+	terminalStatsSnapshots sync.Map
 }
 
 // NewCore wraps an existing GORM DB handle for validator persistence.
@@ -121,15 +125,7 @@ func (c *Core) InsertStatsRaw(ctx context.Context, row *StatsRaw) error {
 		return errors.New("validatorcore: store is not configured")
 	}
 
-	if row == nil {
-		return errors.New("validatorcore: nil stats row")
-	}
-
-	if err := c.db.WithContext(ctx).Create(row).Error; err != nil {
-		return err
-	}
-
-	return nil
+	return insertStatsRawDB(c.db.WithContext(ctx), row)
 }
 
 // IncrementStatsAggregate upserts aggregate counters for host_hash from one
@@ -143,62 +139,7 @@ func (c *Core) IncrementStatsAggregate(ctx context.Context, raw *StatsRaw) error
 		return errors.New("validatorcore: store is not configured")
 	}
 
-	if raw == nil {
-		return errors.New("validatorcore: nil stats row")
-	}
-
-	if raw.HostHash == "" {
-		return errors.New("validatorcore: empty host hash")
-	}
-
-	healthy := DeriveHealthy(*raw)
-
-	healthyInc := int64(0)
-	if healthy {
-		healthyInc = 1
-	}
-
-	lastHealthy := 0
-	if healthy {
-		lastHealthy = 1
-	}
-
-	return c.db.WithContext(ctx).Exec(`
-		INSERT INTO stats_aggregate (
-			host_hash, total_sessions, healthy_sessions,
-			last_platform, last_healthy, first_seen_ts, last_seen_ts
-		) VALUES (?, 1, ?, ?, ?, ?, ?)
-		ON CONFLICT(host_hash) DO UPDATE SET
-			total_sessions = stats_aggregate.total_sessions + 1,
-			healthy_sessions = stats_aggregate.healthy_sessions + excluded.healthy_sessions,
-			first_seen_ts = CASE
-				WHEN stats_aggregate.first_seen_ts = 0 THEN excluded.first_seen_ts
-				WHEN excluded.first_seen_ts < stats_aggregate.first_seen_ts
-				THEN excluded.first_seen_ts
-				ELSE stats_aggregate.first_seen_ts
-			END,
-			last_platform = CASE
-				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
-				THEN excluded.last_platform
-				ELSE stats_aggregate.last_platform
-			END,
-			last_healthy = CASE
-				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
-				THEN excluded.last_healthy
-				ELSE stats_aggregate.last_healthy
-			END,
-			last_seen_ts = CASE
-				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
-				THEN excluded.last_seen_ts
-				ELSE stats_aggregate.last_seen_ts
-			END`,
-		raw.HostHash,
-		healthyInc,
-		raw.Platform,
-		lastHealthy,
-		raw.CreatedAt,
-		raw.CreatedAt,
-	).Error
+	return incrementStatsAggregateDB(c.db.WithContext(ctx), raw)
 }
 
 // PruneStats deletes stats_raw rows older than retentionDays when
@@ -283,6 +224,100 @@ func rebuildStatsAggregate(tx *gorm.DB) error {
 		if err := tx.Create(agg).Error; err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func insertStatsRawDB(db *gorm.DB, row *StatsRaw) error {
+	if row == nil {
+		return errors.New("validatorcore: nil stats row")
+	}
+
+	if err := db.Create(row).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func incrementStatsAggregateDB(db *gorm.DB, raw *StatsRaw) error {
+	if raw == nil {
+		return errors.New("validatorcore: nil stats row")
+	}
+
+	if raw.HostHash == "" {
+		return errors.New("validatorcore: empty host hash")
+	}
+
+	healthy := DeriveHealthy(*raw)
+
+	healthyInc := int64(0)
+	if healthy {
+		healthyInc = 1
+	}
+
+	lastHealthy := 0
+	if healthy {
+		lastHealthy = 1
+	}
+
+	return db.Exec(`
+		INSERT INTO stats_aggregate (
+			host_hash, total_sessions, healthy_sessions,
+			last_platform, last_healthy, first_seen_ts, last_seen_ts
+		) VALUES (?, 1, ?, ?, ?, ?, ?)
+		ON CONFLICT(host_hash) DO UPDATE SET
+			total_sessions = stats_aggregate.total_sessions + 1,
+			healthy_sessions = stats_aggregate.healthy_sessions + excluded.healthy_sessions,
+			first_seen_ts = CASE
+				WHEN stats_aggregate.first_seen_ts = 0 THEN excluded.first_seen_ts
+				WHEN excluded.first_seen_ts < stats_aggregate.first_seen_ts
+				THEN excluded.first_seen_ts
+				ELSE stats_aggregate.first_seen_ts
+			END,
+			last_platform = CASE
+				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
+				THEN excluded.last_platform
+				ELSE stats_aggregate.last_platform
+			END,
+			last_healthy = CASE
+				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
+				THEN excluded.last_healthy
+				ELSE stats_aggregate.last_healthy
+			END,
+			last_seen_ts = CASE
+				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
+				THEN excluded.last_seen_ts
+				ELSE stats_aggregate.last_seen_ts
+			END`,
+		raw.HostHash,
+		healthyInc,
+		raw.Platform,
+		lastHealthy,
+		raw.CreatedAt,
+		raw.CreatedAt,
+	).Error
+}
+
+func (c *Core) insertStatsRawAndAggregate(ctx context.Context, raw *StatsRaw) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := insertStatsRawDB(tx, raw); err != nil {
+			return fmt.Errorf("validatorcore: insert stats_raw: %w", err)
+		}
+
+		if err := incrementStatsAggregateDB(tx, raw); err != nil {
+			return fmt.Errorf("validatorcore: increment stats_aggregate: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("validatorcore: persist terminal stats writes: %w", err)
 	}
 
 	return nil

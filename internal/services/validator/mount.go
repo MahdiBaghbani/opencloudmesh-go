@@ -31,6 +31,7 @@ func mountPlaneARoutes(
 	}
 
 	r.Method(stop.Method, stop.Pattern, http.HandlerFunc(passiveHandler.HandleStop))
+	r.Method(http.MethodGet, RouteAPIScan, http.HandlerFunc(passiveHandler.HandleScan))
 }
 
 func buildStartRatelimit(inputs Inputs, profileName string) (func(http.Handler) http.Handler, error) {

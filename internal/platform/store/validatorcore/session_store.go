@@ -223,6 +223,10 @@ func (c *Core) EnterTerminalState(
 		return ErrStateTransitionMiss
 	}
 
+	if isTerminalState(update.State) {
+		bestEffortPersistTerminalStats(c, ctx, testRunID)
+	}
+
 	return nil
 }
 

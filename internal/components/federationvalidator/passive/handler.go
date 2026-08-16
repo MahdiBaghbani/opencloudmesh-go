@@ -103,7 +103,7 @@ func (h *Handler) HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case hasTarget:
-		h.handleCreateSession(w, r, strings.TrimSpace(req.Target))
+		h.handleCreateSession(w, r, strings.TrimSpace(req.Target), false)
 	case hasID:
 		h.handleExtendSession(w, r, strings.TrimSpace(req.ID))
 	default:
@@ -192,7 +192,33 @@ func (h *Handler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, h.log, http.StatusOK, stopResponse{ID: id, State: validatorcore.StateTerminalPass})
 }
 
-func (h *Handler) handleCreateSession(w http.ResponseWriter, r *http.Request, target string) {
+// HandleScan serves GET /api/scan for passive-core session creation with optional
+// statistics contribute opt-in via the contribute query parameter.
+func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
+		return
+	}
+
+	if h.store == nil {
+		writeJSONError(w, h.log, http.StatusInternalServerError, "store_unavailable", "validator store is not configured")
+
+		return
+	}
+
+	target := strings.TrimSpace(r.URL.Query().Get("target"))
+	if target == "" {
+		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "target query parameter is required")
+
+		return
+	}
+
+	contribute := ParseContribute(r.URL.Query().Get("contribute"))
+	h.handleCreateSession(w, r, target, contribute)
+}
+
+func (h *Handler) handleCreateSession(w http.ResponseWriter, r *http.Request, target string, contribute bool) {
 	origin, host, err := parseTarget(target)
 	if err != nil {
 		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", err.Error())
@@ -226,6 +252,10 @@ func (h *Handler) handleCreateSession(w http.ResponseWriter, r *http.Request, ta
 		writeStoreError(w, h.log, err)
 
 		return
+	}
+
+	if contribute {
+		h.store.SetSessionContribute(testRunID, true)
 	}
 
 	h.probe.StartAsync(context.WithoutCancel(ctx), testRunID)

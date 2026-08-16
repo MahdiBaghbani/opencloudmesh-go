@@ -81,6 +81,8 @@ func (c *Core) terminalizePassiveTTL(
 	testRunID, expectedState, reason string,
 	now int64,
 ) error {
+	var terminalized bool
+
 	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row TestRun
 
@@ -115,10 +117,18 @@ func (c *Core) terminalizePassiveTTL(
 			return res.Error
 		}
 
+		if res.RowsAffected > 0 {
+			terminalized = true
+		}
+
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("validatorcore: terminalize passive ttl: %w", err)
+	}
+
+	if terminalized {
+		bestEffortPersistTerminalStats(c, ctx, testRunID)
 	}
 
 	return nil
