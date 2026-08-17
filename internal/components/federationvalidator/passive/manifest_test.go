@@ -68,15 +68,28 @@ func TestHandleManifest_AdvertisedRoutesMatchMountedAPIRoutes(t *testing.T) {
 	assertSymmetricRouteSets(t, mounted, advertised)
 }
 
-func TestHandleManifest_DoesNotAdvertiseUnmountedSessionOrReport(t *testing.T) {
+func TestHandleManifest_AdvertisesSessionNotReport(t *testing.T) {
 	t.Parallel()
 
 	payload := BuildManifest()
 
+	var hasSession bool
+
 	for _, route := range payload.Routes {
-		if route.FullPath == "/validator/api/session/{id}" || route.FullPath == "/validator/api/report/{id}" {
+		switch route.FullPath {
+		case "/validator/api/session/{id}":
+			if route.Method != http.MethodGet {
+				t.Fatalf("session route method = %q, want GET", route.Method)
+			}
+
+			hasSession = true
+		case "/validator/api/report/{id}":
 			t.Fatalf("must not advertise unmounted route %q", route.FullPath)
 		}
+	}
+
+	if !hasSession {
+		t.Fatal("expected GET /validator/api/session/{id} in manifest routes")
 	}
 }
 

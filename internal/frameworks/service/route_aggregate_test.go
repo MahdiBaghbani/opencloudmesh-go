@@ -124,23 +124,8 @@ func TestRoutes_APIOutboundKindsDeclaredOnAPIRows(t *testing.T) {
 func TestRoutes_ValidatorStatisticsMatchExactOnRouteRow(t *testing.T) {
 	t.Parallel()
 
-	opts := service.DefaultRouteOpts()
-	opts.ValidatorEnabled = true
-
-	var statsRow *service.RouteRow
-
-	for _, row := range service.Routes(opts) {
-		if row.ID == service.RouteIDValidatorAPIStatistics {
-			rowCopy := row
-			statsRow = &rowCopy
-
-			break
-		}
-	}
-
-	if statsRow == nil {
-		t.Fatal("expected validator statistics route row")
-	}
+	opts := validatorEnabledRouteOpts()
+	statsRow := findRouteRowByID(t, opts, service.RouteIDValidatorAPIStatistics)
 
 	if !statsRow.MatchExact {
 		t.Fatal("expected MatchExact true on RouteRow for statistics")
@@ -150,25 +135,76 @@ func TestRoutes_ValidatorStatisticsMatchExactOnRouteRow(t *testing.T) {
 		t.Fatalf("FullPath = %q, want /validator/api/statistics", statsRow.FullPath)
 	}
 
-	matchExactCount := 0
-
-	for _, row := range service.Routes(opts) {
-		if row.MatchExact {
-			matchExactCount++
-
-			if row.ID != service.RouteIDValidatorAPIStatistics {
-				t.Errorf("unexpected MatchExact row %q", row.ID)
-			}
-		}
-	}
-
-	if matchExactCount != 1 {
-		t.Fatalf("MatchExact row count = %d, want 1", matchExactCount)
-	}
-
 	if !service.SessionAuthRequiredForPath("/validator/api/statistics/foo", opts) {
 		t.Error("expected /validator/api/statistics/foo protected via RouteRow MatchExact")
 	}
+}
+
+func TestRoutes_ValidatorSessionMatchExactOnRouteRow(t *testing.T) {
+	t.Parallel()
+
+	opts := validatorEnabledRouteOpts()
+	sessionRow := findRouteRowByID(t, opts, service.RouteIDValidatorAPISession)
+
+	if !sessionRow.MatchExact {
+		t.Fatal("expected MatchExact true on RouteRow for session")
+	}
+
+	if sessionRow.FullPath != "/validator/api/session/{id}" {
+		t.Fatalf("FullPath = %q, want /validator/api/session/{id}", sessionRow.FullPath)
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1/extra", opts) {
+		t.Error("expected /validator/api/session/run-1/extra protected via RouteRow MatchExact")
+	}
+
+	if service.SessionAuthRequiredForPath("/validator/api/session/run-1", opts) {
+		t.Error("expected /validator/api/session/run-1 public")
+	}
+}
+
+func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
+	t.Parallel()
+
+	opts := validatorEnabledRouteOpts()
+	matchExactCount := 0
+
+	for _, row := range service.Routes(opts) {
+		if !row.MatchExact {
+			continue
+		}
+
+		matchExactCount++
+
+		if row.ID != service.RouteIDValidatorAPIStatistics && row.ID != service.RouteIDValidatorAPISession {
+			t.Errorf("unexpected MatchExact row %q", row.ID)
+		}
+	}
+
+	if matchExactCount != 2 {
+		t.Fatalf("MatchExact row count = %d, want 2", matchExactCount)
+	}
+}
+
+func validatorEnabledRouteOpts() service.RouteOpts {
+	opts := service.DefaultRouteOpts()
+	opts.ValidatorEnabled = true
+
+	return opts
+}
+
+func findRouteRowByID(t *testing.T, opts service.RouteOpts, id string) service.RouteRow {
+	t.Helper()
+
+	for _, row := range service.Routes(opts) {
+		if row.ID == id {
+			return row
+		}
+	}
+
+	t.Fatalf("expected route row %q", id)
+
+	return service.RouteRow{}
 }
 
 func TestRoutes_ValidatorAPIRoutesGatedByFeature(t *testing.T) {

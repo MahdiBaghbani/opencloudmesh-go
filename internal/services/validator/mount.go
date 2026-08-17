@@ -27,6 +27,7 @@ func mountPlaneARoutes(
 func planeAAPIRoutePatterns() passive.PlaneAAPIRoutePatterns {
 	return passive.PlaneAAPIRoutePatterns{
 		Scan:       RouteAPIScan,
+		Session:    RouteAPISession,
 		Manifest:   RouteAPIManifest,
 		Statistics: RouteAPIStatistics,
 	}

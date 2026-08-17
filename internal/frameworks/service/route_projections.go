@@ -140,7 +140,25 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 
 func pathMatchesRoute(path, pattern string, matchExact bool) bool {
 	if matchExact {
-		return path == pattern
+		if path == pattern {
+			return true
+		}
+
+		if before, paramRest, ok := strings.Cut(pattern, "{"); ok && strings.HasSuffix(paramRest, "}") {
+			prefix := strings.TrimSuffix(before, "/")
+			if !strings.HasPrefix(path, prefix+"/") {
+				return false
+			}
+
+			remainder := path[len(prefix)+1:]
+			if remainder == "" || strings.Contains(remainder, "/") {
+				return false
+			}
+
+			return true
+		}
+
+		return false
 	}
 
 	if path == pattern {

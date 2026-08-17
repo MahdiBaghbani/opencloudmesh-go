@@ -27,6 +27,9 @@ const (
 	// RouteAPIStatistics is GET /api/statistics on the validator service router.
 	RouteAPIStatistics = "/api/statistics"
 
+	// RouteAPISession is GET /api/session/{id} on the validator service router.
+	RouteAPISession = "/api/session/{id}"
+
 	// ValidatorServiceName is the HTTP service key for federation validator routes.
 	ValidatorServiceName = "validator"
 )

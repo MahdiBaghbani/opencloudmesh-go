@@ -18,6 +18,8 @@ const (
 	RouteIDAPIHealthz = "api-healthz"
 	// RouteIDValidatorAPIStatistics is the validator statistics route identifier.
 	RouteIDValidatorAPIStatistics = "validator-api-statistics"
+	// RouteIDValidatorAPISession is the validator session polling route identifier.
+	RouteIDValidatorAPISession = "validator-api-session"
 )
 
 const subtreeDefaultIDSuffix = "-subtree-default"

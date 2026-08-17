@@ -15,6 +15,7 @@ import (
 // PlaneAAPIRoutePatterns holds service-relative GET /api/* patterns for plane-A.
 type PlaneAAPIRoutePatterns struct {
 	Scan       string
+	Session    string
 	Manifest   string
 	Statistics string
 }
@@ -38,6 +39,7 @@ func MountPlaneARoutes(
 
 	r.Method(stop.Method, stop.Pattern, http.HandlerFunc(h.HandleStop))
 	r.Method(http.MethodGet, api.Scan, http.HandlerFunc(h.HandleScan))
+	r.Method(http.MethodGet, api.Session, http.HandlerFunc(h.HandleSession))
 	r.Method(http.MethodGet, api.Manifest, http.HandlerFunc(h.HandleManifest))
 	r.Method(http.MethodGet, api.Statistics, http.HandlerFunc(h.HandleStatistics))
 }
@@ -45,7 +47,7 @@ func MountPlaneARoutes(
 // EnumeratePlaneARoutes walks a chi router mounted via MountPlaneARoutes and
 // returns full /validator/... route inventory for manifest drift checks.
 func EnumeratePlaneARoutes(r chi.Router) ([]MountedAPIRoute, error) {
-	routes := make([]MountedAPIRoute, 0, 5)
+	routes := make([]MountedAPIRoute, 0, 6)
 
 	err := chi.Walk(r, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		routes = append(routes, MountedAPIRoute{

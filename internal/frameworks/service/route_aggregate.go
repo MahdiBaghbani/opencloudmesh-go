@@ -42,7 +42,7 @@ func Routes(opts RouteOpts) []RouteRow {
 			ServicePrefix: desc.Prefix,
 			FullPath:      fullPathForSpec(desc, opts.ExternalBasePath, spec.Pattern),
 			AtHostRoot:    desc.MountAtRoot,
-			MatchExact:    spec.ID == RouteIDValidatorAPIStatistics,
+			MatchExact:    spec.ID == RouteIDValidatorAPIStatistics || spec.ID == RouteIDValidatorAPISession,
 		})
 	}
 

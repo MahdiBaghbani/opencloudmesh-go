@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
 func TestMountPlaneARoutes_ManifestAnonymousGET(t *testing.T) {
@@ -140,6 +141,53 @@ func TestMountPlaneARoutes_ManifestRoutesMatchAdvertised(t *testing.T) {
 		if _, ok := mountedSet[route]; !ok {
 			t.Errorf("advertised route not mounted: method=%s full_path=%s", route.Method, route.FullPath)
 		}
+	}
+}
+
+func TestMountPlaneARoutes_SessionAnonymousGET(t *testing.T) {
+	t.Parallel()
+
+	store := openMountTestStore(t)
+	passiveHandler := passive.NewHandler(store, nil)
+	ctx := t.Context()
+	now := int64(1_700_000_000)
+	runID := "run-mount-poll"
+
+	row := &validatorcore.TestRun{
+		TestRunID:   runID,
+		State:       validatorcore.StateCreated,
+		SessionKind: validatorcore.SessionKindPassiveOnly,
+		TargetHost:  "peer.example",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	r := chi.NewRouter()
+	mountPlaneARoutes(r, passiveHandler, nil)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/session/"+runID, nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if payload["state"] != validatorcore.StateCreated {
+		t.Fatalf("state = %v, want %q", payload["state"], validatorcore.StateCreated)
+	}
+
+	if payload["ts"] != float64(now) {
+		t.Fatalf("ts = %v, want %d", payload["ts"], now)
 	}
 }
 

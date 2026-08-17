@@ -100,6 +100,18 @@ func TestPathMatchesRoute_MatchExact(t *testing.T) {
 	if pathMatchesRoute("/validator/api/statistics/foo", "/validator/api/statistics", true) {
 		t.Fatal("expected statistics subpath to not match with MatchExact")
 	}
+
+	if !pathMatchesRoute("/validator/api/session/run-1", "/validator/api/session/{id}", true) {
+		t.Fatal("expected session id path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1/extra", "/validator/api/session/{id}", true) {
+		t.Fatal("expected session suffix path to not match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session", "/validator/api/session/{id}", true) {
+		t.Fatal("expected session prefix without id to not match with MatchExact")
+	}
 }
 
 func TestSessionAuthChecker_MatchesSessionAuthRequiredForPath(t *testing.T) {

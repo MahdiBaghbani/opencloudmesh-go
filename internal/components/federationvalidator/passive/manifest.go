@@ -20,8 +20,8 @@ const (
 )
 
 // MountedAPIRoute describes one plane-A client-usable route wired in
-// MountPlaneARoutes. Session and report polling routes are registered
-// but not mounted in v1.3.0 and are intentionally omitted here.
+// MountPlaneARoutes. Report polling is registered but not mounted in v1.3.0
+// and is intentionally omitted here.
 type MountedAPIRoute struct {
 	Method   string `json:"method"`
 	FullPath string `json:"full_path"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
@@ -110,6 +110,7 @@ func MountedAPIRoutes() []MountedAPIRoute {
 		{Method: http.MethodPost, FullPath: prefix + RouteStartCreateSession},
 		{Method: http.MethodPost, FullPath: prefix + RouteStopSession},
 		{Method: http.MethodGet, FullPath: prefix + RouteAPIScan},
+		{Method: http.MethodGet, FullPath: prefix + RouteAPISession},
 		{Method: http.MethodGet, FullPath: prefix + RouteAPIManifest},
 		{Method: http.MethodGet, FullPath: prefix + RouteAPIStatistics},
 	}

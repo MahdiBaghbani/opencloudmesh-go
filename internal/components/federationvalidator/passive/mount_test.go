@@ -14,6 +14,7 @@ import (
 func defaultPlaneAAPIRoutePatterns() PlaneAAPIRoutePatterns {
 	return PlaneAAPIRoutePatterns{
 		Scan:       RouteAPIScan,
+		Session:    RouteAPISession,
 		Manifest:   RouteAPIManifest,
 		Statistics: RouteAPIStatistics,
 	}

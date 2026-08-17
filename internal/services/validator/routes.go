@@ -70,7 +70,7 @@ func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 			FeatureCondition: service.FeatureValidatorEnabled,
 		},
 		{
-			ID:               "validator-api-session",
+			ID:               service.RouteIDValidatorAPISession,
 			Service:          string(service.BuildValidator),
 			Method:           http.MethodGet,
 			Pattern:          RouteAPISession,

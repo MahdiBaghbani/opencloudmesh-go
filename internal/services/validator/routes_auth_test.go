@@ -137,3 +137,69 @@ func TestSessionGate_ValidatorStartAnonymousAdmission(t *testing.T) {
 		t.Fatalf("expected handler status 400, got %d", rec.Code)
 	}
 }
+
+func TestRouteSpecs_SessionPollPublicAnonymous(t *testing.T) {
+	t.Parallel()
+
+	enabled := service.RouteOpts{
+		ValidatorEnabled:  true,
+		TokenExchangePath: "token",
+	}
+
+	var sessionSpec *service.RouteSpec
+
+	for _, spec := range service.RegisteredRouteSpecs(enabled) {
+		if spec.Pattern == RouteAPISession {
+			sessionSpec = &spec
+
+			break
+		}
+	}
+
+	if sessionSpec == nil {
+		t.Fatal("expected session route spec")
+	}
+
+	if sessionSpec.ID != service.RouteIDValidatorAPISession {
+		t.Fatalf("ID = %q, want %q", sessionSpec.ID, service.RouteIDValidatorAPISession)
+	}
+
+	if sessionSpec.SessionPolicy != service.SessionPublic {
+		t.Fatalf("SessionPolicy = %q, want public", sessionSpec.SessionPolicy)
+	}
+
+	if sessionSpec.HandlerAuth != service.HandlerAuthNone {
+		t.Fatalf("HandlerAuth = %q, want none", sessionSpec.HandlerAuth)
+	}
+
+	if sessionSpec.FeatureCondition != service.FeatureValidatorEnabled {
+		t.Fatalf("FeatureCondition = %q, want validator enabled gate", sessionSpec.FeatureCondition)
+	}
+
+	if service.SessionAuthRequiredForPath("/validator/api/session/run-1", enabled) {
+		t.Fatal("expected anonymous access to /validator/api/session/run-1")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1/extra", enabled) {
+		t.Fatal("expected /validator/api/session/run-1/extra protected via MatchExact")
+	}
+}
+
+func TestRouteSpecs_SessionGatedByValidatorFeature(t *testing.T) {
+	t.Parallel()
+
+	enabled := service.RouteOpts{ValidatorEnabled: true, TokenExchangePath: "token"}
+	disabled := service.RouteOpts{ValidatorEnabled: false, TokenExchangePath: "token"}
+
+	if !routeSpecPresent(t, enabled, RouteAPISession) {
+		t.Fatal("expected session route when validator enabled")
+	}
+
+	if routeSpecPresent(t, disabled, RouteAPISession) {
+		t.Fatal("session route must be absent when validator disabled")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1", disabled) {
+		t.Fatal("expected protected session path when validator disabled")
+	}
+}

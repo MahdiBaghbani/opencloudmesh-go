@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -73,6 +75,11 @@ type stopRequest struct {
 type stopResponse struct {
 	ID    string `json:"id"`
 	State string `json:"state"`
+}
+
+type sessionPollResponse struct {
+	State string `json:"state"`
+	Ts    int64  `json:"ts"`
 }
 
 // HandleStart serves POST /start for passive-core create and active extension.
@@ -225,6 +232,46 @@ func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
 
 	contribute := ParseContribute(r.URL.Query().Get("contribute"))
 	h.handleCreateSession(w, r, target, contribute)
+}
+
+// HandleSession serves GET /api/session/{id} for anonymous session polling.
+func (h *Handler) HandleSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
+		return
+	}
+
+	if h.store == nil {
+		writeJSONError(w, h.log, http.StatusInternalServerError, "store_unavailable", "validator store is not configured")
+
+		return
+	}
+
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		writeJSONError(w, h.log, http.StatusNotFound, validatorcore.CodeSessionNotFound, "session not found")
+
+		return
+	}
+
+	row, err := h.store.GetTestRun(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, validatorcore.ErrSessionNotFound) {
+			writeJSONError(w, h.log, http.StatusNotFound, validatorcore.CodeSessionNotFound, "session not found")
+
+			return
+		}
+
+		writeStoreError(w, h.log, err)
+
+		return
+	}
+
+	writeJSON(w, h.log, http.StatusOK, sessionPollResponse{
+		State: row.State,
+		Ts:    row.UpdatedAt,
+	})
 }
 
 func (h *Handler) handleCreateSession(w http.ResponseWriter, r *http.Request, target string, contribute bool) {
