@@ -163,6 +163,15 @@ func hasSignatureHeaders(req *http.Request) bool {
 	return req.Header.Get("Signature") != "" || req.Header.Get("Signature-Input") != ""
 }
 
+// MaxResponseBytes returns the configured outbound response size limit.
+func (c *Client) MaxResponseBytes() int64 {
+	if c == nil || c.cfg == nil {
+		return 0
+	}
+
+	return c.cfg.MaxResponseBytes
+}
+
 // GetJSON performs a GET request and reads the response body with size limit.
 func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Response, error) {
 	resp, err := c.Get(ctx, urlStr)

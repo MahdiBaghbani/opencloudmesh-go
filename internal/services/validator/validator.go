@@ -15,6 +15,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -41,6 +42,7 @@ func (c *Config) ApplyDefaults() {}
 type Inputs struct {
 	Store               *validatorcore.Core
 	FedCore             *core.Core
+	DiscoveryClient     *discovery.Client
 	Config              *config.Config
 	Ratelimit           ratelimit.Inputs
 	InterceptorProfiles map[string]map[string]any
@@ -80,7 +82,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			inputs.Store.SetStatsHostHasher(inputs.FedCore)
 		}
 
-		passiveHandler := passive.NewHandler(inputs.Store, log)
+		passiveHandler := passive.NewHandlerWithDiscovery(inputs.Store, inputs.DiscoveryClient, log)
 
 		startRatelimit, ratelimitErr := buildStartRatelimit(inputs, c.Ratelimit.Profile)
 		if ratelimitErr != nil {

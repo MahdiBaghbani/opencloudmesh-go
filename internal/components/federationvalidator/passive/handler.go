@@ -34,11 +34,20 @@ type Handler struct {
 
 // NewHandler returns a passive validator HTTP handler.
 func NewHandler(store *validatorcore.Core, log *slog.Logger) *Handler {
+	return NewHandlerWithDiscovery(store, nil, log)
+}
+
+// NewHandlerWithDiscovery returns a passive handler with optional discovery fetch wiring.
+func NewHandlerWithDiscovery(
+	store *validatorcore.Core,
+	discoveryClient DiscoveryFetcher,
+	log *slog.Logger,
+) *Handler {
 	log = logutil.NoopIfNil(log)
 
 	return &Handler{
 		store: store,
-		probe: NewProbeRunner(store, log),
+		probe: NewProbeRunnerWithDiscovery(store, discoveryClient, log),
 		log:   log,
 	}
 }

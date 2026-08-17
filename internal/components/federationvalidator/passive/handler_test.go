@@ -75,7 +75,7 @@ func testFedCore(t *testing.T) *fedcore.Core {
 	return c
 }
 
-func waitForState(t *testing.T, store *validatorcore.Core, ctx context.Context, runID, wantState string) {
+func waitForState(t *testing.T, store *validatorcore.Core, ctx context.Context, runID, wantState string) { //nolint:unparam // shared helper for future non-passive-complete waits
 	t.Helper()
 
 	deadline := time.Now().Add(2 * time.Second)

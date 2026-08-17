@@ -5,6 +5,8 @@
 
 package validatorcore
 
+import "time"
+
 // Grade values stored in stats_raw grade columns.
 const (
 	GradePass = "pass"
@@ -53,6 +55,20 @@ func (StatsAggregate) TableName() string {
 	return "stats_aggregate"
 }
 
+// StatsConnectionReport holds report-only connection detail on the in-memory
+// terminal snapshot. It is never copied into stats_raw or stats_aggregate.
+type StatsConnectionReport struct {
+	ServerIP      string
+	TLSVersion    string
+	CipherSuite   string
+	CertNotBefore time.Time
+	CertNotAfter  time.Time
+	CertValid     bool
+	LeafCN        string
+	LeafSANs      []string
+	ReasonCodes   []string
+}
+
 // StatsSnapshot is an in-memory terminal snapshot copied into stats_raw. It is
 // not a database table.
 type StatsSnapshot struct {
@@ -71,6 +87,7 @@ type StatsSnapshot struct {
 	GradeCapability        *string
 	CreatedAt              int64
 	WindowBucket           *int64
+	ConnectionReport       *StatsConnectionReport
 }
 
 // ToStatsRaw copies the snapshot into a StatsRaw row.

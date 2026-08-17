@@ -185,6 +185,19 @@ func mergeTerminalStatsOverlay(dst *StatsSnapshot, overlay *StatsSnapshot) {
 	dst.GradeToken = overlay.GradeToken
 	dst.GradeCapability = overlay.GradeCapability
 	dst.WindowBucket = overlay.WindowBucket
+	dst.ConnectionReport = cloneConnectionReport(overlay.ConnectionReport)
+}
+
+func cloneConnectionReport(src *StatsConnectionReport) *StatsConnectionReport {
+	if src == nil {
+		return nil
+	}
+
+	dst := *src
+	dst.LeafSANs = append([]string(nil), src.LeafSANs...)
+	dst.ReasonCodes = append([]string(nil), src.ReasonCodes...)
+
+	return &dst
 }
 
 func (c *Core) hashHostForTestRun(row *TestRun) (string, error) {

@@ -258,6 +258,7 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 	svc, err := validator.New(validator.Inputs{
 		Store:               d.ValidatorStore,
 		FedCore:             d.ValidatorCore,
+		DiscoveryClient:     d.DiscoveryClient,
 		Config:              cfg,
 		Ratelimit:           ratelimitInputs(d),
 		InterceptorProfiles: profiles,
