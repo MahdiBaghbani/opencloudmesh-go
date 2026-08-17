@@ -18,6 +18,15 @@ const (
 	// RouteStopSession is POST /stop for core-only terminalization.
 	RouteStopSession = "/stop"
 
+	// RouteAPIScan is GET /api/scan on the validator service router.
+	RouteAPIScan = "/api/scan"
+
+	// RouteAPIManifest is GET /api/manifest on the validator service router.
+	RouteAPIManifest = "/api/manifest"
+
+	// RouteAPIStatistics is GET /api/statistics on the validator service router.
+	RouteAPIStatistics = "/api/statistics"
+
 	// ValidatorServiceName is the HTTP service key for federation validator routes.
 	ValidatorServiceName = "validator"
 )

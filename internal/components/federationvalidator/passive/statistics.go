@@ -15,21 +15,26 @@ import (
 )
 
 const (
-	statisticsSchema              = "federation_tester_statistics.v1"
-	statisticsDefaultDays         = 14
-	statisticsErrInvalidDays      = "invalid_days_selector"
-	statisticsAllowedDaysSelector = "7|14|30|60|90|365|0"
+	statisticsSchema                = "federation_tester_statistics.v1"
+	statisticsDefaultDays           = 14
+	statisticsErrInvalidDays        = "invalid_days_selector"
+	statisticsAllowedDaysSelector   = "7|14|30|60|90|365|0"
+	statisticsKAnonymityUniqueHosts = 5
 )
 
-var statisticsAllowedDays = map[int]struct{}{
-	0:   {},
-	7:   {},
-	14:  {},
-	30:  {},
-	60:  {},
-	90:  {},
-	365: {},
-}
+var (
+	statisticsAllowedDays = map[int]struct{}{
+		0:   {},
+		7:   {},
+		14:  {},
+		30:  {},
+		60:  {},
+		90:  {},
+		365: {},
+	}
+
+	statisticsSupportedDays = []int{7, 14, 30, 60, 90, 365, 0}
+)
 
 type statisticsWindowResponse struct {
 	Days     int    `json:"days"`

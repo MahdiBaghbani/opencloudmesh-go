@@ -21,18 +21,15 @@ func mountPlaneARoutes(
 	passiveHandler *passive.Handler,
 	startRatelimit func(http.Handler) http.Handler,
 ) {
-	start := passive.CreateSessionRouteSpec()
-	stop := passive.StopSessionRouteSpec()
+	passive.MountPlaneARoutes(r, passiveHandler, startRatelimit, planeAAPIRoutePatterns())
+}
 
-	if startRatelimit != nil {
-		r.With(startRatelimit).Method(start.Method, start.Pattern, http.HandlerFunc(passiveHandler.HandleStart))
-	} else {
-		r.Method(start.Method, start.Pattern, http.HandlerFunc(passiveHandler.HandleStart))
+func planeAAPIRoutePatterns() passive.PlaneAAPIRoutePatterns {
+	return passive.PlaneAAPIRoutePatterns{
+		Scan:       RouteAPIScan,
+		Manifest:   RouteAPIManifest,
+		Statistics: RouteAPIStatistics,
 	}
-
-	r.Method(stop.Method, stop.Pattern, http.HandlerFunc(passiveHandler.HandleStop))
-	r.Method(http.MethodGet, RouteAPIScan, http.HandlerFunc(passiveHandler.HandleScan))
-	r.Method(http.MethodGet, RouteAPIStatistics, http.HandlerFunc(passiveHandler.HandleStatistics))
 }
 
 func buildStartRatelimit(inputs Inputs, profileName string) (func(http.Handler) http.Handler, error) {
