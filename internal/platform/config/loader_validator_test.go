@@ -3,6 +3,8 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
+// ocmgo:file-length-ignore: validator configuration defaults, proxy, rate-limit, and persistence validation coverage
+
 package config
 
 import (

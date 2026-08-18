@@ -70,15 +70,15 @@ def check-file [path: string, today: string] {
     return {status: 'fail', message: $"($path): malformed directive"}
   }
 
-  let reason = ($parsed.capture1? | default '')
+  let reason = ($parsed.capture0? | default '')
   if ($reason | str trim | is-empty) {
-    return {status: 'fail', message: $"($path): malformed directive (missing reason)"}
+    return {status: 'fail', message: $"($path): malformed directive - missing reason"}
   }
   if ($reason | str length) < 6 {
     return {status: 'fail', message: $"($path): reason too short (min 6 chars): ($reason)"}
   }
 
-  let expires = ($parsed.capture2?)
+  let expires = ($parsed.capture1?)
   if ($expires != null) and ($today > $expires) {
     return {status: 'fail', message: $"($path): directive expired on ($expires)"}
   }
