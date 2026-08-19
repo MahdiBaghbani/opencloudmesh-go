@@ -13,8 +13,9 @@ import (
 // Store operation labels for duplicate-key remapping. Remap by operation, never
 // by index name.
 const (
-	OpCreateSessionInsert = "create_session_insert"
-	OpExtendUpdate        = "extend_update"
+	OpCreateSessionInsert  = "create_session_insert"
+	OpExtendUpdate         = "extend_update"
+	OpInsertReportExchange = "insert_report_exchange"
 )
 
 // Public API error codes returned to HTTP clients (409 unless noted).
