@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	redactSigContextPrefix = "redact-sig|"
-	statsHostContextPrefix = "stats-host|"
+	redactSigContextPrefix    = "redact-sig|"
+	statsHostContextPrefix    = "stats-host|"
+	statsSessionContextPrefix = "stats-session|"
 )
 
 // HashRedactSig returns a keyed BLAKE3 digest for evidence redaction using the
@@ -55,6 +56,25 @@ func HashStatsHost(salt []byte, host string) (string, error) {
 
 	if _, err := h.WriteString(context); err != nil {
 		return "", fmt.Errorf("statistics: stats-host context: %w", err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// HashStatsK returns a keyed BLAKE3 digest hex string for a stats_raw row dedup
+// key using the context string stats-session|<test_run_id>.
+func HashStatsK(salt []byte, value string) (string, error) {
+	if len(salt) != RedactionSaltSize {
+		return "", fmt.Errorf("statistics: stats-session salt must be %d bytes", RedactionSaltSize)
+	}
+
+	h, err := blake3.NewKeyed(salt)
+	if err != nil {
+		return "", fmt.Errorf("statistics: stats-session keyed hasher: %w", err)
+	}
+
+	if _, err := h.WriteString(statsSessionContextPrefix + value); err != nil {
+		return "", fmt.Errorf("statistics: stats-session context: %w", err)
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil

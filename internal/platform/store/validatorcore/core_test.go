@@ -53,19 +53,6 @@ func openTestCore(t *testing.T) *Core {
 	return NewCore(db)
 }
 
-func TestMigrateModels_CreatesValidatorTables(t *testing.T) {
-	t.Parallel()
-
-	core := openTestCore(t)
-
-	tables := []string{"test_run", "share_correlation", "stats_raw", "stats_aggregate"}
-	for _, name := range tables {
-		if !core.DB().Migrator().HasTable(name) {
-			t.Fatalf("expected table %q", name)
-		}
-	}
-}
-
 func TestIncrementStatsAggregate_PreservesCounts(t *testing.T) {
 	t.Parallel()
 
@@ -75,6 +62,7 @@ func TestIncrementStatsAggregate_PreservesCounts(t *testing.T) {
 	pass := GradePass
 
 	raw1 := &StatsRaw{
+		K:              "k-hash-a-1",
 		HostHash:       "hash-a",
 		SessionKind:    SessionKindPassiveOnly,
 		Platform:       "Nextcloud",
@@ -91,6 +79,7 @@ func TestIncrementStatsAggregate_PreservesCounts(t *testing.T) {
 	}
 
 	raw2 := &StatsRaw{
+		K:              "k-hash-a-2",
 		HostHash:       "hash-a",
 		SessionKind:    SessionKindActiveFull,
 		Platform:       "CERNBox",
@@ -259,6 +248,7 @@ func TestPruneStats_RebuildsAggregateFromRaw(t *testing.T) {
 
 	rows := []StatsRaw{
 		{
+			K:              "k-host-old-1",
 			HostHash:       "host-old",
 			SessionKind:    SessionKindPassiveOnly,
 			Platform:       "Old",
@@ -266,6 +256,7 @@ func TestPruneStats_RebuildsAggregateFromRaw(t *testing.T) {
 			CreatedAt:      now - int64(60*24*3600),
 		},
 		{
+			K:              "k-host-old-2",
 			HostHash:       "host-old",
 			SessionKind:    SessionKindPassiveOnly,
 			Platform:       "Old",
@@ -273,6 +264,7 @@ func TestPruneStats_RebuildsAggregateFromRaw(t *testing.T) {
 			CreatedAt:      now - int64(59*24*3600),
 		},
 		{
+			K:              "k-host-new-1",
 			HostHash:       "host-new",
 			SessionKind:    SessionKindActiveFull,
 			Platform:       "New",
@@ -320,6 +312,7 @@ func TestPruneStats_RetentionZeroRebuildsAll(t *testing.T) {
 
 	for _, host := range []string{"host-a", "host-b"} {
 		if err := core.InsertStatsRaw(ctx, &StatsRaw{
+			K:              "k-" + host,
 			HostHash:       host,
 			SessionKind:    SessionKindPassiveOnly,
 			Platform:       "P",
@@ -567,6 +560,7 @@ func TestPruneStats_RebuildMatchesIncrementalAggregate(t *testing.T) {
 	hostHash := "hash-rebuild-parity"
 
 	newer := &StatsRaw{
+		K:              "k-rebuild-parity-newer",
 		HostHash:       hostHash,
 		SessionKind:    SessionKindActiveFull,
 		Platform:       "CERNBox",
@@ -575,6 +569,7 @@ func TestPruneStats_RebuildMatchesIncrementalAggregate(t *testing.T) {
 	}
 
 	older := &StatsRaw{
+		K:              "k-rebuild-parity-older",
 		HostHash:       hostHash,
 		SessionKind:    SessionKindPassiveOnly,
 		Platform:       "Nextcloud",

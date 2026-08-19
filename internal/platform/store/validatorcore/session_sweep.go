@@ -109,8 +109,8 @@ func (c *Core) terminalizePassiveTTL(
 			Updates(map[string]any{
 				colState:          StateTerminalFail,
 				colSessionKind:    kind,
-				"terminal_reason": reason,
-				"finished_at":     now,
+				colTerminalReason: reason,
+				colFinishedAt:     now,
 				colUpdatedAt:      now,
 			})
 		if res.Error != nil {

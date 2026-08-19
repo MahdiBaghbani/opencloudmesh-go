@@ -12,7 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlitecore"
 )
 
-func TestAttach_MigratesValidatorTablesOnSharedHandle(t *testing.T) {
+func TestAttach_CreatesValidatorSchemaOnSharedHandle(t *testing.T) {
 	t.Parallel()
 
 	sqlCore, err := sqlitecore.Open(t.TempDir())
@@ -31,7 +31,16 @@ func TestAttach_MigratesValidatorTablesOnSharedHandle(t *testing.T) {
 		t.Fatalf("Attach: %v", err)
 	}
 
-	for _, name := range []string{"test_run", "share_correlation", "stats_raw", "stats_aggregate"} {
+	for _, name := range []string{
+		"test_run",
+		"share_correlation",
+		"stats_raw",
+		"stats_aggregate",
+		"report_exchange",
+		"evidence_row",
+		"dispatch_reservation",
+		"validator_schema",
+	} {
 		if !core.DB().Migrator().HasTable(name) {
 			t.Fatalf("Attach must create validator table %q", name)
 		}
@@ -50,6 +59,7 @@ func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
 	hostHash := "host-retention"
 
 	staleRaw := StatsRaw{
+		K:              "k-retention-stale",
 		HostHash:       hostHash,
 		SessionKind:    SessionKindPassiveOnly,
 		Platform:       "Stale",
@@ -58,6 +68,7 @@ func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
 	}
 
 	recentRaw := StatsRaw{
+		K:              "k-retention-recent",
 		HostHash:       hostHash,
 		SessionKind:    SessionKindActiveFull,
 		Platform:       "Recent",
@@ -164,6 +175,7 @@ func TestStartupMaintenance_PrunesTerminalRetention(t *testing.T) {
 	pass := GradePass
 
 	if err := core.InsertStatsRaw(ctx, &StatsRaw{
+		K:              "k-startup-old",
 		HostHash:       "startup-host",
 		SessionKind:    SessionKindPassiveOnly,
 		Platform:       "Old",
@@ -174,6 +186,7 @@ func TestStartupMaintenance_PrunesTerminalRetention(t *testing.T) {
 	}
 
 	if err := core.InsertStatsRaw(ctx, &StatsRaw{
+		K:              "k-startup-new",
 		HostHash:       "startup-host",
 		SessionKind:    SessionKindPassiveOnly,
 		Platform:       "New",

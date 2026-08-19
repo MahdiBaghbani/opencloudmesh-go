@@ -40,22 +40,11 @@ func (c *Core) DB() *gorm.DB {
 	return c.db
 }
 
-// MigrateModels runs AutoMigrate for all validator persistence models.
+// MigrateModels is a compatibility alias for ApplyValidatorSchema kept for
+// existing tests and helpers. The explicit DDL applicator is authoritative;
+// no AutoMigrate runs for validator tables.
 func MigrateModels(db *gorm.DB) error {
-	if db == nil {
-		return errors.New("validatorcore: nil db")
-	}
-
-	if err := db.AutoMigrate(
-		&TestRun{},
-		&ShareCorrelation{},
-		&StatsRaw{},
-		&StatsAggregate{},
-	); err != nil {
-		return fmt.Errorf("validatorcore: migrate: %w", err)
-	}
-
-	return nil
+	return ApplyValidatorSchema(db)
 }
 
 // FindActiveCorrelation returns the test_run_id for a confirmed correlation on

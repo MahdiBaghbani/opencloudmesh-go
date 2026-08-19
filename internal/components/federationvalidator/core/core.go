@@ -71,3 +71,17 @@ func (c *Core) HashHost(host string) (string, error) {
 
 	return c.hashHost(host)
 }
+
+// HashStatsK hashes a stats_raw dedup key input using stats-session|<test_run_id>.
+func (c *Core) HashStatsK(value string) (string, error) {
+	if c == nil || len(c.statsSalt) == 0 {
+		return "", errors.New("federationvalidator core: stats salt is not configured")
+	}
+
+	k, err := statistics.HashStatsK(c.statsSalt, value)
+	if err != nil {
+		return "", fmt.Errorf("federationvalidator core: stats session key hash: %w", err)
+	}
+
+	return k, nil
+}

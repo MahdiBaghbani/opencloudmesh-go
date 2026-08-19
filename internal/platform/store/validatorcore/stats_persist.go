@@ -16,9 +16,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
-// StatsHostHasher hashes a normalized host authority for statistics export.
+// StatsHostHasher provides keyed hashing for statistics export: host hashing
+// and stats_raw row dedup keys.
 type StatsHostHasher interface {
 	HashHost(host string) (string, error)
+	HashStatsK(value string) (string, error)
 }
 
 // SetStatsHostHasher wires keyed host hashing for terminal statistics persistence.
@@ -138,9 +140,15 @@ func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error
 		return fmt.Errorf("validatorcore: hash target host: %w", err)
 	}
 
+	k, err := c.statsHasher.HashStatsK(testRunID)
+	if err != nil {
+		return fmt.Errorf("validatorcore: stats row key: %w", err)
+	}
+
 	overlay, _ := c.terminalStatsOverlay(testRunID)
 	snap := statsSnapshotFromTestRun(row, hostHash, *row.FinishedAt, overlay)
 	raw := snap.ToStatsRaw()
+	raw.K = k
 
 	if err := c.insertStatsRawAndAggregate(ctx, &raw); err != nil {
 		return err
@@ -237,7 +245,7 @@ func targetOriginAuthority(targetOrigin string) (authority, scheme string, err e
 }
 
 func isTerminalState(state string) bool {
-	return state == StateTerminalPass || state == StateTerminalFail
+	return state == StateTerminalPass || state == StateTerminalFail || state == StateInterrupted
 }
 
 func normalizeStatsHost(authority, scheme string) (string, error) {

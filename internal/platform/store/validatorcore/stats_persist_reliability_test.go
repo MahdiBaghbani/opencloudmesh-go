@@ -25,6 +25,7 @@ func TestInsertStatsRawAndAggregate_RollsBackRawOnAggregateFailure(t *testing.T)
 	now := time.Now().Unix()
 
 	raw := &StatsRaw{
+		K:              "k-rollback",
 		HostHash:       "hash-rollback",
 		SessionKind:    SessionKindPassiveOnly,
 		GradeDiscovery: &pass,

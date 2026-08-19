@@ -69,7 +69,17 @@ func (e *StoreError) Unwrap() error {
 }
 
 const (
-	colState       = "state"
-	colSessionKind = "session_kind"
-	colUpdatedAt   = "updated_at"
+	colState          = "state"
+	colSessionKind    = "session_kind"
+	colUpdatedAt      = "updated_at"
+	colTestRunID      = "test_run_id"
+	colExchangeID     = "exchange_id"
+	colCreatedAt      = "created_at"
+	colFinishedAt     = "finished_at"
+	colTerminalReason = "terminal_reason"
+	colIsActive       = "is_active"
+	colProviderID     = "provider_id"
+	colLocalIdentity  = "local_identity"
+	colHostHash       = "host_hash"
+	colArea           = "area"
 )

@@ -148,6 +148,7 @@ func TestHandleStatistics_PrivacyNoHostHashOrRawHost(t *testing.T) {
 	rawHash := "hash-peer-example"
 
 	row := validatorcore.StatsRaw{
+		K:              "k-stats-redact",
 		HostHash:       rawHash,
 		Platform:       "nextcloud",
 		GradeDiscovery: &pass,
@@ -201,12 +202,14 @@ func TestHandleStatistics_AggregatesHealthyPlatformAndAreas(t *testing.T) {
 
 	rows := []validatorcore.StatsRaw{
 		{
+			K:              "k-stats-agg-1",
 			HostHash:       "host-a",
 			Platform:       "nextcloud",
 			GradeDiscovery: &pass,
 			CreatedAt:      1_700_000_000,
 		},
 		{
+			K:              "k-stats-agg-2",
 			HostHash:       "host-a",
 			Platform:       "nextcloud",
 			GradeDiscovery: &warn,
@@ -214,6 +217,7 @@ func TestHandleStatistics_AggregatesHealthyPlatformAndAreas(t *testing.T) {
 			ID:             2,
 		},
 		{
+			K:              "k-stats-agg-3",
 			HostHash:       "host-b",
 			Platform:       "nextcloud",
 			GradeDiscovery: &pass,

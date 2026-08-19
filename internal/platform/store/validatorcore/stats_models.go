@@ -14,14 +14,17 @@ const (
 	GradeFail = "fail"
 )
 
-// StatsRaw is one append-only terminal statistics snapshot row.
+// StatsRaw is one append-only terminal statistics snapshot row. K is the
+// keyed-BLAKE3 dedup key for the row; it is NOT NULL and UNIQUE in the schema
+// with no database default, so writers must always set it.
 type StatsRaw struct {
 	ID                     uint    `gorm:"column:id;primaryKey;autoIncrement"`
-	HostHash               string  `gorm:"column:host_hash;index:idx_stats_raw_host_hash"`
-	SessionKind            string  `gorm:"column:session_kind;index:idx_stats_raw_session_kind"`
+	K                      string  `gorm:"column:k;not null;uniqueIndex"`
+	HostHash               string  `gorm:"column:host_hash;not null;index:idx_stats_raw_host_hash"`
+	SessionKind            string  `gorm:"column:session_kind;not null;index:idx_stats_raw_session_kind"`
 	ReverseInviteExercised bool    `gorm:"column:reverse_invite_exercised;not null"`
-	Platform               string  `gorm:"column:platform;index:idx_stats_raw_platform"`
-	APIVersion             string  `gorm:"column:api_version"`
+	Platform               string  `gorm:"column:platform;not null;index:idx_stats_raw_platform"`
+	APIVersion             string  `gorm:"column:api_version;not null"`
 	GradeDiscovery         *string `gorm:"column:grade_discovery"`
 	GradeTLS               *string `gorm:"column:grade_tls"`
 	GradeJWKS              *string `gorm:"column:grade_jwks"`
@@ -30,13 +33,13 @@ type StatsRaw struct {
 	GradeNotification      *string `gorm:"column:grade_notification"`
 	GradeToken             *string `gorm:"column:grade_token"`
 	GradeCapability        *string `gorm:"column:grade_capability"`
-	CreatedAt              int64   `gorm:"column:created_at;index:idx_stats_raw_created_at"`
+	CreatedAt              int64   `gorm:"column:created_at;not null;index:idx_stats_raw_created_at"`
 	WindowBucket           *int64  `gorm:"column:window_bucket;index:idx_stats_raw_window_bucket"`
 }
 
 // TableName returns the GORM table name for StatsRaw.
 func (StatsRaw) TableName() string {
-	return "stats_raw"
+	return tableStatsRaw
 }
 
 // StatsAggregate holds per-host_hash rolling counters (no raw host names).
@@ -44,15 +47,15 @@ type StatsAggregate struct {
 	HostHash        string `gorm:"column:host_hash;primaryKey"`
 	TotalSessions   int64  `gorm:"column:total_sessions;not null"`
 	HealthySessions int64  `gorm:"column:healthy_sessions;not null"`
-	LastPlatform    string `gorm:"column:last_platform"`
+	LastPlatform    string `gorm:"column:last_platform;not null"`
 	LastHealthy     bool   `gorm:"column:last_healthy;not null"`
-	FirstSeenTS     int64  `gorm:"column:first_seen_ts"`
-	LastSeenTS      int64  `gorm:"column:last_seen_ts;index:idx_stats_agg_last_seen"`
+	FirstSeenTS     int64  `gorm:"column:first_seen_ts;not null"`
+	LastSeenTS      int64  `gorm:"column:last_seen_ts;not null;index:idx_stats_agg_last_seen"`
 }
 
 // TableName returns the GORM table name for StatsAggregate.
 func (StatsAggregate) TableName() string {
-	return "stats_aggregate"
+	return tableStatsAggregate
 }
 
 // StatsConnectionReport holds report-only connection detail on the in-memory

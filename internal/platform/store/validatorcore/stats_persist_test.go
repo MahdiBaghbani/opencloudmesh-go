@@ -327,12 +327,14 @@ func TestPruneStats_RemovesStaleRawAndRebuildsAggregate(t *testing.T) {
 	recentTS := now
 
 	staleRaw := StatsRaw{
+		K:              "k-prune-stale",
 		HostHash:       "hash-prune",
 		SessionKind:    SessionKindPassiveOnly,
 		GradeDiscovery: &pass,
 		CreatedAt:      staleTS,
 	}
 	recentRaw := StatsRaw{
+		K:              "k-prune-recent",
 		HostHash:       "hash-prune",
 		SessionKind:    SessionKindPassiveOnly,
 		GradeDiscovery: &pass,

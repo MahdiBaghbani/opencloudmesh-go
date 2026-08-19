@@ -210,9 +210,9 @@ func (c *Core) EnterTerminalState(
 		Updates(map[string]any{
 			colState:          update.State,
 			colSessionKind:    update.SessionKind,
-			"terminal_reason": reason,
+			colTerminalReason: reason,
 			"overall_grade":   update.OverallGrade,
-			"finished_at":     update.FinishedAt,
+			colFinishedAt:     update.FinishedAt,
 			colUpdatedAt:      update.FinishedAt,
 		})
 	if res.Error != nil {
@@ -278,7 +278,10 @@ func (c *Core) StopPassiveComplete(ctx context.Context, testRunID string) error 
 	})
 }
 
-// PruneTerminalSessions deletes terminal test_run rows older than retentionDays.
+// PruneTerminalSessions deletes terminal test_run rows older than
+// retentionDays. Validator-owned child rows (share_correlation,
+// report_exchange, evidence_row, dispatch_reservation) cascade with the
+// parent per the schema DDL, so one delete removes a run and its artifacts.
 func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")

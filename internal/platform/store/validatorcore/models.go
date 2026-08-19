@@ -11,31 +11,48 @@ const (
 	SessionKindActiveFull  = "active_full"
 )
 
-// TestRun state values (17-value session state enum). Forward sub-progress stays
-// on step or coordinator labels, not on State.
-//
-// Reverse states (reverse_invite_solicited through reverse_capability_exercise)
-// are defined for the reverse-plane open window but intentionally dormant and
-// unreachable until reverse-plane wiring lands.
+// TestRun state values (16-value session state enum). Forward sub-progress stays
+// on step or coordinator labels, not on State. The test_run.state CHECK
+// constraint in the validator schema lists exactly these values.
 const (
-	StateCreated                   = "created"
-	StatePassiveRunning            = "passive_running"
-	StatePassiveComplete           = "passive_complete"
-	StateActiveRunning             = "active_running"
-	StateInviteMinted              = "invite_minted"
-	StateAwaitingReturnShare       = "awaiting_return_share"
-	StateCapabilityExercise        = "capability_exercise"
-	StateReverseInviteSolicited    = "reverse_invite_solicited"
-	StateReverseAwaitingInvite     = "reverse_awaiting_invite"
-	StateReverseInviteImported     = "reverse_invite_imported"
-	StateReverseInviteAccepted     = "reverse_invite_accepted"
-	StateReverseAwaitingShare      = "reverse_awaiting_share"
-	StateReverseShareAccepted      = "reverse_share_accepted"
-	StateReverseCapabilityExercise = "reverse_capability_exercise"
-	StatePassiveDone               = "passive_done"
-	StateTerminalPass              = "terminal_pass"
-	StateTerminalFail              = "terminal_fail"
+	StateCreated                = "created"
+	StatePassiveRunning         = "passive_running"
+	StatePassiveComplete        = "passive_complete"
+	StateActiveRunning          = "active_running"
+	StateInviteMinted           = "invite_minted"
+	StateInviteAccepted         = "invite_accepted"
+	StateForwardShareSent       = "forward_share_sent"
+	StateCapabilityExercise     = "capability_exercise"
+	StateReverseInviteSolicited = "reverse_invite_solicited"
+	StateReverseAwaitingInvite  = "reverse_awaiting_invite"
+	StateReverseInviteImported  = "reverse_invite_imported"
+	StateReverseInviteAccepted  = "reverse_invite_accepted"
+	StateReverseAwaitingShare   = "reverse_awaiting_share"
+	StateTerminalPass           = "terminal_pass"
+	StateTerminalFail           = "terminal_fail"
+	StateInterrupted            = "interrupted"
 )
+
+// testRunStates lists every allowed test_run.state value. The validator schema
+// CHECK constraint and the version-1 runtime validation use exactly this set.
+var testRunStates = []string{
+	StateCreated,
+	StatePassiveRunning,
+	StatePassiveComplete,
+	StateActiveRunning,
+	StateInviteMinted,
+	StateInviteAccepted,
+	StateForwardShareSent,
+	StateCapabilityExercise,
+	StateReverseInviteSolicited,
+	StateReverseAwaitingInvite,
+	StateReverseInviteImported,
+	StateReverseInviteAccepted,
+	StateReverseAwaitingShare,
+	StateTerminalPass,
+	StateTerminalFail,
+	StateInterrupted,
+}
 
 // ShareCorrelation role values. sender_host is the TARGET authority for all four
 // roles (the authority advertised by the target discovery document), not an
@@ -59,45 +76,69 @@ const (
 	LocalIdentityB = "b"
 )
 
-// TestRun is the federation validator session persistence model.
+// TestRun is the federation validator session persistence model. The explicit
+// validator schema DDL is authoritative; GORM tags are column mappings only.
 type TestRun struct {
 	TestRunID      string  `gorm:"column:test_run_id;primaryKey"`
-	IsActive       bool    `gorm:"column:is_active;uniqueIndex:idx_test_run_one_active,where:is_active = 1"`
-	State          string  `gorm:"column:state;index"`
-	TargetOrigin   string  `gorm:"column:target_origin"`
-	TargetHost     string  `gorm:"column:target_host"` // target authority from target discovery, not an operator alias
-	DiscoveryURL   string  `gorm:"column:discovery_url"`
-	JwksURI        string  `gorm:"column:jwks_uri"`
+	IsActive       bool    `gorm:"column:is_active;not null;uniqueIndex:idx_test_run_one_active,where:is_active = 1"`
+	State          string  `gorm:"column:state;not null;index:idx_test_run_state"`
+	TargetOrigin   string  `gorm:"column:target_origin;not null"`
+	TargetHost     string  `gorm:"column:target_host;not null"` // target authority from target discovery, not an operator alias
+	DiscoveryURL   string  `gorm:"column:discovery_url;not null"`
+	JwksURI        string  `gorm:"column:jwks_uri;not null"`
 	TerminalReason *string `gorm:"column:terminal_reason"`
 	FinishedAt     *int64  `gorm:"column:finished_at"`
 	OverallGrade   *string `gorm:"column:overall_grade"`
-	ManifestSchema string  `gorm:"column:manifest_schema"`
+	ManifestSchema string  `gorm:"column:manifest_schema;not null"`
 	ManifestJSON   *string `gorm:"column:manifest_json"`
-	SessionKind    string  `gorm:"column:session_kind;index"` // passive_only | active_full
-	CreatedAt      int64   `gorm:"column:created_at"`
-	UpdatedAt      int64   `gorm:"column:updated_at"`
+	SessionKind    string  `gorm:"column:session_kind;not null;index:idx_test_run_session_kind"` // passive_only | active_full
+
+	// Reverse-plane, consent, and retention fields. Nullable until the
+	// corresponding lifecycle step records them.
+	BobUserID                   *string `gorm:"column:bob_user_id;index:idx_test_run_bob_user_id"`
+	ReverseInviteToken          *string `gorm:"column:reverse_invite_token"`
+	ReverseInviteImportedAt     *int64  `gorm:"column:reverse_invite_imported_at"`
+	DesignatedShareWith         *string `gorm:"column:designated_share_with"`
+	ReverseShareProviderID      *string `gorm:"column:reverse_share_provider_id"`
+	StatsWrittenAt              *int64  `gorm:"column:stats_written_at;index:idx_test_run_stats_heal,where:opt_in_stats = 1 AND stats_written_at IS NULL"`
+	OptInStats                  bool    `gorm:"column:opt_in_stats;not null;default:0"`
+	OptInPermanent              bool    `gorm:"column:opt_in_permanent;not null;default:0"`
+	OptInStatsChannel           *string `gorm:"column:opt_in_stats_channel"`
+	OptInStatsAt                *int64  `gorm:"column:opt_in_stats_at"`
+	OptInPermanentChannel       *string `gorm:"column:opt_in_permanent_channel"`
+	OptInPermanentAt            *int64  `gorm:"column:opt_in_permanent_at"`
+	RetentionTier               *string `gorm:"column:retention_tier"`
+	RetentionLockedAt           *int64  `gorm:"column:retention_locked_at"`
+	ExpiresAt                   *int64  `gorm:"column:expires_at;index:idx_test_run_expires_at"`
+	PermanentReportID           *string `gorm:"column:permanent_report_id;uniqueIndex"`
+	HarvestedAt                 *int64  `gorm:"column:harvested_at"`
+	HarvestedSessionArtifactsAt *int64  `gorm:"column:harvested_session_artifacts_at"`
+	HarvestReason               *string `gorm:"column:harvest_reason"`
+
+	CreatedAt int64 `gorm:"column:created_at;not null"`
+	UpdatedAt int64 `gorm:"column:updated_at;not null"`
 }
 
 // TableName returns the GORM table name for TestRun.
 func (TestRun) TableName() string {
-	return "test_run"
+	return tableTestRun
 }
 
 // ShareCorrelation links validator session evidence to OCM share and invite ids.
 type ShareCorrelation struct {
 	ID            uint    `gorm:"column:id;primaryKey;autoIncrement"`
-	TestRunID     string  `gorm:"column:test_run_id;uniqueIndex:idx_share_corr_unique,priority:1"`
-	Role          string  `gorm:"column:role;uniqueIndex:idx_share_corr_unique,priority:2"`
-	SenderHost    string  `gorm:"column:sender_host;uniqueIndex:idx_share_corr_unique,priority:3"`
-	ProviderID    string  `gorm:"column:provider_id;uniqueIndex:idx_share_corr_unique,priority:4"`
-	LocalIdentity string  `gorm:"column:local_identity;uniqueIndex:idx_share_corr_unique,priority:5;default:a"`
+	TestRunID     string  `gorm:"column:test_run_id;not null;uniqueIndex:idx_share_corr_unique,priority:1;uniqueIndex:idx_share_corr_outgoing_invite_slot,where:role = 'outgoing_invite';uniqueIndex:idx_share_corr_incoming_invite_slot,where:role = 'incoming_invite'"`
+	Role          string  `gorm:"column:role;not null;uniqueIndex:idx_share_corr_unique,priority:2"`
+	SenderHost    string  `gorm:"column:sender_host;not null;uniqueIndex:idx_share_corr_unique,priority:3"`
+	ProviderID    string  `gorm:"column:provider_id;not null;uniqueIndex:idx_share_corr_unique,priority:4"`
+	LocalIdentity string  `gorm:"column:local_identity;not null;uniqueIndex:idx_share_corr_unique,priority:5"`
 	ShareID       *string `gorm:"column:share_id"`
 	InviteID      *string `gorm:"column:invite_id"`
 	Status        string  `gorm:"column:status;not null;default:confirmed"`
-	CreatedAt     int64   `gorm:"column:created_at"`
+	CreatedAt     int64   `gorm:"column:created_at;not null"`
 }
 
 // TableName returns the GORM table name for ShareCorrelation.
 func (ShareCorrelation) TableName() string {
-	return "share_correlation"
+	return tableShareCorrelation
 }

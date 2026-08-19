@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	store "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 func TestCreatePassiveSession_EnforcesInFlightCap(t *testing.T) {
@@ -535,5 +537,125 @@ func TestCreatePassiveSession_PKCollisionIsStoreError(t *testing.T) {
 
 	if !errors.Is(storeErr.Err, gorm.ErrDuplicatedKey) {
 		t.Fatalf("wrapped error = %v, want gorm.ErrDuplicatedKey", storeErr.Err)
+	}
+}
+
+func TestPruneTerminalSessions_CascadesChildArtifacts(t *testing.T) {
+	t.Parallel()
+
+	// sqlitecore enables PRAGMA foreign_keys on every connection, so this
+	// store enforces the cascade contract the way production does.
+	sqlCore := openPeerStore(t)
+
+	core, err := Attach(sqlCore.DB(), DefaultSessionConfig())
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+
+	db := core.DB()
+	ctx := t.Context()
+
+	var fkEnforced int
+
+	if err := db.Raw("PRAGMA foreign_keys").Scan(&fkEnforced).Error; err != nil {
+		t.Fatalf("read foreign_keys pragma: %v", err)
+	}
+
+	if fkEnforced != 1 {
+		t.Fatalf("foreign_keys = %d, want 1 (cascade proof requires enforcement)", fkEnforced)
+	}
+
+	now := time.Now().Unix()
+	staleFinished := now - int64(60*24*3600)
+	recentFinished := now - 3600
+
+	seedRun := func(id string, finished int64) {
+		t.Helper()
+
+		row := &TestRun{
+			TestRunID:      id,
+			State:          StateTerminalPass,
+			TargetOrigin:   "https://target.example",
+			TargetHost:     "target.example",
+			DiscoveryURL:   "https://target.example/.well-known/ocm",
+			JwksURI:        "https://target.example/jwks.json",
+			ManifestSchema: "ocm-validator-manifest/v1",
+			SessionKind:    SessionKindPassiveOnly,
+			FinishedAt:     &finished,
+			CreatedAt:      finished,
+			UpdatedAt:      finished,
+		}
+
+		if err := db.WithContext(ctx).Create(row).Error; err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+	}
+
+	seedRun("run-prune-stale", staleFinished)
+	seedRun("run-prune-recent", recentFinished)
+
+	// A full set of validator-owned child artifacts on the aged terminal run.
+	mustExec(t, db, `INSERT INTO share_correlation
+		(test_run_id, role, sender_host, provider_id, local_identity, status, created_at)
+		VALUES ('run-prune-stale', 'outgoing_to_target', 'target.example', 'prov-prune', 'a', 'confirmed', 1)`)
+	mustExec(t, db, `INSERT INTO report_exchange
+		(test_run_id, seq, captured_at, direction, actor, endpoint_id, method, url, created_at)
+		VALUES ('run-prune-stale', 1, 1, 'out', 'validator', 'discovery', 'GET', 'https://target.example/x', 1)`)
+	mustExec(t, db, `INSERT INTO evidence_row
+		(test_run_id, area, step, reason_code, severity, affects_grade, exchange_id, created_at)
+		VALUES ('run-prune-stale', 'http', 'request', 'timeout', 'important', TRUE, 1, 1)`)
+	mustExec(t, db, `INSERT INTO dispatch_reservation
+		(test_run_id, provider_id, webdav_id, shared_secret, receiver_host, share_with, probe_file_path, status, created_at)
+		VALUES ('run-prune-stale', 'prov-prune', 'wd-prune', 'secret', 'receiver.example', 'bob', '/probe.bin', 'dispatch_reserved', 1)`)
+
+	// One child on the recent run proves pruning stays inside the window.
+	mustExec(t, db, `INSERT INTO report_exchange
+		(test_run_id, seq, captured_at, direction, actor, endpoint_id, method, url, created_at)
+		VALUES ('run-prune-recent', 1, 1, 'out', 'validator', 'discovery', 'GET', 'https://target.example/y', 1)`)
+
+	// Peer persistence shares the database and must never be touched.
+	peer := store.OutgoingShare{
+		ShareID:    "share-prune",
+		ProviderID: "provider-prune",
+		WebDAVID:   "webdav-prune",
+		CreatedAt:  1,
+	}
+
+	if err := db.WithContext(ctx).Create(&peer).Error; err != nil {
+		t.Fatalf("seed peer row: %v", err)
+	}
+
+	if err := core.PruneTerminalSessions(ctx, 30); err != nil {
+		t.Fatalf("PruneTerminalSessions with child rows: %v", err)
+	}
+
+	for _, table := range []string{
+		"test_run", "share_correlation", "report_exchange", "evidence_row", "dispatch_reservation",
+	} {
+		var count int64
+
+		mustQueryCount(t, db, "SELECT COUNT(*) FROM "+table+" WHERE test_run_id = 'run-prune-stale'", &count)
+
+		if count != 0 {
+			t.Fatalf("%s rows for pruned run = %d, want 0 (cascade)", table, count)
+		}
+	}
+
+	var recentCount, recentExCount, peerCount int64
+
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM test_run WHERE test_run_id = 'run-prune-recent'", &recentCount)
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM report_exchange WHERE test_run_id = 'run-prune-recent'", &recentExCount)
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM outgoing_shares WHERE share_id = 'share-prune'", &peerCount)
+
+	if recentCount != 1 || recentExCount != 1 {
+		t.Fatalf(
+			"recent run = %d rows, %d exchanges; want 1 each (inside retention window)",
+			recentCount,
+			recentExCount,
+		)
+	}
+
+	if peerCount != 1 {
+		t.Fatalf("peer outgoing_shares rows = %d, want 1 (peer tables untouched)", peerCount)
 	}
 }

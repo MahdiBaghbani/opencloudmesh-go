@@ -221,8 +221,8 @@ func TestQueryFederationTesterStatistics_AllTimeOmitsDaily(t *testing.T) {
 	pass := GradePass
 
 	rows := []StatsRaw{
-		{HostHash: "h1", CreatedAt: 100, GradeDiscovery: &pass, Platform: "nextcloud"},
-		{HostHash: "h2", CreatedAt: 200, Platform: "cernbox"},
+		{K: "k-all-time-h1", HostHash: "h1", CreatedAt: 100, GradeDiscovery: &pass, Platform: "nextcloud"},
+		{K: "k-all-time-h2", HostHash: "h2", CreatedAt: 200, Platform: "cernbox"},
 	}
 
 	for i := range rows {
@@ -267,8 +267,8 @@ func TestQueryFederationTesterStatistics_WindowFiltersRows(t *testing.T) {
 	outWindow := now.Add(-20 * 24 * time.Hour).Unix()
 
 	rows := []StatsRaw{
-		{HostHash: "in", CreatedAt: inWindow, GradeDiscovery: &pass, Platform: "nextcloud"},
-		{HostHash: "out", CreatedAt: outWindow, GradeDiscovery: &pass, Platform: "nextcloud"},
+		{K: "k-window-in", HostHash: "in", CreatedAt: inWindow, GradeDiscovery: &pass, Platform: "nextcloud"},
+		{K: "k-window-out", HostHash: "out", CreatedAt: outWindow, GradeDiscovery: &pass, Platform: "nextcloud"},
 	}
 
 	for i := range rows {

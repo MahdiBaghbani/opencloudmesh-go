@@ -13,15 +13,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// Attach wraps an existing GORM handle (for example from sqlitecore), runs
-// validator model AutoMigrate on that handle, then runs startup maintenance.
+// Attach wraps an existing GORM handle (for example from sqlitecore), applies
+// the explicit validator schema on that handle, then runs startup maintenance.
 // Callers outside validator mode must not invoke Attach.
 func Attach(db *gorm.DB, cfg SessionConfig) (*Core, error) {
 	if db == nil {
 		return nil, errors.New("validatorcore: nil db")
 	}
 
-	if err := MigrateModels(db); err != nil {
+	if err := ApplyValidatorSchema(db); err != nil {
 		return nil, err
 	}
 
