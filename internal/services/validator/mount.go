@@ -35,7 +35,7 @@ func planeAAPIRoutePatterns() passive.PlaneAAPIRoutePatterns {
 
 func buildStartRatelimit(inputs Inputs, profileName string) (func(http.Handler) http.Handler, error) {
 	if profileName == "" {
-		return nil, nil //nolint:nilnil // nil middleware means no ratelimit wrapper
+		return func(next http.Handler) http.Handler { return next }, nil
 	}
 
 	if _, err := interceptors.GetProfileConfig(inputs.InterceptorProfiles, "ratelimit", profileName); err != nil {

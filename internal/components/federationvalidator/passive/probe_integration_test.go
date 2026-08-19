@@ -96,7 +96,7 @@ func TestProbeRunner_Integration_PersistsPlatformAndTLSGradeWithoutRawSecrets(t 
 		t.Fatalf("decode create: %v", err)
 	}
 
-	waitForState(t, store, ctx, created.ID, validatorcore.StatePassiveComplete)
+	waitForState(t, store, ctx, created.ID)
 
 	stopBody := mustJSON(t, map[string]string{"id": created.ID})
 	stopReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/stop", bytes.NewReader(stopBody))

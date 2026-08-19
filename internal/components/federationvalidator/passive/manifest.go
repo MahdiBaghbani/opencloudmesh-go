@@ -24,51 +24,52 @@ const (
 // and is intentionally omitted here.
 type MountedAPIRoute struct {
 	Method   string `json:"method"`
-	FullPath string `json:"full_path"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	FullPath string `json:"fullPath"`
 }
 
-// manifestRouteResponse is the locked federation_tester_manifest.v1 payload.
-// Add fields only; do not rename or remove existing JSON keys.
+// manifestRouteResponse is the federation_tester_manifest.v1 payload.
+// Additive fields only; keys are camelCase per .golangci.yml json: camel.
 type manifestRouteResponse struct {
 	Schema        string                   `json:"schema"`
-	APIVersion    string                   `json:"api_version"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	APIVersion    string                   `json:"apiVersion"`
 	Schemas       []string                 `json:"schemas"`
-	ServicePrefix string                   `json:"service_prefix"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	ServicePrefix string                   `json:"servicePrefix"`
 	Routes        []MountedAPIRoute        `json:"routes"`
 	Statistics    manifestStatisticsMeta   `json:"statistics"`
 	Scan          scanSchemaV1             `json:"scan"`
-	SessionKind   manifestSessionKindMeta  `json:"session_kind"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	SessionKind   manifestSessionKindMeta  `json:"sessionKind"`
 	Contribute    manifestContributeMeta   `json:"contribute"`
-	ReverseInvite manifestAvailabilityMeta `json:"reverse_invite"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	ReverseInvite manifestAvailabilityMeta `json:"reverseInvite"`
 	Platform      manifestAvailabilityMeta `json:"platform"`
-	TLSSummary    manifestAvailabilityMeta `json:"tls_summary"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	TLSSummary    manifestAvailabilityMeta `json:"tlsSummary"`
 }
 
 type manifestStatisticsMeta struct {
 	Schema                string `json:"schema"`
-	TimeframesDays        []int  `json:"timeframes_days"`          //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
-	DefaultDays           int    `json:"default_days"`             //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
-	KAnonymityUniqueHosts int    `json:"k_anonymity_unique_hosts"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
-	UnknownPlatformExempt bool   `json:"unknown_platform_exempt"`  //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	TimeframesDays        []int  `json:"timeframesDays"`
+	DefaultDays           int    `json:"defaultDays"`
+	KAnonymityUniqueHosts int    `json:"kAnonymityUniqueHosts"`
+	UnknownPlatformExempt bool   `json:"unknownPlatformExempt"`
 }
 
 type manifestSessionKindMeta struct {
 	Supported   []string `json:"supported"`
-	ScanDefault string   `json:"scan_default"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	ScanDefault string   `json:"scanDefault"`
 }
 
 type manifestContributeMeta struct {
 	Available  bool   `json:"available"`
-	OptInQuery string `json:"opt_in_query"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
-	OptInValue string `json:"opt_in_value"` //nolint:tagliatelle // federation_tester_manifest.v1 locked schema
+	OptInQuery string `json:"optInQuery"`
+	OptInValue string `json:"optInValue"`
 }
 
 type manifestAvailabilityMeta struct {
 	Available bool `json:"available"`
 }
 
-// scanSchemaV1 is the locked federation_tester_scan.v1 description embedded in
-// the manifest. It mirrors the live GET /api/scan handler only.
+// scanSchemaV1 is the federation_tester_scan.v1 description embedded in the
+// manifest. It mirrors the live GET /api/scan handler only.
+// Additive fields only; keys are camelCase per .golangci.yml json: camel.
 type scanSchemaV1 struct {
 	Schema   string             `json:"schema"`
 	Request  scanRequestSchema  `json:"request"`
@@ -84,11 +85,11 @@ type scanQueryParam struct {
 	Required    bool   `json:"required"`
 	Type        string `json:"type"`
 	Description string `json:"description,omitempty"`
-	OptInValue  string `json:"opt_in_value,omitempty"` //nolint:tagliatelle // federation_tester_scan.v1 locked schema
+	OptInValue  string `json:"optInValue,omitempty"`
 }
 
 type scanResponseSchema struct {
-	SuccessStatus int              `json:"success_status"` //nolint:tagliatelle // federation_tester_scan.v1 locked schema
+	SuccessStatus int              `json:"successStatus"`
 	Body          scanResponseBody `json:"body"`
 }
 

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
@@ -128,7 +129,7 @@ func TestHandleStatistics_AllTimeDailyOmitted(t *testing.T) {
 	}
 
 	if !payload.DailyOmitted {
-		t.Fatal("expected daily_omitted for all-time")
+		t.Fatal("expected dailyOmitted for all-time")
 	}
 
 	if len(payload.Daily) != 0 {
@@ -249,11 +250,11 @@ func TestHandleStatistics_AggregatesHealthyPlatformAndAreas(t *testing.T) {
 	}
 
 	if payload.Totals.UniqueHosts != 2 {
-		t.Fatalf("unique_hosts = %d, want 2", payload.Totals.UniqueHosts)
+		t.Fatalf("uniqueHosts = %d, want 2", payload.Totals.UniqueHosts)
 	}
 
 	if payload.Totals.HealthyPct != 50.0 {
-		t.Fatalf("healthy_pct = %v, want 50.0", payload.Totals.HealthyPct)
+		t.Fatalf("healthyPct = %v, want 50.0", payload.Totals.HealthyPct)
 	}
 
 	if len(payload.Platforms) != 1 || payload.Platforms[0].Platform != "other" || payload.Platforms[0].Count != 2 {
@@ -263,6 +264,141 @@ func TestHandleStatistics_AggregatesHealthyPlatformAndAreas(t *testing.T) {
 	discovery := findStatisticsArea(payload.Areas, "discovery")
 	if discovery.Pass != 2 || discovery.Warn != 1 || discovery.Fail != 0 {
 		t.Fatalf("discovery area = %+v, want pass=2 warn=1", discovery)
+	}
+}
+
+func TestHandleStatistics_WireKeysCamelCase(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		path         string
+		wantTop      []string
+		wantDailyRow bool
+	}{
+		{
+			name: "default window omits dailyOmitted",
+			path: "/api/statistics",
+			wantTop: []string{
+				"areas",
+				"daily",
+				"platforms",
+				"schema",
+				"totals",
+				"window",
+			},
+			wantDailyRow: true,
+		},
+		{
+			name: "all-time includes dailyOmitted",
+			path: "/api/statistics?days=0",
+			wantTop: []string{
+				"areas",
+				"daily",
+				"dailyOmitted",
+				"platforms",
+				"schema",
+				"totals",
+				"window",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+			pass := validatorcore.GradePass
+			row := validatorcore.StatsRaw{
+				K:              "k-stats-daily-wire",
+				HostHash:       "host-daily-wire",
+				Platform:       "nextcloud",
+				GradeDiscovery: &pass,
+				CreatedAt:      time.Now().Unix(),
+			}
+
+			if err := store.InsertStatsRaw(t.Context(), &row); err != nil {
+				t.Fatalf("InsertStatsRaw: %v", err)
+			}
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, nil)
+			rec := httptest.NewRecorder()
+			h.HandleStatistics(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rec.Code)
+			}
+
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+
+			assertExactKeys(t, raw, tt.wantTop)
+
+			var window map[string]json.RawMessage
+			if err := json.Unmarshal(raw["window"], &window); err != nil {
+				t.Fatalf("unmarshal window: %v", err)
+			}
+
+			assertExactKeys(t, window, []string{"days", "from", "selector", "to"})
+
+			var totals map[string]json.RawMessage
+			if err := json.Unmarshal(raw["totals"], &totals); err != nil {
+				t.Fatalf("unmarshal totals: %v", err)
+			}
+
+			assertExactKeys(t, totals, []string{"healthyPct", "sessions", "uniqueHosts"})
+
+			var dailyRows []json.RawMessage
+			if err := json.Unmarshal(raw["daily"], &dailyRows); err != nil {
+				t.Fatalf("unmarshal daily: %v", err)
+			}
+
+			if !tt.wantDailyRow {
+				if len(dailyRows) != 0 {
+					t.Fatalf("daily len = %d, want 0 when dailyOmitted", len(dailyRows))
+				}
+
+				return
+			}
+
+			assertSeededDailyHealthyPctKeys(t, dailyRows)
+		})
+	}
+}
+
+func assertSeededDailyHealthyPctKeys(t *testing.T, dailyRows []json.RawMessage) {
+	t.Helper()
+
+	if len(dailyRows) == 0 {
+		t.Fatal("expected non-empty daily series")
+	}
+
+	var seeded bool
+
+	for i, rowRaw := range dailyRows {
+		var dailyObj map[string]json.RawMessage
+		if err := json.Unmarshal(rowRaw, &dailyObj); err != nil {
+			t.Fatalf("unmarshal daily[%d]: %v", i, err)
+		}
+
+		assertExactKeys(t, dailyObj, []string{"healthyPct", "sessions", "ts"})
+
+		var sessions int64
+		if err := json.Unmarshal(dailyObj["sessions"], &sessions); err != nil {
+			t.Fatalf("daily[%d] sessions: %v", i, err)
+		}
+
+		if sessions > 0 {
+			seeded = true
+		}
+	}
+
+	if !seeded {
+		t.Fatal("expected a daily entry with sessions from the seeded fixture")
 	}
 }
 

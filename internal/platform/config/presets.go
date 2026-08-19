@@ -61,8 +61,9 @@ func ParseMode(s string) (Mode, error) {
 
 // presetForMode returns the base config for a given mode.
 func presetForMode(mode Mode) *Config {
-	//nolint:exhaustive // ModeStrict intentionally folds into the default strict preset
 	switch mode {
+	case ModeStrict:
+		return StrictConfig()
 	case ModeDev:
 		return DevConfig()
 	case ModeValidator:

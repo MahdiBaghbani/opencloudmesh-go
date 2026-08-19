@@ -77,8 +77,10 @@ func testFedCore(t *testing.T) *fedcore.Core {
 	return c
 }
 
-func waitForState(t *testing.T, store *validatorcore.Core, ctx context.Context, runID, wantState string) { //nolint:unparam // shared helper for future non-passive-complete waits
+func waitForState(t *testing.T, store *validatorcore.Core, ctx context.Context, runID string) {
 	t.Helper()
+
+	const wantState = validatorcore.StatePassiveComplete
 
 	deadline := time.Now().Add(2 * time.Second)
 
@@ -487,7 +489,7 @@ func TestHandleScan_ContributeOptInPersistsOnStop(t *testing.T) {
 		t.Fatal("expected non-empty session id")
 	}
 
-	waitForState(t, store, ctx, created.ID, validatorcore.StatePassiveComplete)
+	waitForState(t, store, ctx, created.ID)
 
 	stopBody := mustJSON(t, map[string]string{"id": created.ID})
 
@@ -543,7 +545,7 @@ func TestHandleScan_IncognitoDoesNotPersistOnStop(t *testing.T) {
 		t.Fatalf("decode create: %v", err)
 	}
 
-	waitForState(t, store, ctx, created.ID, validatorcore.StatePassiveComplete)
+	waitForState(t, store, ctx, created.ID)
 
 	stopBody := mustJSON(t, map[string]string{"id": created.ID})
 
@@ -587,7 +589,7 @@ func TestHandleStart_DoesNotOptInStatistics(t *testing.T) {
 		t.Fatalf("decode create: %v", err)
 	}
 
-	waitForState(t, store, ctx, created.ID, validatorcore.StatePassiveComplete)
+	waitForState(t, store, ctx, created.ID)
 
 	stopBody := mustJSON(t, map[string]string{"id": created.ID})
 

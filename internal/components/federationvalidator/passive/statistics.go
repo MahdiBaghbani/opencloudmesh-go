@@ -45,8 +45,8 @@ type statisticsWindowResponse struct {
 
 type statisticsTotalsResponse struct {
 	Sessions    int64   `json:"sessions"`
-	UniqueHosts int64   `json:"unique_hosts"` //nolint:tagliatelle // federation_tester_statistics.v1 locked schema
-	HealthyPct  float64 `json:"healthy_pct"`  //nolint:tagliatelle // federation_tester_statistics.v1 locked schema
+	UniqueHosts int64   `json:"uniqueHosts"`
+	HealthyPct  float64 `json:"healthyPct"`
 }
 
 type statisticsPlatformResponse struct {
@@ -65,9 +65,11 @@ type statisticsAreaResponse struct {
 type statisticsDailyResponse struct {
 	TS         int64   `json:"ts"`
 	Sessions   int64   `json:"sessions"`
-	HealthyPct float64 `json:"healthy_pct"` //nolint:tagliatelle // federation_tester_statistics.v1 locked schema
+	HealthyPct float64 `json:"healthyPct"`
 }
 
+// statisticsResponse is the federation_tester_statistics.v1 payload.
+// Additive fields only; keys are camelCase per .golangci.yml json: camel.
 type statisticsResponse struct {
 	Schema       string                       `json:"schema"`
 	Window       statisticsWindowResponse     `json:"window"`
@@ -75,7 +77,7 @@ type statisticsResponse struct {
 	Platforms    []statisticsPlatformResponse `json:"platforms"`
 	Areas        []statisticsAreaResponse     `json:"areas"`
 	Daily        []statisticsDailyResponse    `json:"daily"`
-	DailyOmitted bool                         `json:"daily_omitted,omitempty"` //nolint:tagliatelle // federation_tester_statistics.v1 locked schema
+	DailyOmitted bool                         `json:"dailyOmitted,omitempty"`
 }
 
 // HandleStatistics serves GET /api/statistics for anonymous aggregate reads.

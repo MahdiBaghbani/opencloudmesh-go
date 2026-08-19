@@ -39,7 +39,7 @@ func TestHandleManifest_ReturnsManifestV1Schema(t *testing.T) {
 	}
 
 	if payload.APIVersion != manifestAPIVersion {
-		t.Fatalf("api_version = %q, want %q", payload.APIVersion, manifestAPIVersion)
+		t.Fatalf("apiVersion = %q, want %q", payload.APIVersion, manifestAPIVersion)
 	}
 }
 
@@ -114,11 +114,11 @@ func TestHandleManifest_ScanSchemaMatchesLiveHandler(t *testing.T) {
 
 	contribute, ok := scan.Request.Query["contribute"]
 	if !ok || contribute.Required || contribute.OptInValue != "1" {
-		t.Fatalf("scan contribute query = %+v, want optional opt_in_value 1", contribute)
+		t.Fatalf("scan contribute query = %+v, want optional optInValue 1", contribute)
 	}
 
 	if scan.Response.SuccessStatus != http.StatusCreated {
-		t.Fatalf("scan success_status = %d, want 201", scan.Response.SuccessStatus)
+		t.Fatalf("scan successStatus = %d, want 201", scan.Response.SuccessStatus)
 	}
 
 	if scan.Response.Body.ID.Type != schemaFieldTypeString || scan.Response.Body.ID.Description == "" {
@@ -160,19 +160,19 @@ func TestHandleManifest_StatisticsMetadataMatchesLiveHandler(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(payload.Statistics.TimeframesDays, statisticsSupportedDays) {
-		t.Fatalf("timeframes_days = %v, want %v", payload.Statistics.TimeframesDays, statisticsSupportedDays)
+		t.Fatalf("timeframesDays = %v, want %v", payload.Statistics.TimeframesDays, statisticsSupportedDays)
 	}
 
 	if payload.Statistics.DefaultDays != statisticsDefaultDays {
-		t.Fatalf("default_days = %d, want %d", payload.Statistics.DefaultDays, statisticsDefaultDays)
+		t.Fatalf("defaultDays = %d, want %d", payload.Statistics.DefaultDays, statisticsDefaultDays)
 	}
 
 	if payload.Statistics.KAnonymityUniqueHosts != statisticsKAnonymityUniqueHosts {
-		t.Fatalf("k_anonymity_unique_hosts = %d, want %d", payload.Statistics.KAnonymityUniqueHosts, statisticsKAnonymityUniqueHosts)
+		t.Fatalf("kAnonymityUniqueHosts = %d, want %d", payload.Statistics.KAnonymityUniqueHosts, statisticsKAnonymityUniqueHosts)
 	}
 
 	if !payload.Statistics.UnknownPlatformExempt {
-		t.Fatal("expected unknown_platform_exempt true")
+		t.Fatal("expected unknownPlatformExempt true")
 	}
 }
 
@@ -189,21 +189,48 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 	}
 
 	wantTopLevel := []string{
-		"api_version",
+		"apiVersion",
 		"contribute",
 		"platform",
-		"reverse_invite",
+		"reverseInvite",
 		"routes",
 		"scan",
 		"schema",
 		"schemas",
-		"service_prefix",
-		"session_kind",
+		"servicePrefix",
+		"sessionKind",
 		"statistics",
-		"tls_summary",
+		"tlsSummary",
 	}
 
 	assertExactKeys(t, raw, wantTopLevel)
+
+	var statistics map[string]json.RawMessage
+	if err := json.Unmarshal(raw["statistics"], &statistics); err != nil {
+		t.Fatalf("unmarshal statistics: %v", err)
+	}
+
+	assertExactKeys(t, statistics, []string{
+		"defaultDays",
+		"kAnonymityUniqueHosts",
+		"schema",
+		"timeframesDays",
+		"unknownPlatformExempt",
+	})
+
+	var sessionKind map[string]json.RawMessage
+	if err := json.Unmarshal(raw["sessionKind"], &sessionKind); err != nil {
+		t.Fatalf("unmarshal sessionKind: %v", err)
+	}
+
+	assertExactKeys(t, sessionKind, []string{"scanDefault", "supported"})
+
+	var contribute map[string]json.RawMessage
+	if err := json.Unmarshal(raw["contribute"], &contribute); err != nil {
+		t.Fatalf("unmarshal contribute: %v", err)
+	}
+
+	assertExactKeys(t, contribute, []string{"available", "optInQuery", "optInValue"})
 
 	var scan map[string]json.RawMessage
 	if err := json.Unmarshal(raw["scan"], &scan); err != nil {
@@ -219,12 +246,32 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 
 	assertExactKeys(t, scanRequest, []string{"method", "query"})
 
+	var scanQuery map[string]json.RawMessage
+	if err := json.Unmarshal(scanRequest["query"], &scanQuery); err != nil {
+		t.Fatalf("unmarshal scan query: %v", err)
+	}
+
+	var scanTarget map[string]json.RawMessage
+	if err := json.Unmarshal(scanQuery["target"], &scanTarget); err != nil {
+		t.Fatalf("unmarshal scan query target: %v", err)
+	}
+
+	// target has no opt-in value, so optInValue is omitted on the wire.
+	assertExactKeys(t, scanTarget, []string{"description", "required", "type"})
+
+	var scanContribute map[string]json.RawMessage
+	if err := json.Unmarshal(scanQuery["contribute"], &scanContribute); err != nil {
+		t.Fatalf("unmarshal scan query contribute: %v", err)
+	}
+
+	assertExactKeys(t, scanContribute, []string{"description", "optInValue", "required", "type"})
+
 	var scanResponse map[string]json.RawMessage
 	if err := json.Unmarshal(scan["response"], &scanResponse); err != nil {
 		t.Fatalf("unmarshal scan response: %v", err)
 	}
 
-	assertExactKeys(t, scanResponse, []string{"body", "success_status"})
+	assertExactKeys(t, scanResponse, []string{"body", "successStatus"})
 }
 
 func TestBuildManifest_RoutesWireContract(t *testing.T) {
@@ -233,10 +280,7 @@ func TestBuildManifest_RoutesWireContract(t *testing.T) {
 	manifest := BuildManifest()
 	advertised := manifest.Routes
 
-	wire, err := json.Marshal(manifest) //nolint:errchkjson // wire contract test; manifestRouteResponse is json-safe
-	if err != nil {
-		t.Fatalf("marshal manifest: %v", err)
-	}
+	wire := mustJSON(t, manifest)
 
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(wire, &top); err != nil {
@@ -260,8 +304,8 @@ func TestBuildManifest_RoutesWireContract(t *testing.T) {
 			t.Fatalf("unmarshal route[%d] object: %v", i, err)
 		}
 
-		// Required wire keys must stay method and full_path; extra route keys may be added later.
-		assertRequiredKeys(t, routeObj, []string{"method", "full_path"})
+		// Required wire keys must stay method and fullPath; extra route keys may be added later.
+		assertRequiredKeys(t, routeObj, []string{"fullPath", "method"})
 
 		var method string
 		if err := json.Unmarshal(routeObj["method"], &method); err != nil {
@@ -269,8 +313,8 @@ func TestBuildManifest_RoutesWireContract(t *testing.T) {
 		}
 
 		var fullPath string
-		if err := json.Unmarshal(routeObj["full_path"], &fullPath); err != nil {
-			t.Fatalf("route[%d] full_path wire value: %v", i, err)
+		if err := json.Unmarshal(routeObj["fullPath"], &fullPath); err != nil {
+			t.Fatalf("route[%d] fullPath wire value: %v", i, err)
 		}
 
 		wireRoutes = append(wireRoutes, MountedAPIRoute{
@@ -295,11 +339,11 @@ func TestHandleManifest_CapabilityMetadataLockedValues(t *testing.T) {
 	}
 
 	if !slices.Equal(payload.SessionKind.Supported, wantSessionKinds) {
-		t.Fatalf("session_kind.supported = %v, want %v", payload.SessionKind.Supported, wantSessionKinds)
+		t.Fatalf("sessionKind.supported = %v, want %v", payload.SessionKind.Supported, wantSessionKinds)
 	}
 
 	if payload.SessionKind.ScanDefault != validatorcore.SessionKindPassiveOnly {
-		t.Fatalf("session_kind.scan_default = %q", payload.SessionKind.ScanDefault)
+		t.Fatalf("sessionKind.scanDefault = %q", payload.SessionKind.ScanDefault)
 	}
 
 	if !payload.Contribute.Available || payload.Contribute.OptInQuery != "contribute" || payload.Contribute.OptInValue != "1" {
@@ -307,11 +351,11 @@ func TestHandleManifest_CapabilityMetadataLockedValues(t *testing.T) {
 	}
 
 	if payload.ReverseInvite.Available {
-		t.Fatal("reverse_invite.available must be false in v1.3.0")
+		t.Fatal("reverseInvite.available must be false in v1.3.0")
 	}
 
 	if !payload.Platform.Available || !payload.TLSSummary.Available {
-		t.Fatalf("platform = %+v tls_summary = %+v", payload.Platform, payload.TLSSummary)
+		t.Fatalf("platform = %+v tlsSummary = %+v", payload.Platform, payload.TLSSummary)
 	}
 }
 
