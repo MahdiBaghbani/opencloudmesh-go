@@ -278,10 +278,17 @@ func (c *Core) StopPassiveComplete(ctx context.Context, testRunID string) error 
 	})
 }
 
-// PruneTerminalSessions deletes terminal test_run rows older than
-// retentionDays. Validator-owned child rows (share_correlation,
-// report_exchange, evidence_row, dispatch_reservation) cascade with the
-// parent per the schema DDL, so one delete removes a run and its artifacts.
+// harvestReasonRetentionExpired is the harvest_reason stamped on test_run
+// rows tombstoned by retention pruning.
+const harvestReasonRetentionExpired = "retention_expired"
+
+// PruneTerminalSessions tombstones terminal test_run rows older than
+// retentionDays; the parent row is never deleted. Child rows in
+// report_exchange, evidence_row, dispatch_reservation, and share_correlation
+// are harvested first, then harvested_at and harvest_reason are stamped and
+// is_active is cleared. ON DELETE RESTRICT on the child foreign keys prevents
+// accidental evidence erasure. Already-tombstoned rows are excluded so a
+// repeat run never re-stamps harvested_at or harvest_reason.
 func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -292,16 +299,63 @@ func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) err
 	}
 
 	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
+	now := time.Now().Unix()
 
-	err := c.db.WithContext(ctx).
-		Where(
-			"state IN ? AND finished_at IS NOT NULL AND finished_at < ?",
-			[]string{StateTerminalPass, StateTerminalFail},
-			cutoff,
-		).
-		Delete(&TestRun{}).Error
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		ids := []string{}
+
+		if err := tx.Model(&TestRun{}).
+			Where(
+				"state IN ? AND finished_at IS NOT NULL AND finished_at < ? AND harvested_at IS NULL",
+				[]string{StateTerminalPass, StateTerminalFail},
+				cutoff,
+			).
+			Pluck(colTestRunID, &ids).Error; err != nil {
+			return err
+		}
+
+		for _, id := range ids {
+			if err := harvestRunChildren(tx, id); err != nil {
+				return err
+			}
+
+			// Raw SQL keeps updated_at untouched: a GORM Updates call would
+			// auto-stamp the UpdatedAt field and break the tombstone contract.
+			res := tx.Exec(
+				"UPDATE test_run SET harvested_at = ?, harvest_reason = ?, is_active = 0 WHERE test_run_id = ?",
+				now,
+				harvestReasonRetentionExpired,
+				id,
+			)
+			if res.Error != nil {
+				return res.Error
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("validatorcore: delete terminal sessions: %w", err)
+		return fmt.Errorf("validatorcore: prune terminal sessions: %w", err)
+	}
+
+	return nil
+}
+
+// harvestRunChildren deletes the validator-owned child rows of one test run.
+// report_exchange goes first so evidence_row.exchange_id ON DELETE SET NULL
+// fires before the evidence rows themselves are removed.
+func harvestRunChildren(tx *gorm.DB, testRunID string) error {
+	models := []any{
+		&ReportExchange{},
+		&EvidenceRow{},
+		&DispatchReservation{},
+		&ShareCorrelation{},
+	}
+
+	for _, model := range models {
+		if err := tx.Where("test_run_id = ?", testRunID).Delete(model).Error; err != nil {
+			return err
+		}
 	}
 
 	return nil

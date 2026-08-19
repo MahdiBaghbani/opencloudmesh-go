@@ -282,23 +282,28 @@ type fkExpectation struct {
 	onDelete         string
 }
 
+// fkRestrict is the SQLite FK action label PRAGMA foreign_key_list reports
+// for ON DELETE RESTRICT. The sibling action labels live in
+// schema_validate.go.
+const fkRestrict = "RESTRICT"
+
 // validatorForeignKeys pins the exact FK contract per table/column: referenced
 // table and column plus both actions. SQLite reports an unspecified action as
-// NO ACTION. Validator-owned child tables cascade on test_run delete;
+// NO ACTION. Validator-owned child tables restrict test_run delete;
 // evidence_row.exchange_id keeps SET NULL. Tables absent from this map must
 // have no foreign keys at all.
 var validatorForeignKeys = map[string]map[string]fkExpectation{
 	tableShareCorrelation: {
-		colTestRunID: {tableTestRun, colTestRunID, fkCascade, fkCascade},
+		colTestRunID: {tableTestRun, colTestRunID, fkCascade, fkRestrict},
 	},
 	tableReportExchange: {
-		colTestRunID: {tableTestRun, colTestRunID, fkCascade, fkCascade},
+		colTestRunID: {tableTestRun, colTestRunID, fkCascade, fkRestrict},
 	},
 	tableEvidenceRow: {
-		colTestRunID:  {tableTestRun, colTestRunID, fkNoAction, fkCascade},
+		colTestRunID:  {tableTestRun, colTestRunID, fkNoAction, fkRestrict},
 		colExchangeID: {tableReportExchange, colExchangeID, fkNoAction, fkSetNull},
 	},
 	tableDispatchReservation: {
-		colTestRunID: {tableTestRun, colTestRunID, fkNoAction, fkCascade},
+		colTestRunID: {tableTestRun, colTestRunID, fkNoAction, fkRestrict},
 	},
 }

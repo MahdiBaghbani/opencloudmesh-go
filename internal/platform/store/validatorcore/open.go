@@ -57,8 +57,9 @@ func (c *Core) startupMaintenance(ctx context.Context) error {
 	return nil
 }
 
-// pruneTerminalRetention deletes aged terminal test_run rows and prunes stats_raw
-// for the same retention window, then rebuilds stats_aggregate from remaining raw.
+// pruneTerminalRetention tombstones aged terminal test_run rows and prunes
+// stats_raw for the same retention window, then rebuilds stats_aggregate from
+// remaining raw.
 func (c *Core) pruneTerminalRetention(ctx context.Context, retentionDays int) error {
 	if retentionDays <= 0 {
 		return nil

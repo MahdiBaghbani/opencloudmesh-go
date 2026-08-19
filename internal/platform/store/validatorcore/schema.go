@@ -188,11 +188,14 @@ func readValidatorSchemaVersion(ctx context.Context, conn *sql.Conn) (version in
 // validatorSchemaStatements is the final validator schema, applied in order
 // inside one BEGIN IMMEDIATE transaction after legacy table recovery.
 //
-// Deletion contract: validator-owned child tables (share_correlation,
-// report_exchange, evidence_row, dispatch_reservation) cascade on test_run
-// delete, so terminal retention pruning removes a run and its artifacts
-// atomically. evidence_row.exchange_id keeps ON DELETE SET NULL so evidence
-// rows survive deletion of an individual exchange row.
+// Deletion contract: test_run rows are never deleted; evidence is
+// preserved by tombstone, not by removing the run. Validator-owned child
+// tables (share_correlation, report_exchange, evidence_row,
+// dispatch_reservation) declare ON DELETE RESTRICT so an accidental
+// test_run DELETE fails instead of silently erasing evidence. Harvest
+// deletes child rows first, then stamps the parent tombstone.
+// evidence_row.exchange_id keeps ON DELETE SET NULL so evidence rows
+// survive deletion of an individual exchange row.
 var validatorSchemaStatements = []string{
 	`CREATE TABLE test_run (
 		test_run_id TEXT PRIMARY KEY,
@@ -255,7 +258,7 @@ var validatorSchemaStatements = []string{
 	`CREATE INDEX idx_test_run_stats_heal ON test_run (stats_written_at) WHERE opt_in_stats = 1 AND stats_written_at IS NULL`,
 	`CREATE TABLE share_correlation (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE CASCADE,
+		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE RESTRICT,
 		role TEXT NOT NULL,
 		sender_host TEXT NOT NULL,
 		provider_id TEXT NOT NULL,
@@ -273,7 +276,7 @@ var validatorSchemaStatements = []string{
 		ON share_correlation (test_run_id) WHERE role = 'incoming_invite'`,
 	`CREATE TABLE report_exchange (
 		exchange_id INTEGER PRIMARY KEY AUTOINCREMENT,
-		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE CASCADE,
+		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE RESTRICT,
 		seq INTEGER NOT NULL,
 		captured_at INTEGER NOT NULL,
 		started_at INTEGER,
@@ -324,7 +327,7 @@ var validatorSchemaStatements = []string{
 		WHERE request_id IS NOT NULL AND request_id != ''`,
 	`CREATE TABLE evidence_row (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON DELETE CASCADE,
+		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON DELETE RESTRICT,
 		area TEXT NOT NULL,
 		step TEXT NOT NULL,
 		reason_code TEXT NOT NULL,
@@ -337,7 +340,7 @@ var validatorSchemaStatements = []string{
 	`CREATE UNIQUE INDEX idx_evidence_row ON evidence_row (test_run_id, area, step, reason_code)`,
 	`CREATE INDEX idx_evidence_row_area ON evidence_row (test_run_id, area)`,
 	`CREATE TABLE dispatch_reservation (
-		test_run_id TEXT PRIMARY KEY REFERENCES test_run (test_run_id) ON DELETE CASCADE,
+		test_run_id TEXT PRIMARY KEY REFERENCES test_run (test_run_id) ON DELETE RESTRICT,
 		provider_id TEXT NOT NULL UNIQUE,
 		webdav_id TEXT NOT NULL UNIQUE,
 		shared_secret TEXT NOT NULL,

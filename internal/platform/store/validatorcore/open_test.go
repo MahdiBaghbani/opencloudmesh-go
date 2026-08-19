@@ -148,16 +148,18 @@ func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
 		t.Fatalf("rebuilt last_platform = %q, want Recent", agg.LastPlatform)
 	}
 
-	var terminalCount int64
+	var liveTerminalCount int64
 	if err := core.DB().WithContext(ctx).Model(&TestRun{}).
-		Where("state IN ?", []string{StateTerminalPass, StateTerminalFail}).
-		Count(&terminalCount).Error; err != nil {
-		t.Fatalf("count terminal sessions: %v", err)
+		Where("state IN ? AND harvested_at IS NULL", []string{StateTerminalPass, StateTerminalFail}).
+		Count(&liveTerminalCount).Error; err != nil {
+		t.Fatalf("count live terminal sessions: %v", err)
 	}
 
-	if terminalCount != 1 {
-		t.Fatalf("terminal test_run rows = %d, want 1 after retention prune", terminalCount)
+	if liveTerminalCount != 1 {
+		t.Fatalf("non-tombstoned terminal test_run rows = %d, want 1 after retention prune", liveTerminalCount)
 	}
+
+	assertRetentionTombstone(t, core, "run-stale-terminal")
 }
 
 func TestStartupMaintenance_PrunesTerminalRetention(t *testing.T) {
@@ -211,5 +213,29 @@ func TestStartupMaintenance_PrunesTerminalRetention(t *testing.T) {
 
 	if agg.LastPlatform != "New" {
 		t.Fatalf("aggregate last_platform = %q, want New", agg.LastPlatform)
+	}
+}
+
+// assertRetentionTombstone verifies the pruned terminal row survived as a
+// tombstone: harvested_at stamped, harvest_reason set, is_active cleared, and
+// the row not deleted.
+func assertRetentionTombstone(t *testing.T, core *Core, runID string) {
+	t.Helper()
+
+	got, err := core.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun %s: %v (tombstone must keep the row)", runID, err)
+	}
+
+	if got.IsActive {
+		t.Fatalf("%s is_active = 1, want 0 (tombstone clears the active flag)", runID)
+	}
+
+	if got.HarvestedAt == nil {
+		t.Fatalf("%s harvested_at is NULL, want stamped", runID)
+	}
+
+	if got.HarvestReason == nil || *got.HarvestReason != harvestReasonRetentionExpired {
+		t.Fatalf("%s harvest_reason = %v, want %q", runID, got.HarvestReason, harvestReasonRetentionExpired)
 	}
 }
