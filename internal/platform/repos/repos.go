@@ -7,7 +7,10 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"gorm.io/gorm"
 
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
@@ -22,6 +25,10 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlite"
 )
+
+// ErrNoSharedSQLiteHandle is returned when SharedDB is called on a backend
+// that does not implement store.SQLiteBacked (for example json or memory).
+var ErrNoSharedSQLiteHandle = store.ErrNoSharedSQLiteHandle
 
 // Repos holds the four app-level repository interfaces produced by the seam.
 // Callers must call Close when done to release resources held by the backing
@@ -43,6 +50,29 @@ func (r *Repos) Close() error {
 	}
 
 	return nil
+}
+
+// SharedDB returns the GORM handle when persistence uses a SQLite-backed driver.
+func (r *Repos) SharedDB() (*gorm.DB, error) {
+	if r == nil || r.driver == nil {
+		return nil, errors.New("repos: persistence is not initialized")
+	}
+
+	sb, ok := r.driver.(store.SQLiteBacked)
+	if !ok {
+		return nil, fmt.Errorf(
+			"repos: persistence backend %q does not provide a shared SQLite handle: %w",
+			r.driver.Name(),
+			ErrNoSharedSQLiteHandle,
+		)
+	}
+
+	db := sb.SharedDB()
+	if db == nil {
+		return nil, errors.New("repos: shared SQLite handle is not open")
+	}
+
+	return db, nil
 }
 
 // New constructs app repos from a PersistenceConfig.

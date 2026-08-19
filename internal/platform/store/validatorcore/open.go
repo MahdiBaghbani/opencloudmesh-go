@@ -9,55 +9,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
-	gormsqlite "github.com/glebarez/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-// Open opens ocm.db under dataDir with immediate write transactions, migrates
-// validator models, and runs startup TTL sweep plus terminal retention prune.
-func Open(dataDir string, cfg SessionConfig) (*Core, error) {
-	if dataDir == "" {
-		return nil, errors.New("validatorcore: data_dir is required")
-	}
-
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return nil, fmt.Errorf("validatorcore: create data dir: %w", err)
-	}
-
-	dbPath := filepath.Join(dataDir, "ocm.db")
-	dsn := dbPath + "?_pragma=busy_timeout(5000)&_txlock=immediate"
-
-	db, err := gorm.Open(gormsqlite.Open(dsn), &gorm.Config{
-		Logger:         logger.Default.LogMode(logger.Silent),
-		TranslateError: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("validatorcore: open database: %w", err)
-	}
-
-	if err := MigrateModels(db); err != nil {
-		return nil, fmt.Errorf("validatorcore: migrate: %w", err)
-	}
-
-	core := NewCore(db)
-	core.sessionCfg = cfg
-
-	if err := core.startupMaintenance(context.Background()); err != nil {
-		return nil, fmt.Errorf("validatorcore: startup maintenance: %w", err)
-	}
-
-	return core, nil
-}
-
-// Attach wraps an existing GORM handle (for example from sqlitecore) and runs
-// startup maintenance. MigrateModels must already have run on the handle.
+// Attach wraps an existing GORM handle (for example from sqlitecore), runs
+// validator model AutoMigrate on that handle, then runs startup maintenance.
+// Callers outside validator mode must not invoke Attach.
 func Attach(db *gorm.DB, cfg SessionConfig) (*Core, error) {
 	if db == nil {
 		return nil, errors.New("validatorcore: nil db")
+	}
+
+	if err := MigrateModels(db); err != nil {
+		return nil, err
 	}
 
 	core := NewCore(db)

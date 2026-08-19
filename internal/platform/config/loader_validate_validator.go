@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 func validateValidatorTrustedProxies(cfg *Config) error {
@@ -35,6 +36,13 @@ func validateValidatorStatistics(cfg *Config) error {
 
 	if cfg.Persistence.Backend == BackendMemory {
 		return errors.New("mode=validator requires a durable persistence backend for redaction salt")
+	}
+
+	if cfg.Persistence.Backend == BackendJSON {
+		return fmt.Errorf(
+			"mode=validator requires a SQLite-backed persistence backend: %w",
+			store.ErrNoSharedSQLiteHandle,
+		)
 	}
 
 	return nil

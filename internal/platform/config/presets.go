@@ -168,6 +168,7 @@ var DefaultValidatorTrustedProxies = []string{
 func ValidatorConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeValidator)
+	cfg.Persistence.DataDir = DefaultValidatorPersistenceDataDir
 
 	cfg.Server.TrustedProxies = append([]string(nil), DefaultValidatorTrustedProxies...)
 	cfg.Statistics.Enabled = true

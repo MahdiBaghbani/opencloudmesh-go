@@ -12,8 +12,8 @@ import (
 )
 
 // TestPersistencePresetDefaults verifies each mode preset's persistence
-// default: strict is durable sqlite under the default data dir, dev overlays
-// the ephemeral memory backend.
+// default: strict and validator use durable sqlite (validator under its own
+// data dir), dev overlays the ephemeral memory backend.
 func TestPersistencePresetDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -25,6 +25,7 @@ func TestPersistencePresetDefaults(t *testing.T) {
 	}{
 		{"strict", StrictConfig, BackendSQLite, DefaultPersistenceDataDir},
 		{"dev", DevConfig, BackendMemory, ""},
+		{"validator", ValidatorConfig, BackendSQLite, DefaultValidatorPersistenceDataDir},
 	}
 
 	for _, p := range presets {

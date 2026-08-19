@@ -16,6 +16,10 @@ var (
 	ErrNotFound      = errors.New("not found")
 	ErrAlreadyExists = errors.New("already exists")
 	ErrClosed        = errors.New("store closed")
+
+	// ErrNoSharedSQLiteHandle is returned when a caller needs a shared SQLite
+	// handle but the active persistence backend does not implement SQLiteBacked.
+	ErrNoSharedSQLiteHandle = errors.New("persistence backend does not provide a shared SQLite handle")
 )
 
 // Driver defines the interface for a persistence backend.

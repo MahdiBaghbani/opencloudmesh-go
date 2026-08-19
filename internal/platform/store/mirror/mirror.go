@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"gorm.io/gorm"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlitecore"
 )
@@ -91,6 +93,15 @@ func (d *Driver) Close() error {
 	}
 
 	return nil
+}
+
+// SharedDB returns the initialized GORM handle for sqlite and mirror consumers.
+func (d *Driver) SharedDB() *gorm.DB {
+	if d == nil || d.core == nil {
+		return nil
+	}
+
+	return d.core.DB()
 }
 
 // ----------------------------------------------------------------------------
@@ -382,6 +393,7 @@ func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserID string
 
 // Compile-time interface checks.
 var _ store.Driver = (*Driver)(nil)
+var _ store.SQLiteBacked = (*Driver)(nil)
 var _ store.OutgoingShareStore = (*Driver)(nil)
 var _ store.IncomingShareStore = (*Driver)(nil)
 var _ store.OutgoingInviteStore = (*Driver)(nil)

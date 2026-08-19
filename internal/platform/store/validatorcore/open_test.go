@@ -8,7 +8,35 @@ package validatorcore
 import (
 	"testing"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlitecore"
 )
+
+func TestAttach_MigratesValidatorTablesOnSharedHandle(t *testing.T) {
+	t.Parallel()
+
+	sqlCore, err := sqlitecore.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("sqlitecore.Open: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if closeErr := sqlCore.Close(); closeErr != nil {
+			t.Errorf("sqlitecore.Close: %v", closeErr)
+		}
+	})
+
+	core, err := Attach(sqlCore.DB(), DefaultSessionConfig())
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+
+	for _, name := range []string{"test_run", "share_correlation", "stats_raw", "stats_aggregate"} {
+		if !core.DB().Migrator().HasTable(name) {
+			t.Fatalf("Attach must create validator table %q", name)
+		}
+	}
+}
 
 func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
 	t.Parallel()

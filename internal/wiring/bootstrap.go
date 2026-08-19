@@ -173,12 +173,14 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, err
 	}
 
-	validatorCore, err := buildValidatorCore(cfg)
+	// Resolve the validator store before building validator core so JSON (or
+	// other non-SQLite) persistence fails before redaction salt I/O runs.
+	validatorStore, err := buildValidatorStore(cfg, persistence)
 	if err != nil {
 		return BuildResult{}, err
 	}
 
-	validatorStore, err := buildValidatorStore(cfg)
+	validatorCore, err := buildValidatorCore(cfg)
 	if err != nil {
 		return BuildResult{}, err
 	}
@@ -418,16 +420,25 @@ func buildValidatorCore(cfg *config.Config) (*core.Core, error) {
 	return validatorCore, nil
 }
 
-func buildValidatorStore(cfg *config.Config) (*validatorcore.Core, error) {
+func buildValidatorStore(cfg *config.Config, persistence *repos.Repos) (*validatorcore.Core, error) {
 	if !config.IsValidatorMode(cfg) {
 		return nil, nil //nolint:nilnil // validator store is absent outside validator mode
 	}
 
+	if persistence == nil {
+		return nil, errors.New("validator store requires initialized persistence repos")
+	}
+
+	db, err := persistence.SharedDB()
+	if err != nil {
+		return nil, fmt.Errorf("resolve shared SQLite handle for validator store: %w", err)
+	}
+
 	sessionCfg := config.SessionConfigFromValidator(cfg)
 
-	store, err := validatorcore.Open(cfg.Persistence.DataDir, sessionCfg)
+	store, err := validatorcore.Attach(db, sessionCfg)
 	if err != nil {
-		return nil, fmt.Errorf("open validator store: %w", err)
+		return nil, fmt.Errorf("attach validator store: %w", err)
 	}
 
 	return store, nil
