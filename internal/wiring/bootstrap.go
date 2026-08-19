@@ -85,7 +85,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, errors.New("wire shared deps: persistence repos must be non-nil")
 	}
 
-	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
+	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == config.TLSModeOff)
 	codeFlow := &policy.CodeFlow{
 		IncludesTokenExchangeRequirement: cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement,
 		RequiresTokenExchangeRequirement: cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement,
@@ -373,16 +373,27 @@ func buildSigner(cfg *config.Config, keyManager *crypto.KeyManager) *crypto.RFC9
 }
 
 func buildRealIPExtractor(cfg *config.Config) (*realip.TrustedProxies, error) {
-	if config.IsValidatorMode(cfg) {
-		tp, err := realip.NewTrustedProxiesStrict(cfg.Server.TrustedProxies)
-		if err != nil {
-			return nil, fmt.Errorf("build real IP extractor: %w", err)
-		}
+	terminated := config.IsTLSModeTerminated(cfg)
+	validator := config.IsValidatorMode(cfg)
 
-		return tp, nil
+	if terminated && len(cfg.Server.TrustedProxies) == 0 {
+		return nil, errors.New("tls.mode=terminated requires at least one server.trusted_proxies entry")
 	}
 
-	return realip.NewTrustedProxies(cfg.Server.TrustedProxies), nil
+	if !validator && !terminated {
+		return realip.NewTrustedProxies(cfg.Server.TrustedProxies), nil
+	}
+
+	tp, err := realip.NewTrustedProxiesStrict(cfg.Server.TrustedProxies)
+	if err != nil {
+		return nil, fmt.Errorf("build real IP extractor: %w", err)
+	}
+
+	if terminated {
+		return tp.EnableStrictForwarded(), nil
+	}
+
+	return tp, nil
 }
 
 func buildValidatorCore(cfg *config.Config) (*core.Core, error) {

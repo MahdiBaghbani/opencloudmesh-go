@@ -6,6 +6,7 @@
 package realip
 
 import (
+	"errors"
 	"net"
 	"testing"
 )
@@ -33,5 +34,89 @@ func TestNewTrustedProxiesStrict_SingleIP(t *testing.T) {
 
 	if tp.IsTrusted(net.ParseIP("192.168.1.2")) {
 		t.Error("expected 192.168.1.2 to not be trusted")
+	}
+}
+
+func TestParseStrictXForwardedHost_BracketedIPv4Rejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseStrictXForwardedHost("[1.2.3.4]")
+	if !errors.Is(err, ErrMalformedForwardedHeader) {
+		t.Fatalf("error = %v, want %v", err, ErrMalformedForwardedHeader)
+	}
+}
+
+func TestParseStrictXForwardedHost_BracketedIPv4WithPortRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseStrictXForwardedHost("[1.2.3.4]:443")
+	if !errors.Is(err, ErrMalformedForwardedHeader) {
+		t.Fatalf("error = %v, want %v", err, ErrMalformedForwardedHeader)
+	}
+}
+
+func TestParseStrictXForwardedHost_BracketedIPv6(t *testing.T) {
+	t.Parallel()
+
+	got, err := parseStrictXForwardedHost("[2001:db8::1]")
+	if err != nil {
+		t.Fatalf("parseStrictXForwardedHost: %v", err)
+	}
+
+	if got != "[2001:db8::1]" {
+		t.Errorf("got %q, want [2001:db8::1]", got)
+	}
+}
+
+func TestParseStrictXForwardedHost_BracketedIPv6WithPort(t *testing.T) {
+	t.Parallel()
+
+	got, err := parseStrictXForwardedHost("[2001:db8::1]:8443")
+	if err != nil {
+		t.Fatalf("parseStrictXForwardedHost: %v", err)
+	}
+
+	if got != "[2001:db8::1]:8443" {
+		t.Errorf("got %q, want [2001:db8::1]:8443", got)
+	}
+}
+
+func TestParseStrictXForwardedHost_HostWithPort(t *testing.T) {
+	t.Parallel()
+
+	got, err := parseStrictXForwardedHost("cloud.example.com:443")
+	if err != nil {
+		t.Fatalf("parseStrictXForwardedHost: %v", err)
+	}
+
+	if got != "cloud.example.com:443" {
+		t.Errorf("got %q, want cloud.example.com:443", got)
+	}
+}
+
+func TestParseStrictXForwardedHost_InvalidPortRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseStrictXForwardedHost("cloud.example.com:0")
+	if !errors.Is(err, ErrMalformedForwardedHeader) {
+		t.Fatalf("error = %v, want %v", err, ErrMalformedForwardedHeader)
+	}
+}
+
+func TestParseStrictXForwardedHost_InvalidBracketedPortRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseStrictXForwardedHost("[2001:db8::1]:abc")
+	if !errors.Is(err, ErrMalformedForwardedHeader) {
+		t.Fatalf("error = %v, want %v", err, ErrMalformedForwardedHeader)
+	}
+}
+
+func TestParseStrictXForwardedHost_UnbracketedIPv6Rejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseStrictXForwardedHost("2001:db8::1")
+	if !errors.Is(err, ErrMalformedForwardedHeader) {
+		t.Fatalf("error = %v, want %v", err, ErrMalformedForwardedHeader)
 	}
 }

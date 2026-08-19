@@ -17,3 +17,8 @@ type StatisticsConfig struct {
 func IsValidatorMode(cfg *Config) bool {
 	return cfg != nil && cfg.Mode == string(ModeValidator)
 }
+
+// IsTLSModeTerminated reports whether TLS terminates at an upstream reverse proxy.
+func IsTLSModeTerminated(cfg *Config) bool {
+	return cfg != nil && cfg.TLS.Mode == tlsModeTerminated
+}

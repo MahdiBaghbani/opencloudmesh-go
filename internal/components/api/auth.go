@@ -14,6 +14,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
 const (
@@ -117,14 +118,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set cookie for browser clients
-	//nolint:gosec // cookie already sets HttpOnly:true, Secure:r.TLS != nil, SameSite:Lax; gosec heuristic misses the conditional Secure
+	//nolint:gosec // cookie sets HttpOnly, SameSite:Lax, and Secure from validated HTTPS transport state
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    session.Token,
 		Path:     "/",
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   realip.RequestUsesHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -162,14 +163,14 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gosec // deletion cookie mirrors the login cookie flags (HttpOnly, conditional Secure, SameSite:Lax); gosec heuristic still flags conditional Secure
+	//nolint:gosec // deletion cookie mirrors the login cookie flags (HttpOnly, SameSite:Lax, Secure from validated HTTPS transport state)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   realip.RequestUsesHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})

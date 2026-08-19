@@ -103,7 +103,7 @@ func (s *Server) Start() error {
 	)
 
 	switch s.cfg.TLS.Mode {
-	case "off":
+	case config.TLSModeOff, config.TLSModeTerminated:
 		if err := s.httpServer.ListenAndServe(); err != nil {
 			return fmt.Errorf("http: listen and serve: %w", err)
 		}

@@ -48,11 +48,12 @@ func NewTLSManager(cfg *config.TLSConfig, logger *slog.Logger) *TLSManager {
 }
 
 // GetTLSConfig returns a tls.Config based on the configured mode.
-// Returns nil for "off" mode.
+// Returns nil for "off" and "terminated" modes; the HTTP server listens in plain
+// HTTP and relies on trusted-proxy forwarded headers when TLS terminates upstream.
 func (m *TLSManager) GetTLSConfig(hostname string) (*cryptotls.Config, error) {
 	switch m.cfg.Mode {
-	case "off":
-		return nil, nil //nolint:nilnil // intentional: (nil, nil) for TLS mode off; caller proceeds without a TLS config
+	case config.TLSModeOff, config.TLSModeTerminated:
+		return nil, nil //nolint:nilnil // intentional: plain HTTP listener; no in-process TLS config
 
 	case "static":
 		return m.loadStaticCert()

@@ -11,15 +11,36 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
 func validateTLSMode(cfg *Config) error {
 	switch cfg.TLS.Mode {
-	case tlsModeOff, "static", "selfsigned", "acme":
+	case tlsModeOff, tlsModeTerminated, "static", "selfsigned", "acme":
 		return nil
 	default:
-		return fmt.Errorf("invalid tls.mode %q: must be one of off, static, selfsigned, acme", cfg.TLS.Mode)
+		return fmt.Errorf(
+			"invalid tls.mode %q: must be one of off, terminated, static, selfsigned, acme",
+			cfg.TLS.Mode,
+		)
 	}
+}
+
+func validateTerminatedTLSMode(cfg *Config) error {
+	if cfg.TLS.Mode != tlsModeTerminated {
+		return nil
+	}
+
+	if len(cfg.Server.TrustedProxies) == 0 {
+		return errors.New("tls.mode=terminated requires at least one server.trusted_proxies entry")
+	}
+
+	if _, err := realip.NewTrustedProxiesStrict(cfg.Server.TrustedProxies); err != nil {
+		return fmt.Errorf("tls.mode=terminated: server.trusted_proxies: %w", err)
+	}
+
+	return nil
 }
 
 func validateSSRFMode(cfg *Config) error {
@@ -233,6 +254,7 @@ func validateEnums(cfg *Config) error {
 	// mode is already validated by ParseMode before we get here
 	validators := []func(*Config) error{
 		validateTLSMode,
+		validateTerminatedTLSMode,
 		validateSSRFMode,
 		validateSSRFRoutePolicyRef,
 		validateSignatureFields,
