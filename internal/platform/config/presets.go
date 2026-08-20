@@ -192,6 +192,10 @@ func ValidatorConfig() *Config {
 			},
 		},
 	}
+	cfg.Validator.Probe = ValidatorProbeConfig{
+		Email:       DefaultValidatorProbeEmail,
+		DisplayName: DefaultValidatorProbeDisplayName,
+	}
 
 	return cfg
 }

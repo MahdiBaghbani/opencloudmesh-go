@@ -16,4 +16,10 @@ const (
 
 	// defaultStartPublicWindowSeconds is the validator preset window for start_public.
 	defaultStartPublicWindowSeconds = 60
+
+	// DefaultValidatorProbeEmail is the preset [validator.probe] email.
+	DefaultValidatorProbeEmail = "probe@localhost"
+
+	// DefaultValidatorProbeDisplayName is the preset [validator.probe] display name.
+	DefaultValidatorProbeDisplayName = "Probe User"
 )

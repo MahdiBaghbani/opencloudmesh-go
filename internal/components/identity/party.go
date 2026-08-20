@@ -34,6 +34,8 @@ var (
 	ErrSuperAdminProtected = errors.New("super admin cannot be deleted or demoted")
 	// ErrSuperAdminRoleChange is returned when changing a super admin role.
 	ErrSuperAdminRoleChange = errors.New("super admin role cannot be changed")
+	// ErrUserIDExists is returned when creating a user whose ID is already stored.
+	ErrUserIDExists = errors.New("user id already exists")
 )
 
 const (
@@ -87,7 +89,8 @@ func (u *User) IsExpired() bool {
 
 // PartyRepo provides user storage operations.
 type PartyRepo interface {
-	// Create creates a new user. Returns ErrUserExists if username is taken.
+	// Create creates a new user. Returns ErrUserExists if username is taken,
+	// ErrEmailExists if email is taken, or ErrUserIDExists if ID is taken.
 	Create(ctx context.Context, user *User) error
 
 	// Get retrieves a user by ID. Returns ErrUserNotFound if not found.
@@ -193,7 +196,11 @@ func (r *MemoryPartyRepo) Create(_ context.Context, user *User) error {
 		}
 	}
 
-	if user.ID == "" {
+	if user.ID != "" {
+		if _, exists := r.users[user.ID]; exists {
+			return ErrUserIDExists
+		}
+	} else {
 		id, err := UUIDv7()
 		if err != nil {
 			return fmt.Errorf("failed to generate user id: %w", err)

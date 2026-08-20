@@ -68,7 +68,7 @@ type Config struct {
 	// Statistics holds federation validator statistics settings.
 	Statistics StatisticsConfig `toml:"statistics"`
 
-	// Validator holds federation validator session settings.
+	// Validator holds federation validator session and probe settings.
 	Validator ValidatorSection `toml:"validator"`
 }
 

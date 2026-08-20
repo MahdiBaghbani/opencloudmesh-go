@@ -27,3 +27,7 @@ window_seconds = 60
 
 [http.services.validator.ratelimit]
 profile = "scan_public"
+
+[validator.probe]
+email = "probe@localhost"
+display_name = "Probe User"

@@ -51,7 +51,62 @@ func SessionConfigFromValidator(cfg *Config) validatorcore.SessionConfig {
 	return out
 }
 
+// ValidatorProbeConfig holds the local probe party fields under [validator.probe].
+type ValidatorProbeConfig struct {
+	Email       string `toml:"email"`
+	DisplayName string `toml:"display_name"`
+}
+
 // ValidatorSection holds federation-validator-specific config knobs.
 type ValidatorSection struct {
 	Session ValidatorSessionConfig `toml:"session"`
+	Probe   ValidatorProbeConfig   `toml:"probe"`
+}
+
+// validatorFileConfig decodes the optional [validator] TOML table.
+type validatorFileConfig struct {
+	Session *ValidatorSessionConfig `toml:"session"`
+	Probe   *ValidatorProbeConfig   `toml:"probe"`
+}
+
+func overlayValidatorConfig(cfg *Config, fc *validatorFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.Session != nil {
+		overlayValidatorSessionConfig(cfg, fc.Session)
+	}
+
+	if fc.Probe != nil {
+		if fc.Probe.Email != "" {
+			cfg.Validator.Probe.Email = fc.Probe.Email
+		}
+
+		if fc.Probe.DisplayName != "" {
+			cfg.Validator.Probe.DisplayName = fc.Probe.DisplayName
+		}
+	}
+}
+
+func overlayValidatorSessionConfig(cfg *Config, session *ValidatorSessionConfig) {
+	if session.InFlightPassiveLimit > 0 {
+		cfg.Validator.Session.InFlightPassiveLimit = session.InFlightPassiveLimit
+	}
+
+	if session.CreatedTTLSeconds > 0 {
+		cfg.Validator.Session.CreatedTTLSeconds = session.CreatedTTLSeconds
+	}
+
+	if session.PassiveRunningTTLSeconds > 0 {
+		cfg.Validator.Session.PassiveRunningTTLSeconds = session.PassiveRunningTTLSeconds
+	}
+
+	if session.PassiveCompleteTTLSeconds > 0 {
+		cfg.Validator.Session.PassiveCompleteTTLSeconds = session.PassiveCompleteTTLSeconds
+	}
+
+	if session.TerminalRetentionDays > 0 {
+		cfg.Validator.Session.TerminalRetentionDays = session.TerminalRetentionDays
+	}
 }

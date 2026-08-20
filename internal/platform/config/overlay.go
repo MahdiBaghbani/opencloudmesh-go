@@ -59,6 +59,7 @@ type fileConfig struct {
 	Persistence   *persistenceFileConfig  `toml:"persistence"`
 	OCM           *ocmFileConfig          `toml:"ocm"`
 	Statistics    *statisticsFileConfig   `toml:"statistics"`
+	Validator     *validatorFileConfig    `toml:"validator"`
 }
 
 // ocmFileConfig holds OCM settings from TOML.
