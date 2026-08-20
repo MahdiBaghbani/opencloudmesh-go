@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Core provides federation validator persistence on a shared GORM handle.
@@ -53,20 +54,6 @@ func (c *Core) InsertStatsRaw(ctx context.Context, row *StatsRaw) error {
 	}
 
 	return insertStatsRawDB(c.db.WithContext(ctx), row)
-}
-
-// IncrementStatsAggregate upserts aggregate counters for host_hash from one
-// stats_raw snapshot. Health is derived from grade columns via DeriveHealthy;
-// callers must not supply a separate healthy flag. INSERT ... ON CONFLICT DO
-// UPDATE increments counters always; first_seen_ts keeps the earliest timestamp;
-// last_platform, last_healthy, and last_seen_ts are replaced only when
-// raw.CreatedAt is at least as new as the stored last_seen_ts.
-func (c *Core) IncrementStatsAggregate(ctx context.Context, raw *StatsRaw) error {
-	if c == nil || c.db == nil {
-		return errors.New("validatorcore: store is not configured")
-	}
-
-	return incrementStatsAggregateDB(c.db.WithContext(ctx), raw)
 }
 
 // PruneStats deletes stats_raw rows older than retentionDays when
@@ -114,46 +101,73 @@ func rebuildStatsAggregate(tx *gorm.DB) error {
 		return nil
 	}
 
-	byHost := make(map[string]*StatsAggregate)
-	latestRaw := make(map[string]StatsRaw)
+	byHost := make(map[string][]StatsRaw)
 
 	for _, row := range rawRows {
-		agg, ok := byHost[row.HostHash]
-		if !ok {
-			agg = &StatsAggregate{
-				HostHash:    row.HostHash,
-				FirstSeenTS: row.CreatedAt,
-			}
-			byHost[row.HostHash] = agg
-		}
+		byHost[row.HostHash] = append(byHost[row.HostHash], row)
+	}
 
+	for hostHash, rows := range byHost {
+		if err := tx.Create(aggregateStatsRawForHost(hostHash, rows)).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// rebuildStatsAggregateForHost recomputes one host's aggregate from all its
+// stats_raw rows. The stored row is deleted first so a host with no remaining
+// raw rows disappears instead of going stale.
+func rebuildStatsAggregateForHost(tx *gorm.DB, hostHash string) error {
+	if err := tx.Where("host_hash = ?", hostHash).Delete(&StatsAggregate{}).Error; err != nil {
+		return err
+	}
+
+	var rawRows []StatsRaw
+	if err := tx.Where("host_hash = ?", hostHash).
+		Order("created_at ASC, id ASC").
+		Find(&rawRows).Error; err != nil {
+		return err
+	}
+
+	if len(rawRows) == 0 {
+		return nil
+	}
+
+	return tx.Create(aggregateStatsRawForHost(hostHash, rawRows)).Error
+}
+
+// aggregateStatsRawForHost folds one host's raw rows into an aggregate:
+// counters are recomputed from scratch, first_seen_ts is the earliest
+// created_at, and last_platform/last_healthy/last_seen_ts are last-seen-wins
+// with ties broken by row id. rows must be ordered by created_at, id.
+func aggregateStatsRawForHost(hostHash string, rows []StatsRaw) *StatsAggregate {
+	agg := &StatsAggregate{HostHash: hostHash}
+
+	var latest StatsRaw
+
+	for _, row := range rows {
 		agg.TotalSessions++
 
 		if DeriveHealthy(row) {
 			agg.HealthySessions++
 		}
 
-		if row.CreatedAt < agg.FirstSeenTS || agg.FirstSeenTS == 0 {
+		if agg.FirstSeenTS == 0 || row.CreatedAt < agg.FirstSeenTS {
 			agg.FirstSeenTS = row.CreatedAt
 		}
 
 		if row.CreatedAt >= agg.LastSeenTS {
 			agg.LastSeenTS = row.CreatedAt
-			latestRaw[row.HostHash] = row
+			latest = row
 		}
 	}
 
-	for hostHash, agg := range byHost {
-		latest := latestRaw[hostHash]
-		agg.LastPlatform = latest.Platform
-		agg.LastHealthy = DeriveHealthy(latest)
+	agg.LastPlatform = latest.Platform
+	agg.LastHealthy = DeriveHealthy(latest)
 
-		if err := tx.Create(agg).Error; err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return agg
 }
 
 func insertStatsRawDB(db *gorm.DB, row *StatsRaw) error {
@@ -168,84 +182,20 @@ func insertStatsRawDB(db *gorm.DB, row *StatsRaw) error {
 	return nil
 }
 
-func incrementStatsAggregateDB(db *gorm.DB, raw *StatsRaw) error {
-	if raw == nil {
-		return errors.New("validatorcore: nil stats row")
+// insertStatsRawOrIgnore inserts one stats_raw row, treating a conflict on
+// the dedup key k as a no-op, and reports whether a row was actually inserted.
+func insertStatsRawOrIgnore(tx *gorm.DB, row *StatsRaw) (bool, error) {
+	if row == nil {
+		return false, errors.New("validatorcore: nil stats row")
 	}
 
-	if raw.HostHash == "" {
-		return errors.New("validatorcore: empty host hash")
+	res := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "k"}},
+		DoNothing: true,
+	}).Create(row)
+	if res.Error != nil {
+		return false, res.Error
 	}
 
-	healthy := DeriveHealthy(*raw)
-
-	healthyInc := int64(0)
-	if healthy {
-		healthyInc = 1
-	}
-
-	lastHealthy := 0
-	if healthy {
-		lastHealthy = 1
-	}
-
-	return db.Exec(`
-		INSERT INTO stats_aggregate (
-			host_hash, total_sessions, healthy_sessions,
-			last_platform, last_healthy, first_seen_ts, last_seen_ts
-		) VALUES (?, 1, ?, ?, ?, ?, ?)
-		ON CONFLICT(host_hash) DO UPDATE SET
-			total_sessions = stats_aggregate.total_sessions + 1,
-			healthy_sessions = stats_aggregate.healthy_sessions + excluded.healthy_sessions,
-			first_seen_ts = CASE
-				WHEN stats_aggregate.first_seen_ts = 0 THEN excluded.first_seen_ts
-				WHEN excluded.first_seen_ts < stats_aggregate.first_seen_ts
-				THEN excluded.first_seen_ts
-				ELSE stats_aggregate.first_seen_ts
-			END,
-			last_platform = CASE
-				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
-				THEN excluded.last_platform
-				ELSE stats_aggregate.last_platform
-			END,
-			last_healthy = CASE
-				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
-				THEN excluded.last_healthy
-				ELSE stats_aggregate.last_healthy
-			END,
-			last_seen_ts = CASE
-				WHEN excluded.last_seen_ts >= stats_aggregate.last_seen_ts
-				THEN excluded.last_seen_ts
-				ELSE stats_aggregate.last_seen_ts
-			END`,
-		raw.HostHash,
-		healthyInc,
-		raw.Platform,
-		lastHealthy,
-		raw.CreatedAt,
-		raw.CreatedAt,
-	).Error
-}
-
-func (c *Core) insertStatsRawAndAggregate(ctx context.Context, raw *StatsRaw) error {
-	if c == nil || c.db == nil {
-		return errors.New("validatorcore: store is not configured")
-	}
-
-	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := insertStatsRawDB(tx, raw); err != nil {
-			return fmt.Errorf("validatorcore: insert stats_raw: %w", err)
-		}
-
-		if err := incrementStatsAggregateDB(tx, raw); err != nil {
-			return fmt.Errorf("validatorcore: increment stats_aggregate: %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("validatorcore: persist terminal stats writes: %w", err)
-	}
-
-	return nil
+	return res.RowsAffected > 0, nil
 }

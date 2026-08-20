@@ -16,27 +16,165 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-func TestInsertStatsRawAndAggregate_RollsBackRawOnAggregateFailure(t *testing.T) {
+func TestPersistTerminalStats_StateCASCommitsAfterStatsFailure(t *testing.T) {
 	t.Parallel()
 
+	// No stats hasher is wired, so persistence fails after the terminal
+	// transition; the committed state must survive because stats persistence
+	// is best-effort and decoupled from the state write.
 	core := openTestCore(t)
 	ctx := t.Context()
-	pass := GradePass
-	now := time.Now().Unix()
 
-	raw := &StatsRaw{
-		K:              "k-rollback",
-		HostHash:       "hash-rollback",
-		SessionKind:    SessionKindPassiveOnly,
-		GradeDiscovery: &pass,
-		CreatedAt:      now,
+	runID := "run-stats-state-first"
+	seedPassiveComplete(t, core, runID, "https://peer.example", true)
+
+	if err := core.StopPassiveComplete(ctx, runID); err != nil {
+		t.Fatalf("StopPassiveComplete: %v", err)
 	}
+
+	row, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if row.State != StateTerminalPass {
+		t.Fatalf("state = %q, want %q after stats failure", row.State, StateTerminalPass)
+	}
+
+	var rawCount int64
+	if err := core.DB().WithContext(ctx).Model(&StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 0 {
+		t.Fatalf("stats_raw count = %d, want 0 without a stats hasher", rawCount)
+	}
+}
+
+func TestPersistTerminalStats_StateCASCommittedWhenStatsTxRollsBack(t *testing.T) {
+	t.Parallel()
+
+	// The state transition commits first; the stats transaction runs after
+	// it, and a stats rollback must not touch the committed state.
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+
+	runID := "run-stats-state-cas-rollback"
+	seedPassiveComplete(t, core, runID, "https://peer.example", true)
 
 	if err := core.DB().WithContext(ctx).Exec("DROP TABLE stats_aggregate").Error; err != nil {
 		t.Fatalf("drop stats_aggregate: %v", err)
 	}
 
-	if err := core.insertStatsRawAndAggregate(ctx, raw); err == nil {
+	if err := core.StopPassiveComplete(ctx, runID); err != nil {
+		t.Fatalf("StopPassiveComplete: %v", err)
+	}
+
+	row, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if row.State != StateTerminalPass {
+		t.Fatalf("state = %q, want %q committed despite stats rollback", row.State, StateTerminalPass)
+	}
+
+	if row.StatsWrittenAt != nil {
+		t.Fatalf("stats_written_at = %v, want NULL from the rolled-back stats transaction", *row.StatsWrittenAt)
+	}
+
+	var rawCount int64
+	if err := core.DB().WithContext(ctx).Model(&StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 0 {
+		t.Fatalf("stats_raw count = %d, want 0 from the rolled-back stats transaction", rawCount)
+	}
+}
+
+func TestPersistTerminalStats_StatsWrittenAtStampedOnlyOnOptIn(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+	now := time.Now().Unix()
+
+	optInRun := "run-stats-marker-opt-in"
+	optOutRun := "run-stats-marker-opt-out"
+
+	seedTerminalStatsRun(t, core, optInRun, now)
+
+	optOut := &TestRun{
+		TestRunID:    optOutRun,
+		State:        StateTerminalPass,
+		SessionKind:  SessionKindPassiveOnly,
+		TargetOrigin: "https://peer.example",
+		TargetHost:   "peer.example",
+		FinishedAt:   &now,
+		OptInStats:   false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := core.DB().WithContext(ctx).Create(optOut).Error; err != nil {
+		t.Fatalf("seed opt-out run: %v", err)
+	}
+
+	if err := core.persistTerminalStats(ctx, optInRun); err != nil {
+		t.Fatalf("persist opt-in run: %v", err)
+	}
+
+	if err := core.persistTerminalStats(ctx, optOutRun); err != nil {
+		t.Fatalf("persist opt-out run: %v", err)
+	}
+
+	var inRow TestRun
+	if err := core.DB().WithContext(ctx).First(&inRow, "test_run_id = ?", optInRun).Error; err != nil {
+		t.Fatalf("reload opt-in run: %v", err)
+	}
+
+	if inRow.StatsWrittenAt == nil {
+		t.Fatal("stats_written_at = NULL, want non-NULL after successful persist")
+	}
+
+	var outRow TestRun
+	if err := core.DB().WithContext(ctx).First(&outRow, "test_run_id = ?", optOutRun).Error; err != nil {
+		t.Fatalf("reload opt-out run: %v", err)
+	}
+
+	if outRow.StatsWrittenAt != nil {
+		t.Fatalf("stats_written_at = %v, want NULL when opt_in_stats=0", *outRow.StatsWrittenAt)
+	}
+
+	var rawCount int64
+	if err := core.DB().WithContext(ctx).Model(&StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 1 {
+		t.Fatalf("stats_raw count = %d, want 1 (opt-in run only)", rawCount)
+	}
+}
+
+func TestPersistTerminalStats_RollsBackRawOnAggregateFailure(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-stats-rollback"
+
+	seedTerminalStatsRun(t, core, runID, now)
+
+	if err := core.DB().WithContext(ctx).Exec("DROP TABLE stats_aggregate").Error; err != nil {
+		t.Fatalf("drop stats_aggregate: %v", err)
+	}
+
+	if err := core.persistTerminalStats(ctx, runID); err == nil {
 		t.Fatal("expected aggregate failure")
 	}
 
@@ -47,6 +185,142 @@ func TestInsertStatsRawAndAggregate_RollsBackRawOnAggregateFailure(t *testing.T)
 
 	if rawCount != 0 {
 		t.Fatalf("stats_raw count = %d, want 0 after transaction rollback", rawCount)
+	}
+
+	var row TestRun
+	if err := core.DB().WithContext(ctx).First(&row, "test_run_id = ?", runID).Error; err != nil {
+		t.Fatalf("reload test run: %v", err)
+	}
+
+	if row.StatsWrittenAt != nil {
+		t.Fatalf("stats_written_at = %v, want NULL after transaction rollback", *row.StatsWrittenAt)
+	}
+}
+
+func TestPersistTerminalStats_RetryWritesOnce(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-stats-retry"
+
+	seedTerminalStatsRun(t, core, runID, now)
+
+	if err := core.persistTerminalStats(ctx, runID); err != nil {
+		t.Fatalf("first persist: %v", err)
+	}
+
+	// A sentinel marker proves the write-once column is not restamped on retry.
+	sentinel := int64(424242)
+	if err := core.DB().WithContext(ctx).Exec(
+		"UPDATE test_run SET stats_written_at = ? WHERE test_run_id = ?", sentinel, runID,
+	).Error; err != nil {
+		t.Fatalf("stamp sentinel: %v", err)
+	}
+
+	if err := core.persistTerminalStats(ctx, runID); err != nil {
+		t.Fatalf("retry persist: %v", err)
+	}
+
+	var rawCount int64
+	if err := core.DB().WithContext(ctx).Model(&StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 1 {
+		t.Fatalf("stats_raw count = %d, want exactly 1 after retry", rawCount)
+	}
+
+	var agg StatsAggregate
+	if err := core.DB().WithContext(ctx).First(&agg).Error; err != nil {
+		t.Fatalf("load aggregate: %v", err)
+	}
+
+	if agg.TotalSessions != 1 {
+		t.Fatalf("total_sessions = %d, want 1 after retry", agg.TotalSessions)
+	}
+
+	var row TestRun
+	if err := core.DB().WithContext(ctx).First(&row, "test_run_id = ?", runID).Error; err != nil {
+		t.Fatalf("reload test run: %v", err)
+	}
+
+	if row.StatsWrittenAt == nil || *row.StatsWrittenAt != sentinel {
+		t.Fatalf("stats_written_at = %v, want untouched sentinel %d", row.StatsWrittenAt, sentinel)
+	}
+}
+
+func TestPersistTerminalStats_RetryReachesDedupConflict(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-stats-retry-conflict"
+
+	seedTerminalStatsRun(t, core, runID, now)
+
+	if err := core.persistTerminalStats(ctx, runID); err != nil {
+		t.Fatalf("first persist: %v", err)
+	}
+
+	var first StatsRaw
+	if err := core.DB().WithContext(ctx).First(&first).Error; err != nil {
+		t.Fatalf("load stats_raw: %v", err)
+	}
+
+	// Clearing the write-once marker lets the retry pass the guard and reach
+	// the stats_raw insert, where ON CONFLICT(k) DO NOTHING absorbs the
+	// duplicate. The re-stamped marker distinguishes this conflict path from
+	// the guard short-circuit covered by the write-once retry test.
+	if err := core.DB().WithContext(ctx).Exec(
+		"UPDATE test_run SET stats_written_at = NULL WHERE test_run_id = ?", runID,
+	).Error; err != nil {
+		t.Fatalf("clear stats_written_at: %v", err)
+	}
+
+	if err := core.persistTerminalStats(ctx, runID); err != nil {
+		t.Fatalf("conflict retry persist: %v", err)
+	}
+
+	var row TestRun
+	if err := core.DB().WithContext(ctx).First(&row, "test_run_id = ?", runID).Error; err != nil {
+		t.Fatalf("reload test run: %v", err)
+	}
+
+	if row.StatsWrittenAt == nil {
+		t.Fatal("stats_written_at = NULL after conflict retry, want re-stamped by the passed guard")
+	}
+
+	var rawCount int64
+	if err := core.DB().WithContext(ctx).Model(&StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 1 {
+		t.Fatalf("stats_raw count = %d, want exactly 1 after conflict retry", rawCount)
+	}
+
+	var surviving StatsRaw
+	if err := core.DB().WithContext(ctx).First(&surviving).Error; err != nil {
+		t.Fatalf("reload stats_raw: %v", err)
+	}
+
+	if surviving.ID != first.ID || surviving.K != first.K {
+		t.Fatalf("surviving stats_raw = (id %d, k %q), want original (id %d, k %q)",
+			surviving.ID, surviving.K, first.ID, first.K)
+	}
+
+	var agg StatsAggregate
+	if err := core.DB().WithContext(ctx).First(&agg).Error; err != nil {
+		t.Fatalf("load aggregate: %v", err)
+	}
+
+	if agg.TotalSessions != 1 {
+		t.Fatalf("total_sessions = %d, want 1 after conflict retry", agg.TotalSessions)
 	}
 }
 

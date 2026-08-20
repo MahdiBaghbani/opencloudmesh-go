@@ -11,6 +11,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
@@ -74,11 +78,13 @@ func (c *Core) clearTerminalStatsState(testRunID string) {
 	c.clearTerminalStatsOverlay(testRunID)
 }
 
-// persistTerminalStats writes one stats_raw row and increments stats_aggregate
-// when the persisted test_run opted into statistics. Incognito and
-// permanent-only sessions write nothing. The row is loaded first so consent
-// survives process restart. Errors are returned for observability; callers
-// treat persistence as best-effort after the session is already terminal.
+// persistTerminalStats writes one stats_raw row and rebuilds the per-host
+// stats_aggregate atomically when the persisted test_run opted into
+// statistics. Incognito and permanent-only sessions write nothing. Consent is
+// read from the persisted row so it survives process restart, and
+// stats_written_at is the write-once marker that makes retries no-ops.
+// Errors are returned for observability; callers treat persistence as
+// best-effort after the session is already terminal.
 func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -113,14 +119,164 @@ func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error
 
 	overlay, _ := c.terminalStatsOverlay(testRunID)
 	snap := statsSnapshotFromTestRun(row, hostHash, *row.FinishedAt, overlay)
-	raw := snap.ToStatsRaw()
-	raw.K = k
 
-	if err := c.insertStatsRawAndAggregate(ctx, &raw); err != nil {
+	if err := c.writeTerminalStats(ctx, testRunID, hostHash, k, &snap); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// writeTerminalStats runs the atomic stats write in one transaction: the
+// write-once stats_written_at guard, one stats_raw insert keyed by the run's
+// dedup key, and a per-host aggregate rebuild. A zero-row guard result means
+// stats were already written (or consent was revoked after the reload), so
+// the call is a no-op. A dedup-key conflict on stats_raw means the row is
+// already counted, so the aggregate is left untouched.
+func (c *Core) writeTerminalStats(
+	ctx context.Context,
+	testRunID, hostHash, k string,
+	snap *StatsSnapshot,
+) error {
+	now := time.Now().Unix()
+
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Exec(
+			"UPDATE test_run SET stats_written_at = ? "+
+				"WHERE test_run_id = ? AND opt_in_stats = 1 AND stats_written_at IS NULL",
+			now, testRunID,
+		)
+		if res.Error != nil {
+			return fmt.Errorf("validatorcore: stamp stats_written_at: %w", res.Error)
+		}
+
+		if res.RowsAffected == 0 {
+			return nil
+		}
+
+		if err := fillSnapshotGradesFromEvidence(tx, testRunID, snap); err != nil {
+			return fmt.Errorf("validatorcore: load evidence grades: %w", err)
+		}
+
+		raw := snap.ToStatsRaw()
+		raw.K = k
+
+		inserted, err := insertStatsRawOrIgnore(tx, &raw)
+		if err != nil {
+			return fmt.Errorf("validatorcore: insert stats_raw: %w", err)
+		}
+
+		if !inserted {
+			return nil
+		}
+
+		if err := rebuildStatsAggregateForHost(tx, hostHash); err != nil {
+			return fmt.Errorf("validatorcore: rebuild stats aggregate: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("validatorcore: persist terminal stats writes: %w", err)
+	}
+
+	return nil
+}
+
+// fillSnapshotGradesFromEvidence derives area grades from grade-affecting
+// evidence_row entries and fills only the snapshot's missing grade slots;
+// overlay grades always win. It is a read folded into the persist
+// transaction, not a second write path.
+func fillSnapshotGradesFromEvidence(tx *gorm.DB, testRunID string, snap *StatsSnapshot) error {
+	var rows []EvidenceRow
+	if err := tx.
+		Select("area", "severity").
+		Where("test_run_id = ? AND affects_grade = ?", testRunID, true).
+		Find(&rows).Error; err != nil {
+		return err
+	}
+
+	if len(rows) == 0 {
+		return nil
+	}
+
+	worst := make(map[string]string, len(rows))
+
+	for _, row := range rows {
+		grade := evidenceSeverityGrade(row.Severity)
+
+		if existing, ok := worst[row.Area]; ok {
+			worst[row.Area] = worseGrade(existing, grade)
+
+			continue
+		}
+
+		worst[row.Area] = grade
+	}
+
+	for area, grade := range worst {
+		slot := statsSnapshotGradeSlot(snap, area)
+		if slot == nil || *slot != nil {
+			continue
+		}
+
+		derived := grade
+		*slot = &derived
+	}
+
+	return nil
+}
+
+// evidenceSeverityGrade maps an evidence_row severity label to a stats grade.
+// Fail-like severities dominate, then warn-like; any other grade-affecting
+// row means the area was exercised without a finding, which reads as pass.
+func evidenceSeverityGrade(severity string) string {
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "fail", "failure", "critical", "error", "fatal":
+		return GradeFail
+	case "warn", "warning", "important":
+		return GradeWarn
+	default:
+		return GradePass
+	}
+}
+
+func worseGrade(a, b string) string {
+	if a == GradeFail || b == GradeFail {
+		return GradeFail
+	}
+
+	if a == GradeWarn || b == GradeWarn {
+		return GradeWarn
+	}
+
+	return GradePass
+}
+
+// statsSnapshotGradeSlot returns the snapshot's grade slot for an evidence
+// area, or nil for areas outside the statistics grade set. Area names mirror
+// the public statistics area ordering in stats_areas.go.
+func statsSnapshotGradeSlot(snap *StatsSnapshot, area string) **string {
+	switch area {
+	case "discovery":
+		return &snap.GradeDiscovery
+	case "tls":
+		return &snap.GradeTLS
+	case "jwks":
+		return &snap.GradeJWKS
+	case "httpsig":
+		return &snap.GradeHTTPSig
+	case "sharing":
+		return &snap.GradeSharing
+	case "notification":
+		return &snap.GradeNotification
+	case "token":
+		return &snap.GradeToken
+	case "capability":
+		return &snap.GradeCapability
+	default:
+		return nil
+	}
 }
 
 func statsSnapshotFromTestRun(row *TestRun, hostHash string, finishedAt int64, overlay *StatsSnapshot) StatsSnapshot {

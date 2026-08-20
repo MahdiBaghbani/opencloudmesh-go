@@ -30,7 +30,7 @@ func testStatsHostHasher(t *testing.T) StatsHostHasher {
 	return hasher
 }
 
-func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin, targetHost string, optInStats bool) {
+func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin string, optInStats bool) {
 	t.Helper()
 
 	ctx := t.Context()
@@ -41,7 +41,7 @@ func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin, targetHo
 		State:        StatePassiveComplete,
 		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: targetOrigin,
-		TargetHost:   targetHost,
+		TargetHost:   "peer.example",
 		OptInStats:   optInStats,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -49,6 +49,49 @@ func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin, targetHo
 
 	if err := core.CreatePassiveSession(ctx, row); err != nil {
 		t.Fatalf("CreatePassiveSession: %v", err)
+	}
+}
+
+func seedTerminalStatsRun(t *testing.T, core *Core, runID string, finishedAt int64) {
+	t.Helper()
+
+	row := &TestRun{
+		TestRunID:    runID,
+		State:        StateTerminalPass,
+		SessionKind:  SessionKindPassiveOnly,
+		TargetOrigin: "https://peer.example",
+		TargetHost:   "peer.example",
+		FinishedAt:   &finishedAt,
+		OptInStats:   true,
+		CreatedAt:    finishedAt,
+		UpdatedAt:    finishedAt,
+	}
+
+	if err := core.DB().WithContext(t.Context()).Create(row).Error; err != nil {
+		t.Fatalf("seed terminal run: %v", err)
+	}
+}
+
+func seedEvidenceRow(
+	t *testing.T,
+	core *Core,
+	runID, area, step, reasonCode, severity string,
+	affectsGrade bool,
+) {
+	t.Helper()
+
+	row := &EvidenceRow{
+		TestRunID:    runID,
+		Area:         area,
+		Step:         step,
+		ReasonCode:   reasonCode,
+		Severity:     severity,
+		AffectsGrade: affectsGrade,
+		CreatedAt:    time.Now().Unix(),
+	}
+
+	if err := core.DB().WithContext(t.Context()).Create(row).Error; err != nil {
+		t.Fatalf("seed evidence row: %v", err)
 	}
 }
 
@@ -60,7 +103,7 @@ func TestPersistTerminalStats_OptInWritesRawAndAggregate(t *testing.T) {
 	ctx := t.Context()
 
 	runID := "run-stats-opt-in"
-	seedPassiveComplete(t, core, runID, "https://Peer.Example:443", "peer.example", true)
+	seedPassiveComplete(t, core, runID, "https://Peer.Example:443", true)
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
 		t.Fatalf("StopPassiveComplete: %v", err)
@@ -110,7 +153,7 @@ func TestPersistTerminalStats_IncognitoWritesNothing(t *testing.T) {
 	ctx := t.Context()
 
 	runID := "run-stats-incognito"
-	seedPassiveComplete(t, core, runID, "https://peer.example", "peer.example", false)
+	seedPassiveComplete(t, core, runID, "https://peer.example", false)
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
 		t.Fatalf("StopPassiveComplete: %v", err)
@@ -420,10 +463,6 @@ func TestPruneStats_RemovesStaleRawAndRebuildsAggregate(t *testing.T) {
 	for _, row := range []StatsRaw{staleRaw, recentRaw} {
 		if err := core.InsertStatsRaw(ctx, &row); err != nil {
 			t.Fatalf("InsertStatsRaw: %v", err)
-		}
-
-		if err := core.IncrementStatsAggregate(ctx, &row); err != nil {
-			t.Fatalf("IncrementStatsAggregate: %v", err)
 		}
 	}
 
