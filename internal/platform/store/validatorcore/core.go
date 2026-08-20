@@ -46,67 +46,6 @@ func MigrateModels(db *gorm.DB) error {
 	return ApplyValidatorSchema(db)
 }
 
-// FindActiveCorrelation returns the test_run_id for a confirmed correlation on
-// the active session. Pending rows are excluded.
-func (c *Core) FindActiveCorrelation(
-	ctx context.Context,
-	role, senderHost, providerID string,
-) (string, error) {
-	if c == nil || c.db == nil {
-		return "", errors.New("validatorcore: store is not configured")
-	}
-
-	var row ShareCorrelation
-
-	res := c.db.WithContext(ctx).Raw(`
-		SELECT sc.test_run_id FROM share_correlation sc
-		INNER JOIN test_run tr ON tr.test_run_id = sc.test_run_id
-		WHERE tr.is_active = 1 AND sc.role = ?
-		  AND sc.sender_host = ? AND sc.provider_id = ?
-		  AND sc.status = 'confirmed'`,
-		role, senderHost, providerID,
-	).Scan(&row)
-	if res.Error != nil {
-		return "", res.Error
-	}
-
-	if res.RowsAffected == 0 {
-		return "", gorm.ErrRecordNotFound
-	}
-
-	return row.TestRunID, nil
-}
-
-// FindCorrelationAnyStatus returns the test_run_id for an active correlation
-// regardless of status. Intended for pending-inclusive confirm-hook use only.
-func (c *Core) FindCorrelationAnyStatus(
-	ctx context.Context,
-	role, senderHost, providerID string,
-) (string, error) {
-	if c == nil || c.db == nil {
-		return "", errors.New("validatorcore: store is not configured")
-	}
-
-	var row ShareCorrelation
-
-	res := c.db.WithContext(ctx).Raw(`
-		SELECT sc.test_run_id FROM share_correlation sc
-		INNER JOIN test_run tr ON tr.test_run_id = sc.test_run_id
-		WHERE tr.is_active = 1 AND sc.role = ?
-		  AND sc.sender_host = ? AND sc.provider_id = ?`,
-		role, senderHost, providerID,
-	).Scan(&row)
-	if res.Error != nil {
-		return "", res.Error
-	}
-
-	if res.RowsAffected == 0 {
-		return "", gorm.ErrRecordNotFound
-	}
-
-	return row.TestRunID, nil
-}
-
 // InsertStatsRaw appends one stats_raw row.
 func (c *Core) InsertStatsRaw(ctx context.Context, row *StatsRaw) error {
 	if c == nil || c.db == nil {

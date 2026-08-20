@@ -48,6 +48,10 @@ var (
 
 	// ErrInvalidStartBody is returned for malformed POST /start bodies.
 	ErrInvalidStartBody = errors.New("invalid start request body")
+
+	// ErrInvalidLocalIdentity is returned when a finder local_identity is empty
+	// or not a recognized occupancy slot.
+	ErrInvalidLocalIdentity = errors.New("invalid local identity")
 )
 
 // StoreError wraps a store failure with the operation that caused it.
