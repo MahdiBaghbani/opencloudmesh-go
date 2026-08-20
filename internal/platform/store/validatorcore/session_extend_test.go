@@ -133,3 +133,90 @@ func TestExtendToActive_RepeatedExtensionReturnsInteractiveConflict(t *testing.T
 		t.Fatalf("repeat extend error = %v, want ErrInteractiveRunInProgress", err)
 	}
 }
+
+func TestExtendToActive_WritesBobUserIDOnPromotion(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-extend-bob"
+
+	row := &TestRun{
+		TestRunID:   runID,
+		State:       StatePassiveComplete,
+		SessionKind: SessionKindPassiveOnly,
+		TargetHost:  "bob.example",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := core.CreatePassiveSession(ctx, row); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := core.ExtendToActive(ctx, runID); err != nil {
+		t.Fatalf("ExtendToActive: %v", err)
+	}
+
+	got, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !got.IsActive {
+		t.Fatal("is_active = 0, want 1")
+	}
+
+	if got.State != StateActiveRunning {
+		t.Fatalf("state = %q, want %q", got.State, StateActiveRunning)
+	}
+
+	if got.BobUserID == nil || *got.BobUserID == "" {
+		t.Fatal("bob_user_id must be written in the extend transaction")
+	}
+}
+
+func TestExtendToActive_ConflictLeavesBobUserIDUnset(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	now := time.Now().Unix()
+
+	for _, id := range []string{"run-bob-a", "run-bob-b"} {
+		row := &TestRun{
+			TestRunID:   id,
+			State:       StatePassiveComplete,
+			SessionKind: SessionKindPassiveOnly,
+			TargetHost:  "lock.example",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+	}
+
+	if err := core.ExtendToActive(ctx, "run-bob-a"); err != nil {
+		t.Fatalf("first extend: %v", err)
+	}
+
+	if err := core.ExtendToActive(ctx, "run-bob-b"); err == nil {
+		t.Fatal("second extend succeeded, want conflict")
+	}
+
+	lost, err := core.GetTestRun(ctx, "run-bob-b")
+	if err != nil {
+		t.Fatalf("GetTestRun run-bob-b: %v", err)
+	}
+
+	if lost.IsActive {
+		t.Fatal("conflicted row must stay inactive")
+	}
+
+	if lost.BobUserID != nil {
+		t.Fatalf("conflicted row bob_user_id = %v, want unset", lost.BobUserID)
+	}
+}

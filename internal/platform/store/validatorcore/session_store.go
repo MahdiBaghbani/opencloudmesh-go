@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -98,7 +99,9 @@ func (c *Core) CreatePassiveSession(ctx context.Context, row *TestRun) error {
 	return nil
 }
 
-// ExtendToActive promotes a passive_complete session to the one-active-run lock.
+// ExtendToActive promotes a passive_complete session to the one-active-run
+// lock. The CAS is is_active 0->1 only; bob_user_id is minted in the same
+// transaction so the identity is never a later write.
 func (c *Core) ExtendToActive(ctx context.Context, testRunID string) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -107,12 +110,18 @@ func (c *Core) ExtendToActive(ctx context.Context, testRunID string) error {
 	now := time.Now().Unix()
 
 	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		bobID, mintErr := uuid.NewV7()
+		if mintErr != nil {
+			return fmt.Errorf("validatorcore: mint bob user id: %w", mintErr)
+		}
+
 		res := tx.Model(&TestRun{}).
 			Where("test_run_id = ? AND is_active = 0 AND state = ?", testRunID, StatePassiveComplete).
 			Updates(map[string]any{
-				"is_active":    true,
+				colIsActive:    true,
 				colState:       StateActiveRunning,
 				colSessionKind: SessionKindActiveFull,
+				colBobUserID:   bobID.String(),
 				colUpdatedAt:   now,
 			})
 		if res.Error != nil {
@@ -283,12 +292,14 @@ func (c *Core) StopPassiveComplete(ctx context.Context, testRunID string) error 
 const harvestReasonRetentionExpired = "retention_expired"
 
 // PruneTerminalSessions tombstones terminal test_run rows older than
-// retentionDays; the parent row is never deleted. Child rows in
-// report_exchange, evidence_row, dispatch_reservation, and share_correlation
-// are harvested first, then harvested_at and harvest_reason are stamped and
-// is_active is cleared. ON DELETE RESTRICT on the child foreign keys prevents
-// accidental evidence erasure. Already-tombstoned rows are excluded so a
-// repeat run never re-stamps harvested_at or harvest_reason.
+// retentionDays; the parent row is never deleted. Rows with
+// opt_in_permanent=1 are skipped so durable reports survive the default
+// retention window. Child rows in report_exchange, evidence_row,
+// dispatch_reservation, and share_correlation are harvested first, then
+// harvested_at and harvest_reason are stamped and is_active is cleared.
+// ON DELETE RESTRICT on the child foreign keys prevents accidental evidence
+// erasure. Already-tombstoned rows are excluded so a repeat run never
+// re-stamps harvested_at or harvest_reason.
 func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -306,7 +317,8 @@ func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) err
 
 		if err := tx.Model(&TestRun{}).
 			Where(
-				"state IN ? AND finished_at IS NOT NULL AND finished_at < ? AND harvested_at IS NULL",
+				"state IN ? AND finished_at IS NOT NULL AND finished_at < ? "+
+					"AND harvested_at IS NULL AND opt_in_permanent = 0",
 				[]string{StateTerminalPass, StateTerminalFail},
 				cutoff,
 			).

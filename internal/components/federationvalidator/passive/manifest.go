@@ -12,11 +12,15 @@ import (
 )
 
 const (
-	manifestSchema        = "federation_tester_manifest.v1"
-	scanSchema            = "federation_tester_scan.v1"
-	manifestAPIVersion    = "1.3.0"
-	manifestServicePrefix = "validator"
-	schemaFieldTypeString = "string"
+	manifestSchema         = "federation_tester_manifest.v1"
+	scanSchema             = "federation_tester_scan.v1"
+	manifestAPIVersion     = "1.3.0"
+	manifestServicePrefix  = "validator"
+	schemaFieldTypeString  = "string"
+	schemaFieldTypeBoolean = "boolean"
+	optInQueryContribute   = "contribute"
+	optInQueryPermanent    = "permanent"
+	optInLiteralValue      = "1"
 )
 
 // MountedAPIRoute describes one plane-A client-usable route wired in
@@ -39,6 +43,8 @@ type manifestRouteResponse struct {
 	Scan          scanSchemaV1             `json:"scan"`
 	SessionKind   manifestSessionKindMeta  `json:"sessionKind"`
 	Contribute    manifestContributeMeta   `json:"contribute"`
+	Permanent     manifestContributeMeta   `json:"permanent"`
+	OptIn         manifestOptInMeta        `json:"optIn"`
 	ReverseInvite manifestAvailabilityMeta `json:"reverseInvite"`
 	Platform      manifestAvailabilityMeta `json:"platform"`
 	TLSSummary    manifestAvailabilityMeta `json:"tlsSummary"`
@@ -61,6 +67,28 @@ type manifestContributeMeta struct {
 	Available  bool   `json:"available"`
 	OptInQuery string `json:"optInQuery"`
 	OptInValue string `json:"optInValue"`
+}
+
+type manifestOptInMeta struct {
+	Default string                 `json:"default"`
+	Start   manifestOptInStartMeta `json:"start"`
+	Scan    manifestOptInScanMeta  `json:"scan"`
+}
+
+type manifestOptInStartMeta struct {
+	OptInStats     manifestOptInStartField `json:"optInStats"`
+	OptInPermanent manifestOptInStartField `json:"optInPermanent"`
+}
+
+type manifestOptInStartField struct {
+	Type    string `json:"type"`
+	Default bool   `json:"default"`
+}
+
+type manifestOptInScanMeta struct {
+	StatsQuery     string `json:"statsQuery"`
+	PermanentQuery string `json:"permanentQuery"`
+	OptInValue     string `json:"optInValue"`
 }
 
 type manifestAvailabilityMeta struct {
@@ -94,7 +122,9 @@ type scanResponseSchema struct {
 }
 
 type scanResponseBody struct {
-	ID scanFieldSchema `json:"id"`
+	ID             scanFieldSchema `json:"id"`
+	OptInStats     scanFieldSchema `json:"optInStats"`
+	OptInPermanent scanFieldSchema `json:"optInPermanent"`
 }
 
 type scanFieldSchema struct {
@@ -146,8 +176,25 @@ func BuildManifest() manifestRouteResponse {
 		},
 		Contribute: manifestContributeMeta{
 			Available:  true,
-			OptInQuery: "contribute",
-			OptInValue: "1",
+			OptInQuery: optInQueryContribute,
+			OptInValue: optInLiteralValue,
+		},
+		Permanent: manifestContributeMeta{
+			Available:  true,
+			OptInQuery: optInQueryPermanent,
+			OptInValue: optInLiteralValue,
+		},
+		OptIn: manifestOptInMeta{
+			Default: "neither",
+			Start: manifestOptInStartMeta{
+				OptInStats:     manifestOptInStartField{Type: schemaFieldTypeBoolean, Default: false},
+				OptInPermanent: manifestOptInStartField{Type: schemaFieldTypeBoolean, Default: false},
+			},
+			Scan: manifestOptInScanMeta{
+				StatsQuery:     optInQueryContribute,
+				PermanentQuery: optInQueryPermanent,
+				OptInValue:     optInLiteralValue,
+			},
 		},
 		ReverseInvite: manifestAvailabilityMeta{Available: false},
 		Platform:      manifestAvailabilityMeta{Available: true},
@@ -166,11 +213,17 @@ func buildScanSchemaV1() scanSchemaV1 {
 					Type:        schemaFieldTypeString,
 					Description: "absolute URL with http or https scheme and host",
 				},
-				"contribute": {
+				optInQueryContribute: {
 					Required:    false,
 					Type:        schemaFieldTypeString,
 					Description: "statistics contribute opt-in; only literal 1 opts in",
-					OptInValue:  "1",
+					OptInValue:  optInLiteralValue,
+				},
+				optInQueryPermanent: {
+					Required:    false,
+					Type:        schemaFieldTypeString,
+					Description: "permanent report opt-in; only literal 1 opts in",
+					OptInValue:  optInLiteralValue,
 				},
 			},
 		},
@@ -180,6 +233,14 @@ func buildScanSchemaV1() scanSchemaV1 {
 				ID: scanFieldSchema{
 					Type:        schemaFieldTypeString,
 					Description: "passive session id",
+				},
+				OptInStats: scanFieldSchema{
+					Type:        schemaFieldTypeBoolean,
+					Description: "statistics contribute opt-in echo",
+				},
+				OptInPermanent: scanFieldSchema{
+					Type:        schemaFieldTypeBoolean,
+					Description: "permanent report opt-in echo",
 				},
 			},
 		},

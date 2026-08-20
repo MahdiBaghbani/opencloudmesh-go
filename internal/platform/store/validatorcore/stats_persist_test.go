@@ -30,7 +30,7 @@ func testStatsHostHasher(t *testing.T) StatsHostHasher {
 	return hasher
 }
 
-func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin, targetHost string) {
+func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin, targetHost string, optInStats bool) {
 	t.Helper()
 
 	ctx := t.Context()
@@ -42,6 +42,7 @@ func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin, targetHo
 		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: targetOrigin,
 		TargetHost:   targetHost,
+		OptInStats:   optInStats,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -59,8 +60,7 @@ func TestPersistTerminalStats_OptInWritesRawAndAggregate(t *testing.T) {
 	ctx := t.Context()
 
 	runID := "run-stats-opt-in"
-	seedPassiveComplete(t, core, runID, "https://Peer.Example:443", "peer.example")
-	core.SetSessionContribute(runID, true)
+	seedPassiveComplete(t, core, runID, "https://Peer.Example:443", "peer.example", true)
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
 		t.Fatalf("StopPassiveComplete: %v", err)
@@ -110,7 +110,7 @@ func TestPersistTerminalStats_IncognitoWritesNothing(t *testing.T) {
 	ctx := t.Context()
 
 	runID := "run-stats-incognito"
-	seedPassiveComplete(t, core, runID, "https://peer.example", "peer.example")
+	seedPassiveComplete(t, core, runID, "https://peer.example", "peer.example", false)
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
 		t.Fatalf("StopPassiveComplete: %v", err)
@@ -123,6 +123,83 @@ func TestPersistTerminalStats_IncognitoWritesNothing(t *testing.T) {
 
 	if rawCount != 0 {
 		t.Fatalf("stats_raw count = %d, want 0", rawCount)
+	}
+}
+
+func TestPersistTerminalStats_PermanentOnlyWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-stats-permanent-only"
+
+	row := &TestRun{
+		TestRunID:      runID,
+		State:          StatePassiveComplete,
+		SessionKind:    SessionKindPassiveOnly,
+		TargetOrigin:   "https://peer.example",
+		TargetHost:     "peer.example",
+		OptInStats:     false,
+		OptInPermanent: true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := core.CreatePassiveSession(ctx, row); err != nil {
+		t.Fatalf("CreatePassiveSession: %v", err)
+	}
+
+	if err := core.StopPassiveComplete(ctx, runID); err != nil {
+		t.Fatalf("StopPassiveComplete: %v", err)
+	}
+
+	var rawCount int64
+	if err := core.DB().WithContext(ctx).Model(&StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 0 {
+		t.Fatalf("stats_raw count = %d, want 0 for permanent-only", rawCount)
+	}
+}
+
+func TestPersistTerminalStats_PersistedOptInWritesWithoutMemoryFlag(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-stats-persisted-opt-in"
+
+	row := &TestRun{
+		TestRunID:    runID,
+		State:        StatePassiveComplete,
+		SessionKind:  SessionKindPassiveOnly,
+		TargetOrigin: "https://peer.example",
+		TargetHost:   "peer.example",
+		OptInStats:   true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := core.CreatePassiveSession(ctx, row); err != nil {
+		t.Fatalf("CreatePassiveSession: %v", err)
+	}
+
+	if err := core.StopPassiveComplete(ctx, runID); err != nil {
+		t.Fatalf("StopPassiveComplete: %v", err)
+	}
+
+	var rawCount int64
+	if err := core.DB().WithContext(ctx).Model(&StatsRaw{}).Count(&rawCount).Error; err != nil {
+		t.Fatalf("count stats_raw: %v", err)
+	}
+
+	if rawCount != 1 {
+		t.Fatalf("stats_raw count = %d, want 1 from persisted opt_in_stats", rawCount)
 	}
 }
 
@@ -168,6 +245,7 @@ func TestPersistTerminalStats_DerivesHealthyFromTerminalSnapshotHook(t *testing.
 		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
+		OptInStats:   true,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -176,7 +254,6 @@ func TestPersistTerminalStats_DerivesHealthyFromTerminalSnapshotHook(t *testing.
 		t.Fatalf("CreatePassiveSession: %v", err)
 	}
 
-	core.SetSessionContribute(runID, true)
 	core.SetTerminalStatsSnapshot(runID, StatsSnapshot{GradeDiscovery: &pass})
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
@@ -225,6 +302,7 @@ func TestPersistTerminalStats_OverallGradeDoesNotDriveHealthy(t *testing.T) {
 		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
+		OptInStats:   true,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -232,8 +310,6 @@ func TestPersistTerminalStats_OverallGradeDoesNotDriveHealthy(t *testing.T) {
 	if err := core.CreatePassiveSession(ctx, row); err != nil {
 		t.Fatalf("CreatePassiveSession: %v", err)
 	}
-
-	core.SetSessionContribute(runID, true)
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
 		t.Fatalf("StopPassiveComplete: %v", err)
@@ -280,6 +356,7 @@ func TestSweepPassiveCompleteTTL_PersistsOptedInStatsAfterTransactionCommit(t *t
 		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
+		OptInStats:   true,
 		CreatedAt:    stale,
 		UpdatedAt:    stale,
 	}
@@ -288,7 +365,6 @@ func TestSweepPassiveCompleteTTL_PersistsOptedInStatsAfterTransactionCommit(t *t
 		t.Fatalf("seed: %v", err)
 	}
 
-	core.SetSessionContribute(runID, true)
 	core.SetTerminalStatsSnapshot(runID, StatsSnapshot{GradeDiscovery: &pass})
 
 	if err := core.sweepPassiveCompleteTTL(ctx); err != nil {

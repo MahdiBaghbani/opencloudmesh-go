@@ -232,6 +232,55 @@ func TestPruneTerminalSessions_SkipsAlreadyHarvestedRun(t *testing.T) {
 	}
 }
 
+func TestPruneTerminalSessions_SkipsPermanentOptIn(t *testing.T) {
+	t.Parallel()
+
+	sqlCore := openPeerStore(t)
+
+	core, attachErr := Attach(sqlCore.DB(), DefaultSessionConfig())
+	if attachErr != nil {
+		t.Fatalf("Attach: %v", attachErr)
+	}
+
+	db := core.DB()
+	ctx := t.Context()
+	now := time.Now().Unix()
+	staleFinished := now - int64(60*24*3600)
+	staleReason := "probe_finished"
+
+	permanent := &TestRun{
+		TestRunID:      "run-prune-permanent",
+		State:          StateTerminalPass,
+		TargetOrigin:   "https://target.example",
+		TargetHost:     "target.example",
+		DiscoveryURL:   "https://target.example/.well-known/ocm",
+		JwksURI:        "https://target.example/jwks.json",
+		ManifestSchema: "ocm-validator-manifest/v1",
+		SessionKind:    SessionKindPassiveOnly,
+		TerminalReason: &staleReason,
+		FinishedAt:     &staleFinished,
+		OptInPermanent: true,
+		CreatedAt:      staleFinished,
+		UpdatedAt:      staleFinished,
+	}
+
+	if createErr := db.WithContext(ctx).Create(permanent).Error; createErr != nil {
+		t.Fatalf("seed permanent run: %v", createErr)
+	}
+
+	seedTerminalRun(t, db, ctx, "run-prune-ordinary", staleFinished, staleReason)
+	seedRunChildSet(t, db, "run-prune-permanent")
+
+	if pruneErr := core.PruneTerminalSessions(ctx, 30); pruneErr != nil {
+		t.Fatalf("PruneTerminalSessions: %v", pruneErr)
+	}
+
+	assertNoTombstone(t, core, "run-prune-permanent", StateTerminalPass)
+	assertChildRowCount(t, db, "report_exchange", "run-prune-permanent", 1)
+	assertChildRowCount(t, db, "evidence_row", "run-prune-permanent", 1)
+	assertTombstone(t, core, "run-prune-ordinary", staleReason, staleFinished)
+}
+
 func seedTerminalRun(t *testing.T, db *gorm.DB, ctx context.Context, id string, finished int64, reason string) {
 	t.Helper()
 

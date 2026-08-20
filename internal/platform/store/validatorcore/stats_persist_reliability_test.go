@@ -66,6 +66,7 @@ func TestBestEffortPersistTerminalStats_SurvivesCanceledContext(t *testing.T) {
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		FinishedAt:   &now,
+		OptInStats:   true,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -73,8 +74,6 @@ func TestBestEffortPersistTerminalStats_SurvivesCanceledContext(t *testing.T) {
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
 		t.Fatalf("seed terminal row: %v", err)
 	}
-
-	core.SetSessionContribute(runID, true)
 
 	canceledCtx, cancel := context.WithCancel(ctx)
 	cancel()
@@ -108,6 +107,7 @@ func TestBestEffortPersistTerminalStats_LogsPersistenceFailure(t *testing.T) {
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		FinishedAt:   &now,
+		OptInStats:   true,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -115,8 +115,6 @@ func TestBestEffortPersistTerminalStats_LogsPersistenceFailure(t *testing.T) {
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
 		t.Fatalf("seed terminal row: %v", err)
 	}
-
-	core.SetSessionContribute(runID, true)
 
 	bestEffortPersistTerminalStats(core, ctx, runID)
 

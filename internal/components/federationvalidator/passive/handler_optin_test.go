@@ -1,0 +1,359 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+package passive
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
+)
+
+func TestHandleStart_FourConsentCombinations(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		body      map[string]any
+		wantStats bool
+		wantPerm  bool
+	}{
+		{
+			name:      "neither omitted",
+			body:      map[string]any{"target": "https://peer.example"},
+			wantStats: false,
+			wantPerm:  false,
+		},
+		{
+			name: "stats only",
+			body: map[string]any{
+				"target":         "https://peer.example",
+				"optInStats":     true,
+				"optInPermanent": false,
+			},
+			wantStats: true,
+			wantPerm:  false,
+		},
+		{
+			name: "permanent only",
+			body: map[string]any{
+				"target":         "https://peer.example",
+				"optInStats":     false,
+				"optInPermanent": true,
+			},
+			wantStats: false,
+			wantPerm:  true,
+		},
+		{
+			name: "both",
+			body: map[string]any{
+				"target":         "https://peer.example",
+				"optInStats":     true,
+				"optInPermanent": true,
+			},
+			wantStats: true,
+			wantPerm:  true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/start",
+				bytes.NewReader(mustJSON(t, tc.body)),
+			)
+			rec := httptest.NewRecorder()
+			h.HandleStart(rec, req)
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("status = %d, want 201 body %s", rec.Code, rec.Body.String())
+			}
+
+			created := decodeCreateEcho(t, rec)
+			if created.OptInStats != tc.wantStats || created.OptInPermanent != tc.wantPerm {
+				t.Fatalf("echo = %+v, want stats=%v permanent=%v", created, tc.wantStats, tc.wantPerm)
+			}
+
+			assertCreateConsentRow(
+				t,
+				store,
+				created.ID,
+				tc.wantStats,
+				tc.wantPerm,
+				validatorcore.OptInChannelStart,
+			)
+		})
+	}
+}
+
+func TestHandleScan_QueryConsentPairs(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		query     string
+		wantStats bool
+		wantPerm  bool
+	}{
+		{name: "neither", query: "target=https://peer.example", wantStats: false, wantPerm: false},
+		{name: "stats only", query: "target=https://peer.example&contribute=1", wantStats: true, wantPerm: false},
+		{name: "permanent only", query: "target=https://peer.example&permanent=1", wantStats: false, wantPerm: true},
+		{name: "both", query: "target=https://peer.example&contribute=1&permanent=1", wantStats: true, wantPerm: true},
+		{name: "contribute true stays off", query: "target=https://peer.example&contribute=true", wantStats: false, wantPerm: false},
+		{name: "permanent yes stays off", query: "target=https://peer.example&permanent=yes", wantStats: false, wantPerm: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/scan?"+tc.query,
+				nil,
+			)
+			rec := httptest.NewRecorder()
+			h.HandleScan(rec, req)
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("status = %d, want 201 body %s", rec.Code, rec.Body.String())
+			}
+
+			created := decodeCreateEcho(t, rec)
+			if created.OptInStats != tc.wantStats || created.OptInPermanent != tc.wantPerm {
+				t.Fatalf("echo = %+v, want stats=%v permanent=%v", created, tc.wantStats, tc.wantPerm)
+			}
+
+			assertCreateConsentRow(
+				t,
+				store,
+				created.ID,
+				tc.wantStats,
+				tc.wantPerm,
+				validatorcore.OptInChannelScan,
+			)
+		})
+	}
+}
+
+func TestHandleStart_UnknownContributeField(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(openHandlerTestStore(t), nil)
+	body := mustJSON(t, map[string]any{
+		"target":     "https://peer.example",
+		"contribute": true,
+	})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/start", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	h.HandleStart(rec, req)
+
+	assertJSONError(t, rec, http.StatusBadRequest, "invalid_request")
+}
+
+func TestHandleStart_InvalidOptInValues(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "stats number", body: `{"target":"https://peer.example","optInStats":1}`},
+		{name: "stats string", body: `{"target":"https://peer.example","optInStats":"true"}`},
+		{name: "stats null", body: `{"target":"https://peer.example","optInStats":null}`},
+		{name: "permanent string", body: `{"target":"https://peer.example","optInPermanent":"1"}`},
+		{name: "permanent null", body: `{"target":"https://peer.example","optInPermanent":null}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := NewHandler(openHandlerTestStore(t), nil)
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/start",
+				bytes.NewReader([]byte(tc.body)),
+			)
+			rec := httptest.NewRecorder()
+			h.HandleStart(rec, req)
+
+			assertJSONError(t, rec, http.StatusBadRequest, "invalid_request")
+		})
+	}
+}
+
+func TestHandleStart_ExtendRejectsOptIn(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		body map[string]any
+	}{
+		{name: "stats true", body: map[string]any{"id": "run-extend", "optInStats": true}},
+		{name: "permanent false present", body: map[string]any{"id": "run-extend", "optInPermanent": false}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := NewHandler(openHandlerTestStore(t), nil)
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/start",
+				bytes.NewReader(mustJSON(t, tc.body)),
+			)
+			rec := httptest.NewRecorder()
+			h.HandleStart(rec, req)
+
+			assertJSONError(t, rec, http.StatusBadRequest, codeOptInCreateOnly)
+		})
+	}
+}
+
+func TestHandleStart_CreateEchoIncludesFalseValues(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(openHandlerTestStore(t), nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/start",
+		bytes.NewReader(mustJSON(t, map[string]string{"target": "https://peer.example"})),
+	)
+	rec := httptest.NewRecorder()
+	h.HandleStart(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", rec.Code)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	assertExactKeys(t, raw, []string{"id", "optInPermanent", "optInStats"})
+
+	var stats bool
+	if err := json.Unmarshal(raw["optInStats"], &stats); err != nil {
+		t.Fatalf("optInStats: %v", err)
+	}
+
+	var permanent bool
+	if err := json.Unmarshal(raw["optInPermanent"], &permanent); err != nil {
+		t.Fatalf("optInPermanent: %v", err)
+	}
+
+	if stats || permanent {
+		t.Fatalf("default echo stats=%v permanent=%v, want both false", stats, permanent)
+	}
+}
+
+func decodeCreateEcho(t *testing.T, rec *httptest.ResponseRecorder) startCreateResponse {
+	t.Helper()
+
+	var created startCreateResponse
+	if err := json.NewDecoder(rec.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+
+	if created.ID == "" {
+		t.Fatal("expected non-empty session id")
+	}
+
+	return created
+}
+
+func assertCreateConsentRow(
+	t *testing.T,
+	store *validatorcore.Core,
+	runID string,
+	wantStats, wantPerm bool,
+	wantChannel string,
+) {
+	t.Helper()
+
+	row, err := store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if row.OptInStats != wantStats || row.OptInPermanent != wantPerm {
+		t.Fatalf(
+			"row consents stats=%v permanent=%v, want %v/%v",
+			row.OptInStats,
+			row.OptInPermanent,
+			wantStats,
+			wantPerm,
+		)
+	}
+
+	assertConsentProvenance(t, "stats", wantStats, wantChannel, row.OptInStatsChannel, row.OptInStatsAt)
+	assertConsentProvenance(t, "permanent", wantPerm, wantChannel, row.OptInPermanentChannel, row.OptInPermanentAt)
+}
+
+func assertConsentProvenance(
+	t *testing.T,
+	label string,
+	selected bool,
+	wantChannel string,
+	channel *string,
+	at *int64,
+) {
+	t.Helper()
+
+	if !selected {
+		if channel != nil || at != nil {
+			t.Fatalf("%s provenance = (%v, %v), want both NULL", label, channel, at)
+		}
+
+		return
+	}
+
+	if channel == nil || *channel != wantChannel {
+		t.Fatalf("%s channel = %v, want %q", label, channel, wantChannel)
+	}
+
+	if at == nil || *at <= 0 {
+		t.Fatalf("%s timestamp = %v, want set", label, at)
+	}
+}
+
+func assertJSONError(t *testing.T, rec *httptest.ResponseRecorder, status int, code string) {
+	t.Helper()
+
+	if rec.Code != status {
+		t.Fatalf("status = %d, want %d body %s", rec.Code, status, rec.Body.String())
+	}
+
+	var payload map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+
+	if payload["error"] != code {
+		t.Fatalf("error = %q, want %q", payload["error"], code)
+	}
+}

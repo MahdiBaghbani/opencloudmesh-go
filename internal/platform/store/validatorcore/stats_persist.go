@@ -32,40 +32,6 @@ func (c *Core) SetStatsHostHasher(hasher StatsHostHasher) {
 	c.statsHasher = hasher
 }
 
-// SetSessionContribute records per-session statistics opt-in for testRunID.
-// contribute is not persisted as a database column; it lives in memory until
-// terminalization clears it.
-func (c *Core) SetSessionContribute(testRunID string, contribute bool) {
-	if c == nil || testRunID == "" || !contribute {
-		return
-	}
-
-	c.sessionContrib.Store(testRunID, true)
-}
-
-func (c *Core) sessionContributes(testRunID string) bool {
-	if c == nil || testRunID == "" {
-		return false
-	}
-
-	value, ok := c.sessionContrib.Load(testRunID)
-	if !ok {
-		return false
-	}
-
-	contribute, ok := value.(bool)
-
-	return ok && contribute
-}
-
-func (c *Core) clearSessionContribute(testRunID string) {
-	if c == nil || testRunID == "" {
-		return
-	}
-
-	c.sessionContrib.Delete(testRunID)
-}
-
 // SetTerminalStatsSnapshot stores the in-memory terminal grade snapshot for
 // testRunID until terminal stats persistence completes. Conformance wiring will
 // populate area grades here; TestRun.overall_grade is not mapped into stats_raw
@@ -105,31 +71,31 @@ func (c *Core) clearTerminalStatsOverlay(testRunID string) {
 }
 
 func (c *Core) clearTerminalStatsState(testRunID string) {
-	c.clearSessionContribute(testRunID)
 	c.clearTerminalStatsOverlay(testRunID)
 }
 
 // persistTerminalStats writes one stats_raw row and increments stats_aggregate
-// when the session opted in at request time. Incognito sessions write nothing.
-// Errors are returned for observability; callers treat persistence as best-effort
-// after the session is already terminal.
+// when the persisted test_run opted into statistics. Incognito and
+// permanent-only sessions write nothing. The row is loaded first so consent
+// survives process restart. Errors are returned for observability; callers
+// treat persistence as best-effort after the session is already terminal.
 func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
 	}
 
-	if !c.sessionContributes(testRunID) {
+	row, err := c.GetTestRun(ctx, testRunID)
+	if err != nil {
+		return fmt.Errorf("validatorcore: load test run for stats: %w", err)
+	}
+
+	if !row.OptInStats {
 		c.clearTerminalStatsState(testRunID)
 
 		return nil
 	}
 
 	defer c.clearTerminalStatsState(testRunID)
-
-	row, err := c.GetTestRun(ctx, testRunID)
-	if err != nil {
-		return fmt.Errorf("validatorcore: load test run for stats: %w", err)
-	}
 
 	if row.FinishedAt == nil {
 		return errors.New("validatorcore: terminal stats require finished_at")

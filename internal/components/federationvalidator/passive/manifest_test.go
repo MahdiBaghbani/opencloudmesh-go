@@ -107,15 +107,9 @@ func TestHandleManifest_ScanSchemaMatchesLiveHandler(t *testing.T) {
 		t.Fatalf("scan.request.method = %q, want GET", scan.Request.Method)
 	}
 
-	target, ok := scan.Request.Query["target"]
-	if !ok || !target.Required || target.Type != schemaFieldTypeString {
-		t.Fatalf("scan target query = %+v, want required string", target)
-	}
-
-	contribute, ok := scan.Request.Query["contribute"]
-	if !ok || contribute.Required || contribute.OptInValue != "1" {
-		t.Fatalf("scan contribute query = %+v, want optional optInValue 1", contribute)
-	}
+	assertRequiredScanQuery(t, scan.Request.Query, "target")
+	assertOptionalScanOptInQuery(t, scan.Request.Query, optInQueryContribute)
+	assertOptionalScanOptInQuery(t, scan.Request.Query, optInQueryPermanent)
 
 	if scan.Response.SuccessStatus != http.StatusCreated {
 		t.Fatalf("scan successStatus = %d, want 201", scan.Response.SuccessStatus)
@@ -123,6 +117,16 @@ func TestHandleManifest_ScanSchemaMatchesLiveHandler(t *testing.T) {
 
 	if scan.Response.Body.ID.Type != schemaFieldTypeString || scan.Response.Body.ID.Description == "" {
 		t.Fatalf("scan response id = %+v, want string session id", scan.Response.Body.ID)
+	}
+
+	if scan.Response.Body.OptInStats.Type != schemaFieldTypeBoolean ||
+		scan.Response.Body.OptInStats.Description == "" {
+		t.Fatalf("scan response optInStats = %+v, want boolean", scan.Response.Body.OptInStats)
+	}
+
+	if scan.Response.Body.OptInPermanent.Type != schemaFieldTypeBoolean ||
+		scan.Response.Body.OptInPermanent.Description == "" {
+		t.Fatalf("scan response optInPermanent = %+v, want boolean", scan.Response.Body.OptInPermanent)
 	}
 
 	h := NewHandler(openHandlerTestStore(t), nil)
@@ -140,12 +144,19 @@ func TestHandleManifest_ScanSchemaMatchesLiveHandler(t *testing.T) {
 		t.Fatalf("live scan status = %d, want 201", rec.Code)
 	}
 
-	var live map[string]string
+	var live map[string]json.RawMessage
 	if err := json.NewDecoder(rec.Body).Decode(&live); err != nil {
 		t.Fatalf("decode live scan: %v", err)
 	}
 
-	if _, ok := live["id"]; !ok {
+	assertExactKeys(t, live, []string{"id", "optInPermanent", "optInStats"})
+
+	var id string
+	if err := json.Unmarshal(live["id"], &id); err != nil {
+		t.Fatalf("live scan id: %v", err)
+	}
+
+	if id == "" {
 		t.Fatal("live scan response must contain id field")
 	}
 }
@@ -191,6 +202,8 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 	wantTopLevel := []string{
 		"apiVersion",
 		"contribute",
+		"optIn",
+		"permanent",
 		"platform",
 		"reverseInvite",
 		"routes",
@@ -231,6 +244,7 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 	}
 
 	assertExactKeys(t, contribute, []string{"available", "optInQuery", "optInValue"})
+	assertOptInWireKeys(t, raw)
 
 	var scan map[string]json.RawMessage
 	if err := json.Unmarshal(raw["scan"], &scan); err != nil {
@@ -265,6 +279,7 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 	}
 
 	assertExactKeys(t, scanContribute, []string{"description", "optInValue", "required", "type"})
+	assertScanQueryPermanentKeys(t, scanQuery)
 
 	var scanResponse map[string]json.RawMessage
 	if err := json.Unmarshal(scan["response"], &scanResponse); err != nil {
@@ -272,6 +287,11 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 	}
 
 	assertExactKeys(t, scanResponse, []string{"body", "successStatus"})
+	assertExactKeys(t, mustRawObject(t, scanResponse["body"], "scan response body"), []string{
+		"id",
+		"optInPermanent",
+		"optInStats",
+	})
 }
 
 func TestBuildManifest_RoutesWireContract(t *testing.T) {
@@ -346,9 +366,7 @@ func TestHandleManifest_CapabilityMetadataLockedValues(t *testing.T) {
 		t.Fatalf("sessionKind.scanDefault = %q", payload.SessionKind.ScanDefault)
 	}
 
-	if !payload.Contribute.Available || payload.Contribute.OptInQuery != "contribute" || payload.Contribute.OptInValue != "1" {
-		t.Fatalf("contribute = %+v", payload.Contribute)
-	}
+	assertConsentAdvertisement(t, payload)
 
 	if payload.ReverseInvite.Available {
 		t.Fatal("reverseInvite.available must be false in v1.3.0")
@@ -371,6 +389,88 @@ func TestHandleManifest_MethodNotAllowed(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)
 	}
+}
+
+func assertRequiredScanQuery(t *testing.T, query map[string]scanQueryParam, key string) {
+	t.Helper()
+
+	param, ok := query[key]
+	if !ok || !param.Required || param.Type != schemaFieldTypeString {
+		t.Fatalf("scan %s query = %+v, want required string", key, param)
+	}
+}
+
+func assertOptionalScanOptInQuery(t *testing.T, query map[string]scanQueryParam, key string) {
+	t.Helper()
+
+	param, ok := query[key]
+	if !ok || param.Required || param.OptInValue != optInLiteralValue {
+		t.Fatalf("scan %s query = %+v, want optional optInValue 1", key, param)
+	}
+}
+
+func assertOptInWireKeys(t *testing.T, raw map[string]json.RawMessage) {
+	t.Helper()
+
+	permanent := mustRawObject(t, raw["permanent"], "permanent")
+	assertExactKeys(t, permanent, []string{"available", "optInQuery", "optInValue"})
+
+	optIn := mustRawObject(t, raw["optIn"], "optIn")
+	assertExactKeys(t, optIn, []string{"default", "scan", "start"})
+	assertExactKeys(t, mustRawObject(t, optIn["start"], "optIn start"), []string{"optInPermanent", "optInStats"})
+	assertExactKeys(t, mustRawObject(t, optIn["scan"], "optIn scan"), []string{"optInValue", "permanentQuery", "statsQuery"})
+}
+
+func assertScanQueryPermanentKeys(t *testing.T, scanQuery map[string]json.RawMessage) {
+	t.Helper()
+
+	assertExactKeys(
+		t,
+		mustRawObject(t, scanQuery[optInQueryPermanent], "scan query permanent"),
+		[]string{"description", "optInValue", "required", "type"},
+	)
+}
+
+func assertConsentAdvertisement(t *testing.T, payload manifestRouteResponse) {
+	t.Helper()
+
+	if !payload.Contribute.Available ||
+		payload.Contribute.OptInQuery != optInQueryContribute ||
+		payload.Contribute.OptInValue != optInLiteralValue {
+		t.Fatalf("contribute = %+v", payload.Contribute)
+	}
+
+	if !payload.Permanent.Available ||
+		payload.Permanent.OptInQuery != optInQueryPermanent ||
+		payload.Permanent.OptInValue != optInLiteralValue {
+		t.Fatalf("permanent = %+v", payload.Permanent)
+	}
+
+	if payload.OptIn.Default != "neither" ||
+		payload.OptIn.Scan.StatsQuery != optInQueryContribute ||
+		payload.OptIn.Scan.PermanentQuery != optInQueryPermanent ||
+		payload.OptIn.Scan.OptInValue != optInLiteralValue {
+		t.Fatalf("optIn = %+v", payload.OptIn)
+	}
+
+	if payload.OptIn.Start.OptInStats.Default || payload.OptIn.Start.OptInPermanent.Default {
+		t.Fatalf(
+			"optIn.start defaults = stats=%v permanent=%v, want both false",
+			payload.OptIn.Start.OptInStats.Default,
+			payload.OptIn.Start.OptInPermanent.Default,
+		)
+	}
+}
+
+func mustRawObject(t *testing.T, raw json.RawMessage, label string) map[string]json.RawMessage {
+	t.Helper()
+
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		t.Fatalf("unmarshal %s: %v", label, err)
+	}
+
+	return obj
 }
 
 func assertExactKeys(t *testing.T, raw map[string]json.RawMessage, want []string) {

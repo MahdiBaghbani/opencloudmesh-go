@@ -54,13 +54,10 @@ func NewHandlerWithDiscovery(
 	}
 }
 
-type startRequest struct {
-	Target string `json:"target"`
-	ID     string `json:"id"`
-}
-
 type startCreateResponse struct {
-	ID string `json:"id"`
+	ID             string `json:"id"`
+	OptInStats     bool   `json:"optInStats"`
+	OptInPermanent bool   `json:"optInPermanent"`
 }
 
 type startExtendResponse struct {
@@ -101,8 +98,8 @@ func (h *Handler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req startRequest
-	if unmarshalErr := json.Unmarshal(body, &req); unmarshalErr != nil {
+	req, decodeErr := decodeStartRequest(body)
+	if decodeErr != nil {
 		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 
 		return
@@ -117,9 +114,26 @@ func (h *Handler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if hasID && optInKeysPresent(req) {
+		writeJSONError(
+			w,
+			h.log,
+			http.StatusBadRequest,
+			codeOptInCreateOnly,
+			"opt-in fields are write-once at create",
+		)
+
+		return
+	}
+
 	switch {
 	case hasTarget:
-		h.handleCreateSession(w, r, strings.TrimSpace(req.Target), false)
+		h.handleCreateSession(
+			w,
+			r,
+			strings.TrimSpace(req.Target),
+			startConsent(req, validatorcore.OptInChannelStart),
+		)
 	case hasID:
 		h.handleExtendSession(w, r, strings.TrimSpace(req.ID))
 	default:
@@ -209,7 +223,8 @@ func (h *Handler) HandleStop(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleScan serves GET /api/scan for passive-core session creation with optional
-// statistics contribute opt-in via the contribute query parameter.
+// statistics contribute opt-in via the contribute query parameter and optional
+// permanent report opt-in via the permanent query parameter.
 func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -230,8 +245,12 @@ func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contribute := ParseContribute(r.URL.Query().Get("contribute"))
-	h.handleCreateSession(w, r, target, contribute)
+	opt := sessionOptIn{
+		Stats:     ParseContribute(r.URL.Query().Get("contribute")),
+		Permanent: ParsePermanent(r.URL.Query().Get("permanent")),
+		Channel:   validatorcore.OptInChannelScan,
+	}
+	h.handleCreateSession(w, r, target, opt)
 }
 
 // HandleSession serves GET /api/session/{id} for anonymous session polling.
@@ -274,7 +293,12 @@ func (h *Handler) HandleSession(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) handleCreateSession(w http.ResponseWriter, r *http.Request, target string, contribute bool) {
+func (h *Handler) handleCreateSession(
+	w http.ResponseWriter,
+	r *http.Request,
+	target string,
+	opt sessionOptIn,
+) {
 	origin, host, err := parseTarget(target)
 	if err != nil {
 		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", err.Error())
@@ -301,6 +325,7 @@ func (h *Handler) handleCreateSession(w http.ResponseWriter, r *http.Request, ta
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
+	applyCreateConsent(row, opt, now)
 
 	ctx := r.Context()
 
@@ -310,13 +335,13 @@ func (h *Handler) handleCreateSession(w http.ResponseWriter, r *http.Request, ta
 		return
 	}
 
-	if contribute {
-		h.store.SetSessionContribute(testRunID, true)
-	}
-
 	h.probe.StartAsync(context.WithoutCancel(ctx), testRunID)
 
-	writeJSON(w, h.log, http.StatusCreated, startCreateResponse{ID: testRunID})
+	writeJSON(w, h.log, http.StatusCreated, startCreateResponse{
+		ID:             testRunID,
+		OptInStats:     opt.Stats,
+		OptInPermanent: opt.Permanent,
+	})
 }
 
 func (h *Handler) handleExtendSession(w http.ResponseWriter, r *http.Request, testRunID string) {

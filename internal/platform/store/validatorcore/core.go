@@ -22,7 +22,6 @@ type Core struct {
 	db                     *gorm.DB
 	sessionCfg             SessionConfig
 	statsHasher            StatsHostHasher
-	sessionContrib         sync.Map
 	terminalStatsSnapshots sync.Map
 }
 

@@ -79,6 +79,7 @@ const (
 	colFinishedAt     = "finished_at"
 	colTerminalReason = "terminal_reason"
 	colIsActive       = "is_active"
+	colBobUserID      = "bob_user_id"
 	colProviderID     = "provider_id"
 	colLocalIdentity  = "local_identity"
 	colHostHash       = "host_hash"

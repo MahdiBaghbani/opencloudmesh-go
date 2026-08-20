@@ -5,8 +5,16 @@
 
 package passive
 
-// ParseContribute reports whether the scan contribute query parameter opts in.
-// Only the literal value "1" opts in; missing, "0", and other values default off.
+// ParseContribute reports whether the scan contribute query parameter opts in
+// to statistics. Only the literal value "1" opts in; missing, "0", and other
+// values default off.
 func ParseContribute(raw string) bool {
+	return raw == "1"
+}
+
+// ParsePermanent reports whether the scan permanent query parameter opts in
+// to a durable report. Only the literal value "1" opts in; missing, "0", and
+// other values default off. It never implies statistics consent.
+func ParsePermanent(raw string) bool {
 	return raw == "1"
 }

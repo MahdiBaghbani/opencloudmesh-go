@@ -11,6 +11,12 @@ const (
 	SessionKindActiveFull  = "active_full"
 )
 
+// Opt-in create channels recorded on TestRun when a consent is selected.
+const (
+	OptInChannelStart = "start"
+	OptInChannelScan  = "scan"
+)
+
 // TestRun state values (16-value session state enum). Forward sub-progress stays
 // on step or coordinator labels, not on State. The test_run.state CHECK
 // constraint in the validator schema lists exactly these values.
