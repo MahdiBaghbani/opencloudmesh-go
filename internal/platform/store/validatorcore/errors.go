@@ -46,6 +46,19 @@ var (
 	// ErrStateTransitionMiss is returned when a guarded update affects zero rows.
 	ErrStateTransitionMiss = errors.New("state transition miss")
 
+	// ErrTerminalExpectedStatesEmpty is returned when an active terminal
+	// release is requested without an expected-state set; empty never means
+	// any state.
+	ErrTerminalExpectedStatesEmpty = errors.New("terminal expected states empty")
+
+	// ErrTerminalExpectedStatesTerminal is returned when an expected-state set
+	// contains a terminal state; expected states are non-terminal pre-images.
+	ErrTerminalExpectedStatesTerminal = errors.New("terminal expected states contain terminal state")
+
+	// ErrTerminalStateInvalid is returned when the requested terminal state is
+	// not one of terminal_pass, terminal_fail, or interrupted.
+	ErrTerminalStateInvalid = errors.New("invalid terminal state")
+
 	// ErrInvalidStartBody is returned for malformed POST /start bodies.
 	ErrInvalidStartBody = errors.New("invalid start request body")
 
