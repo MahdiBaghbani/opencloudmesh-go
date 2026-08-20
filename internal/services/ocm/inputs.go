@@ -6,6 +6,8 @@
 package ocm
 
 import (
+	"net/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
@@ -36,4 +38,8 @@ type Inputs struct {
 	KeyManager          *crypto.KeyManager
 	// MustInviteEnforced gates inbound share creation on an exchanged invite.
 	MustInviteEnforced bool
+	// InviteAcceptedDecorator optionally wraps the POST /ocm/invite-accepted
+	// handler from outside; the validator uses it to observe acceptances
+	// without the product handler knowing about test runs.
+	InviteAcceptedDecorator func(http.HandlerFunc) http.HandlerFunc
 }

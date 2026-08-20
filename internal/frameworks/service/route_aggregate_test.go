@@ -197,6 +197,9 @@ func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 	t.Parallel()
 
 	opts := validatorEnabledRouteOpts()
+	// RouteIDValidatorAPISessionReverseInvite is absent here on purpose: the
+	// paste route is advertised only after a validator service mounts its
+	// handler, which never happens in this test binary.
 	wantExact := map[string]struct{}{
 		service.RouteIDValidatorAPIStatistics:      {},
 		service.RouteIDValidatorAPISession:         {},
@@ -221,6 +224,18 @@ func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 
 	if matchExactCount != len(wantExact) {
 		t.Fatalf("MatchExact row count = %d, want %d", matchExactCount, len(wantExact))
+	}
+}
+
+func TestRoutes_ReverseInviteNotAdvertisedWithoutMountedHandler(t *testing.T) {
+	t.Parallel()
+
+	// No validator service is constructed in this test binary, so the
+	// reverse-invite paste route must not be advertised.
+	for _, row := range service.Routes(validatorEnabledRouteOpts()) {
+		if row.ID == service.RouteIDValidatorAPISessionReverseInvite {
+			t.Fatal("reverse-invite route advertised without a mounted handler")
+		}
 	}
 }
 

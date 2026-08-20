@@ -20,9 +20,15 @@ func mountValidatorRoutes(
 	r chi.Router,
 	passiveHandler *passive.Handler,
 	startRatelimit func(http.Handler) http.Handler,
+	reverseInviteHandler http.HandlerFunc,
 ) {
 	mountPlaneARoutes(r, passiveHandler, startRatelimit)
 	r.Method(http.MethodGet, RouteHTMLReport, http.HandlerFunc(passiveHandler.HandleReportHTML))
+	// The paste route is validator-only and deliberately outside the plane-A
+	// set so it is never advertised in the anonymous manifest.
+	if reverseInviteHandler != nil {
+		r.Method(http.MethodPost, RouteAPISessionReverseInvite, reverseInviteHandler)
+	}
 }
 
 func mountPlaneARoutes(

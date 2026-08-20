@@ -7,9 +7,21 @@ package validator
 
 import (
 	"net/http"
+	"sync/atomic"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
+
+// reverseInviteMounted reports whether this process mounted the reverse-invite
+// paste handler. The route is advertised in the aggregate only when it is
+// actually mounted, so discovery and policy never point at a 404. The flag is
+// monotonic: once any validator service mounts the handler, the advertisement
+// stays for the process lifetime.
+var reverseInviteMounted atomic.Bool
+
+func markReverseInviteRouteMounted() {
+	reverseInviteMounted.Store(true)
+}
 
 const (
 	// RouteStartCreateSession is POST /validator/start for passive-core create
@@ -21,6 +33,8 @@ const (
 	RouteAPIScan = "/api/scan"
 	// RouteAPISession is GET /validator/api/session/{id}.
 	RouteAPISession = "/api/session/{id}"
+	// RouteAPISessionReverseInvite is POST /validator/api/session/{id}/reverse-invite.
+	RouteAPISessionReverseInvite = "/api/session/{id}/reverse-invite"
 	// RouteAPIReport is GET /validator/api/report/{id}.
 	// Duplicated in the passive package because that package cannot import
 	// services/validator; keep the strings synchronized.
@@ -45,7 +59,7 @@ func init() {
 }
 
 func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
-	return []service.RouteSpec{
+	specs := []service.RouteSpec{
 		{
 			ID:               "validator-start-create-session",
 			Service:          string(service.BuildValidator),
@@ -85,6 +99,17 @@ func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 			Service:          string(service.BuildValidator),
 			Method:           http.MethodGet,
 			Pattern:          RouteAPISession,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthNone,
+			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               service.RouteIDValidatorAPISessionReverseInvite,
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodPost,
+			Pattern:          RouteAPISessionReverseInvite,
 			SessionPolicy:    service.SessionPublic,
 			HandlerAuth:      service.HandlerAuthNone,
 			SurfaceClass:     service.SurfaceAPI,
@@ -158,4 +183,21 @@ func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 			FeatureCondition: service.FeatureValidatorEnabled,
 		},
 	}
+
+	if reverseInviteMounted.Load() {
+		return specs
+	}
+
+	// The paste route is advertised only when its handler is mounted.
+	out := make([]service.RouteSpec, 0, len(specs)-1)
+
+	for _, spec := range specs {
+		if spec.ID == service.RouteIDValidatorAPISessionReverseInvite {
+			continue
+		}
+
+		out = append(out, spec)
+	}
+
+	return out
 }

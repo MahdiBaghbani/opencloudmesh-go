@@ -111,13 +111,18 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	peerResolver := peer.NewResolver()
 	r := chi.NewRouter()
 
+	inviteAcceptedHandler := invitesHandler.HandleInviteAccepted
+	if inputs.InviteAcceptedDecorator != nil {
+		inviteAcceptedHandler = inputs.InviteAcceptedDecorator(inviteAcceptedHandler)
+	}
+
 	routeOpts := service.RouteOpts{
 		ExternalBasePath:  inputs.LocalIdentity.ExternalBasePath,
 		TokenExchangePath: c.TokenExchange.Path,
 	}
 	if err := mountProtocolRoutes(r, routeOpts, inputs, routeHandlers{
 		shares:         sharesHandler.CreateShare,
-		inviteAccepted: invitesHandler.HandleInviteAccepted,
+		inviteAccepted: inviteAcceptedHandler,
 		token:          tokenHandler.HandleToken,
 		notifications:  notificationsHandler.HandleNotification,
 	}, peerResolver); err != nil {

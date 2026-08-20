@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -47,6 +48,11 @@ type Inputs struct {
 	Ratelimit           ratelimit.Inputs
 	InterceptorProfiles map[string]map[string]any
 	Log                 *slog.Logger
+
+	// ReverseInvite is the prebuilt reverse-invite orchestration service. The
+	// paste route mounts only when it is present; wiring builds it once and
+	// shares the instance with the ocm invite-accepted decorator.
+	ReverseInvite *reverseinvite.Service
 }
 
 // Service is the federation validator HTTP service shell.
@@ -92,7 +98,20 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			return nil, ratelimitErr
 		}
 
-		mountValidatorRoutes(r, passiveHandler, startRatelimit)
+		var reverseHandler http.HandlerFunc
+		if inputs.ReverseInvite != nil {
+			reverseHandler = inputs.ReverseInvite.HandleReverseInvite
+		} else {
+			// The paste route stays unmounted and unadvertised; make the gap
+			// observable instead of silently dropping the route.
+			log.Warn("validator: reverse-invite service not wired, paste route disabled")
+		}
+
+		mountValidatorRoutes(r, passiveHandler, startRatelimit, reverseHandler)
+
+		if reverseHandler != nil {
+			markReverseInviteRouteMounted()
+		}
 	}
 
 	return &Service{router: r, conf: &c, log: log}, nil

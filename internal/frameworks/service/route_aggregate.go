@@ -55,6 +55,7 @@ func validatorMatchExact(id string) bool {
 	switch id {
 	case RouteIDValidatorAPIStatistics,
 		RouteIDValidatorAPISession,
+		RouteIDValidatorAPISessionReverseInvite,
 		RouteIDValidatorAPIReport,
 		RouteIDValidatorHTMLReport,
 		RouteIDValidatorAPIReportRetention,
