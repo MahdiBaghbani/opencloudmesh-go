@@ -7,6 +7,7 @@ package validatorcore
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 	store "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
-func TestPruneTerminalSessions_TombstonesRunAndHarvestsChildren(t *testing.T) {
+func TestPruneTerminalSessions_HardDeletesRunAndChildren(t *testing.T) {
 	t.Parallel()
 
 	// sqlitecore enables PRAGMA foreign_keys on every connection, so this
@@ -48,7 +49,7 @@ func TestPruneTerminalSessions_TombstonesRunAndHarvestsChildren(t *testing.T) {
 	seedTerminalRun(t, db, ctx, "run-prune-stale", staleFinished, staleReason)
 	seedTerminalRun(t, db, ctx, "run-prune-recent", recentFinished, staleReason)
 
-	// An old non-terminal run must never be pruned or tombstoned.
+	// An old non-terminal run must never be pruned or deleted.
 	nonTerminal := &TestRun{
 		TestRunID:      "run-prune-nonterminal",
 		State:          StatePassiveRunning,
@@ -84,15 +85,9 @@ func TestPruneTerminalSessions_TombstonesRunAndHarvestsChildren(t *testing.T) {
 		t.Fatalf("PruneTerminalSessions with child rows: %v", pruneErr)
 	}
 
-	// Child artifacts of the pruned run are harvested; the parent remains.
-	assertChildRowCount(t, db, "report_exchange", "run-prune-stale", 0)
-	assertChildRowCount(t, db, "evidence_row", "run-prune-stale", 0)
-	assertChildRowCount(t, db, "dispatch_reservation", "run-prune-stale", 0)
-	assertChildRowCount(t, db, "share_correlation", "run-prune-stale", 0)
+	assertRunHardDeleted(t, core, db, "run-prune-stale")
 
-	assertTombstone(t, core, "run-prune-stale", staleReason, staleFinished)
-
-	// The too-recent terminal run keeps its child and stays untombstoned.
+	// The too-recent terminal run keeps its child and is not deleted.
 	assertNoTombstone(t, core, "run-prune-recent", StateTerminalPass)
 	assertChildRowCount(t, db, "report_exchange", "run-prune-recent", 1)
 
@@ -108,7 +103,7 @@ func TestPruneTerminalSessions_TombstonesRunAndHarvestsChildren(t *testing.T) {
 	}
 }
 
-func TestPruneTerminalSessions_SparesInterruptedRun(t *testing.T) {
+func TestPruneTerminalSessions_DeletesInterruptedNonPermanentRun(t *testing.T) {
 	t.Parallel()
 
 	sqlCore := openPeerStore(t)
@@ -124,9 +119,8 @@ func TestPruneTerminalSessions_SparesInterruptedRun(t *testing.T) {
 	now := time.Now().Unix()
 	staleFinished := now - int64(60*24*3600)
 
-	// An aged interrupted run is outside the prune selection: only
-	// terminal_pass and terminal_fail rows are tombstoned, even when
-	// finished_at is older than the retention window.
+	// An aged non-permanent interrupted run is hard-deleted after its
+	// children, so a restart-interrupted incognito session does not linger.
 	interrupted := &TestRun{
 		TestRunID:      "run-prune-interrupted",
 		State:          StateInterrupted,
@@ -151,27 +145,72 @@ func TestPruneTerminalSessions_SparesInterruptedRun(t *testing.T) {
 		t.Fatalf("PruneTerminalSessions: %v", pruneErr)
 	}
 
-	got, err := core.GetTestRun(ctx, "run-prune-interrupted")
+	assertRunHardDeleted(t, core, db, "run-prune-interrupted")
+}
+
+func TestPruneTerminalSessions_SkipsActiveSameBootRow(t *testing.T) {
+	t.Parallel()
+
+	sqlCore := openPeerStore(t)
+
+	core, attachErr := Attach(sqlCore.DB(), DefaultSessionConfig())
+	if attachErr != nil {
+		t.Fatalf("Attach: %v", attachErr)
+	}
+
+	db := core.DB()
+	ctx := t.Context()
+	now := time.Now().Unix()
+	staleFinished := now - int64(60*24*3600)
+	staleReason := "probe_finished"
+
+	// An aged terminal row that still holds the active lock must not be
+	// reaped: prune only selects is_active=0 so a same-boot flippable
+	// session stays live.
+	active := &TestRun{
+		TestRunID:      "run-prune-active",
+		IsActive:       true,
+		State:          StateInterrupted,
+		TargetOrigin:   "https://target.example",
+		TargetHost:     "target.example",
+		DiscoveryURL:   "https://target.example/.well-known/ocm",
+		JwksURI:        "https://target.example/jwks.json",
+		ManifestSchema: "ocm-validator-manifest/v1",
+		SessionKind:    SessionKindActiveFull,
+		FinishedAt:     &staleFinished,
+		CreatedAt:      staleFinished,
+		UpdatedAt:      staleFinished,
+	}
+
+	if createErr := db.WithContext(ctx).Create(active).Error; createErr != nil {
+		t.Fatalf("seed active interrupted run: %v", createErr)
+	}
+
+	seedRunChildSet(t, db, "run-prune-active")
+	seedTerminalRun(t, db, ctx, "run-prune-inactive-stale", staleFinished, staleReason)
+
+	if pruneErr := core.PruneTerminalSessions(ctx, 30); pruneErr != nil {
+		t.Fatalf("PruneTerminalSessions: %v", pruneErr)
+	}
+
+	got, err := core.GetTestRun(ctx, "run-prune-active")
 	if err != nil {
-		t.Fatalf("GetTestRun run-prune-interrupted: %v (interrupted row must survive)", err)
+		t.Fatalf("GetTestRun run-prune-active: %v (active row must survive)", err)
 	}
 
-	if got.State != StateInterrupted {
-		t.Fatalf("state = %q, want unchanged %q", got.State, StateInterrupted)
-	}
-
-	if got.IsActive {
-		t.Fatal("is_active = 1, want unchanged 0")
+	if !got.IsActive {
+		t.Fatal("is_active = 0, want 1")
 	}
 
 	if got.HarvestedAt != nil || got.HarvestReason != nil {
 		t.Fatalf("tombstone = (%v, %v), want both NULL", got.HarvestedAt, got.HarvestReason)
 	}
 
-	assertChildRowCount(t, db, "report_exchange", "run-prune-interrupted", 1)
-	assertChildRowCount(t, db, "evidence_row", "run-prune-interrupted", 1)
-	assertChildRowCount(t, db, "dispatch_reservation", "run-prune-interrupted", 1)
-	assertChildRowCount(t, db, "share_correlation", "run-prune-interrupted", 1)
+	assertChildRowCount(t, db, "report_exchange", "run-prune-active", 1)
+	assertChildRowCount(t, db, "evidence_row", "run-prune-active", 1)
+	assertChildRowCount(t, db, "dispatch_reservation", "run-prune-active", 1)
+	assertChildRowCount(t, db, "share_correlation", "run-prune-active", 1)
+	assertRunHardDeleted(t, core, db, "run-prune-inactive-stale")
 }
 
 func TestPruneTerminalSessions_SkipsAlreadyHarvestedRun(t *testing.T) {
@@ -192,8 +231,10 @@ func TestPruneTerminalSessions_SkipsAlreadyHarvestedRun(t *testing.T) {
 	knownHarvested := now - int64(10*24*3600)
 	knownReason := harvestReasonRetentionExpired
 
-	// A row tombstoned by an earlier prune run keeps its original
-	// harvested_at and harvest_reason when prune runs again.
+	// An already-tombstoned permanent row keeps its original harvested_at
+	// and harvest_reason when prune runs. Non-permanent rows are
+	// hard-deleted children first by prune; only permanent rows are
+	// tombstoned, and only by the retention sweep.
 	harvested := &TestRun{
 		TestRunID:      "run-prune-harvested",
 		State:          StateTerminalPass,
@@ -206,6 +247,7 @@ func TestPruneTerminalSessions_SkipsAlreadyHarvestedRun(t *testing.T) {
 		FinishedAt:     &staleFinished,
 		HarvestedAt:    &knownHarvested,
 		HarvestReason:  &knownReason,
+		OptInPermanent: true,
 		CreatedAt:      staleFinished,
 		UpdatedAt:      staleFinished,
 	}
@@ -278,7 +320,7 @@ func TestPruneTerminalSessions_SkipsPermanentOptIn(t *testing.T) {
 	assertNoTombstone(t, core, "run-prune-permanent", StateTerminalPass)
 	assertChildRowCount(t, db, "report_exchange", "run-prune-permanent", 1)
 	assertChildRowCount(t, db, "evidence_row", "run-prune-permanent", 1)
-	assertTombstone(t, core, "run-prune-ordinary", staleReason, staleFinished)
+	assertRunHardDeleted(t, core, db, "run-prune-ordinary")
 }
 
 func seedTerminalRun(t *testing.T, db *gorm.DB, ctx context.Context, id string, finished int64, reason string) {
@@ -359,41 +401,18 @@ func assertChildRowCount(t *testing.T, db *gorm.DB, table, runID string, want in
 	}
 }
 
-func assertTombstone(t *testing.T, core *Core, runID, wantReason string, wantFinished int64) {
+func assertRunHardDeleted(t *testing.T, core *Core, db *gorm.DB, runID string) {
 	t.Helper()
 
-	got, err := core.GetTestRun(t.Context(), runID)
-	if err != nil {
-		t.Fatalf("GetTestRun %s: %v (tombstone must keep the row)", runID, err)
+	_, err := core.GetTestRun(t.Context(), runID)
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("GetTestRun %s = %v, want ErrSessionNotFound", runID, err)
 	}
 
-	if got.IsActive {
-		t.Fatalf("%s is_active = 1, want 0", runID)
-	}
-
-	if got.HarvestedAt == nil {
-		t.Fatalf("%s harvested_at is NULL, want stamped", runID)
-	}
-
-	if got.HarvestReason == nil || *got.HarvestReason != "retention_expired" {
-		t.Fatalf("%s harvest_reason = %v, want retention_expired", runID, got.HarvestReason)
-	}
-
-	if got.State != StateTerminalPass {
-		t.Fatalf("%s state = %q, want unchanged %q", runID, got.State, StateTerminalPass)
-	}
-
-	if got.TerminalReason == nil || *got.TerminalReason != wantReason {
-		t.Fatalf("%s terminal_reason = %v, want unchanged %q", runID, got.TerminalReason, wantReason)
-	}
-
-	if got.FinishedAt == nil || *got.FinishedAt != wantFinished {
-		t.Fatalf("%s finished_at = %v, want unchanged %d", runID, got.FinishedAt, wantFinished)
-	}
-
-	if got.UpdatedAt != wantFinished {
-		t.Fatalf("%s updated_at = %d, want unchanged %d", runID, got.UpdatedAt, wantFinished)
-	}
+	assertChildRowCount(t, db, "report_exchange", runID, 0)
+	assertChildRowCount(t, db, "evidence_row", runID, 0)
+	assertChildRowCount(t, db, "dispatch_reservation", runID, 0)
+	assertChildRowCount(t, db, "share_correlation", runID, 0)
 }
 
 func assertNoTombstone(t *testing.T, core *Core, runID, wantState string) {

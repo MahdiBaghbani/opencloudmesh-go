@@ -188,12 +188,12 @@ func readValidatorSchemaVersion(ctx context.Context, conn *sql.Conn) (version in
 // validatorSchemaStatements is the final validator schema, applied in order
 // inside one BEGIN IMMEDIATE transaction after legacy table recovery.
 //
-// Deletion contract: test_run rows are never deleted; evidence is
-// preserved by tombstone, not by removing the run. Validator-owned child
-// tables (share_correlation, report_exchange, evidence_row,
-// dispatch_reservation) declare ON DELETE RESTRICT so an accidental
-// test_run DELETE fails instead of silently erasing evidence. Harvest
-// deletes child rows first, then stamps the parent tombstone.
+// Deletion contract: non-permanent terminal rows are hard-deleted after
+// TerminalRetentionDays, children first. Permanent rows are tombstoned
+// via harvested_at by the retention sweep and are never hard-deleted.
+// Validator-owned child tables (share_correlation, report_exchange,
+// evidence_row, dispatch_reservation) declare ON DELETE RESTRICT so an
+// accidental test_run DELETE fails instead of silently erasing evidence.
 // evidence_row.exchange_id keeps ON DELETE SET NULL so evidence rows
 // survive deletion of an individual exchange row.
 var validatorSchemaStatements = []string{

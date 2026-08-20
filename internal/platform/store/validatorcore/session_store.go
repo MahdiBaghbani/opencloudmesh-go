@@ -220,7 +220,7 @@ func (c *Core) EnterTerminalState(
 			colState:          update.State,
 			colSessionKind:    update.SessionKind,
 			colTerminalReason: reason,
-			"overall_grade":   update.OverallGrade,
+			colOverallGrade:   update.OverallGrade,
 			colFinishedAt:     update.FinishedAt,
 			colUpdatedAt:      update.FinishedAt,
 		})
@@ -287,19 +287,17 @@ func (c *Core) StopPassiveComplete(ctx context.Context, testRunID string) error 
 	})
 }
 
-// harvestReasonRetentionExpired is the harvest_reason stamped on test_run
-// rows tombstoned by retention pruning.
-const harvestReasonRetentionExpired = "retention_expired"
+// harvestReasonRetentionExpired is the harvest_reason stamped on permanent
+// test_run rows tombstoned by the retention sweep. Non-permanent terminal
+// rows are hard-deleted children first, then parent; only permanent rows
+// are tombstoned, and only by that sweep.
+const harvestReasonRetentionExpired = HarvestReasonExpired
 
-// PruneTerminalSessions tombstones terminal test_run rows older than
-// retentionDays; the parent row is never deleted. Rows with
-// opt_in_permanent=1 are skipped so durable reports survive the default
-// retention window. Child rows in report_exchange, evidence_row,
-// dispatch_reservation, and share_correlation are harvested first, then
-// harvested_at and harvest_reason are stamped and is_active is cleared.
-// ON DELETE RESTRICT on the child foreign keys prevents accidental evidence
-// erasure. Already-tombstoned rows are excluded so a repeat run never
-// re-stamps harvested_at or harvest_reason.
+// PruneTerminalSessions applies retention to aged non-permanent terminal rows.
+// opt_in_permanent=1 rows are skipped so durable reports survive the default
+// window. Already-harvested rows, nonterminal rows, is_active=1 rows, and
+// rows newer than the cutoff are excluded. Child rows are harvested first
+// (RESTRICT FKs), then the parent test_run is hard-deleted.
 func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -310,37 +308,25 @@ func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) err
 	}
 
 	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
-	now := time.Now().Unix()
 
 	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		ids := []string{}
+		rows := []TestRun{}
 
 		if err := tx.Model(&TestRun{}).
 			Where(
 				"state IN ? AND finished_at IS NOT NULL AND finished_at < ? "+
-					"AND harvested_at IS NULL AND opt_in_permanent = 0",
-				[]string{StateTerminalPass, StateTerminalFail},
+					"AND harvested_at IS NULL AND opt_in_permanent = 0 AND is_active = 0",
+				[]string{StateTerminalPass, StateTerminalFail, StateInterrupted},
 				cutoff,
 			).
-			Pluck(colTestRunID, &ids).Error; err != nil {
+			Select(colTestRunID).
+			Find(&rows).Error; err != nil {
 			return err
 		}
 
-		for _, id := range ids {
-			if err := harvestRunChildren(tx, id); err != nil {
+		for _, row := range rows {
+			if err := pruneAgedNonPermanentRun(tx, row.TestRunID); err != nil {
 				return err
-			}
-
-			// Raw SQL keeps updated_at untouched: a GORM Updates call would
-			// auto-stamp the UpdatedAt field and break the tombstone contract.
-			res := tx.Exec(
-				"UPDATE test_run SET harvested_at = ?, harvest_reason = ?, is_active = 0 WHERE test_run_id = ?",
-				now,
-				harvestReasonRetentionExpired,
-				id,
-			)
-			if res.Error != nil {
-				return res.Error
 			}
 		}
 
@@ -351,6 +337,14 @@ func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) err
 	}
 
 	return nil
+}
+
+func pruneAgedNonPermanentRun(tx *gorm.DB, id string) error {
+	if err := harvestRunChildren(tx, id); err != nil {
+		return err
+	}
+
+	return tx.Where("test_run_id = ?", id).Delete(&TestRun{}).Error
 }
 
 // harvestRunChildren deletes the validator-owned child rows of one test run.

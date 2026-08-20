@@ -78,6 +78,7 @@ const (
 	colCreatedAt      = "created_at"
 	colFinishedAt     = "finished_at"
 	colTerminalReason = "terminal_reason"
+	colOverallGrade   = "overall_grade"
 	colIsActive       = "is_active"
 	colBobUserID      = "bob_user_id"
 	colProviderID     = "provider_id"

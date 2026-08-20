@@ -440,6 +440,10 @@ func runServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, res
 		return fmt.Errorf("shutdown error: %w", err)
 	}
 
+	if result.StopRetentionSweep != nil {
+		result.StopRetentionSweep()
+	}
+
 	if result.Persistence != nil {
 		if err := result.Persistence.Close(); err != nil {
 			logger.Warn("error closing persistence", "error", err)

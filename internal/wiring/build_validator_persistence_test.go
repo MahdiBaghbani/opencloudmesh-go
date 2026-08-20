@@ -35,6 +35,10 @@ func TestBuild_ValidatorUsesSharedSQLiteHandle(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
+		if result.StopRetentionSweep != nil {
+			result.StopRetentionSweep()
+		}
+
 		if closeErr := result.Persistence.Close(); closeErr != nil {
 			t.Errorf("Persistence.Close: %v", closeErr)
 		}

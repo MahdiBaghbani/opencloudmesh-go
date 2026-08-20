@@ -6,6 +6,7 @@
 package wiring
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -73,8 +74,15 @@ type BuildResult struct {
 	RootCAPool *x509.CertPool
 
 	// Persistence holds the wired persistence repos. Callers must call
-	// Persistence.Close() on shutdown; Close is a no-op for the memory backend.
+	// Persistence.Close() on shutdown after StopRetentionSweep when that
+	// stop func is non-nil. Close is a no-op for the memory backend.
 	Persistence *repos.Repos
+
+	// StopRetentionSweep cancels the store-level permanent-report expiry
+	// ticker started after a successful Attach and waits for the sweep
+	// goroutine to return. Nil when the validator store is not wired.
+	// Call on process shutdown before Persistence.Close.
+	StopRetentionSweep context.CancelFunc
 }
 
 // wireSharedDeps builds shared infrastructure from config and persistence repos.
@@ -212,9 +220,10 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	return BuildResult{
-		Deps:        built,
-		RootCAPool:  rootCAPool,
-		Persistence: persistence,
+		Deps:               built,
+		RootCAPool:         rootCAPool,
+		Persistence:        persistence,
+		StopRetentionSweep: startRetentionSweep(validatorStore),
 	}, nil
 }
 
@@ -442,4 +451,27 @@ func buildValidatorStore(cfg *config.Config, persistence *repos.Repos) (*validat
 	}
 
 	return store, nil
+}
+
+// startRetentionSweep starts the hourly expiry loop after a successful Attach.
+// Attach stays synchronous. The returned func cancels the loop and waits for
+// the goroutine to exit so shutdown can close persistence safely.
+func startRetentionSweep(store *validatorcore.Core) context.CancelFunc {
+	if store == nil {
+		return nil
+	}
+
+	sweepCtx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		store.StartRetentionSweep(sweepCtx)
+	}()
+
+	return func() {
+		cancel()
+		<-done
+	}
 }

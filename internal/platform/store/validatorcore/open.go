@@ -40,12 +40,21 @@ func (c *Core) startupMaintenance(ctx context.Context) error {
 		return errors.New("validatorcore: store is not configured")
 	}
 
+	// Terminalize leftover is_active=1 rows before retention so a just-sealed
+	// interrupted permanent report gets a future expires_at and is not swept
+	// immediately. Empty until that writer is wired.
+	c.startupTerminalizeUnrecoverableActive(ctx)
+
 	if err := c.sweepPassiveInFlightTTL(ctx); err != nil {
 		return fmt.Errorf("sweep passive in-flight ttl: %w", err)
 	}
 
 	if err := c.sweepPassiveCompleteTTL(ctx); err != nil {
 		return fmt.Errorf("sweep passive_complete ttl: %w", err)
+	}
+
+	if err := c.SweepExpiredPermanentReports(ctx); err != nil {
+		return fmt.Errorf("sweep expired permanent reports: %w", err)
 	}
 
 	if c.sessionCfg.TerminalRetentionDays > 0 {
@@ -57,9 +66,21 @@ func (c *Core) startupMaintenance(ctx context.Context) error {
 	return nil
 }
 
-// pruneTerminalRetention tombstones aged terminal test_run rows and prunes
-// stats_raw for the same retention window, then rebuilds stats_aggregate from
-// remaining raw.
+// startupTerminalizeUnrecoverableActive is the startup hook that later
+// terminalizes leftover is_active=1 rows as interrupted before retention
+// sweeps run. No-op until that writer is wired.
+func (c *Core) startupTerminalizeUnrecoverableActive(_ context.Context) {
+	if c == nil {
+		return
+	}
+}
+
+// pruneTerminalRetention hard-deletes aged non-permanent terminal test_run
+// rows after children-first cleanup, then prunes stats_raw for the same
+// retention window and rebuilds stats_aggregate from remaining raw.
+// Permanent rows are spared here and tombstoned by the expiry sweep.
+// PruneStats stays on stats_raw.created_at only and must not consult
+// test_run or delete permanent reports.
 func (c *Core) pruneTerminalRetention(ctx context.Context, retentionDays int) error {
 	if retentionDays <= 0 {
 		return nil

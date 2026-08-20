@@ -159,7 +159,124 @@ func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
 		t.Fatalf("non-tombstoned terminal test_run rows = %d, want 1 after retention prune", liveTerminalCount)
 	}
 
-	assertRetentionTombstone(t, core, "run-stale-terminal")
+	assertRunHardDeleted(t, core, core.DB(), "run-stale-terminal")
+}
+
+func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	now := time.Now().Unix()
+	staleFinished := now - int64(60*24*3600)
+	futureExpires := staleFinished + 90*SecondsPerDay
+	knownHarvested := now - int64(10*24*3600)
+	forever := RetentionTierForever
+	tier90 := RetentionTier90
+	knownReason := HarvestReasonExpired
+
+	foreverID := "run-permanent-forever"
+	tier90ID := "run-permanent-90"
+	tombstonedID := "run-permanent-tombstoned"
+	stalePassID := "run-nonpermanent-pass"
+	staleFailID := "run-nonpermanent-fail"
+	staleInterruptedID := "run-nonpermanent-interrupted"
+
+	for _, row := range []TestRun{
+		{
+			TestRunID:      foreverID,
+			State:          StateTerminalPass,
+			SessionKind:    SessionKindPassiveOnly,
+			TargetHost:     "forever.example",
+			FinishedAt:     &staleFinished,
+			OptInPermanent: true,
+			RetentionTier:  &forever,
+			CreatedAt:      staleFinished,
+			UpdatedAt:      staleFinished,
+		},
+		{
+			TestRunID:      tier90ID,
+			State:          StateTerminalPass,
+			SessionKind:    SessionKindPassiveOnly,
+			TargetHost:     "ninety.example",
+			FinishedAt:     &staleFinished,
+			OptInPermanent: true,
+			RetentionTier:  &tier90,
+			ExpiresAt:      &futureExpires,
+			CreatedAt:      staleFinished,
+			UpdatedAt:      staleFinished,
+		},
+		{
+			TestRunID:      tombstonedID,
+			State:          StateTerminalFail,
+			SessionKind:    SessionKindPassiveOnly,
+			TargetHost:     "tombstone.example",
+			FinishedAt:     &staleFinished,
+			OptInPermanent: true,
+			HarvestedAt:    &knownHarvested,
+			HarvestReason:  &knownReason,
+			CreatedAt:      staleFinished,
+			UpdatedAt:      staleFinished,
+		},
+		{
+			TestRunID:   stalePassID,
+			State:       StateTerminalPass,
+			SessionKind: SessionKindPassiveOnly,
+			TargetHost:  "stale-pass.example",
+			FinishedAt:  &staleFinished,
+			CreatedAt:   staleFinished,
+			UpdatedAt:   staleFinished,
+		},
+		{
+			TestRunID:   staleFailID,
+			State:       StateTerminalFail,
+			SessionKind: SessionKindPassiveOnly,
+			TargetHost:  "stale-fail.example",
+			FinishedAt:  &staleFinished,
+			CreatedAt:   staleFinished,
+			UpdatedAt:   staleFinished,
+		},
+		{
+			TestRunID:   staleInterruptedID,
+			State:       StateInterrupted,
+			SessionKind: SessionKindPassiveOnly,
+			TargetHost:  "stale-interrupted.example",
+			FinishedAt:  &staleFinished,
+			CreatedAt:   staleFinished,
+			UpdatedAt:   staleFinished,
+		},
+	} {
+		if err := core.DB().WithContext(ctx).Create(&row).Error; err != nil {
+			t.Fatalf("seed %s: %v", row.TestRunID, err)
+		}
+	}
+
+	seedExpiryChildRows(t, core.DB(), stalePassID)
+	seedExpiryChildRows(t, core.DB(), staleFailID)
+	seedRunChildSet(t, core.DB(), staleInterruptedID)
+
+	if err := core.pruneTerminalRetention(ctx, 30); err != nil {
+		t.Fatalf("pruneTerminalRetention: %v", err)
+	}
+
+	assertNoTombstone(t, core, foreverID, StateTerminalPass)
+	assertNoTombstone(t, core, tier90ID, StateTerminalPass)
+	assertRunHardDeleted(t, core, core.DB(), stalePassID)
+	assertRunHardDeleted(t, core, core.DB(), staleFailID)
+	assertRunHardDeleted(t, core, core.DB(), staleInterruptedID)
+
+	tombstoned, err := core.GetTestRun(ctx, tombstonedID)
+	if err != nil {
+		t.Fatalf("GetTestRun %s: %v (already-tombstoned permanent row must remain)", tombstonedID, err)
+	}
+
+	if tombstoned.HarvestedAt == nil || *tombstoned.HarvestedAt != knownHarvested {
+		t.Fatalf("%s harvested_at = %v, want unchanged %d", tombstonedID, tombstoned.HarvestedAt, knownHarvested)
+	}
+
+	if tombstoned.HarvestReason == nil || *tombstoned.HarvestReason != knownReason {
+		t.Fatalf("%s harvest_reason = %v, want unchanged %q", tombstonedID, tombstoned.HarvestReason, knownReason)
+	}
 }
 
 func TestStartupMaintenance_PrunesTerminalRetention(t *testing.T) {
@@ -213,29 +330,5 @@ func TestStartupMaintenance_PrunesTerminalRetention(t *testing.T) {
 
 	if agg.LastPlatform != "New" {
 		t.Fatalf("aggregate last_platform = %q, want New", agg.LastPlatform)
-	}
-}
-
-// assertRetentionTombstone verifies the pruned terminal row survived as a
-// tombstone: harvested_at stamped, harvest_reason set, is_active cleared, and
-// the row not deleted.
-func assertRetentionTombstone(t *testing.T, core *Core, runID string) {
-	t.Helper()
-
-	got, err := core.GetTestRun(t.Context(), runID)
-	if err != nil {
-		t.Fatalf("GetTestRun %s: %v (tombstone must keep the row)", runID, err)
-	}
-
-	if got.IsActive {
-		t.Fatalf("%s is_active = 1, want 0 (tombstone clears the active flag)", runID)
-	}
-
-	if got.HarvestedAt == nil {
-		t.Fatalf("%s harvested_at is NULL, want stamped", runID)
-	}
-
-	if got.HarvestReason == nil || *got.HarvestReason != harvestReasonRetentionExpired {
-		t.Fatalf("%s harvest_reason = %v, want %q", runID, got.HarvestReason, harvestReasonRetentionExpired)
 	}
 }
