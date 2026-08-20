@@ -9,8 +9,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sync"
 
 	"gorm.io/gorm"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 )
 
 // Attach wraps an existing GORM handle (for example from sqlitecore), applies
@@ -40,11 +44,67 @@ func (c *Core) startupMaintenance(ctx context.Context) error {
 		return errors.New("validatorcore: store is not configured")
 	}
 
+	first := false
+
+	var firstErr error
+
+	startupFirstMaintenanceOnce.Do(func() {
+		first = true
+		firstErr = c.firstStartupMaintenance(ctx)
+	})
+
+	if first {
+		return firstErr
+	}
+
+	return c.repeatStartupMaintenance(ctx)
+}
+
+// startupFirstMaintenanceOnce enforces the process-local first-maintenance
+// guard: the first startup maintenance pass in this process runs the two
+// one-shot operations (leftover active-row recovery and the stall sweep), and
+// later Attach calls skip both, so a run this process legitimately owns is
+// never interrupted or swept by a re-attach. The guard is consumed on the
+// first attempt even when the pass fails: an Attach error aborts startup, so
+// a failed first pass never leaves a running store that skipped its
+// one-shots.
+var startupFirstMaintenanceOnce sync.Once
+
+// firstStartupMaintenance runs the full startup maintenance chain for the
+// first Attach in this process: leftover active-row recovery, the passive TTL
+// sweeps, the stall sweep, the retention sweep, and the terminal prune, in
+// that order. Error propagation matches the per-step conventions: recovery is
+// best-effort, every later step fails the pass.
+func (c *Core) firstStartupMaintenance(ctx context.Context) error {
 	// Terminalize leftover is_active=1 rows before retention so a just-sealed
 	// interrupted permanent report gets a future expires_at and is not swept
-	// immediately. Empty until that writer is wired.
+	// immediately.
 	c.startupTerminalizeUnrecoverableActive(ctx)
 
+	if err := c.sweepPassiveSessionTTL(ctx); err != nil {
+		return err
+	}
+
+	if err := c.SweepStalledActiveSessions(ctx); err != nil {
+		return fmt.Errorf("sweep stalled active sessions: %w", err)
+	}
+
+	return c.sweepRetentionAndPrune(ctx)
+}
+
+// repeatStartupMaintenance runs the startup maintenance chain for every
+// Attach after the first in this process: the passive TTL sweeps, the
+// retention sweep, and the terminal prune. The one-shot recovery and stall
+// passes already ran and must not rerun.
+func (c *Core) repeatStartupMaintenance(ctx context.Context) error {
+	if err := c.sweepPassiveSessionTTL(ctx); err != nil {
+		return err
+	}
+
+	return c.sweepRetentionAndPrune(ctx)
+}
+
+func (c *Core) sweepPassiveSessionTTL(ctx context.Context) error {
 	if err := c.sweepPassiveInFlightTTL(ctx); err != nil {
 		return fmt.Errorf("sweep passive in-flight ttl: %w", err)
 	}
@@ -53,6 +113,10 @@ func (c *Core) startupMaintenance(ctx context.Context) error {
 		return fmt.Errorf("sweep passive_complete ttl: %w", err)
 	}
 
+	return nil
+}
+
+func (c *Core) sweepRetentionAndPrune(ctx context.Context) error {
 	if err := c.SweepExpiredPermanentReports(ctx); err != nil {
 		return fmt.Errorf("sweep expired permanent reports: %w", err)
 	}
@@ -66,13 +130,56 @@ func (c *Core) startupMaintenance(ctx context.Context) error {
 	return nil
 }
 
-// startupTerminalizeUnrecoverableActive is the startup hook that later
-// terminalizes leftover is_active=1 rows as interrupted before retention
-// sweeps run. No-op until that writer is wired.
-func (c *Core) startupTerminalizeUnrecoverableActive(_ context.Context) {
-	if c == nil {
-		return
+// startupRecoveryReason is the terminal_reason stamped on leftover active
+// runs interrupted by startup recovery. The reason is unflippable: the run
+// belongs to a dead process, so no later transition may rewrite it.
+const startupRecoveryReason = "startup_unrecoverable_active"
+
+// startupTerminalizeUnrecoverableActive runs startup recovery for leftover
+// is_active=1 rows. The pass is best-effort: a failure is logged and left to
+// the stall sweep rather than blocking startup.
+func (c *Core) startupTerminalizeUnrecoverableActive(ctx context.Context) {
+	if err := c.terminalizeUnrecoverableActiveRuns(ctx); err != nil {
+		appctx.GetLogger(ctx).Error(
+			"validator startup recovery of leftover active runs failed",
+			slog.Any("error", err),
+		)
 	}
+}
+
+// terminalizeUnrecoverableActiveRuns interrupts every row still holding the
+// active lock in a non-terminal state. The lock is process-local, so at
+// startup such a row belongs to a previous process that can never finish the
+// run. Both the selection and the guarded write exclude the terminal set
+// instead of naming non-terminal states, so a leftover row is interrupted
+// under whatever non-terminal name it holds, including a state the flow
+// reached after the selection read. Rows already in a terminal state keep
+// their fields for the stall sweep's hybrid reconciliation, which only
+// clears the lock. A transition miss means the row terminalized or released
+// between selection and the guarded write and is skipped.
+func (c *Core) terminalizeUnrecoverableActiveRuns(ctx context.Context) error {
+	var rows []TestRun
+
+	if err := c.db.WithContext(ctx).
+		Select(colTestRunID, colState).
+		Where("is_active = 1 AND state NOT IN ?", terminalStateSet()).
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("validatorcore: list leftover active runs: %w", err)
+	}
+
+	for _, row := range rows {
+		err := c.ReleaseActiveTerminalExcept(ctx, row.TestRunID, nil, ActiveTerminalUpdate{
+			State:          StateInterrupted,
+			TerminalReason: startupRecoveryReason,
+		})
+		if err == nil || errors.Is(err, ErrStateTransitionMiss) {
+			continue
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // pruneTerminalRetention hard-deletes aged non-permanent terminal test_run

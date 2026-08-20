@@ -181,7 +181,7 @@ func TestReleaseActiveTerminalFrom_AcceptsFullActiveNonTerminalSet(t *testing.T)
 
 			if err := core.ReleaseActiveTerminalFrom(t.Context(), runID, allActiveNonTerminal, ActiveTerminalUpdate{
 				State:          StateInterrupted,
-				TerminalReason: "boot_recovery",
+				TerminalReason: "startup_unrecoverable_active",
 			}); err != nil {
 				t.Fatalf("ReleaseActiveTerminalFrom from %s: %v", state, err)
 			}
@@ -236,4 +236,31 @@ func TestReleaseActiveTerminalFrom_StaleExpectedSetMissesAfterConcurrentCAS(t *t
 	}
 
 	assertReleasedToPass(t, core, runID)
+}
+
+func TestReleaseActiveTerminalExcept_ValidatesExclusionAndTarget(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-except-validation"
+
+	seedActiveRunInState(t, core, runID, StateActiveRunning)
+
+	update := ActiveTerminalUpdate{State: StateTerminalFail, TerminalReason: ReasonActiveHardFail}
+
+	// The terminal states are always excluded by construction, so naming one
+	// as an extra exclusion is a caller error, not a no-op.
+	if err := core.ReleaseActiveTerminalExcept(ctx, runID, []string{StateTerminalPass}, update); !errors.Is(err, ErrTerminalExclusionTerminal) {
+		t.Fatalf("terminal extra exclusion error = %v, want ErrTerminalExclusionTerminal", err)
+	}
+
+	if err := core.ReleaseActiveTerminalExcept(ctx, runID, nil, ActiveTerminalUpdate{
+		State:          StateActiveRunning,
+		TerminalReason: ReasonActiveHardFail,
+	}); !errors.Is(err, ErrTerminalStateInvalid) {
+		t.Fatalf("non-terminal target error = %v, want ErrTerminalStateInvalid", err)
+	}
+
+	assertActiveInState(t, core, runID, StateActiveRunning)
 }

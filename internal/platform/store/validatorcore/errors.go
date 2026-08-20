@@ -59,6 +59,22 @@ var (
 	// not one of terminal_pass, terminal_fail, or interrupted.
 	ErrTerminalStateInvalid = errors.New("invalid terminal state")
 
+	// ErrTerminalExclusionTerminal is returned when a terminal release by
+	// exclusion names a terminal state in its extra exclusions; the terminal
+	// states are always excluded by construction, so naming one is a caller
+	// error.
+	ErrTerminalExclusionTerminal = errors.New("terminal exclusion contains terminal state")
+
+	// ErrActiveHardFailRefused is returned when a hard-fail carrying a
+	// non-identity reason targets a run sitting in one of the graded exercise
+	// states; only the identity hard-fail reason may interrupt those.
+	ErrActiveHardFailRefused = errors.New("active hard-fail refused in graded exercise state")
+
+	// ErrActiveHardFailReasonInvalid is returned when a hard-fail carries a
+	// non-empty reason outside the closed reason set; free-text reasons are
+	// rejected before any UPDATE runs.
+	ErrActiveHardFailReasonInvalid = errors.New("invalid active hard-fail reason")
+
 	// ErrInvalidStartBody is returned for malformed POST /start bodies.
 	ErrInvalidStartBody = errors.New("invalid start request body")
 
