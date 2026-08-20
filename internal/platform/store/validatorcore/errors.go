@@ -102,4 +102,6 @@ const (
 	colLocalIdentity  = "local_identity"
 	colHostHash       = "host_hash"
 	colArea           = "area"
+	colStep           = "step"
+	colReasonCode     = "reason_code"
 )
