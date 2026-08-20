@@ -29,9 +29,16 @@ const maxStartBodyBytes = 4096
 
 // Handler serves plane-A passive validator session endpoints.
 type Handler struct {
-	store *validatorcore.Core
-	probe *ProbeRunner
-	log   *slog.Logger
+	store            *validatorcore.Core
+	probe            *ProbeRunner
+	log              *slog.Logger
+	externalBasePath string
+	// afterRetentionPatchReady is a test-only interleave after the PATCH
+	// unlocked pre-check and before the guarded UPDATE.
+	afterRetentionPatchReady func()
+	// afterRetentionLockReady is a test-only interleave after the POST lock
+	// snapshot and before the CAS lock UPDATE.
+	afterRetentionLockReady func()
 }
 
 // NewHandler returns a passive validator HTTP handler.

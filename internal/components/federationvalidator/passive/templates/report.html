@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Federation report</title>
+  </head>
+  <body>
+    <h1>Federation report</h1>
+    <dl
+      id="report-page"
+      data-poll-path="{{.SessionAPIPath}}"
+      data-report-api-path="{{.ReportAPIPath}}"
+    >
+      <dt>id</dt>
+      <dd id="report-id">{{.ID}}</dd>
+      <dt>state</dt>
+      <dd id="report-state">{{.State}}</dd>
+      <dt>sessionKind</dt>
+      <dd id="report-session-kind">{{.SessionKind}}</dd>
+      {{if .Grade}}
+      <dt>grade</dt>
+      <dd id="report-grade">{{.Grade}}</dd>
+      {{end}}
+      <dt>optInStats</dt>
+      <dd id="report-opt-in-stats">{{.OptInStats}}</dd>
+      <dt>optInPermanent</dt>
+      <dd id="report-opt-in-permanent">{{.OptInPermanent}}</dd>
+      <dt>reportUrl</dt>
+      <dd id="report-url">{{.ReportURL}}</dd>
+      <dt>sessionApiPath</dt>
+      <dd id="report-session-api">{{.SessionAPIPath}}</dd>
+      <dt>reportApiPath</dt>
+      <dd id="report-api">{{.ReportAPIPath}}</dd>
+    </dl>
+    <p id="next-instruction"></p>
+    <script>
+      (function () {
+        var page = document.getElementById("report-page");
+        var sink = document.getElementById("next-instruction");
+        if (!page || !sink) {
+          return;
+        }
+        var pollPath = page.getAttribute("data-poll-path");
+        if (!pollPath) {
+          return;
+        }
+        fetch(pollPath, { credentials: "same-origin" })
+          .then(function (res) {
+            return res.ok ? res.json() : null;
+          })
+          .then(function (data) {
+            if (!data || data.state == null) {
+              return;
+            }
+            sink.textContent = data.state;
+          })
+          .catch(function () {});
+      })();
+    </script>
+  </body>
+</html>

@@ -22,7 +22,18 @@ const (
 	// RouteAPISession is GET /validator/api/session/{id}.
 	RouteAPISession = "/api/session/{id}"
 	// RouteAPIReport is GET /validator/api/report/{id}.
+	// Duplicated in the passive package because that package cannot import
+	// services/validator; keep the strings synchronized.
 	RouteAPIReport = "/api/report/{id}"
+	// RouteAPIReportRetention is PATCH /validator/api/report/{id}/retention.
+	// Duplicated in the passive package; keep the strings synchronized.
+	RouteAPIReportRetention = "/api/report/{id}/retention"
+	// RouteAPIReportLock is POST /validator/api/report/{id}/lock.
+	// Duplicated in the passive package; keep the strings synchronized.
+	RouteAPIReportLock = "/api/report/{id}/lock"
+	// RouteHTMLReport is GET /validator/report/{id}.
+	// Duplicated in the passive package; keep the strings synchronized.
+	RouteHTMLReport = "/report/{id}"
 	// RouteAPIManifest is GET /validator/api/manifest.
 	RouteAPIManifest = "/api/manifest"
 	// RouteAPIStatistics is GET /validator/api/statistics.
@@ -81,13 +92,46 @@ func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 			FeatureCondition: service.FeatureValidatorEnabled,
 		},
 		{
-			ID:               "validator-api-report",
+			ID:               service.RouteIDValidatorAPIReport,
 			Service:          string(service.BuildValidator),
 			Method:           http.MethodGet,
 			Pattern:          RouteAPIReport,
 			SessionPolicy:    service.SessionPublic,
 			HandlerAuth:      service.HandlerAuthNone,
 			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               service.RouteIDValidatorAPIReportRetention,
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodPatch,
+			Pattern:          RouteAPIReportRetention,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthNone,
+			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               service.RouteIDValidatorAPIReportLock,
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodPost,
+			Pattern:          RouteAPIReportLock,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthNone,
+			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               service.RouteIDValidatorHTMLReport,
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodGet,
+			Pattern:          RouteHTMLReport,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthNone,
+			SurfaceClass:     service.SurfaceUI,
 			TrustClass:       service.TrustPeerNone,
 			FeatureCondition: service.FeatureValidatorEnabled,
 		},

@@ -24,8 +24,7 @@ const (
 )
 
 // MountedAPIRoute describes one plane-A client-usable route wired in
-// MountPlaneARoutes. Report polling is registered but not mounted in v1.3.0
-// and is intentionally omitted here.
+// MountPlaneARoutes. HTML report pages sit beside plane-A and are omitted.
 type MountedAPIRoute struct {
 	Method   string `json:"method"`
 	FullPath string `json:"fullPath"`
@@ -45,6 +44,8 @@ type manifestRouteResponse struct {
 	Contribute    manifestContributeMeta   `json:"contribute"`
 	Permanent     manifestContributeMeta   `json:"permanent"`
 	OptIn         manifestOptInMeta        `json:"optIn"`
+	Report        manifestReportMeta       `json:"report"`
+	Retention     manifestRetentionMeta    `json:"retention"`
 	ReverseInvite manifestAvailabilityMeta `json:"reverseInvite"`
 	Platform      manifestAvailabilityMeta `json:"platform"`
 	TLSSummary    manifestAvailabilityMeta `json:"tlsSummary"`
@@ -135,20 +136,56 @@ type scanFieldSchema struct {
 // MountedAPIRoutes returns plane-A routes actually mounted for client use in
 // v1.3.0. Keep this in sync with MountPlaneARoutes.
 func MountedAPIRoutes() []MountedAPIRoute {
-	prefix := "/" + manifestServicePrefix
+	return mountedAPIRoutes("")
+}
 
+func mountedAPIRoutes(externalBasePath string) []MountedAPIRoute {
 	return []MountedAPIRoute{
-		{Method: http.MethodPost, FullPath: prefix + RouteStartCreateSession},
-		{Method: http.MethodPost, FullPath: prefix + RouteStopSession},
-		{Method: http.MethodGet, FullPath: prefix + RouteAPIScan},
-		{Method: http.MethodGet, FullPath: prefix + RouteAPISession},
-		{Method: http.MethodGet, FullPath: prefix + RouteAPIManifest},
-		{Method: http.MethodGet, FullPath: prefix + RouteAPIStatistics},
+		{
+			Method:   http.MethodPost,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteStartCreateSession),
+		},
+		{
+			Method:   http.MethodPost,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteStopSession),
+		},
+		{
+			Method:   http.MethodGet,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPIScan),
+		},
+		{
+			Method:   http.MethodGet,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPISession),
+		},
+		{
+			Method:   http.MethodGet,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPIReport),
+		},
+		{
+			Method:   http.MethodPatch,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPIReportRetention),
+		},
+		{
+			Method:   http.MethodPost,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPIReportLock),
+		},
+		{
+			Method:   http.MethodGet,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPIManifest),
+		},
+		{
+			Method:   http.MethodGet,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPIStatistics),
+		},
 	}
 }
 
 // BuildManifest returns the authoritative federation_tester_manifest.v1 payload.
 func BuildManifest() manifestRouteResponse {
+	return buildManifest("")
+}
+
+func buildManifest(externalBasePath string) manifestRouteResponse {
 	return manifestRouteResponse{
 		Schema:        manifestSchema,
 		APIVersion:    manifestAPIVersion,
@@ -157,8 +194,9 @@ func BuildManifest() manifestRouteResponse {
 			manifestSchema,
 			scanSchema,
 			statisticsSchema,
+			reportSchema,
 		},
-		Routes: MountedAPIRoutes(),
+		Routes: mountedAPIRoutes(externalBasePath),
 		Statistics: manifestStatisticsMeta{
 			Schema:                statisticsSchema,
 			TimeframesDays:        append([]int(nil), statisticsSupportedDays...),
@@ -196,6 +234,8 @@ func BuildManifest() manifestRouteResponse {
 				OptInValue:     optInLiteralValue,
 			},
 		},
+		Report:        buildManifestReportMeta(externalBasePath),
+		Retention:     buildManifestRetentionMeta(externalBasePath),
 		ReverseInvite: manifestAvailabilityMeta{Available: false},
 		Platform:      manifestAvailabilityMeta{Available: true},
 		TLSSummary:    manifestAvailabilityMeta{Available: true},
@@ -255,5 +295,5 @@ func (h *Handler) HandleManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, h.log, http.StatusOK, BuildManifest())
+	writeJSON(w, h.log, http.StatusOK, buildManifest(h.externalBasePath))
 }

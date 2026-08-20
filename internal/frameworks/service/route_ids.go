@@ -20,6 +20,14 @@ const (
 	RouteIDValidatorAPIStatistics = "validator-api-statistics"
 	// RouteIDValidatorAPISession is the validator session polling route identifier.
 	RouteIDValidatorAPISession = "validator-api-session"
+	// RouteIDValidatorAPIReport is the validator JSON report route identifier.
+	RouteIDValidatorAPIReport = "validator-api-report"
+	// RouteIDValidatorHTMLReport is the validator HTML report route identifier.
+	RouteIDValidatorHTMLReport = "validator-html-report"
+	// RouteIDValidatorAPIReportRetention is the validator report retention PATCH identifier.
+	RouteIDValidatorAPIReportRetention = "validator-api-report-retention"
+	// RouteIDValidatorAPIReportLock is the validator report lock POST identifier.
+	RouteIDValidatorAPIReportLock = "validator-api-report-lock"
 )
 
 const subtreeDefaultIDSuffix = "-subtree-default"

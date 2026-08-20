@@ -52,6 +52,7 @@ func TestHandleManifest_SchemaVersionsIncludeLiveSchemas(t *testing.T) {
 		manifestSchema,
 		scanSchema,
 		statisticsSchema,
+		reportSchema,
 	}
 
 	if !reflect.DeepEqual(payload.Schemas, wantSchemas) {
@@ -68,28 +69,30 @@ func TestHandleManifest_AdvertisedRoutesMatchMountedAPIRoutes(t *testing.T) {
 	assertSymmetricRouteSets(t, mounted, advertised)
 }
 
-func TestHandleManifest_AdvertisesSessionNotReport(t *testing.T) {
+func TestHandleManifest_AdvertisesSessionAndReport(t *testing.T) {
 	t.Parallel()
 
 	payload := BuildManifest()
 
 	var hasSession bool
 
-	for _, route := range payload.Routes {
-		switch route.FullPath {
-		case "/validator/api/session/{id}":
-			if route.Method != http.MethodGet {
-				t.Fatalf("session route method = %q, want GET", route.Method)
-			}
+	var hasReport bool
 
+	for _, route := range payload.Routes {
+		switch {
+		case route.FullPath == "/validator/api/session/{id}" && route.Method == http.MethodGet:
 			hasSession = true
-		case "/validator/api/report/{id}":
-			t.Fatalf("must not advertise unmounted route %q", route.FullPath)
+		case route.FullPath == "/validator/api/report/{id}" && route.Method == http.MethodGet:
+			hasReport = true
 		}
 	}
 
 	if !hasSession {
 		t.Fatal("expected GET /validator/api/session/{id} in manifest routes")
+	}
+
+	if !hasReport {
+		t.Fatal("expected GET /validator/api/report/{id} in manifest routes")
 	}
 }
 
@@ -205,6 +208,8 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 		"optIn",
 		"permanent",
 		"platform",
+		"report",
+		"retention",
 		"reverseInvite",
 		"routes",
 		"scan",
@@ -291,6 +296,14 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 		"id",
 		"optInPermanent",
 		"optInStats",
+	})
+	assertExactKeys(t, mustRawObject(t, raw["report"], "report"), []string{"apiPath", "htmlPath"})
+	assertExactKeys(t, mustRawObject(t, raw["retention"], "retention"), []string{
+		"clock",
+		"defaultTier",
+		"lockPath",
+		"patchPath",
+		"tiers",
 	})
 }
 
@@ -389,123 +402,4 @@ func TestHandleManifest_MethodNotAllowed(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)
 	}
-}
-
-func assertRequiredScanQuery(t *testing.T, query map[string]scanQueryParam, key string) {
-	t.Helper()
-
-	param, ok := query[key]
-	if !ok || !param.Required || param.Type != schemaFieldTypeString {
-		t.Fatalf("scan %s query = %+v, want required string", key, param)
-	}
-}
-
-func assertOptionalScanOptInQuery(t *testing.T, query map[string]scanQueryParam, key string) {
-	t.Helper()
-
-	param, ok := query[key]
-	if !ok || param.Required || param.OptInValue != optInLiteralValue {
-		t.Fatalf("scan %s query = %+v, want optional optInValue 1", key, param)
-	}
-}
-
-func assertOptInWireKeys(t *testing.T, raw map[string]json.RawMessage) {
-	t.Helper()
-
-	permanent := mustRawObject(t, raw["permanent"], "permanent")
-	assertExactKeys(t, permanent, []string{"available", "optInQuery", "optInValue"})
-
-	optIn := mustRawObject(t, raw["optIn"], "optIn")
-	assertExactKeys(t, optIn, []string{"default", "scan", "start"})
-	assertExactKeys(t, mustRawObject(t, optIn["start"], "optIn start"), []string{"optInPermanent", "optInStats"})
-	assertExactKeys(t, mustRawObject(t, optIn["scan"], "optIn scan"), []string{"optInValue", "permanentQuery", "statsQuery"})
-}
-
-func assertScanQueryPermanentKeys(t *testing.T, scanQuery map[string]json.RawMessage) {
-	t.Helper()
-
-	assertExactKeys(
-		t,
-		mustRawObject(t, scanQuery[optInQueryPermanent], "scan query permanent"),
-		[]string{"description", "optInValue", "required", "type"},
-	)
-}
-
-func assertConsentAdvertisement(t *testing.T, payload manifestRouteResponse) {
-	t.Helper()
-
-	if !payload.Contribute.Available ||
-		payload.Contribute.OptInQuery != optInQueryContribute ||
-		payload.Contribute.OptInValue != optInLiteralValue {
-		t.Fatalf("contribute = %+v", payload.Contribute)
-	}
-
-	if !payload.Permanent.Available ||
-		payload.Permanent.OptInQuery != optInQueryPermanent ||
-		payload.Permanent.OptInValue != optInLiteralValue {
-		t.Fatalf("permanent = %+v", payload.Permanent)
-	}
-
-	if payload.OptIn.Default != "neither" ||
-		payload.OptIn.Scan.StatsQuery != optInQueryContribute ||
-		payload.OptIn.Scan.PermanentQuery != optInQueryPermanent ||
-		payload.OptIn.Scan.OptInValue != optInLiteralValue {
-		t.Fatalf("optIn = %+v", payload.OptIn)
-	}
-
-	if payload.OptIn.Start.OptInStats.Default || payload.OptIn.Start.OptInPermanent.Default {
-		t.Fatalf(
-			"optIn.start defaults = stats=%v permanent=%v, want both false",
-			payload.OptIn.Start.OptInStats.Default,
-			payload.OptIn.Start.OptInPermanent.Default,
-		)
-	}
-}
-
-func mustRawObject(t *testing.T, raw json.RawMessage, label string) map[string]json.RawMessage {
-	t.Helper()
-
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &obj); err != nil {
-		t.Fatalf("unmarshal %s: %v", label, err)
-	}
-
-	return obj
-}
-
-func assertExactKeys(t *testing.T, raw map[string]json.RawMessage, want []string) {
-	t.Helper()
-
-	got := make([]string, 0, len(raw))
-	for key := range raw {
-		got = append(got, key)
-	}
-
-	slices.Sort(got)
-	slices.Sort(want)
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("keys = %v, want %v", got, want)
-	}
-}
-
-func assertRequiredKeys(t *testing.T, raw map[string]json.RawMessage, required []string) {
-	t.Helper()
-
-	for _, key := range required {
-		if _, ok := raw[key]; !ok {
-			t.Fatalf("missing required wire key %q; keys present: %v", key, sortedWireKeys(raw))
-		}
-	}
-}
-
-func sortedWireKeys(raw map[string]json.RawMessage) []string {
-	keys := make([]string, 0, len(raw))
-	for key := range raw {
-		keys = append(keys, key)
-	}
-
-	slices.Sort(keys)
-
-	return keys
 }

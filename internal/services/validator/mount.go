@@ -16,6 +16,15 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 )
 
+func mountValidatorRoutes(
+	r chi.Router,
+	passiveHandler *passive.Handler,
+	startRatelimit func(http.Handler) http.Handler,
+) {
+	mountPlaneARoutes(r, passiveHandler, startRatelimit)
+	r.Method(http.MethodGet, RouteHTMLReport, http.HandlerFunc(passiveHandler.HandleReportHTML))
+}
+
 func mountPlaneARoutes(
 	r chi.Router,
 	passiveHandler *passive.Handler,
@@ -30,6 +39,7 @@ func planeAAPIRoutePatterns() passive.PlaneAAPIRoutePatterns {
 		Session:    RouteAPISession,
 		Manifest:   RouteAPIManifest,
 		Statistics: RouteAPIStatistics,
+		Report:     RouteAPIReport,
 	}
 }
 

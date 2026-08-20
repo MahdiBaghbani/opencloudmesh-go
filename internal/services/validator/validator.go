@@ -83,13 +83,16 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		}
 
 		passiveHandler := passive.NewHandlerWithDiscovery(inputs.Store, inputs.DiscoveryClient, log)
+		if inputs.Config != nil {
+			passiveHandler.SetExternalBasePath(inputs.Config.ExternalBasePath)
+		}
 
 		startRatelimit, ratelimitErr := buildStartRatelimit(inputs, c.Ratelimit.Profile)
 		if ratelimitErr != nil {
 			return nil, ratelimitErr
 		}
 
-		mountPlaneARoutes(r, passiveHandler, startRatelimit)
+		mountValidatorRoutes(r, passiveHandler, startRatelimit)
 	}
 
 	return &Service{router: r, conf: &c, log: log}, nil

@@ -42,13 +42,27 @@ func Routes(opts RouteOpts) []RouteRow {
 			ServicePrefix: desc.Prefix,
 			FullPath:      fullPathForSpec(desc, opts.ExternalBasePath, spec.Pattern),
 			AtHostRoot:    desc.MountAtRoot,
-			MatchExact:    spec.ID == RouteIDValidatorAPIStatistics || spec.ID == RouteIDValidatorAPISession,
+			MatchExact:    validatorMatchExact(spec.ID),
 		})
 	}
 
 	rows = append(rows, syntheticSubtreeRows(opts)...)
 
 	return rows
+}
+
+func validatorMatchExact(id string) bool {
+	switch id {
+	case RouteIDValidatorAPIStatistics,
+		RouteIDValidatorAPISession,
+		RouteIDValidatorAPIReport,
+		RouteIDValidatorHTMLReport,
+		RouteIDValidatorAPIReportRetention,
+		RouteIDValidatorAPIReportLock:
+		return true
+	default:
+		return false
+	}
 }
 
 func fullPathForSpec(desc Descriptor, basePath, pattern string) string {

@@ -30,6 +30,23 @@ const (
 	// RouteAPISession is GET /api/session/{id} on the validator service router.
 	RouteAPISession = "/api/session/{id}"
 
+	// RouteAPIReport is GET /api/report/{id} on the validator service router.
+	// Duplicated in services/validator because this package cannot import that
+	// service package; keep the strings synchronized.
+	RouteAPIReport = "/api/report/{id}"
+
+	// RouteAPIReportRetention is PATCH /api/report/{id}/retention.
+	// Duplicated in services/validator; keep the strings synchronized.
+	RouteAPIReportRetention = "/api/report/{id}/retention"
+
+	// RouteAPIReportLock is POST /api/report/{id}/lock.
+	// Duplicated in services/validator; keep the strings synchronized.
+	RouteAPIReportLock = "/api/report/{id}/lock"
+
+	// RouteHTMLReport is GET /report/{id} beside the plane-A API routes.
+	// Duplicated in services/validator; keep the strings synchronized.
+	RouteHTMLReport = "/report/{id}"
+
 	// ValidatorServiceName is the HTTP service key for federation validator routes.
 	ValidatorServiceName = "validator"
 )

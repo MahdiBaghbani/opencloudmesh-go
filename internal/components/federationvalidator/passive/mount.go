@@ -8,6 +8,7 @@ package passive
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -18,6 +19,7 @@ type PlaneAAPIRoutePatterns struct {
 	Session    string
 	Manifest   string
 	Statistics string
+	Report     string
 }
 
 // MountPlaneARoutes registers plane-A validator routes on r. startRatelimit may be
@@ -42,14 +44,21 @@ func MountPlaneARoutes(
 	r.Method(http.MethodGet, api.Session, http.HandlerFunc(h.HandleSession))
 	r.Method(http.MethodGet, api.Manifest, http.HandlerFunc(h.HandleManifest))
 	r.Method(http.MethodGet, api.Statistics, http.HandlerFunc(h.HandleStatistics))
+	r.Method(http.MethodGet, api.Report, http.HandlerFunc(h.HandleReportJSON))
+	r.Method(http.MethodPatch, RouteAPIReportRetention, http.HandlerFunc(h.HandleReportRetention))
+	r.Method(http.MethodPost, RouteAPIReportLock, http.HandlerFunc(h.HandleReportLock))
 }
 
 // EnumeratePlaneARoutes walks a chi router mounted via MountPlaneARoutes and
 // returns full /validator/... route inventory for manifest drift checks.
 func EnumeratePlaneARoutes(r chi.Router) ([]MountedAPIRoute, error) {
-	routes := make([]MountedAPIRoute, 0, 6)
+	routes := make([]MountedAPIRoute, 0, 16)
 
 	err := chi.Walk(r, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if !isPlaneAEnumeratedPattern(pattern) {
+			return nil
+		}
+
 		routes = append(routes, MountedAPIRoute{
 			Method:   method,
 			FullPath: serviceRelativeToFullPath(pattern),
@@ -65,5 +74,14 @@ func EnumeratePlaneARoutes(r chi.Router) ([]MountedAPIRoute, error) {
 }
 
 func serviceRelativeToFullPath(pattern string) string {
-	return "/" + manifestServicePrefix + pattern
+	return joinReportPath("", manifestServicePrefix, pattern)
+}
+
+func isPlaneAEnumeratedPattern(pattern string) bool {
+	trimmed := strings.Trim(pattern, "/")
+	if trimmed == "start" || trimmed == "stop" {
+		return true
+	}
+
+	return strings.HasPrefix(trimmed, "api/")
 }

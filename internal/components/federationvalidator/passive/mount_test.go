@@ -17,6 +17,7 @@ func defaultPlaneAAPIRoutePatterns() PlaneAAPIRoutePatterns {
 		Session:    RouteAPISession,
 		Manifest:   RouteAPIManifest,
 		Statistics: RouteAPIStatistics,
+		Report:     RouteAPIReport,
 	}
 }
 

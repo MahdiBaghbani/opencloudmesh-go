@@ -140,25 +140,7 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 
 func pathMatchesRoute(path, pattern string, matchExact bool) bool {
 	if matchExact {
-		if path == pattern {
-			return true
-		}
-
-		if before, paramRest, ok := strings.Cut(pattern, "{"); ok && strings.HasSuffix(paramRest, "}") {
-			prefix := strings.TrimSuffix(before, "/")
-			if !strings.HasPrefix(path, prefix+"/") {
-				return false
-			}
-
-			remainder := path[len(prefix)+1:]
-			if remainder == "" || strings.Contains(remainder, "/") {
-				return false
-			}
-
-			return true
-		}
-
-		return false
+		return matchExactRoute(path, pattern)
 	}
 
 	if path == pattern {
@@ -178,6 +160,54 @@ func pathMatchesRoute(path, pattern string, matchExact bool) bool {
 	}
 
 	return pathMatchesPrefix(path, pattern)
+}
+
+func matchExactRoute(path, pattern string) bool {
+	if len(path) > 1 && strings.HasSuffix(path, "/") {
+		return false
+	}
+
+	if path == pattern {
+		return true
+	}
+
+	pathSegs := pathSegments(path)
+	patternSegs := pathSegments(pattern)
+
+	if len(pathSegs) != len(patternSegs) {
+		return false
+	}
+
+	for i, pat := range patternSegs {
+		if isRouteParam(pat) {
+			if pathSegs[i] == "" {
+				return false
+			}
+
+			continue
+		}
+
+		if pathSegs[i] != pat {
+			return false
+		}
+	}
+
+	return true
+}
+
+func pathSegments(p string) []string {
+	// TrimPrefix strips one leading slash, so "//a/b" keeps an empty first
+	// segment and cannot MatchExact a single-slash pattern.
+	p = strings.TrimPrefix(p, "/")
+	if p == "" {
+		return []string{}
+	}
+
+	return strings.Split(p, "/")
+}
+
+func isRouteParam(seg string) bool {
+	return len(seg) >= 2 && seg[0] == '{' && seg[len(seg)-1] == '}'
 }
 
 func pathMatchesPrefix(path, prefix string) bool {

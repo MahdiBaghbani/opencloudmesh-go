@@ -163,10 +163,48 @@ func TestRoutes_ValidatorSessionMatchExactOnRouteRow(t *testing.T) {
 	}
 }
 
+func TestRoutes_ReportTrailingSlashDoesNotInheritPublicExact(t *testing.T) {
+	t.Parallel()
+
+	opts := validatorEnabledRouteOpts()
+
+	if service.SessionAuthRequiredForPath("/validator/report/run-1", opts) {
+		t.Error("expected /validator/report/run-1 public")
+	}
+
+	if service.SessionAuthRequiredForPath("/validator/api/report/run-1", opts) {
+		t.Error("expected /validator/api/report/run-1 public")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/report/run-1/", opts) {
+		t.Error("expected HTML trailing slash not to inherit public exact match")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/report/run-1/", opts) {
+		t.Error("expected JSON trailing slash not to inherit public exact match")
+	}
+
+	if !service.SessionAuthRequiredForPath("//validator/api/report/run-1", opts) {
+		t.Error("expected double-leading-slash JSON report path to fall to protected subtree")
+	}
+
+	if !service.SessionAuthRequiredForPath("//validator/report/run-1", opts) {
+		t.Error("expected double-leading-slash HTML report path to fall to protected subtree")
+	}
+}
+
 func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 	t.Parallel()
 
 	opts := validatorEnabledRouteOpts()
+	wantExact := map[string]struct{}{
+		service.RouteIDValidatorAPIStatistics:      {},
+		service.RouteIDValidatorAPISession:         {},
+		service.RouteIDValidatorAPIReport:          {},
+		service.RouteIDValidatorHTMLReport:         {},
+		service.RouteIDValidatorAPIReportRetention: {},
+		service.RouteIDValidatorAPIReportLock:      {},
+	}
 	matchExactCount := 0
 
 	for _, row := range service.Routes(opts) {
@@ -176,13 +214,13 @@ func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 
 		matchExactCount++
 
-		if row.ID != service.RouteIDValidatorAPIStatistics && row.ID != service.RouteIDValidatorAPISession {
+		if _, ok := wantExact[row.ID]; !ok {
 			t.Errorf("unexpected MatchExact row %q", row.ID)
 		}
 	}
 
-	if matchExactCount != 2 {
-		t.Fatalf("MatchExact row count = %d, want 2", matchExactCount)
+	if matchExactCount != len(wantExact) {
+		t.Fatalf("MatchExact row count = %d, want %d", matchExactCount, len(wantExact))
 	}
 }
 
@@ -214,6 +252,7 @@ func TestRoutes_ValidatorAPIRoutesGatedByFeature(t *testing.T) {
 		"/validator/api/scan",
 		"/validator/api/session/{id}",
 		"/validator/api/report/{id}",
+		"/validator/report/{id}",
 		"/validator/api/manifest",
 		"/validator/api/statistics",
 	}
@@ -240,6 +279,19 @@ func TestRoutes_ValidatorAPIRoutesGatedByFeature(t *testing.T) {
 	disabledByPath := productRouteRowsByPath(t, service.Routes(disabledOpts))
 
 	for _, path := range expectedPaths {
+		if _, ok := disabledByPath[path]; ok {
+			t.Errorf("disabled: path %q must not be mounted", path)
+		}
+	}
+
+	for _, path := range []string{
+		"/validator/api/report/{id}/retention",
+		"/validator/api/report/{id}/lock",
+	} {
+		if _, ok := enabledByPath[path]; !ok {
+			t.Errorf("enabled: expected path %q mounted as product route row", path)
+		}
+
 		if _, ok := disabledByPath[path]; ok {
 			t.Errorf("disabled: path %q must not be mounted", path)
 		}
