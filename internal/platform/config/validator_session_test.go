@@ -25,6 +25,7 @@ created_ttl_seconds = 11
 passive_running_ttl_seconds = 13
 passive_complete_ttl_seconds = 17
 terminal_retention_days = 19
+stall_timeout_seconds = 23
 `
 	configPath := writeTempConfig(t, tomlContent)
 
@@ -53,6 +54,10 @@ terminal_retention_days = 19
 		t.Errorf("TerminalRetentionDays = %d, want 19", cfg.Validator.Session.TerminalRetentionDays)
 	}
 
+	if cfg.Validator.Session.StallTimeoutSeconds != 23 {
+		t.Errorf("StallTimeoutSeconds = %d, want 23", cfg.Validator.Session.StallTimeoutSeconds)
+	}
+
 	got := SessionConfigFromValidator(cfg)
 
 	want := validatorcore.SessionConfig{
@@ -61,6 +66,7 @@ terminal_retention_days = 19
 		PassiveRunningTTLSeconds:  13,
 		PassiveCompleteTTLSeconds: 17,
 		TerminalRetentionDays:     19,
+		StallTimeoutSeconds:       23,
 	}
 	if got != want {
 		t.Errorf("SessionConfigFromValidator() = %+v, want %+v", got, want)

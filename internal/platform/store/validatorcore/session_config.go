@@ -11,6 +11,7 @@ const (
 	defaultPassiveRunningTTLSeconds  = 900
 	defaultPassiveCompleteTTLSeconds = 3600
 	defaultTerminalRetentionDays     = 30
+	defaultStallTimeoutSeconds       = 43200
 )
 
 // SessionConfig holds federation validator session limits and TTL knobs.
@@ -20,6 +21,11 @@ type SessionConfig struct {
 	PassiveRunningTTLSeconds  int
 	PassiveCompleteTTLSeconds int
 	TerminalRetentionDays     int
+
+	// StallTimeoutSeconds is the inactivity window for the one active run:
+	// an active session whose updated_at is older than this window is
+	// interrupted by the stall sweep. Non-positive disables the sweep.
+	StallTimeoutSeconds int
 }
 
 // DefaultSessionConfig returns production-safe session defaults.
@@ -30,5 +36,6 @@ func DefaultSessionConfig() SessionConfig {
 		PassiveRunningTTLSeconds:  defaultPassiveRunningTTLSeconds,
 		PassiveCompleteTTLSeconds: defaultPassiveCompleteTTLSeconds,
 		TerminalRetentionDays:     defaultTerminalRetentionDays,
+		StallTimeoutSeconds:       defaultStallTimeoutSeconds,
 	}
 }

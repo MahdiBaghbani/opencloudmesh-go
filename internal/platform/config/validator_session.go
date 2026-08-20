@@ -16,6 +16,7 @@ type ValidatorSessionConfig struct {
 	PassiveRunningTTLSeconds  int `toml:"passive_running_ttl_seconds"`
 	PassiveCompleteTTLSeconds int `toml:"passive_complete_ttl_seconds"`
 	TerminalRetentionDays     int `toml:"terminal_retention_days"`
+	StallTimeoutSeconds       int `toml:"stall_timeout_seconds"`
 }
 
 // SessionConfigFromValidator returns validatorcore session limits from cfg.
@@ -46,6 +47,10 @@ func SessionConfigFromValidator(cfg *Config) validatorcore.SessionConfig {
 
 	if vs.TerminalRetentionDays > 0 {
 		out.TerminalRetentionDays = vs.TerminalRetentionDays
+	}
+
+	if vs.StallTimeoutSeconds > 0 {
+		out.StallTimeoutSeconds = vs.StallTimeoutSeconds
 	}
 
 	return out
@@ -108,5 +113,9 @@ func overlayValidatorSessionConfig(cfg *Config, session *ValidatorSessionConfig)
 
 	if session.TerminalRetentionDays > 0 {
 		cfg.Validator.Session.TerminalRetentionDays = session.TerminalRetentionDays
+	}
+
+	if session.StallTimeoutSeconds > 0 {
+		cfg.Validator.Session.StallTimeoutSeconds = session.StallTimeoutSeconds
 	}
 }
