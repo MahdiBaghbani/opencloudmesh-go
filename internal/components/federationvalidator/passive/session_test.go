@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,27 +29,16 @@ func newSessionTestRouter(t *testing.T, h *Handler) chi.Router {
 	return r
 }
 
-func TestHandleSession_ReturnsStateAndTsOnly(t *testing.T) {
-	t.Parallel()
+func seedSessionRow(t *testing.T, store *validatorcore.Core, row *validatorcore.TestRun) {
+	t.Helper()
 
-	store := openHandlerTestStore(t)
-	h := NewHandler(store, nil)
-	ctx := t.Context()
-	now := time.Now().Unix()
-	runID := "run-poll"
-
-	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StatePassiveComplete,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now + 42,
-	}
-
-	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
+	if err := store.DB().WithContext(t.Context()).Create(row).Error; err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+}
+
+func doPoll(t *testing.T, h *Handler, runID string) *httptest.ResponseRecorder {
+	t.Helper()
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/session/"+runID, nil)
 	rec := httptest.NewRecorder()
@@ -57,12 +48,53 @@ func TestHandleSession_ReturnsStateAndTsOnly(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
+	return rec
+}
+
+func pollSession(t *testing.T, h *Handler, runID string) map[string]json.RawMessage {
+	t.Helper()
+
+	rec := doPoll(t, h, runID)
+
 	var payload map[string]json.RawMessage
 	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 
-	assertExactKeys(t, payload, []string{"state", "ts"})
+	return payload
+}
+
+func pollNextInstruction(t *testing.T, payload map[string]json.RawMessage) string {
+	t.Helper()
+
+	var next string
+	if err := json.Unmarshal(payload["nextInstruction"], &next); err != nil {
+		t.Fatalf("nextInstruction: %v", err)
+	}
+
+	return next
+}
+
+func TestHandleSession_ReturnsStateTsAndNextInstruction(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	now := time.Now().Unix()
+	runID := "run-poll"
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:   runID,
+		State:       validatorcore.StatePassiveComplete,
+		SessionKind: validatorcore.SessionKindPassiveOnly,
+		TargetHost:  "peer.example",
+		CreatedAt:   now,
+		UpdatedAt:   now + 42,
+	})
+
+	payload := pollSession(t, h, runID)
+
+	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
 
 	var state string
 	if err := json.Unmarshal(payload["state"], &state); err != nil {
@@ -80,6 +112,186 @@ func TestHandleSession_ReturnsStateAndTsOnly(t *testing.T) {
 
 	if ts != now+42 {
 		t.Fatalf("ts = %d, want %d", ts, now+42)
+	}
+
+	if next := pollNextInstruction(t, payload); next != "extend_or_stop" {
+		t.Fatalf("nextInstruction = %q, want %q", next, "extend_or_stop")
+	}
+}
+
+func TestHandleSession_NextInstructionPerState(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		state    string
+		isActive bool
+		want     string
+	}{
+		{name: "created", state: validatorcore.StateCreated, want: "wait_probe"},
+		{name: "passive_running", state: validatorcore.StatePassiveRunning, want: "wait_probe"},
+		{name: "passive_complete", state: validatorcore.StatePassiveComplete, want: "extend_or_stop"},
+		{name: "active_running", state: validatorcore.StateActiveRunning, isActive: true, want: "wait_invite_mint"},
+		{name: "invite_minted", state: validatorcore.StateInviteMinted, isActive: true, want: "paste_s1"},
+		{name: "invite_accepted", state: validatorcore.StateInviteAccepted, isActive: true, want: "wait_reverse_start"},
+		{name: "reverse_invite_solicited", state: validatorcore.StateReverseInviteSolicited, isActive: true, want: "wait_reverse_invite"},
+		{name: "reverse_awaiting_invite", state: validatorcore.StateReverseAwaitingInvite, isActive: true, want: "paste_s2"},
+		{name: "reverse_invite_imported", state: validatorcore.StateReverseInviteImported, isActive: true, want: "wait_reverse_accept"},
+		{name: "reverse_invite_accepted", state: validatorcore.StateReverseInviteAccepted, isActive: true, want: "wait_forward_share"},
+		{name: "forward_share_sent", state: validatorcore.StateForwardShareSent, isActive: true, want: "open_forward_file"},
+		{name: "capability_exercise", state: validatorcore.StateCapabilityExercise, isActive: true, want: "wait_oq2_open"},
+		{name: "reverse_awaiting_share", state: validatorcore.StateReverseAwaitingShare, isActive: true, want: "wait_reverse_share_or_timeout"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+			now := time.Now().Unix()
+			runID := "run-" + tc.name
+
+			sessionKind := validatorcore.SessionKindPassiveOnly
+			if tc.isActive {
+				sessionKind = validatorcore.SessionKindActiveFull
+			}
+
+			seedSessionRow(t, store, &validatorcore.TestRun{
+				TestRunID:   runID,
+				IsActive:    tc.isActive,
+				State:       tc.state,
+				SessionKind: sessionKind,
+				TargetHost:  "peer.example",
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			})
+
+			payload := pollSession(t, h, runID)
+
+			assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+
+			if next := pollNextInstruction(t, payload); next != tc.want {
+				t.Fatalf("nextInstruction = %q, want %q", next, tc.want)
+			}
+		})
+	}
+}
+
+func TestHandleSession_TerminalStatesOmitNextInstruction(t *testing.T) {
+	t.Parallel()
+
+	for _, state := range []string{
+		validatorcore.StateTerminalPass,
+		validatorcore.StateTerminalFail,
+		validatorcore.StateInterrupted,
+	} {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+			now := time.Now().Unix()
+			finishedAt := now + 1
+			runID := "run-" + state
+
+			seedSessionRow(t, store, &validatorcore.TestRun{
+				TestRunID:   runID,
+				State:       state,
+				SessionKind: validatorcore.SessionKindPassiveOnly,
+				TargetHost:  "peer.example",
+				FinishedAt:  &finishedAt,
+				CreatedAt:   now,
+				UpdatedAt:   finishedAt,
+			})
+
+			payload := pollSession(t, h, runID)
+
+			assertExactKeys(t, payload, []string{"state", "ts"})
+		})
+	}
+}
+
+func TestHandleSession_PollDoesNotMutateSession(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-readonly"
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:   runID,
+		State:       validatorcore.StatePassiveComplete,
+		SessionKind: validatorcore.SessionKindPassiveOnly,
+		TargetHost:  "peer.example",
+		CreatedAt:   now,
+		UpdatedAt:   now + 7,
+	})
+
+	before, err := store.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("load before poll: %v", err)
+	}
+
+	pollSession(t, h, runID)
+
+	after, err := store.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("load after poll: %v", err)
+	}
+
+	if !reflect.DeepEqual(before, after) {
+		t.Fatalf("poll mutated session row: before %+v, after %+v", before, after)
+	}
+}
+
+func TestHandleSession_PollOmitsSensitiveSessionFields(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	now := time.Now().Unix()
+	runID := "run-secrets"
+
+	bobUserID := "probe-user-id-marker"
+	reverseInvite := "reverse-invite-string-marker"
+	designatedShareWith := "validator-party-email@example.com"
+	reverseShareProviderID := "bob-cloudid-marker"
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:              runID,
+		IsActive:               true,
+		State:                  validatorcore.StateReverseAwaitingInvite,
+		SessionKind:            validatorcore.SessionKindActiveFull,
+		TargetHost:             "peer.example",
+		BobUserID:              &bobUserID,
+		ReverseInviteToken:     &reverseInvite,
+		DesignatedShareWith:    &designatedShareWith,
+		ReverseShareProviderID: &reverseShareProviderID,
+		CreatedAt:              now,
+		UpdatedAt:              now,
+	})
+
+	rec := doPoll(t, h, runID)
+	body := rec.Body.String()
+
+	for _, secret := range []string{bobUserID, reverseInvite, designatedShareWith, reverseShareProviderID} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("poll response leaks %q: %s", secret, body)
+		}
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+
+	if next := pollNextInstruction(t, payload); next != "paste_s2" {
+		t.Fatalf("nextInstruction = %q, want %q", next, "paste_s2")
 	}
 }
 

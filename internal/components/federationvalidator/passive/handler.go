@@ -82,8 +82,9 @@ type stopResponse struct {
 }
 
 type sessionPollResponse struct {
-	State string `json:"state"`
-	Ts    int64  `json:"ts"`
+	State           string `json:"state"`
+	Ts              int64  `json:"ts"`
+	NextInstruction string `json:"nextInstruction,omitempty"`
 }
 
 // HandleStart serves POST /start for passive-core create and active extension.
@@ -295,8 +296,9 @@ func (h *Handler) HandleSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, h.log, http.StatusOK, sessionPollResponse{
-		State: row.State,
-		Ts:    row.UpdatedAt,
+		State:           row.State,
+		Ts:              row.UpdatedAt,
+		NextInstruction: validatorcore.NextInstructionForState(row.State),
 	})
 }
 

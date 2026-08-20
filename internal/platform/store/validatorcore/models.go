@@ -17,8 +17,9 @@ const (
 	OptInChannelScan  = "scan"
 )
 
-// TestRun state values (16-value session state enum). Forward sub-progress stays
-// on step or coordinator labels, not on State. The test_run.state CHECK
+// TestRun state values (16-value session state enum). Forward and reverse
+// sub-progress live on State as granular values, and the reverse states are
+// reachable session states, not dormant placeholders. The test_run.state CHECK
 // constraint in the validator schema lists exactly these values.
 const (
 	StateCreated                = "created"
@@ -37,6 +38,16 @@ const (
 	StateTerminalPass           = "terminal_pass"
 	StateTerminalFail           = "terminal_fail"
 	StateInterrupted            = "interrupted"
+)
+
+// Dormant session state values reserved for the reverse-return lifecycle.
+// They sit off the reachable graph: no guarded transition writes them and the
+// schema state set excludes them, so no session row can hold these values yet.
+const (
+	StateAwaitingReturnShare       = "awaiting_return_share"
+	StatePassiveDone               = "passive_done"
+	StateReverseShareAccepted      = "reverse_share_accepted"
+	StateReverseCapabilityExercise = "reverse_capability_exercise"
 )
 
 // testRunStates lists every allowed test_run.state value. The validator schema
@@ -58,6 +69,41 @@ var testRunStates = []string{
 	StateTerminalPass,
 	StateTerminalFail,
 	StateInterrupted,
+}
+
+// NextInstructionForState maps a session state to the stable nextInstruction
+// key published by session polling. A key tells the operator what the flow
+// waits on next and carries no session secrets. Terminal, dormant, and unknown
+// states return an empty string so poll responses omit the key.
+func NextInstructionForState(state string) string {
+	switch state {
+	case StateCreated, StatePassiveRunning:
+		return "wait_probe"
+	case StatePassiveComplete:
+		return "extend_or_stop"
+	case StateActiveRunning:
+		return "wait_invite_mint"
+	case StateInviteMinted:
+		return "paste_s1"
+	case StateInviteAccepted:
+		return "wait_reverse_start"
+	case StateReverseInviteSolicited:
+		return "wait_reverse_invite"
+	case StateReverseAwaitingInvite:
+		return "paste_s2"
+	case StateReverseInviteImported:
+		return "wait_reverse_accept"
+	case StateReverseInviteAccepted:
+		return "wait_forward_share"
+	case StateForwardShareSent:
+		return "open_forward_file"
+	case StateCapabilityExercise:
+		return "wait_oq2_open"
+	case StateReverseAwaitingShare:
+		return "wait_reverse_share_or_timeout"
+	default:
+		return ""
+	}
 }
 
 // ShareCorrelation role values. sender_host is the TARGET authority for all four
