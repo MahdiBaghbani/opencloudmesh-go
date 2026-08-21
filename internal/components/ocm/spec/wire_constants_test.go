@@ -117,10 +117,10 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		25: {},
 	},
 	"internal/services/webdav/webdav.go": {
-		// wrapcheck rollout added a "fmt" import (+1).
+		// wrapcheck rollout added a "fmt" import (+1); share-access observer wiring added a setter call (+1).
 		49: {},
 		55: {},
-		71: {},
+		72: {},
 	},
 }
 

@@ -8,10 +8,16 @@ package webdav
 import (
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/webdav"
 )
 
 // Inputs holds dependencies for the WebDAV service constructor.
 type Inputs struct {
 	OutgoingShareRepo sharesoutgoing.OutgoingShareRepo
 	TokenStore        token.TokenStore
+	// ShareAccessObserver optionally runs after an authorized GET for a
+	// resolved share, before the file is served; the validator uses it to
+	// observe the capability exercise without the product handler knowing
+	// about test runs.
+	ShareAccessObserver webdav.ShareAccessObserver
 }

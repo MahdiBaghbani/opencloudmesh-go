@@ -21,8 +21,9 @@ func mountValidatorRoutes(
 	passiveHandler *passive.Handler,
 	startRatelimit func(http.Handler) http.Handler,
 	reverseInviteHandler http.HandlerFunc,
+	reverseWaitOpen passive.ReverseWaitOpener,
 ) {
-	mountPlaneARoutes(r, passiveHandler, startRatelimit)
+	mountPlaneARoutes(r, passiveHandler, startRatelimit, reverseWaitOpen)
 	r.Method(http.MethodGet, RouteHTMLReport, http.HandlerFunc(passiveHandler.HandleReportHTML))
 	// The paste route is validator-only and deliberately outside the plane-A
 	// set so it is never advertised in the anonymous manifest.
@@ -35,8 +36,9 @@ func mountPlaneARoutes(
 	r chi.Router,
 	passiveHandler *passive.Handler,
 	startRatelimit func(http.Handler) http.Handler,
+	reverseWaitOpen passive.ReverseWaitOpener,
 ) {
-	passive.MountPlaneARoutes(r, passiveHandler, startRatelimit, planeAAPIRoutePatterns())
+	passive.MountPlaneARoutesWithHeal(r, passiveHandler, startRatelimit, planeAAPIRoutePatterns(), reverseWaitOpen)
 }
 
 func planeAAPIRoutePatterns() passive.PlaneAAPIRoutePatterns {

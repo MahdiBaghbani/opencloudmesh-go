@@ -6,6 +6,7 @@
 package incoming
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -22,5 +23,5 @@ func HandleExistingIncomingShareForTest(
 	senderHost string,
 	resolvedUser *identity.User,
 ) bool {
-	return handleExistingIncomingShare(w, log, existing, req, senderHost, resolvedUser)
+	return handleExistingIncomingShare(context.Background(), w, log, existing, req, senderHost, resolvedUser, nil)
 }

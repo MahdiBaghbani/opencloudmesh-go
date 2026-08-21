@@ -234,6 +234,81 @@ func TestSweepStalledActiveSessions_StallReasonMapping(t *testing.T) {
 	}
 }
 
+func TestSweepStalledActiveSessions_ReverseShareTimeoutShortensWindow(t *testing.T) {
+	t.Parallel()
+
+	// Both runs sit idle for 120 seconds: past the 60-second reverse-share
+	// budget, well inside the 3600-second stall window.
+	cfg := SessionConfig{
+		InFlightPassiveLimit:       1,
+		StallTimeoutSeconds:        3600,
+		ReverseShareTimeoutSeconds: 60,
+	}
+
+	t.Run("reverse awaiting share sweeps at the reverse cutoff", func(t *testing.T) {
+		t.Parallel()
+
+		core := openTestCore(t)
+		core.SetSessionConfig(cfg)
+
+		ctx := t.Context()
+
+		runID := "run-stall-reverse-window"
+		seedActiveRunAt(t, core, runID, StateReverseAwaitingShare, time.Now().Unix()-120)
+
+		if err := core.SweepStalledActiveSessions(ctx); err != nil {
+			t.Fatalf("SweepStalledActiveSessions: %v", err)
+		}
+
+		got, err := core.GetTestRun(ctx, runID)
+		if err != nil {
+			t.Fatalf("GetTestRun: %v", err)
+		}
+
+		if got.IsActive {
+			t.Fatal("is_active = 1, want 0")
+		}
+
+		if got.State != StateInterrupted {
+			t.Fatalf("state = %q, want %q", got.State, StateInterrupted)
+		}
+
+		if got.TerminalReason == nil || *got.TerminalReason != ReasonReverseShareTimeout {
+			t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, ReasonReverseShareTimeout)
+		}
+	})
+
+	t.Run("capability exercise keeps the stall cutoff", func(t *testing.T) {
+		t.Parallel()
+
+		core := openTestCore(t)
+		core.SetSessionConfig(cfg)
+
+		ctx := t.Context()
+
+		runID := "run-stall-forward-window"
+		seedActiveRunAt(t, core, runID, StateCapabilityExercise, time.Now().Unix()-120)
+
+		if err := core.SweepStalledActiveSessions(ctx); err != nil {
+			t.Fatalf("SweepStalledActiveSessions: %v", err)
+		}
+
+		got, err := core.GetTestRun(ctx, runID)
+		if err != nil {
+			t.Fatalf("GetTestRun: %v", err)
+		}
+
+		if !got.IsActive || got.State != StateCapabilityExercise {
+			t.Fatalf("is_active=%v state=%q, want untouched active capability_exercise inside the stall window",
+				got.IsActive, got.State)
+		}
+
+		if got.FinishedAt != nil {
+			t.Fatalf("finished_at = %v, want nil", got.FinishedAt)
+		}
+	})
+}
+
 func TestSweepStalledActiveSessions_DisabledWindowSkipsSweep(t *testing.T) {
 	t.Parallel()
 

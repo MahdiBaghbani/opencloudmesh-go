@@ -30,6 +30,19 @@ func MountPlaneARoutes(
 	startRatelimit func(http.Handler) http.Handler,
 	api PlaneAAPIRoutePatterns,
 ) {
+	MountPlaneARoutesWithHeal(r, h, startRatelimit, api, nil)
+}
+
+// MountPlaneARoutesWithHeal is MountPlaneARoutes plus an optional reverse-share
+// wait opener wrapped around the session poll route. A nil opener keeps the
+// poll a plain read.
+func MountPlaneARoutesWithHeal(
+	r chi.Router,
+	h *Handler,
+	startRatelimit func(http.Handler) http.Handler,
+	api PlaneAAPIRoutePatterns,
+	reverseWaitOpen ReverseWaitOpener,
+) {
 	start := CreateSessionRouteSpec()
 	stop := StopSessionRouteSpec()
 
@@ -39,9 +52,14 @@ func MountPlaneARoutes(
 		r.Method(start.Method, start.Pattern, http.HandlerFunc(h.HandleStart))
 	}
 
+	sessionHandler := http.HandlerFunc(h.HandleSession)
+	if reverseWaitOpen != nil {
+		sessionHandler = healReverseWaitOnPoll(h.store, h.log, reverseWaitOpen, sessionHandler)
+	}
+
 	r.Method(stop.Method, stop.Pattern, http.HandlerFunc(h.HandleStop))
 	r.Method(http.MethodGet, api.Scan, http.HandlerFunc(h.HandleScan))
-	r.Method(http.MethodGet, api.Session, http.HandlerFunc(h.HandleSession))
+	r.Method(http.MethodGet, api.Session, sessionHandler)
 	r.Method(http.MethodGet, api.Manifest, http.HandlerFunc(h.HandleManifest))
 	r.Method(http.MethodGet, api.Statistics, http.HandlerFunc(h.HandleStatistics))
 	r.Method(http.MethodGet, api.Report, http.HandlerFunc(h.HandleReportJSON))

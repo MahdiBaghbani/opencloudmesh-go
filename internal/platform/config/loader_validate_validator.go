@@ -48,6 +48,34 @@ func validateValidatorStatistics(cfg *Config) error {
 	return nil
 }
 
+// validateValidatorSessionWindows fails closed when the declared
+// reverse-share wait budget exceeds the stall window that enforces it: the
+// stall sweep would otherwise interrupt the wait with reverse_share_timeout
+// before the declared budget elapsed. Effective values come from
+// SessionConfigFromValidator, so an absent or non-positive knob reads as its
+// default here.
+func validateValidatorSessionWindows(cfg *Config) error {
+	if !IsValidatorMode(cfg) {
+		return nil
+	}
+
+	session := SessionConfigFromValidator(cfg)
+
+	if session.StallTimeoutSeconds <= 0 {
+		return nil
+	}
+
+	if session.ReverseShareTimeoutSeconds > session.StallTimeoutSeconds {
+		return fmt.Errorf(
+			"validator.session.reverse_share_timeout_seconds (%d) must not exceed validator.session.stall_timeout_seconds (%d)",
+			session.ReverseShareTimeoutSeconds,
+			session.StallTimeoutSeconds,
+		)
+	}
+
+	return nil
+}
+
 func validateValidatorScanPublicRatelimit(cfg *Config) error {
 	if !IsValidatorMode(cfg) {
 		return nil

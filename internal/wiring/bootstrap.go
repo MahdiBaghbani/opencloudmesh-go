@@ -78,9 +78,10 @@ type BuildResult struct {
 	// stop func is non-nil. Close is a no-op for the memory backend.
 	Persistence *repos.Repos
 
-	// StopRetentionSweep cancels the store-level permanent-report expiry
-	// ticker started after a successful Attach and waits for the sweep
-	// goroutine to return. Nil when the validator store is not wired.
+	// StopRetentionSweep cancels the store-level maintenance tickers started
+	// after a successful Attach (the permanent-report expiry loop and the
+	// stalled active-run sweep) and waits for both goroutines to return.
+	// Nil when the validator store is not wired.
 	// Call on process shutdown before Persistence.Close.
 	StopRetentionSweep context.CancelFunc
 }
@@ -223,7 +224,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		Deps:               built,
 		RootCAPool:         rootCAPool,
 		Persistence:        persistence,
-		StopRetentionSweep: startRetentionSweep(validatorStore),
+		StopRetentionSweep: joinStoreSweepStops(startRetentionSweep(validatorStore), startStallSweep(validatorStore)),
 	}, nil
 }
 

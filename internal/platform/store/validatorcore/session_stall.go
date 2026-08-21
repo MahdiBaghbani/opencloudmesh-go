@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -21,9 +22,11 @@ import (
 // an unsealed permanent row is sealed from its finished_at; already-written
 // terminal fields stay untouched and no statistics are persisted again. It
 // then interrupts active runs still in a non-terminal state whose updated_at
-// is older than the configured stall timeout; the guarded state/lock
-// transition to interrupted lands first and terminal statistics persist
-// best-effort afterwards through the shared active-terminal release path.
+// is older than the configured inactivity window (the stall timeout, or the
+// shorter reverse-share budget for the reverse_awaiting_share wait); the
+// guarded state/lock transition to interrupted lands first and terminal
+// statistics persist best-effort afterwards through the shared
+// active-terminal release path.
 // The pass never deletes rows and never stamps harvest markers, so
 // probe-linked sessions survive interruption.
 func (c *Core) SweepStalledActiveSessions(ctx context.Context) error {
@@ -118,21 +121,31 @@ func (c *Core) releaseActiveTerminalHybrid(ctx context.Context, row TestRun, now
 // interruptStalledActiveRuns moves active runs that stopped making progress
 // to interrupted. Selection guards on state NOT IN the terminal set rather
 // than a per-state list, so any non-terminal state is swept regardless of its
-// name. A transition miss means the run moved on between selection and the
-// guarded write and is skipped.
+// name. The reverse_awaiting_share wait ages out at the shorter of the stall
+// window and the declared reverse-share budget; every other non-terminal
+// state keeps the stall window. A transition miss means the run moved on
+// between selection and the guarded write and is skipped.
 func (c *Core) interruptStalledActiveRuns(ctx context.Context) error {
 	cfg := c.SessionConfig()
 	if cfg.StallTimeoutSeconds <= 0 {
 		return nil
 	}
 
-	cutoff := time.Now().Unix() - int64(cfg.StallTimeoutSeconds)
+	now := time.Now().Unix()
+	stallCutoff := now - int64(cfg.StallTimeoutSeconds)
+	reverseCutoff := now - int64(reverseShareStallTimeoutSeconds(cfg))
 
 	var rows []TestRun
 
 	if err := c.db.WithContext(ctx).
 		Select(colTestRunID, colState).
-		Where("is_active = 1 AND state NOT IN ? AND updated_at < ?", terminalStateSet(), cutoff).
+		Where(
+			"is_active = 1 AND state NOT IN ? AND "+
+				"((state = ? AND updated_at < ?) OR (state <> ? AND updated_at < ?))",
+			terminalStateSet(),
+			StateReverseAwaitingShare, reverseCutoff,
+			StateReverseAwaitingShare, stallCutoff,
+		).
 		Find(&rows).Error; err != nil {
 		return fmt.Errorf("validatorcore: list stalled active runs: %w", err)
 	}
@@ -158,12 +171,25 @@ func (c *Core) interruptStalledActiveRuns(ctx context.Context) error {
 func stallTerminalReason(state string) string {
 	switch state {
 	case StateReverseAwaitingShare:
-		return "reverse_share_timeout"
+		return ReasonReverseShareTimeout
 	case StateReverseAwaitingInvite:
 		return "reverse_invite_timeout"
 	default:
 		return "stall_inactivity_expired"
 	}
+}
+
+// reverseShareStallTimeoutSeconds is the inactivity window the sweep applies
+// to the reverse_awaiting_share wait: the declared reverse-share budget when
+// it is set and tighter than the stall window, the stall window otherwise.
+// Config load already fails closed on a reverse budget above the stall
+// window; the min here keeps direct SetSessionConfig callers honest too.
+func reverseShareStallTimeoutSeconds(cfg SessionConfig) int {
+	if cfg.ReverseShareTimeoutSeconds > 0 && cfg.ReverseShareTimeoutSeconds < cfg.StallTimeoutSeconds {
+		return cfg.ReverseShareTimeoutSeconds
+	}
+
+	return cfg.StallTimeoutSeconds
 }
 
 // terminalStateSet builds the terminal exclusion list from the session state
@@ -179,4 +205,56 @@ func terminalStateSet() []string {
 	}
 
 	return states
+}
+
+// StallSweepInterval is the store-level cadence for the periodic maintenance
+// pass (the stalled active-run sweep and the missing terminal-stats heal) in
+// a long-lived process. Attach already ran one startup pass; the ticker
+// covers runs that stall or lose their stats write after boot.
+const StallSweepInterval = time.Hour
+
+// StartStallSweep runs the periodic store maintenance pass on
+// StallSweepInterval until ctx is cancelled. Each tick runs the stall sweep
+// and then the missing terminal-stats heal as a separate best-effort step;
+// the once-per-process startup recovery stays with Attach and never runs
+// here. A failed step is logged and the loop continues, matching the
+// retention sweep's best-effort cadence.
+func (c *Core) StartStallSweep(ctx context.Context) {
+	c.startStallSweep(ctx, StallSweepInterval)
+}
+
+// startStallSweep is the interval-parameterized loop behind StartStallSweep
+// so tests can run the ticker on a short cadence.
+func (c *Core) startStallSweep(ctx context.Context, interval time.Duration) {
+	if c == nil || ctx == nil {
+		return
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := c.SweepStalledActiveSessions(ctx); err != nil {
+				slog.WarnContext(
+					ctx,
+					"validatorcore: stalled active session sweep failed",
+					"err",
+					err,
+				)
+			}
+
+			if err := c.HealMissingTerminalStats(ctx); err != nil {
+				slog.WarnContext(
+					ctx,
+					"validatorcore: terminal stats heal failed",
+					"err",
+					err,
+				)
+			}
+		}
+	}
 }

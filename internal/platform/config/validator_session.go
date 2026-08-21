@@ -11,12 +11,13 @@ import (
 
 // ValidatorSessionConfig holds optional session limits under [validator.session].
 type ValidatorSessionConfig struct {
-	InFlightPassiveLimit      int `toml:"in_flight_passive_limit"`
-	CreatedTTLSeconds         int `toml:"created_ttl_seconds"`
-	PassiveRunningTTLSeconds  int `toml:"passive_running_ttl_seconds"`
-	PassiveCompleteTTLSeconds int `toml:"passive_complete_ttl_seconds"`
-	TerminalRetentionDays     int `toml:"terminal_retention_days"`
-	StallTimeoutSeconds       int `toml:"stall_timeout_seconds"`
+	InFlightPassiveLimit       int `toml:"in_flight_passive_limit"`
+	CreatedTTLSeconds          int `toml:"created_ttl_seconds"`
+	PassiveRunningTTLSeconds   int `toml:"passive_running_ttl_seconds"`
+	PassiveCompleteTTLSeconds  int `toml:"passive_complete_ttl_seconds"`
+	TerminalRetentionDays      int `toml:"terminal_retention_days"`
+	StallTimeoutSeconds        int `toml:"stall_timeout_seconds"`
+	ReverseShareTimeoutSeconds int `toml:"reverse_share_timeout_seconds"`
 }
 
 // SessionConfigFromValidator returns validatorcore session limits from cfg.
@@ -51,6 +52,10 @@ func SessionConfigFromValidator(cfg *Config) validatorcore.SessionConfig {
 
 	if vs.StallTimeoutSeconds > 0 {
 		out.StallTimeoutSeconds = vs.StallTimeoutSeconds
+	}
+
+	if vs.ReverseShareTimeoutSeconds > 0 {
+		out.ReverseShareTimeoutSeconds = vs.ReverseShareTimeoutSeconds
 	}
 
 	return out
@@ -117,5 +122,9 @@ func overlayValidatorSessionConfig(cfg *Config, session *ValidatorSessionConfig)
 
 	if session.StallTimeoutSeconds > 0 {
 		cfg.Validator.Session.StallTimeoutSeconds = session.StallTimeoutSeconds
+	}
+
+	if session.ReverseShareTimeoutSeconds > 0 {
+		cfg.Validator.Session.ReverseShareTimeoutSeconds = session.ReverseShareTimeoutSeconds
 	}
 }

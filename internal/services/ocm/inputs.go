@@ -17,6 +17,7 @@ import (
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
@@ -42,4 +43,14 @@ type Inputs struct {
 	// handler from outside; the validator uses it to observe acceptances
 	// without the product handler knowing about test runs.
 	InviteAcceptedDecorator func(http.HandlerFunc) http.HandlerFunc
+	// IncomingShareObserver optionally runs after an incoming share is
+	// durably stored, before the 201 is encoded; the validator uses it to
+	// observe reverse shares without the product handler knowing about test
+	// runs.
+	IncomingShareObserver sharesincoming.CreateObserver
+	// TokenExchangeObserver optionally runs after a successful token
+	// exchange, before the success response is encoded; the validator uses
+	// it to observe the capability exercise without the product handler
+	// knowing about test runs.
+	TokenExchangeObserver tokenincoming.ExchangeObserver
 }

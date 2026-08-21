@@ -87,6 +87,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalIdentity.Scheme,
 		inputs.PeerMappingResolver,
 	)
+	sharesHandler.SetCreateObserver(inputs.IncomingShareObserver)
 	invitesHandler := accepted.NewHandler(
 		inputs.OutgoingInviteRepo,
 		inputs.PartyRepo,
@@ -101,6 +102,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.CodeFlow,
 		inputs.LocalIdentity.Origin,
 	)
+	tokenHandler.SetExchangeObserver(inputs.TokenExchangeObserver)
 	notificationsHandler := notificationsincoming.NewHandler(
 		inputs.OutgoingShareRepo,
 		inputs.IncomingShareRepo,

@@ -27,7 +27,7 @@ func TestMountPlaneARoutes_ManifestAnonymousGET(t *testing.T) {
 	passiveHandler := passive.NewHandler(store, nil)
 
 	r := chi.NewRouter()
-	mountPlaneARoutes(r, passiveHandler, nil)
+	mountPlaneARoutes(r, passiveHandler, nil, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, RouteAPIManifest, nil)
 	rec := httptest.NewRecorder()
@@ -114,7 +114,7 @@ func TestMountPlaneARoutes_ManifestRoutesMatchAdvertised(t *testing.T) {
 	passiveHandler := passive.NewHandler(store, nil)
 
 	r := chi.NewRouter()
-	mountPlaneARoutes(r, passiveHandler, nil)
+	mountPlaneARoutes(r, passiveHandler, nil, nil)
 
 	mounted, err := passive.EnumeratePlaneARoutes(r)
 	if err != nil {
@@ -167,7 +167,7 @@ func TestMountPlaneARoutes_SessionAnonymousGET(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	mountPlaneARoutes(r, passiveHandler, nil)
+	mountPlaneARoutes(r, passiveHandler, nil, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/session/"+runID, nil)
 	rec := httptest.NewRecorder()

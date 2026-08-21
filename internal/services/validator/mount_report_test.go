@@ -51,7 +51,7 @@ func TestMountValidatorRoutes_ReportAnonymousGET(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	mountValidatorRoutes(r, passiveHandler, nil, nil)
+	mountValidatorRoutes(r, passiveHandler, nil, nil, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/report/"+runID, nil)
 	rec := httptest.NewRecorder()

@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -53,6 +54,11 @@ type Inputs struct {
 	// paste route mounts only when it is present; wiring builds it once and
 	// shares the instance with the ocm invite-accepted decorator.
 	ReverseInvite *reverseinvite.Service
+
+	// ReverseShare is the prebuilt reverse-share leg. When present, its wait
+	// opener wraps the session poll route so a session still in the
+	// capability exercise re-enters the event-driven wait on a poll.
+	ReverseShare *reverseshare.Service
 }
 
 // Service is the federation validator HTTP service shell.
@@ -93,6 +99,11 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			passiveHandler.SetExternalBasePath(inputs.Config.ExternalBasePath)
 		}
 
+		var reverseWaitOpen passive.ReverseWaitOpener
+		if inputs.ReverseShare != nil {
+			reverseWaitOpen = inputs.ReverseShare.OpenReverseShareWait
+		}
+
 		startRatelimit, ratelimitErr := buildStartRatelimit(inputs, c.Ratelimit.Profile)
 		if ratelimitErr != nil {
 			return nil, ratelimitErr
@@ -107,7 +118,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			log.Warn("validator: reverse-invite service not wired, paste route disabled")
 		}
 
-		mountValidatorRoutes(r, passiveHandler, startRatelimit, reverseHandler)
+		mountValidatorRoutes(r, passiveHandler, startRatelimit, reverseHandler, reverseWaitOpen)
 
 		if reverseHandler != nil {
 			markReverseInviteRouteMounted()

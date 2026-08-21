@@ -61,7 +61,7 @@ func TestMountPlaneARoutes_StatisticsAnonymousGET(t *testing.T) {
 	passiveHandler := passive.NewHandler(store, nil)
 
 	r := chi.NewRouter()
-	mountPlaneARoutes(r, passiveHandler, nil)
+	mountPlaneARoutes(r, passiveHandler, nil, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, RouteAPIStatistics, nil)
 	rec := httptest.NewRecorder()

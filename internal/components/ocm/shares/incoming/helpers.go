@@ -425,7 +425,7 @@ func (h *Handler) storeIncomingShare(
 		return
 	}
 
-	if handleExistingIncomingShare(w, log, existing, req, senderHost, resolvedUser) {
+	if handleExistingIncomingShare(r.Context(), w, log, existing, req, senderHost, resolvedUser, h.createObserver) {
 		return
 	}
 
@@ -460,6 +460,15 @@ func (h *Handler) storeIncomingShare(
 		spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
 
 		return
+	}
+
+	if h.createObserver != nil {
+		if err := h.createObserver(r.Context(), share); err != nil {
+			log.Error("incoming share observer failed", "error", err)
+			spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
+
+			return
+		}
 	}
 
 	log.Info("share created",

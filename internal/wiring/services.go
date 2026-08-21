@@ -11,6 +11,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/forwardshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -35,6 +36,7 @@ import (
 type validatorLegs struct {
 	reverseInvite *reverseinvite.Service
 	forwardShare  *forwardshare.Service
+	reverseShare  *reverseshare.Service
 }
 
 // coreServiceBuilder builds one core service from config, logger, deps, and
@@ -183,6 +185,13 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		inputs.InviteAcceptedDecorator = legs.reverseInvite.DecorateInviteAccepted
 	}
 
+	// The inbound share observer lets the validator pass runs on the peer's
+	// reverse share; the product handler stays unaware of test runs.
+	if legs != nil && legs.reverseShare != nil {
+		inputs.IncomingShareObserver = legs.reverseShare.ObserveCreatedShare
+		inputs.TokenExchangeObserver = legs.reverseShare.ObserveTokenExchange
+	}
+
 	svc, err := ocm.New(inputs, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire ocm service: %w", err)
@@ -224,9 +233,20 @@ func buildValidatorLegs(d *Deps, log *slog.Logger) (*validatorLegs, error) {
 		return nil, fmt.Errorf("wiring: build forward share service: %w", err)
 	}
 
+	reverseShareSvc, err := reverseshare.New(reverseshare.Deps{
+		Store:          d.ValidatorStore,
+		IncomingShares: d.IncomingShareRepo,
+		LocalIdentity:  d.LocalIdentity,
+		Logger:         log,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("wiring: build reverse share service: %w", err)
+	}
+
 	return &validatorLegs{
 		reverseInvite: reverseSvc,
 		forwardShare:  forwardSvc,
+		reverseShare:  reverseShareSvc,
 	}, nil
 }
 
@@ -324,11 +344,20 @@ func buildUIService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d
 	return svc, nil
 }
 
-func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *validatorLegs) (service.Service, error) {
-	svc, err := webdav.New(webdav.Inputs{
+func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, legs *validatorLegs) (service.Service, error) {
+	inputs := webdav.Inputs{
 		OutgoingShareRepo: d.OutgoingShareRepo,
 		TokenStore:        d.TokenStore,
-	}, svcCfg, log)
+	}
+
+	// The share-access observer lets the validator open the reverse-share
+	// wait on the peer's authorized GET; the product handler stays unaware
+	// of test runs.
+	if legs != nil && legs.reverseShare != nil {
+		inputs.ShareAccessObserver = legs.reverseShare.ObserveWebDAVGet
+	}
+
+	svc, err := webdav.New(inputs, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire webdav service: %w", err)
 	}
@@ -343,8 +372,12 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 	}
 
 	var reverseSvc *reverseinvite.Service
+
+	var reverseShareSvc *reverseshare.Service
+
 	if legs != nil {
 		reverseSvc = legs.reverseInvite
+		reverseShareSvc = legs.reverseShare
 	}
 
 	svc, err := validator.New(validator.Inputs{
@@ -356,6 +389,7 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 		InterceptorProfiles: profiles,
 		Log:                 log,
 		ReverseInvite:       reverseSvc,
+		ReverseShare:        reverseShareSvc,
 	}, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire validator service: %w", err)
