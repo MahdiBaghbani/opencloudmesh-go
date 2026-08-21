@@ -3,6 +3,8 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
+// ocmgo:file-length-ignore: version-1 schema shape validator with table, CHECK, FK, and index probes
+
 package validatorcore
 
 import (
@@ -18,10 +20,10 @@ import (
 )
 
 // SQLite FK action labels reported by PRAGMA foreign_key_list.
+// An unspecified action is reported as "NO ACTION".
 const (
-	fkNoAction = "NO ACTION"
-	fkCascade  = "CASCADE"
-	fkSetNull  = "SET NULL"
+	fkCascade = "CASCADE"
+	fkSetNull = "SET NULL"
 )
 
 // indexOriginCreateIndex is the PRAGMA index_list origin of an explicit
@@ -32,12 +34,18 @@ const (
 const indexOriginCreateIndex = "c"
 
 // validateValidatorSchema confirms a recorded version-1 schema matches the
-// final shape exactly: every table's columns (type, nullability, default, key
-// position) in order; the exact state CHECK; inline UNIQUE constraints; every
-// named index with columns and partial predicate; every foreign key with its
-// referenced table/column and actions; and zero triggers on validator-owned
-// tables. It never repairs or upgrades: any mismatch fails closed.
+// final shape exactly: leftover retired validator tables (stats_aggregate)
+// are absent; every table's columns (type, nullability, default, key
+// position) in order; every CHECK (state, flags, passive-complete, evidence
+// area and leg); inline UNIQUE constraints; every named index with columns
+// and partial predicate; every foreign key with its referenced table/column
+// and actions; and zero triggers on validator-owned tables. It never repairs
+// or upgrades: any mismatch fails closed. Peer tables are not inspected.
 func validateValidatorSchema(ctx context.Context, conn *sql.Conn) error {
+	if err := checkRetiredValidatorTables(ctx, conn); err != nil {
+		return err
+	}
+
 	for table := range validatorTableContract {
 		if err := checkTableShape(ctx, conn, table); err != nil {
 			return err
@@ -45,6 +53,10 @@ func validateValidatorSchema(ctx context.Context, conn *sql.Conn) error {
 	}
 
 	if err := checkTestRunStateCheck(ctx, conn); err != nil {
+		return err
+	}
+
+	if err := checkNonStateChecks(ctx, conn); err != nil {
 		return err
 	}
 
@@ -61,6 +73,38 @@ func validateValidatorSchema(ctx context.Context, conn *sql.Conn) error {
 	}
 
 	return checkNoUnexpectedTriggers(ctx, conn)
+}
+
+// checkRetiredValidatorTables rejects a leftover stats_aggregate table on a
+// recorded version-1 database. The aggregate is a retired validator-owned
+// name: its presence is a shape mismatch. The check names that table only
+// and does not inventory or mutate peer tables. Unversioned recovery still
+// drops the leftover name via legacyValidatorTables before CREATE.
+func checkRetiredValidatorTables(ctx context.Context, conn *sql.Conn) error {
+	var name string
+
+	row := conn.QueryRowContext(
+		ctx,
+		"SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+		tableStatsAggregate,
+	)
+	if err := row.Scan(&name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+
+		return fmt.Errorf(
+			"validatorcore: schema: probe retired table %s: %w",
+			tableStatsAggregate,
+			err,
+		)
+	}
+
+	return fmt.Errorf(
+		"validatorcore: schema: version %d but retired table %s is present",
+		validatorSchemaVersion,
+		tableStatsAggregate,
+	)
 }
 
 func checkTableShape(ctx context.Context, conn *sql.Conn, table string) error {
@@ -166,16 +210,24 @@ func nextStateProbeID() string {
 // well-formed schema the state CHECK is the constraint this row exercises.
 const probeStateInsert = `INSERT INTO test_run (
 	test_run_id, is_active, state,
-	target_origin, target_host, discovery_url, jwks_uri,
-	manifest_schema, session_kind, created_at, updated_at
+	target_origin, target_host, discovery_url,
+	manifest_schema, created_at, updated_at
 ) VALUES (?, 0, ?, 'https://probe.invalid', 'probe.invalid',
-	'https://probe.invalid/.well-known/ocm', 'https://probe.invalid/jwks.json',
-	'ocm-validator-manifest/v1', 'passive_only', 0, 0)`
+	'https://probe.invalid/.well-known/ocm',
+	'ocm-validator-manifest/v1', 0, 0)`
 
 // unknownStateProbes are literals the live state CHECK must reject. They stand
-// in for an over-broad constraint (a tautology tail, a typo, an empty value):
-// if any is admitted, the constraint is wider than the live state set.
-var unknownStateProbes = []string{"", "RUNNING", "terminal_unknown", "zzz_not_a_state"}
+// in for an over-broad constraint (a tautology tail, a typo, an empty value,
+// or a retired live name): if any is admitted, the constraint is wider than
+// the live state set.
+var unknownStateProbes = []string{
+	"",
+	"RUNNING",
+	"terminal_unknown",
+	"zzz_not_a_state",
+	"reverse_invite_solicited",
+	"reverse_invite_imported",
+}
 
 // checkTestRunStateCheck verifies the enforced test_run.state CHECK by probing
 // the live constraint instead of parsing stored DDL text: inside a savepoint
@@ -273,10 +325,11 @@ func requireStateRejected(ctx context.Context, conn *sql.Conn, state, admitted s
 const sqliteConstraintCheck = 275
 
 // isStateCheckRejection reports whether insertErr is a SQLite CHECK-constraint
-// failure, the only insert error meaning the state CHECK refused the value. It
-// relies solely on the driver's typed extended result code: any other error
-// (PK, NOT NULL, UNIQUE, FK, trigger, infra, or a non-driver error whose text
-// merely mentions a CHECK) is not a rejection and fails closed as a probe error.
+// failure. State and non-state CHECK probes share this classifier: it is the
+// only insert error meaning a CHECK refused the value. It relies solely on
+// the driver's typed extended result code: any other error (PK, NOT NULL,
+// UNIQUE, FK, trigger, infra, or a non-driver error whose text merely
+// mentions a CHECK) is not a rejection and fails closed as a probe error.
 func isStateCheckRejection(insertErr error) bool {
 	var sqliteErr *gosqlite.Error
 	if !errors.As(insertErr, &sqliteErr) {

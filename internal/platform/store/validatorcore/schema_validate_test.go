@@ -36,7 +36,15 @@ func TestAttach_StateCheckProbeLeavesNoRows(t *testing.T) {
 	mustQueryCount(t, db, "SELECT COUNT(*) FROM test_run", &count)
 
 	if count != 0 {
-		t.Fatalf("state CHECK probe leaked %d test_run rows, want 0", count)
+		t.Fatalf("CHECK probe leaked %d test_run rows, want 0", count)
+	}
+
+	var evidenceCount int64
+
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM evidence_row", &evidenceCount)
+
+	if evidenceCount != 0 {
+		t.Fatalf("CHECK probe leaked %d evidence_row rows, want 0", evidenceCount)
 	}
 }
 
@@ -170,13 +178,17 @@ func TestAttach_VersionOneShapeDriftFailsClosed(t *testing.T) {
 			t.Parallel()
 
 			db := attachFresh(t)
+			seedFoundV1NoTouchRows(t, db)
 			drift.mutate(t, db)
+			before := snapshotFoundV1NoTouch(t, db)
 
 			if _, err := Attach(db, DefaultSessionConfig()); err == nil {
 				t.Fatalf("Attach must fail closed on drift %q", drift.name)
 			} else if !strings.Contains(err.Error(), drift.wantErr) {
 				t.Fatalf("error = %v, want substring %q", err, drift.wantErr)
 			}
+
+			assertFoundV1NoTouch(t, db, before)
 		})
 	}
 }
@@ -250,7 +262,7 @@ func TestApplyValidatorSchema_MidDDLFailureRollsBack(t *testing.T) {
 	// Tables the sequence creates only after the failure point, plus the
 	// version table, must not exist at all.
 	for _, table := range []string{
-		tableShareCorrelation, tableStatsAggregate, tableReportExchange,
+		tableShareCorrelation, tableReportExchange,
 		tableEvidenceRow, tableDispatchReservation, tableValidatorSchema,
 	} {
 		if db.Migrator().HasTable(table) {
@@ -301,93 +313,205 @@ func TestAttach_PeerTableTriggerAccepted(t *testing.T) {
 	}
 }
 
-// TestAttach_ValidatorSchemaCardinalityFailsClosed covers malformed
-// validator_schema row counts. Zero rows and multiple rows are cardinality
-// failures, not unsupported-version failures: the error taxonomy must stay
-// distinct, validation must fail closed, and peer data must survive.
+// TestAttach_ValidatorSchemaCardinalityFailsClosed covers a malformed
+// validator_schema with more than one row. Multiple rows are a cardinality
+// failure, not an unsupported-version failure and not empty-table recovery:
+// the error taxonomy must stay distinct, validation must fail closed, and
+// peer data must survive. An empty table is recovery, not this path.
 func TestAttach_ValidatorSchemaCardinalityFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name     string
-		corrupt  func(t *testing.T, db *gorm.DB)
-		wantErr  string
-		wantRows int64
-	}{
-		{
-			name: "zero rows",
-			corrupt: func(t *testing.T, db *gorm.DB) {
-				t.Helper()
-				mustExec(t, db, "DELETE FROM validator_schema")
-			},
-			wantErr:  "validator_schema holds 0 rows, want exactly 1",
-			wantRows: 0,
-		},
-		{
-			name: "multiple rows",
-			corrupt: func(t *testing.T, db *gorm.DB) {
-				t.Helper()
-				mustExec(t, db, "INSERT INTO validator_schema (version) VALUES (2)")
-			},
-			wantErr:  "validator_schema holds 2 rows, want exactly 1",
-			wantRows: 2,
-		},
+	sqlCore := openPeerStore(t)
+	db := sqlCore.DB()
+
+	peer := store.OutgoingShare{
+		ShareID:    "share-card",
+		ProviderID: "provider-card",
+		WebDAVID:   "webdav-card",
+		CreatedAt:  1,
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	if err := db.Create(&peer).Error; err != nil {
+		t.Fatalf("seed peer row: %v", err)
+	}
 
-			sqlCore := openPeerStore(t)
-			db := sqlCore.DB()
+	if _, err := Attach(db, DefaultSessionConfig()); err != nil {
+		t.Fatalf("initial Attach: %v", err)
+	}
 
-			peer := store.OutgoingShare{
-				ShareID:    "share-card",
-				ProviderID: "provider-card",
-				WebDAVID:   "webdav-card",
-				CreatedAt:  1,
-			}
+	mustExec(t, db, "INSERT INTO validator_schema (version) VALUES (2)")
 
-			if err := db.Create(&peer).Error; err != nil {
-				t.Fatalf("seed peer row: %v", err)
-			}
+	_, err := Attach(db, DefaultSessionConfig())
+	if err == nil {
+		t.Fatal("Attach must fail closed when validator_schema holds multiple rows")
+	}
 
-			if _, err := Attach(db, DefaultSessionConfig()); err != nil {
-				t.Fatalf("initial Attach: %v", err)
-			}
+	if errors.Is(err, ErrUnsupportedValidatorSchemaVersion) {
+		t.Fatalf("cardinality failure must not masquerade as unsupported version: %v", err)
+	}
 
-			tc.corrupt(t, db)
+	if !strings.Contains(err.Error(), "validator_schema holds 2 rows, want exactly 1") {
+		t.Fatalf("error = %v, want multiple-row cardinality failure", err)
+	}
 
-			_, err := Attach(db, DefaultSessionConfig())
-			if err == nil {
-				t.Fatalf("Attach must fail closed on validator_schema %s", tc.name)
-			}
+	var rowCount int64
 
-			if errors.Is(err, ErrUnsupportedValidatorSchemaVersion) {
-				t.Fatalf("cardinality failure must not masquerade as unsupported version: %v", err)
-			}
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM validator_schema", &rowCount)
 
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("error = %v, want substring %q", err, tc.wantErr)
-			}
+	if rowCount != 2 {
+		t.Fatalf("validator_schema rows = %d, want 2 (no repair)", rowCount)
+	}
 
-			// Fail closed without repair: the malformed row count remains.
-			var rowCount int64
+	var peerCount int64
 
-			mustQueryCount(t, db, "SELECT COUNT(*) FROM validator_schema", &rowCount)
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM outgoing_shares WHERE share_id = 'share-card'", &peerCount)
 
-			if rowCount != tc.wantRows {
-				t.Fatalf("validator_schema rows = %d, want %d (no repair)", rowCount, tc.wantRows)
-			}
+	if peerCount != 1 {
+		t.Fatalf("peer rows = %d, want 1 (peer data must survive)", peerCount)
+	}
+}
 
-			// Peer data survives the failed Attach.
-			var peerCount int64
+const (
+	foundV1NoTouchShareID  = "share-drift-notouch"
+	foundV1NoTouchInviteID = "invite-drift-notouch"
+	foundV1NoTouchStatsK   = "k-drift-notouch"
+)
 
-			mustQueryCount(t, db, "SELECT COUNT(*) FROM outgoing_shares WHERE share_id = 'share-card'", &peerCount)
+var foundV1NoTouchValidatorTables = []string{
+	tableTestRun,
+	tableShareCorrelation,
+	tableStatsRaw,
+	tableReportExchange,
+	tableEvidenceRow,
+	tableDispatchReservation,
+	tableValidatorSchema,
+}
 
-			if peerCount != 1 {
-				t.Fatalf("peer rows = %d, want 1 (peer data must survive)", peerCount)
-			}
-		})
+func seedFoundV1NoTouchRows(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	peer := store.OutgoingShare{
+		ShareID:    foundV1NoTouchShareID,
+		ProviderID: "provider-drift-notouch",
+		WebDAVID:   "webdav-drift-notouch",
+		CreatedAt:  1,
+	}
+	if err := db.Create(&peer).Error; err != nil {
+		t.Fatalf("seed peer share: %v", err)
+	}
+
+	invite := store.IncomingInvite{
+		ID:              foundV1NoTouchInviteID,
+		Token:           "token-drift-notouch",
+		SenderFQDN:      "sender.example",
+		RecipientUserID: "alice",
+		Status:          "pending",
+		ReceivedAt:      1,
+		UpdatedAt:       1,
+	}
+	if err := db.Create(&invite).Error; err != nil {
+		t.Fatalf("seed peer invite: %v", err)
+	}
+
+	// stats_raw is validator-owned and is not used by CHECK probes, so a
+	// marker row can prove the refuse path leaves validator data in place
+	// without colliding with state or flag inserts.
+	raw := StatsRaw{
+		K:           foundV1NoTouchStatsK,
+		HostHash:    "hash-drift-notouch",
+		SessionKind: SessionKindPassiveOnly,
+		Platform:    "nextcloud",
+		APIVersion:  "1.1",
+		CreatedAt:   1,
+	}
+	if err := db.Create(&raw).Error; err != nil {
+		t.Fatalf("seed validator stats_raw: %v", err)
+	}
+}
+
+type foundV1NoTouchSnapshot struct {
+	tablePresent map[string]bool
+	tableCounts  map[string]int64
+	statsK       string
+	share        store.OutgoingShare
+	invite       store.IncomingInvite
+}
+
+func snapshotFoundV1NoTouch(t *testing.T, db *gorm.DB) foundV1NoTouchSnapshot {
+	t.Helper()
+
+	snap := foundV1NoTouchSnapshot{
+		tablePresent: make(map[string]bool, len(foundV1NoTouchValidatorTables)),
+		tableCounts:  make(map[string]int64, len(foundV1NoTouchValidatorTables)),
+	}
+
+	for _, table := range foundV1NoTouchValidatorTables {
+		if !db.Migrator().HasTable(table) {
+			snap.tablePresent[table] = false
+
+			continue
+		}
+
+		snap.tablePresent[table] = true
+
+		var count int64
+
+		mustQueryCount(t, db, "SELECT COUNT(*) FROM "+table, &count)
+		snap.tableCounts[table] = count
+	}
+
+	if err := db.First(&snap.share, "share_id = ?", foundV1NoTouchShareID).Error; err != nil {
+		t.Fatalf("snapshot peer share: %v", err)
+	}
+
+	if err := db.First(&snap.invite, "id = ?", foundV1NoTouchInviteID).Error; err != nil {
+		t.Fatalf("snapshot peer invite: %v", err)
+	}
+
+	if snap.tablePresent[tableStatsRaw] {
+		var raw StatsRaw
+		if err := db.First(&raw, "k = ?", foundV1NoTouchStatsK).Error; err == nil {
+			snap.statsK = raw.K
+		}
+	}
+
+	return snap
+}
+
+func assertFoundV1NoTouch(t *testing.T, db *gorm.DB, want foundV1NoTouchSnapshot) {
+	t.Helper()
+
+	got := snapshotFoundV1NoTouch(t, db)
+
+	for _, table := range foundV1NoTouchValidatorTables {
+		if got.tablePresent[table] != want.tablePresent[table] {
+			t.Fatalf(
+				"table %s present = %v, want %v (hard-refuse must not repair)",
+				table, got.tablePresent[table], want.tablePresent[table],
+			)
+		}
+
+		if got.tableCounts[table] != want.tableCounts[table] {
+			t.Fatalf(
+				"table %s count = %d, want %d (validator data must be untouched)",
+				table, got.tableCounts[table], want.tableCounts[table],
+			)
+		}
+	}
+
+	if got.share.ShareID != want.share.ShareID ||
+		got.share.ProviderID != want.share.ProviderID ||
+		got.share.WebDAVID != want.share.WebDAVID {
+		t.Fatalf("peer share changed after hard-refuse: %+v", got.share)
+	}
+
+	if got.invite.ID != want.invite.ID ||
+		got.invite.Token != want.invite.Token ||
+		got.invite.RecipientUserID != want.invite.RecipientUserID {
+		t.Fatalf("peer invite changed after hard-refuse: %+v", got.invite)
+	}
+
+	if got.statsK != want.statsK {
+		t.Fatalf("validator stats_raw k = %q, want %q (validator data must be untouched)", got.statsK, want.statsK)
 	}
 }

@@ -21,7 +21,6 @@ func seedTerminalStatsGap(t *testing.T, core *Core, runID, targetOrigin string) 
 		TestRunID:    runID,
 		IsActive:     false,
 		State:        StateTerminalPass,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: targetOrigin,
 		TargetHost:   "peer.example",
 		FinishedAt:   &finished,

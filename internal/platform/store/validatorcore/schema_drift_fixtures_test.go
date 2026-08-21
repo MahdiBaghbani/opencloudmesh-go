@@ -6,6 +6,7 @@
 package validatorcore
 
 import (
+	"strings"
 	"testing"
 
 	"gorm.io/gorm"
@@ -36,9 +37,9 @@ var versionOneShapeDrifts = []shapeDrift{
 		name: "extra column",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			mustExec(t, db, "ALTER TABLE stats_aggregate ADD COLUMN drift_extra TEXT")
+			mustExec(t, db, "ALTER TABLE stats_raw ADD COLUMN drift_extra TEXT")
 		},
-		wantErr: "stats_aggregate has 8 columns, want 7",
+		wantErr: "stats_raw has 17 columns, want 16",
 	},
 	{
 		name: "dropped column",
@@ -47,7 +48,7 @@ var versionOneShapeDrifts = []shapeDrift{
 			// terminal_reason carries no index or FK, so DROP COLUMN succeeds.
 			mustExec(t, db, "ALTER TABLE test_run DROP COLUMN terminal_reason")
 		},
-		wantErr: "test_run has 33 columns, want 34",
+		wantErr: "test_run has 41 columns, want 42",
 	},
 	{
 		name: "renamed column",
@@ -55,39 +56,33 @@ var versionOneShapeDrifts = []shapeDrift{
 			t.Helper()
 			mustExec(t, db, "ALTER TABLE test_run RENAME COLUMN terminal_reason TO terminal_why")
 		},
-		wantErr: "test_run column 7 is terminal_why, want terminal_reason",
+		wantErr: "test_run column 10 is terminal_why, want terminal_reason",
 	},
 	{
 		name: "wrong column type",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			rebuildTable(t, db, tableStatsAggregate, `CREATE TABLE stats_aggregate_drift (
-					host_hash TEXT PRIMARY KEY,
-					total_sessions TEXT NOT NULL,
-					healthy_sessions INTEGER NOT NULL,
-					last_platform TEXT NOT NULL,
-					last_healthy INTEGER NOT NULL,
-					first_seen_ts INTEGER NOT NULL,
-					last_seen_ts INTEGER NOT NULL
-				)`)
+			rebuildTable(t, db, tableStatsRaw, strings.Replace(
+				statsRawDDL(true, false),
+				"platform TEXT NOT NULL",
+				"platform INTEGER NOT NULL",
+				1,
+			))
 		},
-		wantErr: "stats_aggregate.total_sessions type = TEXT, want INTEGER",
+		wantErr: "stats_raw.platform type = INTEGER, want TEXT",
 	},
 	{
 		name: "wrong nullability",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			rebuildTable(t, db, tableStatsAggregate, `CREATE TABLE stats_aggregate_drift (
-					host_hash TEXT PRIMARY KEY,
-					total_sessions INTEGER NOT NULL,
-					healthy_sessions INTEGER NOT NULL,
-					last_platform TEXT,
-					last_healthy INTEGER NOT NULL,
-					first_seen_ts INTEGER NOT NULL,
-					last_seen_ts INTEGER NOT NULL
-				)`)
+			rebuildTable(t, db, tableStatsRaw, strings.Replace(
+				statsRawDDL(true, false),
+				"platform TEXT NOT NULL",
+				"platform TEXT",
+				1,
+			))
 		},
-		wantErr: "stats_aggregate.last_platform NOT NULL = false, want true",
+		wantErr: "stats_raw.platform NOT NULL = false, want true",
 	},
 	{
 		name: "wrong default",
@@ -112,25 +107,22 @@ var versionOneShapeDrifts = []shapeDrift{
 		name: "wrong primary key",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			rebuildTable(t, db, tableStatsAggregate, `CREATE TABLE stats_aggregate_drift (
-					host_hash TEXT,
-					total_sessions INTEGER NOT NULL,
-					healthy_sessions INTEGER NOT NULL,
-					last_platform TEXT NOT NULL,
-					last_healthy INTEGER NOT NULL,
-					first_seen_ts INTEGER NOT NULL,
-					last_seen_ts INTEGER NOT NULL
-				)`)
+			rebuildTable(t, db, tableStatsRaw, strings.Replace(
+				statsRawDDL(true, false),
+				"id INTEGER PRIMARY KEY AUTOINCREMENT",
+				"id INTEGER",
+				1,
+			))
 		},
-		wantErr: "stats_aggregate.host_hash primary key position = 0, want 1",
+		wantErr: "stats_raw.id primary key position = 0, want 1",
 	},
 	{
 		name: "missing named index",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			mustExec(t, db, "DROP INDEX idx_stats_agg_last_seen")
+			mustExec(t, db, "DROP INDEX idx_stats_raw_created_at")
 		},
-		wantErr: "index idx_stats_agg_last_seen is missing",
+		wantErr: "index idx_stats_raw_created_at is missing",
 	},
 	{
 		name: "wrong index columns",
@@ -173,7 +165,7 @@ var versionOneShapeDrifts = []shapeDrift{
 		name: "missing inline unique",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			rebuildTable(t, db, tableStatsRaw, statsRawDDL("stats_raw_drift", false, false))
+			rebuildTable(t, db, tableStatsRaw, statsRawDDL(false, false))
 		},
 		wantErr: "stats_raw.k must be UNIQUE",
 	},
@@ -181,18 +173,23 @@ var versionOneShapeDrifts = []shapeDrift{
 		name: "wrong foreign key action",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			rebuildTable(t, db, tableEvidenceRow, `CREATE TABLE evidence_row_drift (
-					id INTEGER PRIMARY KEY AUTOINCREMENT,
-					test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON DELETE RESTRICT,
-					area TEXT NOT NULL,
-					step TEXT NOT NULL,
-					reason_code TEXT NOT NULL,
-					severity TEXT NOT NULL,
-					affects_grade INTEGER NOT NULL,
-					payload_redacted TEXT,
-					exchange_id INTEGER REFERENCES report_exchange (exchange_id) ON DELETE NO ACTION,
-					created_at INTEGER NOT NULL
-				)`)
+			rebuildTable(t, db, tableEvidenceRow, evidenceRowDDL(
+				"ON UPDATE CASCADE ON DELETE NO ACTION",
+				evidenceLegColumnCanonical,
+				evidenceAreaColumnCanonical,
+			))
+		},
+		wantErr: "evidence_row.exchange_id FK",
+	},
+	{
+		name: "missing exchange_id update cascade",
+		mutate: func(t *testing.T, db *gorm.DB) {
+			t.Helper()
+			rebuildTable(t, db, tableEvidenceRow, evidenceRowDDL(
+				"ON DELETE SET NULL",
+				evidenceLegColumnCanonical,
+				evidenceAreaColumnCanonical,
+			))
 		},
 		wantErr: "evidence_row.exchange_id FK",
 	},
@@ -222,7 +219,7 @@ var versionOneShapeDrifts = []shapeDrift{
 		name: "extra foreign key",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			rebuildTable(t, db, tableStatsRaw, statsRawDDL("stats_raw_drift", true, true))
+			rebuildTable(t, db, tableStatsRaw, statsRawDDL(true, true))
 		},
 		wantErr: "stats_raw has 1 foreign keys, want 0",
 	},
@@ -381,5 +378,55 @@ var versionOneShapeDrifts = []shapeDrift{
 			mustExec(t, db, "CREATE TRIGGER trg_test_run_drift AFTER UPDATE ON test_run BEGIN SELECT 1; END")
 		},
 		wantErr: "test_run carries unexpected trigger trg_test_run_drift",
+	},
+	{
+		name: "is_active check admits 2",
+		mutate: func(t *testing.T, db *gorm.DB) {
+			t.Helper()
+			rebuildTestRun(t, db, strings.Replace(
+				testRunDDLWithStates(testRunStates),
+				"is_active INTEGER NOT NULL CHECK (is_active IN (0, 1))",
+				"is_active INTEGER NOT NULL",
+				1,
+			))
+		},
+		wantErr: "test_run is_active CHECK admits unexpected value 2",
+	},
+	{
+		name: "passive_complete opt_in_active check missing",
+		mutate: func(t *testing.T, db *gorm.DB) {
+			t.Helper()
+			rebuildTestRun(t, db, strings.Replace(
+				testRunDDLWithStates(testRunStates),
+				"updated_at INTEGER NOT NULL,\n\t\tCHECK (NOT (state = 'passive_complete' AND opt_in_active = 1))",
+				"updated_at INTEGER NOT NULL",
+				1,
+			))
+		},
+		wantErr: "test_run CHECK admits passive_complete with opt_in_active = 1",
+	},
+	{
+		name: "evidence area check admits unknown",
+		mutate: func(t *testing.T, db *gorm.DB) {
+			t.Helper()
+			rebuildTable(t, db, tableEvidenceRow, evidenceRowDDL(
+				evidenceExchangeFKCanonical,
+				evidenceLegColumnCanonical,
+				"area TEXT NOT NULL",
+			))
+		},
+		wantErr: "evidence_row area CHECK admits unexpected area",
+	},
+	{
+		name: "evidence leg check admits unknown",
+		mutate: func(t *testing.T, db *gorm.DB) {
+			t.Helper()
+			rebuildTable(t, db, tableEvidenceRow, evidenceRowDDL(
+				evidenceExchangeFKCanonical,
+				"leg TEXT",
+				evidenceAreaColumnCanonical,
+			))
+		},
+		wantErr: "evidence_row leg CHECK admits unexpected leg",
 	},
 }

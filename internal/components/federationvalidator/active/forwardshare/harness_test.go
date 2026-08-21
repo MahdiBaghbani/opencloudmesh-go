@@ -264,7 +264,6 @@ func (e *testEnv) seedActiveRun(t *testing.T, runID, state string) {
 		TestRunID:           runID,
 		IsActive:            true,
 		State:               state,
-		SessionKind:         validatorcore.SessionKindActiveFull,
 		TargetHost:          e.targetHost,
 		DesignatedShareWith: &designated,
 		CreatedAt:           now,

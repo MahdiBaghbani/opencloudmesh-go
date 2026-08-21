@@ -28,7 +28,6 @@ func seedForwardRun(t *testing.T, core *Core, runID, state string) {
 		TestRunID:           runID,
 		IsActive:            true,
 		State:               state,
-		SessionKind:         SessionKindActiveFull,
 		TargetHost:          "peer.example",
 		DesignatedShareWith: &designated,
 		CreatedAt:           now,

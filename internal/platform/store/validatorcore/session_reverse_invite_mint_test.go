@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 func seedReverseInviteRun(t *testing.T, core *Core, runID, state string) {
@@ -19,13 +21,15 @@ func seedReverseInviteRun(t *testing.T, core *Core, runID, state string) {
 	now := time.Now().Unix()
 
 	if err := core.DB().WithContext(t.Context()).Create(&TestRun{
-		TestRunID:   runID,
-		IsActive:    true,
-		State:       state,
-		SessionKind: SessionKindActiveFull,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:      runID,
+		IsActive:       true,
+		State:          state,
+		TargetOrigin:   "https://peer.example",
+		TargetHost:     "peer.example",
+		DiscoveryURL:   "https://peer.example/.well-known/ocm",
+		ManifestSchema: "ocm-validator-manifest/v1",
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}).Error; err != nil {
 		t.Fatalf("seed active run %s: %v", runID, err)
 	}
@@ -67,25 +71,12 @@ func TestMintOutgoingInviteBinding_BindsSlotAndAdvancesState(t *testing.T) {
 		t.Fatalf("state = %q, want %q", run.State, StateInviteMinted)
 	}
 
-	corr, err := core.GetShareCorrelation(ctx, runID, RoleOutgoingInvite, LocalIdentityA)
-	if err != nil {
-		t.Fatalf("GetShareCorrelation: %v", err)
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != "invite-1" {
+		t.Fatalf("outgoing_invite_id = %v, want invite-1", run.OutgoingInviteID)
 	}
 
-	if corr.InviteID == nil || *corr.InviteID != "invite-1" {
-		t.Fatalf("invite id = %v, want invite-1", corr.InviteID)
-	}
-
-	if corr.ProviderID != "token-1" {
-		t.Fatalf("provider id = %q, want token-1", corr.ProviderID)
-	}
-
-	if corr.SenderHost != "peer.example" {
-		t.Fatalf("sender host = %q, want peer.example", corr.SenderHost)
-	}
-
-	if corr.Status != CorrelationStatusConfirmed {
-		t.Fatalf("status = %q, want %q", corr.Status, CorrelationStatusConfirmed)
+	if got := countCorrelations(t, core, runID, RoleOutgoingInvite); got != 0 {
+		t.Fatalf("outgoing invite correlation rows = %d, want 0", got)
 	}
 }
 
@@ -104,8 +95,8 @@ func TestMintOutgoingInviteBinding_IdempotentSameIDAndToken(t *testing.T) {
 		}
 	}
 
-	if got := countCorrelations(t, core, runID, RoleOutgoingInvite); got != 1 {
-		t.Fatalf("correlation rows = %d, want 1", got)
+	if got := countCorrelations(t, core, runID, RoleOutgoingInvite); got != 0 {
+		t.Fatalf("outgoing invite correlation rows = %d, want 0", got)
 	}
 
 	run, err := core.GetTestRun(ctx, runID)
@@ -116,14 +107,18 @@ func TestMintOutgoingInviteBinding_IdempotentSameIDAndToken(t *testing.T) {
 	if run.State != StateInviteMinted {
 		t.Fatalf("state = %q, want %q", run.State, StateInviteMinted)
 	}
+
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != "invite-1" {
+		t.Fatalf("outgoing_invite_id = %v, want invite-1", run.OutgoingInviteID)
+	}
 }
 
-func TestMintOutgoingInviteBinding_ConflictOnDifferentToken(t *testing.T) {
+func TestMintOutgoingInviteBinding_SameIDDifferentTokenIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
 	ctx := t.Context()
-	runID := "run-mint-conflict-token"
+	runID := "run-mint-same-id-token"
 
 	seedReverseInviteRun(t, core, runID, StateActiveRunning)
 
@@ -131,13 +126,17 @@ func TestMintOutgoingInviteBinding_ConflictOnDifferentToken(t *testing.T) {
 		t.Fatalf("mint: %v", err)
 	}
 
-	err := core.MintOutgoingInviteBinding(ctx, runID, "invite-1", "token-other")
-	if !errors.Is(err, ErrShareCorrelationConflict) {
-		t.Fatalf("mint different token = %v, want ErrShareCorrelationConflict", err)
+	if err := core.MintOutgoingInviteBinding(ctx, runID, "invite-1", "token-other"); err != nil {
+		t.Fatalf("mint same id different token = %v, want idempotent success", err)
 	}
 
-	if got := countCorrelations(t, core, runID, RoleOutgoingInvite); got != 1 {
-		t.Fatalf("correlation rows = %d, want 1", got)
+	run, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != "invite-1" {
+		t.Fatalf("outgoing_invite_id = %v, want invite-1", run.OutgoingInviteID)
 	}
 }
 
@@ -175,7 +174,16 @@ func TestMintOutgoingInviteBinding_MissOutsideActiveRunning(t *testing.T) {
 	}
 
 	if got := countCorrelations(t, core, runID, RoleOutgoingInvite); got != 0 {
-		t.Fatalf("correlation rows = %d, want 0 (rolled back)", got)
+		t.Fatalf("outgoing invite correlation rows = %d, want 0", got)
+	}
+
+	runAfterMiss, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun after miss: %v", err)
+	}
+
+	if runAfterMiss.OutgoingInviteID != nil {
+		t.Fatalf("outgoing_invite_id = %v, want nil after miss", runAfterMiss.OutgoingInviteID)
 	}
 
 	run, err := core.GetTestRun(ctx, runID)
@@ -185,6 +193,67 @@ func TestMintOutgoingInviteBinding_MissOutsideActiveRunning(t *testing.T) {
 
 	if run.State != StateInviteAccepted {
 		t.Fatalf("state = %q, want %q (unchanged)", run.State, StateInviteAccepted)
+	}
+}
+
+func TestMintOutgoingInviteBinding_CrossRunInviteIDIsStoreError(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	now := time.Now().Unix()
+	inviteID := "invite-cross-run"
+	ownerID := "run-invite-owner"
+	challengerID := "run-invite-challenger"
+
+	if err := core.DB().WithContext(ctx).Create(&TestRun{
+		TestRunID:        ownerID,
+		IsActive:         false,
+		State:            StateTerminalPass,
+		TargetOrigin:     "https://peer.example",
+		TargetHost:       "peer.example",
+		DiscoveryURL:     "https://peer.example/.well-known/ocm",
+		ManifestSchema:   "ocm-validator-manifest/v1",
+		OutgoingInviteID: &inviteID,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}).Error; err != nil {
+		t.Fatalf("seed owner run: %v", err)
+	}
+
+	seedReverseInviteRun(t, core, challengerID, StateActiveRunning)
+
+	err := core.MintOutgoingInviteBinding(ctx, challengerID, inviteID, "token-challenger")
+
+	var storeErr *StoreError
+	if !errors.As(err, &storeErr) || storeErr.Op != OpMintOutgoingInvite {
+		t.Fatalf("cross-run mint = %v, want OpMintOutgoingInvite", err)
+	}
+
+	if !errors.Is(storeErr.Err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("wrapped error = %v, want gorm.ErrDuplicatedKey", storeErr.Err)
+	}
+
+	challenger, loadErr := core.GetTestRun(ctx, challengerID)
+	if loadErr != nil {
+		t.Fatalf("GetTestRun challenger: %v", loadErr)
+	}
+
+	if challenger.State != StateActiveRunning {
+		t.Fatalf("challenger state = %q, want %q", challenger.State, StateActiveRunning)
+	}
+
+	if challenger.OutgoingInviteID != nil {
+		t.Fatalf("challenger outgoing_invite_id = %v, want nil", challenger.OutgoingInviteID)
+	}
+
+	owner, loadErr := core.GetTestRun(ctx, ownerID)
+	if loadErr != nil {
+		t.Fatalf("GetTestRun owner: %v", loadErr)
+	}
+
+	if owner.OutgoingInviteID == nil || *owner.OutgoingInviteID != inviteID {
+		t.Fatalf("owner outgoing_invite_id = %v, want %s", owner.OutgoingInviteID, inviteID)
 	}
 }
 
@@ -244,8 +313,8 @@ func TestMintOutgoingInviteBinding_ConcurrentSingleWinner(t *testing.T) {
 		t.Fatalf("winners = %d, want exactly 1", wins)
 	}
 
-	if got := countCorrelations(t, core, runID, RoleOutgoingInvite); got != 1 {
-		t.Fatalf("correlation rows = %d, want 1", got)
+	if got := countCorrelations(t, core, runID, RoleOutgoingInvite); got != 0 {
+		t.Fatalf("outgoing invite correlation rows = %d, want 0", got)
 	}
 
 	run, err := core.GetTestRun(ctx, runID)
@@ -255,6 +324,10 @@ func TestMintOutgoingInviteBinding_ConcurrentSingleWinner(t *testing.T) {
 
 	if run.State != StateInviteMinted {
 		t.Fatalf("state = %q, want %q", run.State, StateInviteMinted)
+	}
+
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID == "" {
+		t.Fatal("outgoing_invite_id is empty, want the winning invite id")
 	}
 }
 
@@ -307,7 +380,7 @@ func TestImportReverseInvite_ConcurrentSingleWinner(t *testing.T) {
 		t.Fatalf("correlation rows = %d, want 1", got)
 	}
 
-	requireState(t, core, runID, StateReverseInviteImported)
+	requireState(t, core, runID, StateReverseInviteAccepted)
 }
 
 func TestGetShareCorrelation_ExactlyOneRow(t *testing.T) {
@@ -335,12 +408,29 @@ func TestGetShareCorrelation_ExactlyOneRow(t *testing.T) {
 		t.Fatalf("mint: %v", err)
 	}
 
+	if _, err := core.GetShareCorrelation(ctx, runID, RoleOutgoingInvite, LocalIdentityA); !errors.Is(err, ErrShareCorrelationNotFound) {
+		t.Fatalf("minted run outgoing correlation = %v, want ErrShareCorrelationNotFound", err)
+	}
+
+	manual := ShareCorrelation{
+		TestRunID:     runID,
+		Role:          RoleOutgoingInvite,
+		LocalIdentity: LocalIdentityA,
+		SenderHost:    "peer.example",
+		ProviderID:    "token-1",
+		Status:        CorrelationStatusConfirmed,
+		CreatedAt:     time.Now().Unix(),
+	}
+	if err := core.DB().WithContext(ctx).Create(&manual).Error; err != nil {
+		t.Fatalf("manual outgoing_invite insert: %v", err)
+	}
+
 	if _, err := core.GetShareCorrelation(ctx, runID, RoleOutgoingInvite, LocalIdentityA); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 
-	// The role slot is one row per run; a second outgoing_invite row for the
-	// same run is rejected by the partial unique index.
+	// The outgoing invite slot unique is gone; a second outgoing_invite
+	// row with a distinct composite is accepted.
 	dup := ShareCorrelation{
 		TestRunID:     runID,
 		Role:          RoleOutgoingInvite,
@@ -350,7 +440,7 @@ func TestGetShareCorrelation_ExactlyOneRow(t *testing.T) {
 		Status:        CorrelationStatusConfirmed,
 		CreatedAt:     time.Now().Unix(),
 	}
-	if err := core.DB().WithContext(ctx).Create(&dup).Error; err == nil {
-		t.Fatal("duplicate slot row inserted, want unique index rejection")
+	if err := core.DB().WithContext(ctx).Create(&dup).Error; err != nil {
+		t.Fatalf("second outgoing_invite row must be accepted: %v", err)
 	}
 }

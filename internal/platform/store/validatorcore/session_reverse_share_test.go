@@ -22,7 +22,6 @@ func seedReverseShareRun(t *testing.T, core *Core, runID, state string, isActive
 		TestRunID:    runID,
 		IsActive:     isActive,
 		State:        state,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		BobUserID:    bobID,

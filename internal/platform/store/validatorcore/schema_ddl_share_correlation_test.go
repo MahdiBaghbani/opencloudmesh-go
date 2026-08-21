@@ -66,8 +66,8 @@ func TestShareCorrelation_RoleSlotsAndComposite(t *testing.T) {
 
 	second := newCorrelation(RoleOutgoingInvite, "prov-b", "bob")
 
-	if err := db.Create(&second).Error; err == nil {
-		t.Fatal("second outgoing_invite slot row must be rejected")
+	if err := db.Create(&second).Error; err != nil {
+		t.Fatalf("second outgoing_invite row with a distinct composite must be accepted: %v", err)
 	}
 
 	incoming := newCorrelation(RoleIncomingInvite, "prov-c", "carol")
@@ -105,21 +105,30 @@ func TestShareCorrelation_LockedSlotIndexNames(t *testing.T) {
 
 	db := attachFresh(t)
 
-	for _, index := range []string{
-		"idx_share_corr_outgoing_invite_slot",
+	var incomingSQL string
+
+	if err := db.Raw(
+		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
 		"idx_share_corr_incoming_invite_slot",
-	} {
-		var sqlText string
+	).Scan(&incomingSQL).Error; err != nil {
+		t.Fatalf("read incoming slot index: %v", err)
+	}
 
-		if err := db.Raw(
-			"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?", index,
-		).Scan(&sqlText).Error; err != nil {
-			t.Fatalf("read index %s: %v", index, err)
-		}
+	if incomingSQL == "" || !strings.Contains(strings.ToUpper(incomingSQL), "UNIQUE") {
+		t.Fatalf("incoming slot index must exist as unique, got %q", incomingSQL)
+	}
 
-		if sqlText == "" || !strings.Contains(strings.ToUpper(sqlText), "UNIQUE") {
-			t.Fatalf("index %s must exist as a unique slot index, got %q", index, sqlText)
-		}
+	var outgoingSQL string
+
+	if err := db.Raw(
+		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+		"idx_share_corr_outgoing_invite_slot",
+	).Scan(&outgoingSQL).Error; err != nil {
+		t.Fatalf("probe outgoing slot index: %v", err)
+	}
+
+	if outgoingSQL != "" {
+		t.Fatal("idx_share_corr_outgoing_invite_slot must not exist")
 	}
 }
 

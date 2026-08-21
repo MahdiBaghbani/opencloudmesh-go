@@ -23,7 +23,7 @@ type DiscoveryFetcher interface {
 }
 
 // ProbeRunner drives passive-core state transitions and records discovery-derived
-// platform and TLS grades on the terminal stats snapshot overlay.
+// platform, API version, and TLS grades on the persisted test run and evidence.
 type ProbeRunner struct {
 	store     *validatorcore.Core
 	discovery DiscoveryFetcher
@@ -68,8 +68,16 @@ func (p *ProbeRunner) run(ctx context.Context, testRunID string) {
 		return
 	}
 
-	if overlay, ok := p.buildTerminalOverlay(ctx, testRunID); ok {
-		p.store.SetTerminalStatsSnapshot(testRunID, overlay)
+	if facts, ok := p.collectPassiveProbeFacts(ctx, testRunID); ok {
+		if recErr := p.store.RecordPassiveProbeFacts(
+			ctx,
+			testRunID,
+			facts.platform,
+			facts.apiVersion,
+			facts.tlsGrade,
+		); recErr != nil {
+			p.log.Warn("passive probe failed to persist facts", "test_run_id", testRunID, "error", recErr)
+		}
 	}
 
 	if err := p.store.CompletePassiveProbe(ctx, testRunID); err != nil {
@@ -81,16 +89,22 @@ func (p *ProbeRunner) run(ctx context.Context, testRunID string) {
 	}
 }
 
-func (p *ProbeRunner) buildTerminalOverlay(ctx context.Context, testRunID string) (validatorcore.StatsSnapshot, bool) {
+type passiveProbeFacts struct {
+	platform   string
+	apiVersion string
+	tlsGrade   *string
+}
+
+func (p *ProbeRunner) collectPassiveProbeFacts(ctx context.Context, testRunID string) (passiveProbeFacts, bool) {
 	if p.discovery == nil {
-		return validatorcore.StatsSnapshot{}, false
+		return passiveProbeFacts{}, false
 	}
 
 	row, err := p.store.GetTestRun(ctx, testRunID)
 	if err != nil {
 		p.log.Warn("passive probe could not load session", "test_run_id", testRunID, "error", err)
 
-		return validatorcore.StatsSnapshot{}, false
+		return passiveProbeFacts{}, false
 	}
 
 	result, fetchErr := p.discovery.FetchFresh(ctx, row.TargetOrigin)
@@ -129,11 +143,6 @@ func (p *ProbeRunner) buildTerminalOverlay(ctx context.Context, testRunID string
 		headers = make(map[string][]string)
 	}
 
-	overlay := validatorcore.StatsSnapshot{
-		Platform:   platformdetect.Detect(provider, headers),
-		APIVersion: apiVersion,
-	}
-
 	tlsInput := tlsprobe.Input{
 		Scheme:   scheme,
 		ServerIP: "",
@@ -146,9 +155,10 @@ func (p *ProbeRunner) buildTerminalOverlay(ctx context.Context, testRunID string
 	}
 
 	detail := tlsprobe.CaptureTLS(tlsInput)
-	report := tlsprobe.ConnectionReport(detail)
-	overlay.ConnectionReport = &report
-	overlay.GradeTLS = tlsprobe.GradeTLS(detail, scheme, effectiveFetchErr)
 
-	return overlay, true
+	return passiveProbeFacts{
+		platform:   platformdetect.Detect(provider, headers),
+		apiVersion: apiVersion,
+		tlsGrade:   tlsprobe.GradeTLS(detail, scheme, effectiveFetchErr),
+	}, true
 }

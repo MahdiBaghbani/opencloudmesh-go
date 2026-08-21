@@ -7,64 +7,35 @@ package validatorcore
 
 import "testing"
 
-func TestMergeTerminalStatsOverlay_CopiesAreaGrades(t *testing.T) {
+func TestStatsSnapshotFromTestRun_CopiesPersistedPlatform(t *testing.T) {
 	t.Parallel()
 
-	pass := GradePass
-	warn := GradeWarn
-
-	base := StatsSnapshot{
-		HostHash:    "hash-a",
-		SessionKind: SessionKindPassiveOnly,
-		CreatedAt:   100,
-	}
-	overlay := StatsSnapshot{
-		Platform:               "Nextcloud",
-		GradeDiscovery:         &pass,
-		GradeTLS:               &warn,
-		GradeCapability:        &pass,
-		ReverseInviteExercised: true,
-	}
-
-	mergeTerminalStatsOverlay(&base, &overlay)
-
-	if base.Platform != "Nextcloud" {
-		t.Fatalf("platform = %q, want Nextcloud", base.Platform)
-	}
-
-	if base.GradeDiscovery == nil || *base.GradeDiscovery != GradePass {
-		t.Fatalf("grade_discovery = %v, want pass", base.GradeDiscovery)
-	}
-
-	if base.GradeTLS == nil || *base.GradeTLS != GradeWarn {
-		t.Fatalf("grade_tls = %v, want warn", base.GradeTLS)
-	}
-
-	if !base.ReverseInviteExercised {
-		t.Fatal("expected reverse_invite_exercised from overlay")
-	}
-
-	if base.HostHash != "hash-a" {
-		t.Fatalf("host_hash = %q, want preserved base value", base.HostHash)
-	}
-}
-
-func TestStatsSnapshotFromTestRun_UsesOverlayGrades(t *testing.T) {
-	t.Parallel()
-
-	pass := GradePass
+	platform := "Nextcloud"
+	apiVersion := "1.4.0"
 	row := &TestRun{
-		SessionKind: SessionKindPassiveOnly,
-	}
-	overlay := &StatsSnapshot{GradeDiscovery: &pass}
-
-	snap := statsSnapshotFromTestRun(row, "hash-a", 200, overlay)
-
-	if snap.GradeDiscovery == nil || *snap.GradeDiscovery != GradePass {
-		t.Fatalf("grade_discovery = %v, want pass", snap.GradeDiscovery)
+		Platform:   &platform,
+		APIVersion: &apiVersion,
 	}
 
-	if !DeriveHealthySnapshot(snap) {
-		t.Fatal("expected healthy snapshot from overlay grade")
+	snap := statsSnapshotFromTestRun(row, "hash-a", 200)
+
+	if snap.Platform != platform {
+		t.Fatalf("platform = %q, want %q", snap.Platform, platform)
+	}
+
+	if snap.APIVersion != apiVersion {
+		t.Fatalf("api_version = %q, want %q", snap.APIVersion, apiVersion)
+	}
+
+	if snap.HostHash != "hash-a" {
+		t.Fatalf("host_hash = %q, want hash-a", snap.HostHash)
+	}
+
+	if snap.CreatedAt != 200 {
+		t.Fatalf("created_at = %d, want 200", snap.CreatedAt)
+	}
+
+	if snap.GradeDiscovery != nil {
+		t.Fatalf("grade_discovery = %v, want nil until evidence fill", snap.GradeDiscovery)
 	}
 }

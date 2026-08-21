@@ -96,7 +96,7 @@ func (h *Handler) buildReportPageData(
 	data := reportPageData{
 		ID:             row.TestRunID,
 		State:          row.State,
-		SessionKind:    row.SessionKind,
+		SessionKind:    validatorcore.SessionKindOf(row),
 		OptInStats:     row.OptInStats,
 		OptInPermanent: row.OptInPermanent,
 		ReportURL:      joinReportPath(h.externalBasePath, "validator", "report", row.TestRunID),

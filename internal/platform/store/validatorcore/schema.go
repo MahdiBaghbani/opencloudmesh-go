@@ -35,15 +35,29 @@ const (
 // closed before any destructive action.
 var ErrUnsupportedValidatorSchemaVersion = errors.New("validatorcore: unsupported validator schema version")
 
-// legacyValidatorTables are the pre-versioning validator tables dropped during
-// recovery before the final schema is created. Recovery is table-scoped: only
-// these four tables may be dropped, and only when no validator_schema version
-// row exists yet.
+// ErrValidatorSchemaShapeMismatch is returned when a recorded version-1
+// database does not match this build's schema shape. The store refuses the
+// database without dropping validator tables, peer tables, or the SQLite
+// file. Recover by deleting the validator_schema row or the validator
+// DataDir so the next open can recreate the schema. Never delete ocm.db:
+// that file also holds peer tables.
+var ErrValidatorSchemaShapeMismatch = errors.New("validatorcore: recorded version-1 schema shape mismatch; delete the validator_schema row or the validator DataDir to recover, never ocm.db")
+
+// legacyValidatorTables are the validator tables dropped during recovery
+// before the final schema is created. Recovery is table-scoped and runs
+// only when no validator_schema version row exists yet. Children are
+// dropped first so leftover FKs cannot block the parent drop. The leftover
+// stats_aggregate name is included so a prior-shape database is cleaned
+// without remaining after recovery.
 var legacyValidatorTables = []string{
+	tableEvidenceRow,
+	tableReportExchange,
+	tableDispatchReservation,
 	tableShareCorrelation,
 	tableStatsRaw,
 	tableStatsAggregate,
 	tableTestRun,
+	tableValidatorSchema,
 }
 
 // ApplyValidatorSchema creates or validates the validator schema on db. It is
@@ -52,8 +66,12 @@ var legacyValidatorTables = []string{
 // version row written in the same transaction. No GORM AutoMigrate, no ALTER
 // chains, no migration framework.
 //
-// Version handling fails closed: a recorded version other than the current one
-// aborts before any table is dropped, and peer tables are never touched.
+// Version handling fails closed: a recorded version other than the current
+// one aborts before any table is dropped. A recorded version-1 database
+// whose shape does not match this build is refused without touching
+// validator tables or peer tables. Recover by deleting the validator_schema
+// row or the validator DataDir; never delete ocm.db. Peer tables are never
+// touched.
 func ApplyValidatorSchema(db *gorm.DB) error {
 	if db == nil {
 		return errors.New("validatorcore: nil db")
@@ -119,7 +137,11 @@ func applyValidatorSchemaTx(ctx context.Context, conn *sql.Conn) error {
 			return fmt.Errorf("%w: %d", ErrUnsupportedValidatorSchemaVersion, version)
 		}
 
-		return validateValidatorSchema(ctx, conn)
+		if err := validateValidatorSchema(ctx, conn); err != nil {
+			return fmt.Errorf("%w: %w", ErrValidatorSchemaShapeMismatch, err)
+		}
+
+		return nil
 	}
 
 	for _, table := range legacyValidatorTables {
@@ -138,8 +160,9 @@ func applyValidatorSchemaTx(ctx context.Context, conn *sql.Conn) error {
 }
 
 // readValidatorSchemaVersion returns the recorded schema version. found is
-// false when no validator_schema table exists yet (fresh or pre-versioning
-// database). A present but malformed version table fails closed.
+// false when the validator_schema table is missing or empty (a fresh
+// install, a pre-versioning database, or an operator-deleted version row).
+// A table with more than one row fails closed as malformed.
 func readValidatorSchemaVersion(ctx context.Context, conn *sql.Conn) (version int, found bool, err error) {
 	var tableName string
 
@@ -178,6 +201,10 @@ func readValidatorSchemaVersion(ctx context.Context, conn *sql.Conn) (version in
 		return 0, false, fmt.Errorf("validatorcore: schema: iterate validator_schema: %w", err)
 	}
 
+	if len(versions) == 0 {
+		return 0, false, nil
+	}
+
 	if len(versions) != 1 {
 		return 0, false, fmt.Errorf("validatorcore: schema: validator_schema holds %d rows, want exactly 1", len(versions))
 	}
@@ -194,52 +221,59 @@ func readValidatorSchemaVersion(ctx context.Context, conn *sql.Conn) (version in
 // Validator-owned child tables (share_correlation, report_exchange,
 // evidence_row, dispatch_reservation) declare ON DELETE RESTRICT so an
 // accidental test_run DELETE fails instead of silently erasing evidence.
-// evidence_row.exchange_id keeps ON DELETE SET NULL so evidence rows
-// survive deletion of an individual exchange row.
+// evidence_row.exchange_id uses ON UPDATE CASCADE ON DELETE SET NULL so
+// evidence rows follow an exchange_id change and survive deletion of an
+// individual exchange row.
 var validatorSchemaStatements = []string{
 	`CREATE TABLE test_run (
 		test_run_id TEXT PRIMARY KEY,
-		is_active INTEGER NOT NULL,
+		is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
 		state TEXT NOT NULL CHECK (state IN (
+			'created',
+			'passive_running',
+			'passive_complete',
 			'active_running',
 			'invite_minted',
 			'invite_accepted',
-			'reverse_invite_solicited',
 			'reverse_awaiting_invite',
-			'reverse_invite_imported',
 			'reverse_invite_accepted',
 			'forward_share_sent',
 			'capability_exercise',
 			'reverse_awaiting_share',
 			'terminal_pass',
 			'terminal_fail',
-			'interrupted',
-			'created',
-			'passive_running',
-			'passive_complete'
+			'interrupted'
 		)),
 		target_origin TEXT NOT NULL,
 		target_host TEXT NOT NULL,
+		starter_ocm_id TEXT,
 		discovery_url TEXT NOT NULL,
-		jwks_uri TEXT NOT NULL,
+		jwks_uri TEXT,
+		platform TEXT,
+		api_version TEXT,
 		terminal_reason TEXT,
 		finished_at INTEGER,
 		overall_grade TEXT,
 		manifest_schema TEXT NOT NULL,
 		manifest_json TEXT,
-		session_kind TEXT NOT NULL,
 		bob_user_id TEXT,
+		outgoing_invite_id TEXT,
+		s1_claimed_at INTEGER,
 		reverse_invite_token TEXT,
 		reverse_invite_imported_at INTEGER,
 		designated_share_with TEXT,
 		reverse_share_provider_id TEXT,
+		passive_ready_at INTEGER,
 		stats_written_at INTEGER,
-		opt_in_stats INTEGER NOT NULL DEFAULT 0,
-		opt_in_permanent INTEGER NOT NULL DEFAULT 0,
+		opt_in_stats INTEGER NOT NULL DEFAULT 0 CHECK (opt_in_stats IN (0, 1)),
+		opt_in_permanent INTEGER NOT NULL DEFAULT 0 CHECK (opt_in_permanent IN (0, 1)),
+		opt_in_active INTEGER NOT NULL DEFAULT 0 CHECK (opt_in_active IN (0, 1)),
 		opt_in_stats_channel TEXT,
 		opt_in_stats_at INTEGER,
 		opt_in_permanent_channel TEXT,
 		opt_in_permanent_at INTEGER,
+		opt_in_active_channel TEXT,
+		opt_in_active_at INTEGER,
 		retention_tier TEXT,
 		retention_locked_at INTEGER,
 		expires_at INTEGER,
@@ -248,14 +282,16 @@ var validatorSchemaStatements = []string{
 		harvested_session_artifacts_at INTEGER,
 		harvest_reason TEXT,
 		created_at INTEGER NOT NULL,
-		updated_at INTEGER NOT NULL
+		updated_at INTEGER NOT NULL,
+		CHECK (NOT (state = 'passive_complete' AND opt_in_active = 1))
 	)`,
 	`CREATE UNIQUE INDEX idx_test_run_one_active ON test_run (is_active) WHERE is_active = 1`,
 	`CREATE INDEX idx_test_run_state ON test_run (state)`,
-	`CREATE INDEX idx_test_run_session_kind ON test_run (session_kind)`,
 	`CREATE INDEX idx_test_run_bob_user_id ON test_run (bob_user_id)`,
 	`CREATE INDEX idx_test_run_expires_at ON test_run (expires_at)`,
 	`CREATE INDEX idx_test_run_stats_heal ON test_run (stats_written_at) WHERE opt_in_stats = 1 AND stats_written_at IS NULL`,
+	`CREATE UNIQUE INDEX idx_test_run_opt_in_active_ready ON test_run (test_run_id) WHERE opt_in_active = 1 AND is_active = 0 AND state = 'passive_running'`,
+	`CREATE UNIQUE INDEX idx_test_run_outgoing_invite ON test_run (outgoing_invite_id) WHERE outgoing_invite_id IS NOT NULL`,
 	`CREATE TABLE share_correlation (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -270,8 +306,6 @@ var validatorSchemaStatements = []string{
 	)`,
 	`CREATE UNIQUE INDEX idx_share_corr_unique
 		ON share_correlation (test_run_id, role, sender_host, provider_id, local_identity)`,
-	`CREATE UNIQUE INDEX idx_share_corr_outgoing_invite_slot
-		ON share_correlation (test_run_id) WHERE role = 'outgoing_invite'`,
 	`CREATE UNIQUE INDEX idx_share_corr_incoming_invite_slot
 		ON share_correlation (test_run_id) WHERE role = 'incoming_invite'`,
 	`CREATE TABLE report_exchange (
@@ -305,16 +339,12 @@ var validatorSchemaStatements = []string{
 		digest TEXT,
 		req_body_redacted TEXT,
 		resp_body_redacted TEXT,
-		req_body_raw BLOB,
-		resp_body_raw BLOB,
 		req_body_sha256 TEXT,
 		resp_body_sha256 TEXT,
 		req_body_bytes INTEGER,
 		resp_body_bytes INTEGER,
 		req_body_truncated INTEGER NOT NULL DEFAULT 0,
 		resp_body_truncated INTEGER NOT NULL DEFAULT 0,
-		grade TEXT,
-		reason_codes TEXT,
 		created_at INTEGER NOT NULL
 	)`,
 	`CREATE UNIQUE INDEX idx_report_ex_run_seq ON report_exchange (test_run_id, seq)`,
@@ -327,20 +357,31 @@ var validatorSchemaStatements = []string{
 		WHERE request_id IS NOT NULL AND request_id != ''`,
 	`CREATE TABLE evidence_row (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON DELETE RESTRICT,
-		area TEXT NOT NULL,
+		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+		leg TEXT CHECK (leg IN ('passive', 'forward', 'reverse')),
+		area TEXT NOT NULL CHECK (area IN (
+			'discovery',
+			'tls',
+			'jwks',
+			'httpsig',
+			'sharing',
+			'notification',
+			'token',
+			'capability'
+		)),
 		step TEXT NOT NULL,
 		reason_code TEXT NOT NULL,
 		severity TEXT NOT NULL,
 		affects_grade INTEGER NOT NULL,
 		payload_redacted TEXT,
-		exchange_id INTEGER REFERENCES report_exchange (exchange_id) ON DELETE SET NULL,
+		exchange_id INTEGER REFERENCES report_exchange (exchange_id) ON UPDATE CASCADE ON DELETE SET NULL,
 		created_at INTEGER NOT NULL
 	)`,
-	`CREATE UNIQUE INDEX idx_evidence_row ON evidence_row (test_run_id, area, step, reason_code)`,
-	`CREATE INDEX idx_evidence_row_area ON evidence_row (test_run_id, area)`,
+	`CREATE UNIQUE INDEX idx_evidence_row ON evidence_row (test_run_id, leg, area, step, reason_code)`,
+	`CREATE INDEX idx_evidence_row_area ON evidence_row (area)`,
+	`CREATE INDEX idx_evidence_row_leg ON evidence_row (leg)`,
 	`CREATE TABLE dispatch_reservation (
-		test_run_id TEXT PRIMARY KEY REFERENCES test_run (test_run_id) ON DELETE RESTRICT,
+		test_run_id TEXT PRIMARY KEY REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE RESTRICT,
 		provider_id TEXT NOT NULL UNIQUE,
 		webdav_id TEXT NOT NULL UNIQUE,
 		shared_secret TEXT NOT NULL,
@@ -370,24 +411,12 @@ var validatorSchemaStatements = []string{
 		grade_notification TEXT,
 		grade_token TEXT,
 		grade_capability TEXT,
-		created_at INTEGER NOT NULL,
-		window_bucket INTEGER
+		created_at INTEGER NOT NULL
 	)`,
 	`CREATE INDEX idx_stats_raw_host_hash ON stats_raw (host_hash)`,
 	`CREATE INDEX idx_stats_raw_session_kind ON stats_raw (session_kind)`,
 	`CREATE INDEX idx_stats_raw_platform ON stats_raw (platform)`,
 	`CREATE INDEX idx_stats_raw_created_at ON stats_raw (created_at)`,
-	`CREATE INDEX idx_stats_raw_window_bucket ON stats_raw (window_bucket)`,
-	`CREATE TABLE stats_aggregate (
-		host_hash TEXT PRIMARY KEY,
-		total_sessions INTEGER NOT NULL,
-		healthy_sessions INTEGER NOT NULL,
-		last_platform TEXT NOT NULL,
-		last_healthy INTEGER NOT NULL,
-		first_seen_ts INTEGER NOT NULL,
-		last_seen_ts INTEGER NOT NULL
-	)`,
-	`CREATE INDEX idx_stats_agg_last_seen ON stats_aggregate (last_seen_ts)`,
 	`CREATE TABLE validator_schema (
 		version INTEGER PRIMARY KEY
 	)`,

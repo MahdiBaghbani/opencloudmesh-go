@@ -142,12 +142,11 @@ func TestHandleStart_CreateThenStop(t *testing.T) {
 
 	runID := "run-stop-flow"
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StatePassiveComplete,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      validatorcore.StatePassiveComplete,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -200,12 +199,11 @@ func TestHandleStop_SessionNotReady(t *testing.T) {
 
 	runID := "run-not-ready"
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StateCreated,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      validatorcore.StateCreated,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.CreatePassiveSession(ctx, row); err != nil {
@@ -242,13 +240,12 @@ func TestHandleStop_ActivePassiveCompleteReturnsSessionNotReady(t *testing.T) {
 
 	runID := "run-active-pc-stop"
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		IsActive:    true,
-		State:       validatorcore.StatePassiveComplete,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		IsActive:   true,
+		State:      validatorcore.StatePassiveComplete,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -289,12 +286,11 @@ func TestHandleStart_ExtendTerminalStateReturnsSessionNotReady(t *testing.T) {
 
 	runID := "run-extend-terminal"
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StateTerminalPass,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      validatorcore.StateTerminalPass,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -335,12 +331,11 @@ func TestHandleStart_ExtendInteractiveConflict(t *testing.T) {
 
 	for _, id := range []string{"run-a", "run-b"} {
 		row := &validatorcore.TestRun{
-			TestRunID:   id,
-			State:       validatorcore.StatePassiveComplete,
-			SessionKind: validatorcore.SessionKindPassiveOnly,
-			TargetHost:  "peer.example",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			TestRunID:  id,
+			State:      validatorcore.StatePassiveComplete,
+			TargetHost: "peer.example",
+			CreatedAt:  now,
+			UpdatedAt:  now,
 		}
 
 		if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -388,12 +383,11 @@ func TestHandleStart_RepeatedExtendReturnsInteractiveConflict(t *testing.T) {
 	runID := "run-repeat"
 
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StatePassiveComplete,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      validatorcore.StatePassiveComplete,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {

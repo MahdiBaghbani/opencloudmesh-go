@@ -206,8 +206,8 @@ func TestHandleReverseInvite_RetryAfterImportNotch(t *testing.T) {
 	env.seedRun(t, runID, validatorcore.StateReverseAwaitingInvite)
 	bobID := env.bindBob(t, runID)
 
-	// Simulate the crash notch: the incoming invite row and the import CAS
-	// committed, but the accept never ran.
+	// Simulate the crash notch: the incoming invite row and the paste
+	// committed, but product accept never ran.
 	inviteString := invites.BuildInviteString("reverse-token-1", testTargetHost)
 
 	invite, err := env.createIncoming(t, inviteString, "reverse-token-1", testTargetHost, bobID)
@@ -221,7 +221,7 @@ func TestHandleReverseInvite_RetryAfterImportNotch(t *testing.T) {
 		t.Fatalf("import: %v", importErr)
 	}
 
-	env.requireState(t, runID, validatorcore.StateReverseInviteImported)
+	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
 	rec := pasteInvite(t, env.pasteRouter(), runID, inviteString)
 	if rec.Code != http.StatusOK {
@@ -291,12 +291,12 @@ func TestHandleReverseInvite_RemoteFailureLeavesImportNotch(t *testing.T) {
 		t.Fatalf("status = %d, want 502", rec.Code)
 	}
 
-	// The import notch is durable: state holds at imported, no evidence, and
-	// the invite stays pending so a retry can complete the accept.
-	env.requireState(t, runID, validatorcore.StateReverseInviteImported)
+	// The paste is durable: state is already accepted with sharing evidence,
+	// and the invite stays pending so a retry can complete product accept.
+	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
-	if got := env.countEvidence(t, runID); got != 0 {
-		t.Fatalf("evidence rows = %d, want 0", got)
+	if got := env.countEvidence(t, runID); got != 1 {
+		t.Fatalf("evidence rows = %d, want 1 from the paste", got)
 	}
 
 	env.poster.status = http.StatusOK

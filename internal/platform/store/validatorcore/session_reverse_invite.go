@@ -15,10 +15,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// Evidence tuple written by the winning reverse-invite accept CAS. The
-// reverse leg keeps the fact out of the capability-exercise advance path.
+// Evidence tuple written by the winning reverse-invite paste. The reverse
+// leg keeps the fact out of the capability-exercise advance path.
 const (
-	evidenceAreaReverseInvite     = "reverse_invite"
 	evidenceStepInviteAccepted    = "invite_accepted"
 	evidenceReasonReverseAccepted = "reverse_invite_accepted"
 )
@@ -35,9 +34,7 @@ const (
 // outgoing invite_accepted observation, so re-observing acceptance is a no-op.
 var statesAtOrPastInviteAccepted = []string{
 	StateInviteAccepted,
-	StateReverseInviteSolicited,
 	StateReverseAwaitingInvite,
-	StateReverseInviteImported,
 	StateReverseInviteAccepted,
 	StateForwardShareSent,
 	StateCapabilityExercise,
@@ -45,20 +42,9 @@ var statesAtOrPastInviteAccepted = []string{
 }
 
 // statesAtOrPastAwaitingInvite lists active states that already passed the
-// reverse_invite_solicited -> reverse_awaiting_invite CAS.
+// invite_accepted -> reverse_awaiting_invite CAS.
 var statesAtOrPastAwaitingInvite = []string{
 	StateReverseAwaitingInvite,
-	StateReverseInviteImported,
-	StateReverseInviteAccepted,
-	StateForwardShareSent,
-	StateCapabilityExercise,
-	StateReverseAwaitingShare,
-}
-
-// statesAtOrPastInviteImported lists active states that already passed the
-// reverse_awaiting_invite -> reverse_invite_imported CAS.
-var statesAtOrPastInviteImported = []string{
-	StateReverseInviteImported,
 	StateReverseInviteAccepted,
 	StateForwardShareSent,
 	StateCapabilityExercise,
@@ -66,7 +52,7 @@ var statesAtOrPastInviteImported = []string{
 }
 
 // statesAtOrPastReverseInviteAccepted lists states that already passed the
-// reverse_invite_imported -> reverse_invite_accepted CAS, so a repeated
+// reverse_awaiting_invite -> reverse_invite_accepted paste, so a repeated
 // accept is a no-op that must not re-accept or regress the run. Terminal
 // fail and interrupted are excluded on purpose: they are reachable from any
 // state, so they prove nothing about the accept having happened.
@@ -82,35 +68,43 @@ func stateIn(state string, set []string) bool {
 	return slices.Contains(set, state)
 }
 
-// MintOutgoingInviteBinding atomically compare-and-binds the run's
-// RoleOutgoingInvite correlation slot and CASes active_running ->
-// invite_minted in one transaction. Retrying with the same invite ID and
-// token is idempotent; a different ID or token, or more than one row in the
-// slot, is a conflict. Concurrent mints race to exactly one winner.
+func reverseInviteAcceptEvidence(testRunID string) ApplyEvidenceFactInput {
+	return ApplyEvidenceFactInput{
+		TestRunID:    testRunID,
+		Area:         SpecificationAreaSharing,
+		Step:         evidenceStepInviteAccepted,
+		ReasonCode:   evidenceReasonReverseAccepted,
+		Severity:     GradePass,
+		AffectsGrade: true,
+		Leg:          evidenceLegReverse,
+	}
+}
+
+// MintOutgoingInviteBinding writes outgoing_invite_id on the run and CASes
+// active_running -> invite_minted in one transaction. Retrying with the same
+// invite ID is idempotent; a different ID is a conflict. The invite token is
+// not stored on the validator row. Concurrent mints race to exactly one
+// winner.
 func (c *Core) MintOutgoingInviteBinding(ctx context.Context, testRunID, inviteID, token string) error {
 	if testRunID == "" || inviteID == "" || token == "" {
 		return errors.New("validatorcore: mint outgoing invite binding requires run id, invite id, and token")
 	}
 
 	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return mintOutgoingInviteTx(tx, testRunID, inviteID, token, time.Now().Unix())
+		return mintOutgoingInviteTx(tx, testRunID, inviteID, time.Now().Unix())
 	})
 	if err == nil {
 		return nil
 	}
 
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		// A concurrent mint claimed the slot first; classify idempotent vs
-		// conflict from the winner's row.
-		return c.classifyOutgoingSlotRace(ctx, testRunID, inviteID, token, err)
+		return c.classifyOutgoingInviteRace(ctx, testRunID, inviteID, err)
 	}
 
 	return fmt.Errorf("validatorcore: mint outgoing invite binding: %w", err)
 }
 
-// mintOutgoingInviteTx is the transaction body of MintOutgoingInviteBinding:
-// prove the slot is free or identically bound, claim it, then CAS the state.
-func mintOutgoingInviteTx(tx *gorm.DB, testRunID, inviteID, token string, now int64) error {
+func mintOutgoingInviteTx(tx *gorm.DB, testRunID, inviteID string, now int64) error {
 	var run TestRun
 	if err := tx.First(&run, "test_run_id = ?", testRunID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -120,67 +114,64 @@ func mintOutgoingInviteTx(tx *gorm.DB, testRunID, inviteID, token string, now in
 		return fmt.Errorf("validatorcore: load test run: %w", err)
 	}
 
-	existing, err := listShareCorrelationsTx(tx, testRunID, RoleOutgoingInvite)
-	if err != nil {
-		return err
-	}
-
-	switch len(existing) {
-	case 0:
-		// Slot is free; claim it below.
-	case 1:
-		row := existing[0]
-		if stringPtrEqual(row.InviteID, inviteID) && row.ProviderID == token {
+	if run.OutgoingInviteID != nil && *run.OutgoingInviteID != "" {
+		if *run.OutgoingInviteID == inviteID {
 			return nil
 		}
 
 		return ErrShareCorrelationConflict
-	default:
-		return ErrShareCorrelationConflict
-	}
-
-	corr := ShareCorrelation{
-		TestRunID:     testRunID,
-		Role:          RoleOutgoingInvite,
-		LocalIdentity: LocalIdentityA,
-		SenderHost:    run.TargetHost,
-		InviteID:      &inviteID,
-		ProviderID:    token,
-		Status:        CorrelationStatusConfirmed,
-		CreatedAt:     now,
-	}
-	if err := tx.Create(&corr).Error; err != nil {
-		return fmt.Errorf("validatorcore: bind outgoing invite slot: %w", err)
 	}
 
 	res := tx.Model(&TestRun{}).
+		Where("test_run_id = ? AND "+colOutgoingInviteID+" IS NULL", testRunID).
+		Updates(map[string]any{
+			colOutgoingInviteID: inviteID,
+			colUpdatedAt:        now,
+		})
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrDuplicatedKey) {
+			return res.Error
+		}
+
+		return fmt.Errorf("validatorcore: bind outgoing invite: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return gorm.ErrDuplicatedKey
+	}
+
+	cas := tx.Model(&TestRun{}).
 		Where("test_run_id = ? AND is_active = 1 AND state = ?", testRunID, StateActiveRunning).
 		Updates(map[string]any{
 			colState:     StateInviteMinted,
 			colUpdatedAt: now,
 		})
-	if res.Error != nil {
-		return fmt.Errorf("validatorcore: mint outgoing invite CAS: %w", res.Error)
+	if cas.Error != nil {
+		return fmt.Errorf("validatorcore: mint outgoing invite CAS: %w", cas.Error)
 	}
 
-	if res.RowsAffected == 0 {
+	if cas.RowsAffected == 0 {
 		return ErrStateTransitionMiss
 	}
 
 	return nil
 }
 
-func (c *Core) classifyOutgoingSlotRace(ctx context.Context, testRunID, inviteID, token string, original error) error {
-	row, err := c.GetShareCorrelation(ctx, testRunID, RoleOutgoingInvite, LocalIdentityA)
+func (c *Core) classifyOutgoingInviteRace(ctx context.Context, testRunID, inviteID string, original error) error {
+	run, err := c.GetTestRun(ctx, testRunID)
 	if err != nil {
-		return original
+		return NewStoreError(OpMintOutgoingInvite, original)
 	}
 
-	if stringPtrEqual(row.InviteID, inviteID) && row.ProviderID == token {
+	if run.OutgoingInviteID != nil && *run.OutgoingInviteID == inviteID {
 		return nil
 	}
 
-	return ErrShareCorrelationConflict
+	if run.OutgoingInviteID != nil && *run.OutgoingInviteID != "" {
+		return ErrShareCorrelationConflict
+	}
+
+	return NewStoreError(OpMintOutgoingInvite, original)
 }
 
 // RecordOutgoingInviteAccepted CASes invite_minted -> invite_accepted and
@@ -220,10 +211,8 @@ func (c *Core) RecordOutgoingInviteAccepted(ctx context.Context, testRunID, shar
 	return ErrStateTransitionMiss
 }
 
-// SolicitReverse advances invite_accepted -> reverse_invite_solicited and
-// then reverse_invite_solicited -> reverse_awaiting_invite as two separate
-// CASes. A first-CAS miss on an already-solicited run heals the crash notch
-// by running the second CAS; a run already awaiting (or past) is idempotent.
+// SolicitReverse CASes invite_accepted -> reverse_awaiting_invite. A run
+// already awaiting (or past) is idempotent.
 func (c *Core) SolicitReverse(ctx context.Context, testRunID string) error {
 	if testRunID == "" {
 		return errors.New("validatorcore: empty test run id")
@@ -234,37 +223,11 @@ func (c *Core) SolicitReverse(ctx context.Context, testRunID string) error {
 	res := c.db.WithContext(ctx).Model(&TestRun{}).
 		Where("test_run_id = ? AND is_active = 1 AND state = ?", testRunID, StateInviteAccepted).
 		Updates(map[string]any{
-			colState:     StateReverseInviteSolicited,
-			colUpdatedAt: now,
-		})
-	if res.Error != nil {
-		return fmt.Errorf("validatorcore: solicit reverse CAS: %w", res.Error)
-	}
-
-	if res.RowsAffected == 0 {
-		run, err := c.GetTestRun(ctx, testRunID)
-		if err != nil {
-			return err
-		}
-
-		switch {
-		case run.State == StateReverseInviteSolicited:
-			// Crash notch: the first CAS committed but the second never ran.
-		case stateIn(run.State, statesAtOrPastAwaitingInvite):
-			return nil
-		default:
-			return ErrStateTransitionMiss
-		}
-	}
-
-	res = c.db.WithContext(ctx).Model(&TestRun{}).
-		Where("test_run_id = ? AND is_active = 1 AND state = ?", testRunID, StateReverseInviteSolicited).
-		Updates(map[string]any{
 			colState:     StateReverseAwaitingInvite,
 			colUpdatedAt: now,
 		})
 	if res.Error != nil {
-		return fmt.Errorf("validatorcore: await reverse invite CAS: %w", res.Error)
+		return fmt.Errorf("validatorcore: solicit reverse CAS: %w", res.Error)
 	}
 
 	if res.RowsAffected > 0 {
@@ -283,11 +246,12 @@ func (c *Core) SolicitReverse(ctx context.Context, testRunID string) error {
 	return ErrStateTransitionMiss
 }
 
-// ImportReverseInvite atomically binds the run's RoleIncomingInvite slot and
-// CASes reverse_awaiting_invite -> reverse_invite_imported in one
-// transaction. The first imported token wins: a retry with the same token and
-// invite ID is idempotent, a different token after occupancy is a conflict
-// with no state advance.
+// ImportReverseInvite binds the run's RoleIncomingInvite slot and CASes
+// reverse_awaiting_invite -> reverse_invite_accepted in one transaction,
+// writing sharing-area accept evidence on the winning paste. The first
+// imported token wins: a retry with the same token and invite ID is
+// idempotent, a different token after occupancy is a conflict with no
+// state advance.
 func (c *Core) ImportReverseInvite(ctx context.Context, testRunID, token, inviteID string) error {
 	if testRunID == "" || token == "" || inviteID == "" {
 		return errors.New("validatorcore: import reverse invite requires run id, token, and invite id")
@@ -307,9 +271,6 @@ func (c *Core) ImportReverseInvite(ctx context.Context, testRunID, token, invite
 	return fmt.Errorf("validatorcore: import reverse invite: %w", err)
 }
 
-// importReverseInviteTx is the transaction body of ImportReverseInvite: prove
-// the incoming slot is free or identically bound, claim it, then CAS the
-// state and pin the imported token.
 func importReverseInviteTx(tx *gorm.DB, testRunID, token, inviteID string, now int64) error {
 	var run TestRun
 	if err := tx.First(&run, "test_run_id = ?", testRunID).Error; err != nil {
@@ -334,33 +295,37 @@ func importReverseInviteTx(tx *gorm.DB, testRunID, token, inviteID string, now i
 			return ErrShareCorrelationConflict
 		}
 
-		if stateIn(run.State, statesAtOrPastInviteImported) {
-			return nil
+		if stateIn(run.State, statesAtOrPastReverseInviteAccepted) {
+			return applyEvidenceFactTx(tx, reverseInviteAcceptEvidence(testRunID), now)
 		}
 
-		return ErrStateTransitionMiss
+		if run.State != StateReverseAwaitingInvite {
+			return ErrStateTransitionMiss
+		}
 	default:
 		return ErrShareCorrelationConflict
 	}
 
-	corr := ShareCorrelation{
-		TestRunID:     testRunID,
-		Role:          RoleIncomingInvite,
-		LocalIdentity: LocalIdentityB,
-		SenderHost:    run.TargetHost,
-		InviteID:      &inviteID,
-		ProviderID:    token,
-		Status:        CorrelationStatusConfirmed,
-		CreatedAt:     now,
-	}
-	if err := tx.Create(&corr).Error; err != nil {
-		return fmt.Errorf("validatorcore: bind incoming invite slot: %w", err)
+	if len(existing) == 0 {
+		corr := ShareCorrelation{
+			TestRunID:     testRunID,
+			Role:          RoleIncomingInvite,
+			LocalIdentity: LocalIdentityB,
+			SenderHost:    run.TargetHost,
+			InviteID:      &inviteID,
+			ProviderID:    token,
+			Status:        CorrelationStatusConfirmed,
+			CreatedAt:     now,
+		}
+		if err := tx.Create(&corr).Error; err != nil {
+			return fmt.Errorf("validatorcore: bind incoming invite slot: %w", err)
+		}
 	}
 
 	res := tx.Model(&TestRun{}).
 		Where("test_run_id = ? AND is_active = 1 AND state = ? AND "+colReverseInviteToken+" IS NULL", testRunID, StateReverseAwaitingInvite).
 		Updates(map[string]any{
-			colState:                   StateReverseInviteImported,
+			colState:                   StateReverseInviteAccepted,
 			colUpdatedAt:               now,
 			colReverseInviteToken:      token,
 			colReverseInviteImportedAt: now,
@@ -373,7 +338,7 @@ func importReverseInviteTx(tx *gorm.DB, testRunID, token, inviteID string, now i
 		return ErrStateTransitionMiss
 	}
 
-	return nil
+	return applyEvidenceFactTx(tx, reverseInviteAcceptEvidence(testRunID), now)
 }
 
 func (c *Core) classifyIncomingSlotRace(ctx context.Context, testRunID, token, inviteID string, original error) error {
@@ -391,68 +356,30 @@ func (c *Core) classifyIncomingSlotRace(ctx context.Context, testRunID, token, i
 		return original
 	}
 
-	if stateIn(run.State, statesAtOrPastInviteImported) {
+	if stateIn(run.State, statesAtOrPastReverseInviteAccepted) {
 		return nil
 	}
 
 	return ErrStateTransitionMiss
 }
 
-// AcceptReverseInvite CASes reverse_invite_imported -> reverse_invite_accepted
-// and, only on the winning CAS, writes the reverse-invite accept evidence
-// tuple through the shared evidence seam in the same transaction. A miss on
-// a run already at or past reverse_invite_accepted is idempotent success that
-// leaves the later state untouched; any other miss is a transition error.
+// AcceptReverseInvite is idempotent once the paste has already landed the
+// run at or past reverse_invite_accepted. A run still awaiting the paste
+// (or in any other unmatched state) is a transition miss. The paste itself
+// lives in ImportReverseInvite.
 func (c *Core) AcceptReverseInvite(ctx context.Context, testRunID string) error {
 	if testRunID == "" {
 		return errors.New("validatorcore: empty test run id")
 	}
 
-	now := time.Now().Unix()
-
-	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&TestRun{}).
-			Where("test_run_id = ? AND is_active = 1 AND state = ?", testRunID, StateReverseInviteImported).
-			Updates(map[string]any{
-				colState:     StateReverseInviteAccepted,
-				colUpdatedAt: now,
-			})
-		if res.Error != nil {
-			return fmt.Errorf("validatorcore: accept reverse invite CAS: %w", res.Error)
-		}
-
-		if res.RowsAffected == 0 {
-			return ErrStateTransitionMiss
-		}
-
-		return applyEvidenceFactTx(tx, ApplyEvidenceFactInput{
-			TestRunID:    testRunID,
-			Area:         evidenceAreaReverseInvite,
-			Step:         evidenceStepInviteAccepted,
-			ReasonCode:   evidenceReasonReverseAccepted,
-			Severity:     GradePass,
-			AffectsGrade: true,
-			Leg:          evidenceLegReverse,
-		}, now)
-	})
-	if err == nil {
-		return nil
+	run, err := c.GetTestRun(ctx, testRunID)
+	if err != nil {
+		return err
 	}
 
-	if !errors.Is(err, ErrStateTransitionMiss) {
-		return fmt.Errorf("validatorcore: accept reverse invite: %w", err)
-	}
-
-	run, loadErr := c.GetTestRun(ctx, testRunID)
-	if loadErr != nil {
-		return loadErr
-	}
-
-	// A run already at or past reverse_invite_accepted keeps its state; the
-	// repeated accept is idempotent success and must not regress it.
 	if stateIn(run.State, statesAtOrPastReverseInviteAccepted) {
 		return nil
 	}
 
-	return fmt.Errorf("validatorcore: accept reverse invite: %w", err)
+	return fmt.Errorf("validatorcore: accept reverse invite: %w", ErrStateTransitionMiss)
 }

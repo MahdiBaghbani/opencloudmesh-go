@@ -190,38 +190,10 @@ func requireStatsKeysWritten(t *testing.T, env *courierMatrixEnv, runs []string)
 	return ks
 }
 
-// requireHostAggregate loads the single aggregate row for the host.
-func requireHostAggregate(t *testing.T, env *courierMatrixEnv, hostHash string) validatorcore.StatsAggregate {
+// requireRawHealthyCount proves the persisted stats_raw rows fold to the
+// expected healthy count without an aggregate table.
+func requireRawHealthyCount(t *testing.T, rawRows []validatorcore.StatsRaw, wantHealthy int) {
 	t.Helper()
-
-	var aggregates []validatorcore.StatsAggregate
-
-	if err := env.store.DB().WithContext(t.Context()).
-		Where("host_hash = ?", hostHash).
-		Find(&aggregates).Error; err != nil {
-		t.Fatalf("list aggregates: %v", err)
-	}
-
-	if len(aggregates) != 1 {
-		t.Fatalf("aggregate rows for host = %d, want 1", len(aggregates))
-	}
-
-	return aggregates[0]
-}
-
-// requireAggregateMatchesRaw folds the raw rows the way the aggregate builder
-// does and proves the persisted aggregate matches the seeded expectations.
-func requireAggregateMatchesRaw(
-	t *testing.T,
-	aggregate validatorcore.StatsAggregate,
-	rawRows []validatorcore.StatsRaw,
-	wantHealthy int,
-) {
-	t.Helper()
-
-	if aggregate.TotalSessions != int64(len(rawRows)) {
-		t.Fatalf("aggregate total sessions = %d, want %d", aggregate.TotalSessions, len(rawRows))
-	}
 
 	healthy := 0
 
@@ -233,41 +205,6 @@ func requireAggregateMatchesRaw(
 
 	if healthy != wantHealthy {
 		t.Fatalf("healthy raw rows = %d, want %d", healthy, wantHealthy)
-	}
-
-	if aggregate.HealthySessions != int64(healthy) {
-		t.Fatalf("aggregate healthy sessions = %d, want %d", aggregate.HealthySessions, healthy)
-	}
-
-	var firstSeen, lastSeen int64
-
-	var latest validatorcore.StatsRaw
-
-	for _, row := range rawRows {
-		if firstSeen == 0 || row.CreatedAt < firstSeen {
-			firstSeen = row.CreatedAt
-		}
-
-		if row.CreatedAt >= lastSeen {
-			lastSeen = row.CreatedAt
-			latest = row
-		}
-	}
-
-	if aggregate.FirstSeenTS != firstSeen {
-		t.Fatalf("aggregate first_seen_ts = %d, want %d", aggregate.FirstSeenTS, firstSeen)
-	}
-
-	if aggregate.LastSeenTS != lastSeen {
-		t.Fatalf("aggregate last_seen_ts = %d, want %d", aggregate.LastSeenTS, lastSeen)
-	}
-
-	if aggregate.LastHealthy != validatorcore.DeriveHealthy(latest) {
-		t.Fatalf("aggregate last_healthy = %v, want %v", aggregate.LastHealthy, validatorcore.DeriveHealthy(latest))
-	}
-
-	if aggregate.LastPlatform != latest.Platform {
-		t.Fatalf("aggregate last_platform = %q, want %q", aggregate.LastPlatform, latest.Platform)
 	}
 }
 

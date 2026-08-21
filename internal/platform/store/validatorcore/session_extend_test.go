@@ -20,12 +20,11 @@ func TestExtendToActive_RequiresPassiveComplete(t *testing.T) {
 	runID := "run-extend-not-ready"
 
 	row := &TestRun{
-		TestRunID:   runID,
-		State:       StateCreated,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "extend.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      StateCreated,
+		TargetHost: "extend.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.CreatePassiveSession(ctx, row); err != nil {
@@ -47,12 +46,11 @@ func TestExtendToActive_ConflictsWithOneActiveLock(t *testing.T) {
 
 	for _, id := range []string{"run-active-a", "run-active-b"} {
 		row := &TestRun{
-			TestRunID:   id,
-			State:       StatePassiveComplete,
-			SessionKind: SessionKindPassiveOnly,
-			TargetHost:  "lock.example",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			TestRunID:  id,
+			State:      StatePassiveComplete,
+			TargetHost: "lock.example",
+			CreatedAt:  now,
+			UpdatedAt:  now,
 		}
 
 		if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -81,12 +79,11 @@ func TestExtendToActive_TerminalStateReturnsSessionNotReady(t *testing.T) {
 	runID := "run-extend-terminal"
 
 	row := &TestRun{
-		TestRunID:   runID,
-		State:       StateTerminalPass,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "terminal.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      StateTerminalPass,
+		TargetHost: "terminal.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -112,12 +109,11 @@ func TestExtendToActive_RepeatedExtensionReturnsInteractiveConflict(t *testing.T
 	runID := "run-repeat-extend"
 
 	row := &TestRun{
-		TestRunID:   runID,
-		State:       StatePassiveComplete,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "repeat.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      StatePassiveComplete,
+		TargetHost: "repeat.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -143,12 +139,11 @@ func TestExtendToActive_WritesBobUserIDOnPromotion(t *testing.T) {
 	runID := "run-extend-bob"
 
 	row := &TestRun{
-		TestRunID:   runID,
-		State:       StatePassiveComplete,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "bob.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      StatePassiveComplete,
+		TargetHost: "bob.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.CreatePassiveSession(ctx, row); err != nil {
@@ -186,12 +181,11 @@ func TestExtendToActive_ConflictLeavesBobUserIDUnset(t *testing.T) {
 
 	for _, id := range []string{"run-bob-a", "run-bob-b"} {
 		row := &TestRun{
-			TestRunID:   id,
-			State:       StatePassiveComplete,
-			SessionKind: SessionKindPassiveOnly,
-			TargetHost:  "lock.example",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			TestRunID:  id,
+			State:      StatePassiveComplete,
+			TargetHost: "lock.example",
+			CreatedAt:  now,
+			UpdatedAt:  now,
 		}
 
 		if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {

@@ -117,19 +117,16 @@ func (c *Core) QueryFederationTesterStatistics(
 	}
 
 	if window.AllTime {
-		window.From = earliestCreatedAt(rows)
-		if window.From == 0 {
-			var minFirst int64
+		var minCreated int64
 
-			if aggErr := c.db.WithContext(ctx).
-				Model(&StatsAggregate{}).
-				Select("COALESCE(MIN(first_seen_ts), 0)").
-				Scan(&minFirst).Error; aggErr != nil {
-				return nil, fmt.Errorf("validatorcore: min first_seen_ts: %w", aggErr)
-			}
-
-			window.From = minFirst
+		if minErr := c.db.WithContext(ctx).
+			Model(&StatsRaw{}).
+			Select("COALESCE(MIN(created_at), 0)").
+			Scan(&minCreated).Error; minErr != nil {
+			return nil, fmt.Errorf("validatorcore: min stats_raw created_at: %w", minErr)
 		}
+
+		window.From = minCreated
 	}
 
 	lastByHost := lastRowPerHost(rows)
@@ -166,21 +163,6 @@ func (c *Core) loadStatsRawForWindow(ctx context.Context, window StatisticsQuery
 	}
 
 	return rows, nil
-}
-
-func earliestCreatedAt(rows []StatsRaw) int64 {
-	if len(rows) == 0 {
-		return 0
-	}
-
-	minTS := rows[0].CreatedAt
-	for _, row := range rows[1:] {
-		if row.CreatedAt < minTS {
-			minTS = row.CreatedAt
-		}
-	}
-
-	return minTS
 }
 
 func lastRowPerHost(rows []StatsRaw) map[string]StatsRaw {

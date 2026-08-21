@@ -18,10 +18,10 @@ var reportExchangeColumns = []string{
 	"endpoint_id", "method", "url", "host", "status_code", "http_version",
 	"error_text", "request_id", "req_headers_json", "resp_headers_json",
 	"sig_raw", "sig_key_id", "sig_algorithm", "sig_scheme", "sig_valid",
-	"digest", "req_body_redacted", "resp_body_redacted", "req_body_raw",
-	"resp_body_raw", "req_body_sha256", "resp_body_sha256", "req_body_bytes",
-	"resp_body_bytes", "req_body_truncated", "resp_body_truncated", "grade",
-	"reason_codes", "created_at",
+	"digest", "req_body_redacted", "resp_body_redacted",
+	"req_body_sha256", "resp_body_sha256", "req_body_bytes",
+	"resp_body_bytes", "req_body_truncated", "resp_body_truncated",
+	"created_at",
 }
 
 func TestReportExchange_ColumnsAndFK(t *testing.T) {
@@ -74,9 +74,15 @@ func TestReportExchange_BodyColumnTypes(t *testing.T) {
 	db := attachFresh(t)
 	info := tableInfo(t, db, "report_exchange")
 
-	for _, col := range []string{"req_body_raw", "resp_body_raw"} {
-		if !strings.EqualFold(info[col].Type, "BLOB") {
-			t.Fatalf("report_exchange.%s must be BLOB, got %q", col, info[col].Type)
+	for _, col := range []string{"req_body_raw", "resp_body_raw", "grade", "reason_codes"} {
+		if _, ok := info[col]; ok {
+			t.Fatalf("report_exchange must not have column %s", col)
+		}
+	}
+
+	for _, col := range []string{"req_body_redacted", "resp_body_redacted"} {
+		if !strings.EqualFold(info[col].Type, "TEXT") {
+			t.Fatalf("report_exchange.%s must be TEXT, got %q", col, info[col].Type)
 		}
 	}
 

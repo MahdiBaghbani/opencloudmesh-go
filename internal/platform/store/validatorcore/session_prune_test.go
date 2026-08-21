@@ -58,7 +58,6 @@ func TestPruneTerminalSessions_HardDeletesRunAndChildren(t *testing.T) {
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
-		SessionKind:    SessionKindPassiveOnly,
 		CreatedAt:      staleFinished,
 		UpdatedAt:      staleFinished,
 	}
@@ -129,7 +128,6 @@ func TestPruneTerminalSessions_DeletesInterruptedNonPermanentRun(t *testing.T) {
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
-		SessionKind:    SessionKindPassiveOnly,
 		FinishedAt:     &staleFinished,
 		CreatedAt:      staleFinished,
 		UpdatedAt:      staleFinished,
@@ -176,7 +174,6 @@ func TestPruneTerminalSessions_SkipsActiveSameBootRow(t *testing.T) {
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
-		SessionKind:    SessionKindActiveFull,
 		FinishedAt:     &staleFinished,
 		CreatedAt:      staleFinished,
 		UpdatedAt:      staleFinished,
@@ -243,7 +240,6 @@ func TestPruneTerminalSessions_SkipsAlreadyHarvestedRun(t *testing.T) {
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
-		SessionKind:    SessionKindPassiveOnly,
 		FinishedAt:     &staleFinished,
 		HarvestedAt:    &knownHarvested,
 		HarvestReason:  &knownReason,
@@ -298,7 +294,6 @@ func TestPruneTerminalSessions_SkipsPermanentOptIn(t *testing.T) {
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
-		SessionKind:    SessionKindPassiveOnly,
 		TerminalReason: &staleReason,
 		FinishedAt:     &staleFinished,
 		OptInPermanent: true,
@@ -334,7 +329,6 @@ func seedTerminalRun(t *testing.T, db *gorm.DB, ctx context.Context, id string, 
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
-		SessionKind:    SessionKindPassiveOnly,
 		TerminalReason: &reason,
 		FinishedAt:     &finished,
 		CreatedAt:      finished,
@@ -359,7 +353,7 @@ func seedPruneChildRows(t *testing.T, db *gorm.DB) {
 		VALUES ('run-prune-stale', 1, 1, 'out', 'validator', 'discovery', 'GET', 'https://target.example/x', 1)`)
 	mustExec(t, db, `INSERT INTO evidence_row
 		(test_run_id, area, step, reason_code, severity, affects_grade, exchange_id, created_at)
-		VALUES ('run-prune-stale', 'http', 'request', 'timeout', 'important', TRUE, 1, 1)`)
+		VALUES ('run-prune-stale', 'discovery', 'request', 'timeout', 'important', TRUE, 1, 1)`)
 	mustExec(t, db, `INSERT INTO dispatch_reservation
 		(test_run_id, provider_id, webdav_id, shared_secret, receiver_host, share_with, probe_file_path, status, created_at)
 		VALUES ('run-prune-stale', 'prov-prune', 'wd-prune', 'secret', 'receiver.example', 'bob', '/probe.bin', 'dispatch_reserved', 1)`)
@@ -383,7 +377,7 @@ func seedRunChildSet(t *testing.T, db *gorm.DB, runID string) {
 		VALUES ('`+runID+`', 1, 1, 'out', 'validator', 'discovery', 'GET', 'https://target.example/x', 1)`)
 	mustExec(t, db, `INSERT INTO evidence_row
 		(test_run_id, area, step, reason_code, severity, affects_grade, exchange_id, created_at)
-		VALUES ('`+runID+`', 'http', 'request', 'timeout', 'important', TRUE, 1, 1)`)
+		VALUES ('`+runID+`', 'discovery', 'request', 'timeout', 'important', TRUE, 1, 1)`)
 	mustExec(t, db, `INSERT INTO dispatch_reservation
 		(test_run_id, provider_id, webdav_id, shared_secret, receiver_host, share_with, probe_file_path, status, created_at)
 		VALUES ('`+runID+`', 'prov-`+runID+`', 'wd-`+runID+`', 'secret', 'receiver.example', 'bob', '/probe.bin', 'dispatch_reserved', 1)`)

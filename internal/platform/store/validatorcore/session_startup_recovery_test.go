@@ -43,13 +43,12 @@ func TestTerminalizeUnrecoverableActiveRuns_InterruptsLeftoverActiveRuns(t *test
 			runID := "run-recovery-" + state
 
 			if err := core.DB().WithContext(ctx).Create(&TestRun{
-				TestRunID:   runID,
-				IsActive:    true,
-				State:       state,
-				SessionKind: SessionKindActiveFull,
-				TargetHost:  "recovery.example",
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				TestRunID:  runID,
+				IsActive:   true,
+				State:      state,
+				TargetHost: "recovery.example",
+				CreatedAt:  now,
+				UpdatedAt:  now,
 			}).Error; err != nil {
 				t.Fatalf("seed leftover active run %s: %v", state, err)
 			}
@@ -59,13 +58,12 @@ func TestTerminalizeUnrecoverableActiveRuns_InterruptsLeftoverActiveRuns(t *test
 			passiveID := "run-recovery-passive"
 
 			if err := core.DB().WithContext(ctx).Create(&TestRun{
-				TestRunID:   passiveID,
-				IsActive:    false,
-				State:       StatePassiveRunning,
-				SessionKind: SessionKindPassiveOnly,
-				TargetHost:  "recovery.example",
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				TestRunID:  passiveID,
+				IsActive:   false,
+				State:      StatePassiveRunning,
+				TargetHost: "recovery.example",
+				CreatedAt:  now,
+				UpdatedAt:  now,
 			}).Error; err != nil {
 				t.Fatalf("seed passive run: %v", err)
 			}
@@ -129,7 +127,6 @@ func TestTerminalizeUnrecoverableActiveRuns_LeavesTerminalHybridForLockReconcili
 		TestRunID:      hybridID,
 		IsActive:       true,
 		State:          StateTerminalPass,
-		SessionKind:    SessionKindActiveFull,
 		TargetHost:     "recovery.example",
 		TerminalReason: &hybridReason,
 		FinishedAt:     &now,
@@ -171,7 +168,6 @@ func TestTerminalizeUnrecoverableActiveRuns_ProbeSessionSurvives(t *testing.T) {
 		TestRunID:    runID,
 		IsActive:     true,
 		State:        StateReverseAwaitingShare,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		BobUserID:    &probeUserID,
@@ -217,7 +213,6 @@ func TestTerminalizeUnrecoverableActiveRuns_PersistsTerminalStats(t *testing.T) 
 		TestRunID:    runID,
 		IsActive:     true,
 		State:        StateActiveRunning,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		OptInStats:   true,

@@ -89,7 +89,6 @@ func (e *testEnv) seedRun(t *testing.T, runID, state string) string {
 		TestRunID:    runID,
 		IsActive:     true,
 		State:        state,
-		SessionKind:  validatorcore.SessionKindActiveFull,
 		TargetOrigin: testTargetOrigin,
 		TargetHost:   testTargetHost,
 		BobUserID:    &bobID,

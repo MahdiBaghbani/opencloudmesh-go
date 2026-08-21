@@ -232,7 +232,6 @@ func TestOpenReverseShareWait_DoesNotHealTerminalStatsGap(t *testing.T) {
 		TestRunID:    "run-open-heal-gap",
 		IsActive:     false,
 		State:        validatorcore.StateTerminalPass,
-		SessionKind:  validatorcore.SessionKindActiveFull,
 		TargetOrigin: testTargetOrigin,
 		TargetHost:   testTargetHost,
 		FinishedAt:   &finished,

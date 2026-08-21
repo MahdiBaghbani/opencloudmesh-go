@@ -319,8 +319,7 @@ func TestCourierMatrix_StatsParity(t *testing.T) {
 		}
 	}
 
-	aggregate := requireHostAggregate(t, env, hostHash)
-	requireAggregateMatchesRaw(t, aggregate, rawRows, wantHealthy)
+	requireRawHealthyCount(t, rawRows, wantHealthy)
 
 	assertPublicStatistics(t, env)
 	assertRaterRawParity(t, env, runs)
@@ -339,12 +338,13 @@ func TestCourierMatrix_StatsParity(t *testing.T) {
 		t.Fatalf("stats_raw rows for host after duplicates = %d, want 3", got)
 	}
 
-	after := requireHostAggregate(t, env, hostHash)
+	after := env.statsRawForHost(t, hostHash)
 
-	if after.TotalSessions != 3 || after.HealthySessions != int64(wantHealthy) {
-		t.Fatalf("aggregate after duplicates = (%d, %d), want (3, %d)",
-			after.TotalSessions, after.HealthySessions, wantHealthy)
+	if len(after) != 3 {
+		t.Fatalf("stats_raw rows after duplicates = %d, want 3", len(after))
 	}
+
+	requireRawHealthyCount(t, after, wantHealthy)
 
 	assertPublicStatistics(t, env)
 	assertRaterRawParity(t, env, runs)

@@ -7,14 +7,45 @@ package validatorcore
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
+
+func registerStatsRawCreateFailure(t *testing.T, core *Core, injected error) func() {
+	t.Helper()
+
+	const cbName = "test_fail_stats_raw_create"
+
+	if err := core.DB().Callback().Create().Before("gorm:create").Register(cbName, func(db *gorm.DB) {
+		if db.Statement.Table != tableStatsRaw && db.Statement.Table != "stats_raw" {
+			if _, ok := db.Statement.Dest.(*StatsRaw); !ok {
+				if _, ok := db.Statement.Model.(*StatsRaw); !ok {
+					return
+				}
+			}
+		}
+
+		if addErr := db.AddError(injected); !errors.Is(addErr, injected) {
+			t.Errorf("inject stats_raw failure: got %v", addErr)
+		}
+	}); err != nil {
+		t.Fatalf("register callback: %v", err)
+	}
+
+	return func() {
+		if err := core.DB().Callback().Create().Remove(cbName); err != nil {
+			t.Errorf("remove callback: %v", err)
+		}
+	}
+}
 
 func TestPersistTerminalStats_StateCASCommitsAfterStatsFailure(t *testing.T) {
 	t.Parallel()
@@ -63,9 +94,8 @@ func TestPersistTerminalStats_StateCASCommittedWhenStatsTxRollsBack(t *testing.T
 	runID := "run-stats-state-cas-rollback"
 	seedPassiveComplete(t, core, runID, "https://peer.example", true)
 
-	if err := core.DB().WithContext(ctx).Exec("DROP TABLE stats_aggregate").Error; err != nil {
-		t.Fatalf("drop stats_aggregate: %v", err)
-	}
+	unregister := registerStatsRawCreateFailure(t, core, errors.New("injected stats_raw failure"))
+	defer unregister()
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
 		t.Fatalf("StopPassiveComplete: %v", err)
@@ -110,7 +140,6 @@ func TestPersistTerminalStats_StatsWrittenAtStampedOnlyOnOptIn(t *testing.T) {
 	optOut := &TestRun{
 		TestRunID:    optOutRun,
 		State:        StateTerminalPass,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		FinishedAt:   &now,
@@ -159,7 +188,7 @@ func TestPersistTerminalStats_StatsWrittenAtStampedOnlyOnOptIn(t *testing.T) {
 	}
 }
 
-func TestPersistTerminalStats_RollsBackRawOnAggregateFailure(t *testing.T) {
+func TestPersistTerminalStats_RollsBackRawOnWriteFailure(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -170,12 +199,11 @@ func TestPersistTerminalStats_RollsBackRawOnAggregateFailure(t *testing.T) {
 
 	seedTerminalStatsRun(t, core, runID, now)
 
-	if err := core.DB().WithContext(ctx).Exec("DROP TABLE stats_aggregate").Error; err != nil {
-		t.Fatalf("drop stats_aggregate: %v", err)
-	}
+	unregister := registerStatsRawCreateFailure(t, core, errors.New("injected stats_raw failure"))
+	defer unregister()
 
 	if err := core.persistTerminalStats(ctx, runID); err == nil {
-		t.Fatal("expected aggregate failure")
+		t.Fatal("expected stats_raw write failure")
 	}
 
 	var rawCount int64
@@ -231,15 +259,6 @@ func TestPersistTerminalStats_RetryWritesOnce(t *testing.T) {
 
 	if rawCount != 1 {
 		t.Fatalf("stats_raw count = %d, want exactly 1 after retry", rawCount)
-	}
-
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg).Error; err != nil {
-		t.Fatalf("load aggregate: %v", err)
-	}
-
-	if agg.TotalSessions != 1 {
-		t.Fatalf("total_sessions = %d, want 1 after retry", agg.TotalSessions)
 	}
 
 	var row TestRun
@@ -313,15 +332,6 @@ func TestPersistTerminalStats_RetryReachesDedupConflict(t *testing.T) {
 		t.Fatalf("surviving stats_raw = (id %d, k %q), want original (id %d, k %q)",
 			surviving.ID, surviving.K, first.ID, first.K)
 	}
-
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg).Error; err != nil {
-		t.Fatalf("load aggregate: %v", err)
-	}
-
-	if agg.TotalSessions != 1 {
-		t.Fatalf("total_sessions = %d, want 1 after conflict retry", agg.TotalSessions)
-	}
 }
 
 func TestBestEffortPersistTerminalStats_SurvivesCanceledContext(t *testing.T) {
@@ -336,7 +346,6 @@ func TestBestEffortPersistTerminalStats_SurvivesCanceledContext(t *testing.T) {
 	row := &TestRun{
 		TestRunID:    runID,
 		State:        StateTerminalPass,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		FinishedAt:   &now,
@@ -377,7 +386,6 @@ func TestBestEffortPersistTerminalStats_LogsPersistenceFailure(t *testing.T) {
 	row := &TestRun{
 		TestRunID:    runID,
 		State:        StateTerminalPass,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		FinishedAt:   &now,

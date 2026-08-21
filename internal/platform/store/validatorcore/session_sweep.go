@@ -99,16 +99,10 @@ func (c *Core) terminalizePassiveTTL(
 			return loadErr
 		}
 
-		kind := SessionKindPassiveOnly
-		if row.SessionKind != "" {
-			kind = row.SessionKind
-		}
-
 		res := tx.Model(&TestRun{}).
 			Where("test_run_id = ? AND is_active = 0 AND state = ?", testRunID, expectedState).
 			Updates(map[string]any{
 				colState:          StateTerminalFail,
-				colSessionKind:    kind,
 				colTerminalReason: reason,
 				colFinishedAt:     now,
 				colUpdatedAt:      now,

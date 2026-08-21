@@ -36,24 +36,6 @@ func TestSolicitReverse_AdvancesAndIsIdempotent(t *testing.T) {
 	env.requireState(t, runID, validatorcore.StateReverseAwaitingInvite)
 }
 
-func TestSolicitReverse_HealsSolicitedCrashNotch(t *testing.T) {
-	t.Parallel()
-
-	env := newTestEnv(t)
-	ctx := t.Context()
-	runID := "run-solicit-notch"
-
-	// Crash notch: solicited committed, the awaiting CAS never ran.
-	env.seedRun(t, runID, validatorcore.StateReverseInviteSolicited)
-	env.bindBob(t, runID)
-
-	if err := env.svc.SolicitReverse(ctx, runID); err != nil {
-		t.Fatalf("solicit heal: %v", err)
-	}
-
-	env.requireState(t, runID, validatorcore.StateReverseAwaitingInvite)
-}
-
 func TestSolicitReverse_FailsWhenBobNotBound(t *testing.T) {
 	t.Parallel()
 

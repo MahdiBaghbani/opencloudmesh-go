@@ -372,13 +372,12 @@ func seedActiveRun(t *testing.T, core *Core, runID, host string, active bool) {
 	t.Helper()
 
 	if err := core.DB().WithContext(t.Context()).Create(&TestRun{
-		TestRunID:   runID,
-		IsActive:    active,
-		State:       StateActiveRunning,
-		SessionKind: SessionKindActiveFull,
-		TargetHost:  host,
-		CreatedAt:   1,
-		UpdatedAt:   1,
+		TestRunID:  runID,
+		IsActive:   active,
+		State:      StateActiveRunning,
+		TargetHost: host,
+		CreatedAt:  1,
+		UpdatedAt:  1,
 	}).Error; err != nil {
 		t.Fatalf("create test run: %v", err)
 	}

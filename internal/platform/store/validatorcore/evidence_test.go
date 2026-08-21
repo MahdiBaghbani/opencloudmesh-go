@@ -67,9 +67,7 @@ func TestApplyEvidenceFact_LeavesOtherStatesUnchanged(t *testing.T) {
 		StateActiveRunning,
 		StateInviteMinted,
 		StateInviteAccepted,
-		StateReverseInviteSolicited,
 		StateReverseAwaitingInvite,
-		StateReverseInviteImported,
 		StateReverseInviteAccepted,
 		StateCapabilityExercise,
 		StateReverseAwaitingShare,
@@ -415,5 +413,97 @@ func TestApplyEvidenceFact_ConcurrentSameRunWritesOnce(t *testing.T) {
 
 	if n := countEvidenceForRun(t, core, runID); n != 1 {
 		t.Fatalf("evidence rows = %d, want 1 after concurrent same-run facts", n)
+	}
+}
+
+func sharingAcceptFact(runID, leg string) ApplyEvidenceFactInput {
+	return ApplyEvidenceFactInput{
+		TestRunID:    runID,
+		Area:         SpecificationAreaSharing,
+		Step:         evidenceStepInviteAccepted,
+		ReasonCode:   evidenceReasonReverseAccepted,
+		Severity:     GradePass,
+		AffectsGrade: true,
+		Leg:          leg,
+	}
+}
+
+func TestApplyEvidenceFact_AcceptsPassiveLeg(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-passive-leg"
+
+	seedActiveRunInState(t, core, runID, StateForwardShareSent)
+
+	if err := core.ApplyEvidenceFact(ctx, sharingAcceptFact(runID, evidenceLegPassive)); err != nil {
+		t.Fatalf("ApplyEvidenceFact passive: %v", err)
+	}
+
+	if n := countEvidenceForRun(t, core, runID); n != 1 {
+		t.Fatalf("evidence rows = %d, want 1", n)
+	}
+
+	var row EvidenceRow
+	if err := core.DB().WithContext(ctx).Where("test_run_id = ?", runID).First(&row).Error; err != nil {
+		t.Fatalf("load evidence: %v", err)
+	}
+
+	if row.Leg == nil || *row.Leg != evidenceLegPassive {
+		t.Fatalf("leg = %v, want %q", row.Leg, evidenceLegPassive)
+	}
+}
+
+func TestApplyEvidenceFact_RejectsReverseInviteArea(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-old-area"
+
+	seedActiveRunInState(t, core, runID, StateForwardShareSent)
+
+	err := core.ApplyEvidenceFact(ctx, ApplyEvidenceFactInput{
+		TestRunID:    runID,
+		Area:         "reverse_invite",
+		Step:         evidenceStepInviteAccepted,
+		ReasonCode:   evidenceReasonReverseAccepted,
+		Severity:     GradePass,
+		AffectsGrade: true,
+		Leg:          evidenceLegReverse,
+	})
+	if err == nil {
+		t.Fatal("expected reverse_invite area to be rejected")
+	}
+
+	if !strings.Contains(err.Error(), "unknown evidence area") {
+		t.Fatalf("error = %v, want unknown evidence area", err)
+	}
+
+	if n := countEvidenceForRun(t, core, runID); n != 0 {
+		t.Fatalf("evidence rows after reject = %d, want 0", n)
+	}
+}
+
+func TestApplyEvidenceFact_PerLegUnique(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-per-leg"
+
+	seedActiveRunInState(t, core, runID, StateForwardShareSent)
+
+	if err := core.ApplyEvidenceFact(ctx, sharingAcceptFact(runID, evidenceLegForward)); err != nil {
+		t.Fatalf("forward fact: %v", err)
+	}
+
+	if err := core.ApplyEvidenceFact(ctx, sharingAcceptFact(runID, evidenceLegReverse)); err != nil {
+		t.Fatalf("reverse fact: %v", err)
+	}
+
+	if n := countEvidenceForRun(t, core, runID); n != 2 {
+		t.Fatalf("evidence rows = %d, want 2 distinct legs", n)
 	}
 }

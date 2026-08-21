@@ -150,7 +150,7 @@ func requireNoTerminalFootprint(t *testing.T, env *courierMatrixEnv, runID strin
 func requirePassEvidenceTuple(t *testing.T, env *courierMatrixEnv, runID string) {
 	t.Helper()
 
-	if got := len(env.evidenceRows(t, runID, "reverse_invite", "invite_accepted", "reverse_invite_accepted")); got != 1 {
+	if got := len(env.evidenceRows(t, runID, validatorcore.SpecificationAreaSharing, "invite_accepted", "reverse_invite_accepted")); got != 1 {
 		t.Fatalf("reverse-invite evidence = %d, want 1", got)
 	}
 

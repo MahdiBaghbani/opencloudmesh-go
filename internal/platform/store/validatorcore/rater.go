@@ -6,10 +6,8 @@
 package validatorcore
 
 import (
-	"fmt"
+	"slices"
 	"strings"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec/wire"
 )
 
 // Canonical specification areas. Order matches statsAreaOrder.
@@ -24,19 +22,7 @@ const (
 	SpecificationAreaCapability   = "capability"
 )
 
-const (
-	specificationEvidenceSourceRow      = "evidenceRow"
-	specificationEvidenceSourceExchange = "reportExchange"
-
-	endpointDiscovery      = "discovery"
-	endpointJWKS           = "jwks"
-	endpointHTTPSigProbe   = "httpsig-probe"
-	endpointShares         = "shares"
-	endpointInviteAccepted = "invite-accepted"
-	endpointNotifications  = wire.CapabilityNotifications
-	endpointOCMToken       = "ocm-token"
-	endpointWebDAV         = wire.ProtocolWebDAV
-)
+const specificationEvidenceSourceRow = "evidenceRow"
 
 // specificationAreaOrder is the stable public area list. It stays aligned
 // with statsAreaOrder by sharing these names.
@@ -69,47 +55,38 @@ type SpecificationAreaScore struct {
 	GradedEvidenceCount int     `json:"gradedEvidenceCount"`
 }
 
-// SpecificationEvidence is one redacted evidence or exchange summary.
+// SpecificationEvidence is one redacted evidence_row observation.
 type SpecificationEvidence struct {
 	Source          string  `json:"source"`
+	Leg             string  `json:"leg,omitempty"`
 	Area            string  `json:"area,omitempty"`
 	ScoreArea       string  `json:"scoreArea,omitempty"`
 	Step            string  `json:"step,omitempty"`
 	ReasonCode      string  `json:"reasonCode,omitempty"`
-	ReasonCodes     *string `json:"reasonCodes,omitempty"`
 	Severity        string  `json:"severity,omitempty"`
 	Grade           *string `json:"grade"`
 	AffectsGrade    bool    `json:"affectsGrade"`
 	PayloadRedacted string  `json:"payloadRedacted,omitempty"`
 	ExchangeID      *uint   `json:"exchangeId,omitempty"`
-	Sequence        int     `json:"sequence,omitempty"`
-	EndpointID      string  `json:"endpointId,omitempty"`
-	Direction       string  `json:"direction,omitempty"`
-	Method          string  `json:"method,omitempty"`
-	StatusCode      *int    `json:"statusCode,omitempty"`
-	SignatureValid  *bool   `json:"signatureValid,omitempty"`
 	CreatedAt       int64   `json:"createdAt"`
 }
 
-// RateSpecification folds evidence rows and report exchanges into a
-// deterministic specification score. TestRun.OverallGrade is not read.
+// RateSpecification folds evidence rows into a deterministic specification
+// score. Report exchanges are accepted for call compatibility and are not
+// scored or emitted. TestRun.OverallGrade is not read.
 func RateSpecification(
 	run *TestRun,
 	evidenceRows []EvidenceRow,
-	exchanges []ReportExchange,
+	_ []ReportExchange,
 ) (SpecificationScore, []SpecificationEvidence, error) {
 	if run == nil {
 		return SpecificationScore{}, nil, ErrNilTestRun
 	}
 
 	areas := newAreaFoldSet()
-	evidence := make([]SpecificationEvidence, 0, len(evidenceRows)+len(exchanges))
+	evidence := make([]SpecificationEvidence, 0, len(evidenceRows))
 
 	foldEvidenceRows(areas, evidenceRows, &evidence)
-
-	if err := foldReportExchanges(areas, exchanges, &evidence); err != nil {
-		return SpecificationScore{}, nil, err
-	}
 
 	areaScores := areas.scores()
 	assessed := countAssessedAreas(areaScores)
@@ -166,19 +143,11 @@ func (s *areaFoldSet) scores() []SpecificationAreaScore {
 	return out
 }
 
-func foldSpecificationAreas(
-	evidenceRows []EvidenceRow,
-	exchanges []ReportExchange,
-) ([]SpecificationAreaScore, error) {
+func foldSpecificationAreas(evidenceRows []EvidenceRow) []SpecificationAreaScore {
 	areas := newAreaFoldSet()
-
 	foldEvidenceRows(areas, evidenceRows, nil)
 
-	if err := foldReportExchanges(areas, exchanges, nil); err != nil {
-		return nil, err
-	}
-
-	return areas.scores(), nil
+	return areas.scores()
 }
 
 func foldEvidenceRows(
@@ -189,6 +158,12 @@ func foldEvidenceRows(
 	for _, row := range rows {
 		item := specificationEvidenceFromRow(row)
 		appendSpecificationEvidence(dest, item)
+
+		// Reverse-share facts score only from the reverse leg so a
+		// passive or forward row cannot set reverse-share stats.
+		if isReverseInviteAcceptanceTuple(row) && item.Leg != evidenceLegReverse {
+			continue
+		}
 
 		scoreArea, ok := mapEvidenceScoreArea(row.Area)
 		if !ok {
@@ -207,41 +182,6 @@ func foldEvidenceRows(
 	}
 }
 
-func foldReportExchanges(
-	areas *areaFoldSet,
-	exchanges []ReportExchange,
-	dest *[]SpecificationEvidence,
-) error {
-	for _, ex := range exchanges {
-		item := specificationEvidenceFromExchange(ex)
-		appendSpecificationEvidence(dest, item)
-
-		if ex.Grade == nil {
-			if scoreArea, ok := mapEndpointScoreArea(ex.EndpointID); ok {
-				areas.byName[scoreArea].evidenceCount++
-			}
-
-			continue
-		}
-
-		if !isExactGrade(*ex.Grade) {
-			return fmt.Errorf("%w: %q", ErrInvalidExchangeGrade, *ex.Grade)
-		}
-
-		scoreArea, ok := mapEndpointScoreArea(ex.EndpointID)
-		if !ok {
-			continue
-		}
-
-		fold := areas.byName[scoreArea]
-		fold.evidenceCount++
-		fold.applyGrade(*ex.Grade)
-		fold.gradedEvidenceCount++
-	}
-
-	return nil
-}
-
 func (f *areaFold) applyGrade(grade string) {
 	if f.grade == nil {
 		f.grade = cloneString(&grade)
@@ -256,6 +196,7 @@ func (f *areaFold) applyGrade(grade string) {
 func specificationEvidenceFromRow(row EvidenceRow) SpecificationEvidence {
 	item := SpecificationEvidence{
 		Source:       specificationEvidenceSourceRow,
+		Leg:          evidenceRowLeg(row),
 		Area:         row.Area,
 		Step:         row.Step,
 		ReasonCode:   row.ReasonCode,
@@ -281,33 +222,6 @@ func specificationEvidenceFromRow(row EvidenceRow) SpecificationEvidence {
 	return item
 }
 
-func specificationEvidenceFromExchange(ex ReportExchange) SpecificationEvidence {
-	item := SpecificationEvidence{
-		Source:         specificationEvidenceSourceExchange,
-		ReasonCodes:    ex.ReasonCodes,
-		Grade:          cloneString(ex.Grade),
-		AffectsGrade:   ex.Grade != nil,
-		Sequence:       ex.Seq,
-		EndpointID:     ex.EndpointID,
-		Direction:      ex.Direction,
-		Method:         ex.Method,
-		StatusCode:     ex.StatusCode,
-		SignatureValid: ex.SigValid,
-		CreatedAt:      ex.CreatedAt,
-	}
-
-	if ex.ExchangeID != 0 {
-		id := ex.ExchangeID
-		item.ExchangeID = &id
-	}
-
-	if mapped, ok := mapEndpointScoreArea(ex.EndpointID); ok {
-		item.ScoreArea = mapped
-	}
-
-	return item
-}
-
 func appendSpecificationEvidence(dest *[]SpecificationEvidence, item SpecificationEvidence) {
 	if dest == nil {
 		return
@@ -327,29 +241,6 @@ func mapEvidenceScoreArea(area string) (string, bool) {
 		SpecificationAreaToken,
 		SpecificationAreaCapability:
 		return area, true
-	case evidenceAreaReverseInvite:
-		return SpecificationAreaSharing, true
-	default:
-		return "", false
-	}
-}
-
-func mapEndpointScoreArea(endpointID string) (string, bool) {
-	switch endpointID {
-	case endpointDiscovery:
-		return SpecificationAreaDiscovery, true
-	case endpointJWKS:
-		return SpecificationAreaJWKS, true
-	case endpointHTTPSigProbe:
-		return SpecificationAreaHTTPSig, true
-	case endpointShares, endpointInviteAccepted:
-		return SpecificationAreaSharing, true
-	case endpointNotifications:
-		return SpecificationAreaNotification, true
-	case endpointOCMToken:
-		return SpecificationAreaToken, true
-	case endpointWebDAV:
-		return SpecificationAreaCapability, true
 	default:
 		return "", false
 	}
@@ -376,15 +267,6 @@ func worseGrade(a, b string) string {
 	}
 
 	return GradePass
-}
-
-func isExactGrade(grade string) bool {
-	switch grade {
-	case GradePass, GradeWarn, GradeFail:
-		return true
-	default:
-		return false
-	}
 }
 
 func overallSpecificationGrade(state string, areas []SpecificationAreaScore) *string {
@@ -450,12 +332,24 @@ func cloneString(src *string) *string {
 	return &copied
 }
 
-func hasReverseInviteAcceptance(rows []EvidenceRow) bool {
-	for _, row := range rows {
-		if row.Area == evidenceAreaReverseInvite {
-			return true
-		}
+func evidenceRowLeg(row EvidenceRow) string {
+	if row.Leg == nil {
+		return ""
 	}
 
-	return false
+	return *row.Leg
+}
+
+func isReverseInviteAcceptanceTuple(row EvidenceRow) bool {
+	return row.Area == SpecificationAreaSharing &&
+		row.Step == evidenceStepInviteAccepted &&
+		row.ReasonCode == evidenceReasonReverseAccepted
+}
+
+func isReverseInviteAcceptance(row EvidenceRow) bool {
+	return isReverseInviteAcceptanceTuple(row) && evidenceRowLeg(row) == evidenceLegReverse
+}
+
+func hasReverseInviteAcceptance(rows []EvidenceRow) bool {
+	return slices.ContainsFunc(rows, isReverseInviteAcceptance)
 }

@@ -67,6 +67,10 @@ func (c *Core) tombstoneExpiredPermanent(ctx context.Context, id string, now int
 				id,
 				now,
 			).
+			// outgoing_invite_id is a soft pointer. NULLing it releases
+			// idx_test_run_outgoing_invite so a later run can reuse the id.
+			// Deleting the peer outgoing_invites product row is left to the
+			// prune/tombstone path that owns peer-invite cleanup.
 			Updates(map[string]any{
 				"harvested_at":               now,
 				"harvest_reason":             HarvestReasonExpired,
@@ -78,7 +82,10 @@ func (c *Core) tombstoneExpiredPermanent(ctx context.Context, id string, now int
 				"jwks_uri":                   "",
 				"manifest_json":              nil,
 				colOverallGrade:              nil,
+				colStarterOCMID:              nil,
+				colS1ClaimedAt:               nil,
 				colBobUserID:                 nil,
+				colOutgoingInviteID:          nil,
 				"reverse_invite_token":       nil,
 				"reverse_invite_imported_at": nil,
 				"designated_share_with":      nil,

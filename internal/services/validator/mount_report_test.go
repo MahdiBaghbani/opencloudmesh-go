@@ -39,7 +39,6 @@ func TestMountValidatorRoutes_ReportAnonymousGET(t *testing.T) {
 	row := &validatorcore.TestRun{
 		TestRunID:      runID,
 		State:          validatorcore.StateCreated,
-		SessionKind:    validatorcore.SessionKindPassiveOnly,
 		TargetHost:     "peer.example",
 		OptInPermanent: true,
 		CreatedAt:      now,
@@ -86,12 +85,11 @@ func TestValidatorService_MountsReportRoute(t *testing.T) {
 	runID := "run-svc-report"
 	now := int64(1_700_000_200)
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StateCreated,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      validatorcore.StateCreated,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.DB().WithContext(t.Context()).Create(row).Error; err != nil {

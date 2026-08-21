@@ -16,6 +16,7 @@ const (
 	OpCreateSessionInsert  = "create_session_insert"
 	OpExtendUpdate         = "extend_update"
 	OpInsertReportExchange = "insert_report_exchange"
+	OpMintOutgoingInvite   = "mint_outgoing_invite"
 )
 
 // Public API error codes returned to HTTP clients (409 unless noted).
@@ -90,10 +91,6 @@ var (
 
 	// ErrCrossRunRow is returned when a loaded rating row belongs to another run.
 	ErrCrossRunRow = errors.New("validatorcore: row does not belong to test run")
-
-	// ErrInvalidExchangeGrade is returned when a report exchange grade is not
-	// pass, warn, or fail.
-	ErrInvalidExchangeGrade = errors.New("validatorcore: invalid exchange grade")
 )
 
 // StoreError wraps a store failure with the operation that caused it.
@@ -116,21 +113,29 @@ func (e *StoreError) Unwrap() error {
 }
 
 const (
-	colState          = "state"
-	colSessionKind    = "session_kind"
-	colUpdatedAt      = "updated_at"
-	colTestRunID      = "test_run_id"
-	colExchangeID     = "exchange_id"
-	colCreatedAt      = "created_at"
-	colFinishedAt     = "finished_at"
-	colTerminalReason = "terminal_reason"
-	colOverallGrade   = "overall_grade"
-	colIsActive       = "is_active"
-	colBobUserID      = "bob_user_id"
-	colProviderID     = "provider_id"
-	colLocalIdentity  = "local_identity"
-	colHostHash       = "host_hash"
-	colArea           = "area"
-	colStep           = "step"
-	colReasonCode     = "reason_code"
+	colState            = "state"
+	colSessionKind      = "session_kind"
+	colUpdatedAt        = "updated_at"
+	colTestRunID        = "test_run_id"
+	colExchangeID       = "exchange_id"
+	colCreatedAt        = "created_at"
+	colFinishedAt       = "finished_at"
+	colTerminalReason   = "terminal_reason"
+	colOverallGrade     = "overall_grade"
+	colIsActive         = "is_active"
+	colBobUserID        = "bob_user_id"
+	colOutgoingInviteID = "outgoing_invite_id"
+	colStarterOCMID     = "starter_ocm_id"
+	colS1ClaimedAt      = "s1_claimed_at"
+	colOptInActive      = "opt_in_active"
+	colOptInPermanent   = "opt_in_permanent"
+	colOptInStats       = "opt_in_stats"
+	colPlatform         = "platform"
+	colProviderID       = "provider_id"
+	colLocalIdentity    = "local_identity"
+	colHostHash         = "host_hash"
+	colArea             = "area"
+	colStep             = "step"
+	colReasonCode       = "reason_code"
+	colLeg              = "leg"
 )

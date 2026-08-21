@@ -35,7 +35,6 @@ func TestUpdatePublicReportRetention_ZeroRowsWhenMissingOrPrivate(t *testing.T) 
 	if seedErr := core.DB().WithContext(ctx).Create(&TestRun{
 		TestRunID:      "run-private",
 		State:          StateTerminalPass,
-		SessionKind:    SessionKindPassiveOnly,
 		TargetHost:     "peer.example",
 		OptInPermanent: false,
 		CreatedAt:      now,
@@ -66,7 +65,6 @@ func TestUpdatePublicReportRetention_UpdatesPublicRow(t *testing.T) {
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
 		TestRunID:      runID,
 		State:          StateTerminalPass,
-		SessionKind:    SessionKindPassiveOnly,
 		TargetHost:     "peer.example",
 		OptInPermanent: true,
 		FinishedAt:     &finished,
@@ -120,7 +118,6 @@ func TestUpdatePublicReportRetention_RequireUnlockedMissesLockedRow(t *testing.T
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
 		TestRunID:         runID,
 		State:             StateTerminalPass,
-		SessionKind:       SessionKindPassiveOnly,
 		TargetHost:        "peer.example",
 		OptInPermanent:    true,
 		FinishedAt:        &finished,
@@ -171,7 +168,6 @@ func TestLockPublicReportRetention_SetsLockWithoutTouchingExpires(t *testing.T) 
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
 		TestRunID:      runID,
 		State:          StateTerminalPass,
-		SessionKind:    SessionKindPassiveOnly,
 		TargetHost:     "peer.example",
 		OptInPermanent: true,
 		FinishedAt:     &finished,
@@ -225,7 +221,6 @@ func TestLockPublicReportRetention_AlreadyLockedAffectsZeroRows(t *testing.T) {
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
 		TestRunID:         runID,
 		State:             StateTerminalPass,
-		SessionKind:       SessionKindPassiveOnly,
 		TargetHost:        "peer.example",
 		OptInPermanent:    true,
 		FinishedAt:        &finished,
@@ -273,7 +268,6 @@ func TestLockPublicReportRetention_DefaultsNullTier(t *testing.T) {
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
 		TestRunID:      runID,
 		State:          StateTerminalPass,
-		SessionKind:    SessionKindPassiveOnly,
 		TargetHost:     "peer.example",
 		OptInPermanent: true,
 		FinishedAt:     &finished,

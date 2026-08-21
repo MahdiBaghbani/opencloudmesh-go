@@ -46,26 +46,34 @@ var validatorTableContract = map[string][]columnContract{
 		{name: colState, colType: colTypeText, notNull: true},
 		{name: "target_origin", colType: colTypeText, notNull: true},
 		{name: "target_host", colType: colTypeText, notNull: true},
+		{name: colStarterOCMID, colType: colTypeText},
 		{name: "discovery_url", colType: colTypeText, notNull: true},
-		{name: "jwks_uri", colType: colTypeText, notNull: true},
+		{name: "jwks_uri", colType: colTypeText},
+		{name: colPlatform, colType: colTypeText},
+		{name: "api_version", colType: colTypeText},
 		{name: colTerminalReason, colType: colTypeText},
 		{name: colFinishedAt, colType: colTypeInteger},
 		{name: "overall_grade", colType: colTypeText},
 		{name: "manifest_schema", colType: colTypeText, notNull: true},
 		{name: "manifest_json", colType: colTypeText},
-		{name: colSessionKind, colType: colTypeText, notNull: true},
 		{name: "bob_user_id", colType: colTypeText},
+		{name: colOutgoingInviteID, colType: colTypeText},
+		{name: colS1ClaimedAt, colType: colTypeInteger},
 		{name: "reverse_invite_token", colType: colTypeText},
 		{name: "reverse_invite_imported_at", colType: colTypeInteger},
 		{name: "designated_share_with", colType: colTypeText},
 		{name: "reverse_share_provider_id", colType: colTypeText},
+		{name: "passive_ready_at", colType: colTypeInteger},
 		{name: "stats_written_at", colType: colTypeInteger},
-		{name: "opt_in_stats", colType: colTypeInteger, notNull: true, dflt: &columnDefaultZero},
-		{name: "opt_in_permanent", colType: colTypeInteger, notNull: true, dflt: &columnDefaultZero},
+		{name: colOptInStats, colType: colTypeInteger, notNull: true, dflt: &columnDefaultZero},
+		{name: colOptInPermanent, colType: colTypeInteger, notNull: true, dflt: &columnDefaultZero},
+		{name: colOptInActive, colType: colTypeInteger, notNull: true, dflt: &columnDefaultZero},
 		{name: "opt_in_stats_channel", colType: colTypeText},
 		{name: "opt_in_stats_at", colType: colTypeInteger},
 		{name: "opt_in_permanent_channel", colType: colTypeText},
 		{name: "opt_in_permanent_at", colType: colTypeInteger},
+		{name: "opt_in_active_channel", colType: colTypeText},
+		{name: "opt_in_active_at", colType: colTypeInteger},
 		{name: "retention_tier", colType: colTypeText},
 		{name: "retention_locked_at", colType: colTypeInteger},
 		{name: "expires_at", colType: colTypeInteger},
@@ -94,7 +102,7 @@ var validatorTableContract = map[string][]columnContract{
 		{name: colHostHash, colType: colTypeText, notNull: true},
 		{name: colSessionKind, colType: colTypeText, notNull: true},
 		{name: "reverse_invite_exercised", colType: colTypeInteger, notNull: true},
-		{name: "platform", colType: colTypeText, notNull: true},
+		{name: colPlatform, colType: colTypeText, notNull: true},
 		{name: "api_version", colType: colTypeText, notNull: true},
 		{name: "grade_discovery", colType: colTypeText},
 		{name: "grade_tls", colType: colTypeText},
@@ -105,16 +113,6 @@ var validatorTableContract = map[string][]columnContract{
 		{name: "grade_token", colType: colTypeText},
 		{name: "grade_capability", colType: colTypeText},
 		{name: colCreatedAt, colType: colTypeInteger, notNull: true},
-		{name: "window_bucket", colType: colTypeInteger},
-	},
-	tableStatsAggregate: {
-		{name: colHostHash, colType: colTypeText, pk: 1},
-		{name: "total_sessions", colType: colTypeInteger, notNull: true},
-		{name: "healthy_sessions", colType: colTypeInteger, notNull: true},
-		{name: "last_platform", colType: colTypeText, notNull: true},
-		{name: "last_healthy", colType: colTypeInteger, notNull: true},
-		{name: "first_seen_ts", colType: colTypeInteger, notNull: true},
-		{name: "last_seen_ts", colType: colTypeInteger, notNull: true},
 	},
 	tableReportExchange: {
 		{name: colExchangeID, colType: colTypeInteger, pk: 1},
@@ -147,21 +145,18 @@ var validatorTableContract = map[string][]columnContract{
 		{name: "digest", colType: colTypeText},
 		{name: "req_body_redacted", colType: colTypeText},
 		{name: "resp_body_redacted", colType: colTypeText},
-		{name: "req_body_raw", colType: "BLOB"},
-		{name: "resp_body_raw", colType: "BLOB"},
 		{name: "req_body_sha256", colType: colTypeText},
 		{name: "resp_body_sha256", colType: colTypeText},
 		{name: "req_body_bytes", colType: colTypeInteger},
 		{name: "resp_body_bytes", colType: colTypeInteger},
 		{name: "req_body_truncated", colType: colTypeInteger, notNull: true, dflt: &columnDefaultZero},
 		{name: "resp_body_truncated", colType: colTypeInteger, notNull: true, dflt: &columnDefaultZero},
-		{name: "grade", colType: colTypeText},
-		{name: "reason_codes", colType: colTypeText},
 		{name: colCreatedAt, colType: colTypeInteger, notNull: true},
 	},
 	tableEvidenceRow: {
 		{name: "id", colType: colTypeInteger, pk: 1},
 		{name: colTestRunID, colType: colTypeText, notNull: true},
+		{name: colLeg, colType: colTypeText},
 		{name: colArea, colType: colTypeText, notNull: true},
 		{name: "step", colType: colTypeText, notNull: true},
 		{name: "reason_code", colType: colTypeText, notNull: true},
@@ -207,6 +202,59 @@ var dormantTestRunStates = []string{
 	"passive_done",
 }
 
+// testRunFlagCheckColumns are the test_run INTEGER columns whose CHECK must
+// admit only 0 and 1. Listed independently of the CREATE TABLE text so a
+// drifted constraint cannot hide by sharing a literal with the DDL.
+var testRunFlagCheckColumns = []string{
+	colIsActive,
+	colOptInStats,
+	colOptInPermanent,
+	colOptInActive,
+}
+
+// requiredFlagValues and unknownFlagValues are the integers a flag CHECK
+// must accept and reject.
+var (
+	requiredFlagValues = []int{0, 1}
+	unknownFlagValues  = []int{2, -1}
+)
+
+// evidenceRowAreas is the live evidence_row.area CHECK set.
+var evidenceRowAreas = []string{
+	"discovery",
+	"tls",
+	"jwks",
+	"httpsig",
+	"sharing",
+	"notification",
+	"token",
+	"capability",
+}
+
+// unknownEvidenceAreas are literals the live area CHECK must reject.
+var unknownEvidenceAreas = []string{
+	"",
+	"http",
+	"reverse_invite",
+	"DISCOVERY",
+	"zzz_not_an_area",
+}
+
+// evidenceRowLegs is the live evidence_row.leg CHECK set.
+var evidenceRowLegs = []string{
+	"passive",
+	"forward",
+	"reverse",
+}
+
+// unknownEvidenceLegs are literals the live leg CHECK must reject.
+var unknownEvidenceLegs = []string{
+	"",
+	"sideways",
+	"PASSIVE",
+	"zzz_not_a_leg",
+}
+
 // indexContract pins one named index: the table it belongs to, uniqueness, the
 // exact indexed columns in key order, and the normalized partial predicate
 // (empty when the index is not partial).
@@ -224,20 +272,28 @@ type indexContract struct {
 var validatorIndexContract = []indexContract{
 	{name: "idx_test_run_one_active", table: tableTestRun, unique: true, columns: []string{colIsActive}, partial: "is_active = 1"},
 	{name: "idx_test_run_state", table: tableTestRun, columns: []string{colState}},
-	{name: "idx_test_run_session_kind", table: tableTestRun, columns: []string{colSessionKind}},
 	{name: "idx_test_run_bob_user_id", table: tableTestRun, columns: []string{"bob_user_id"}},
 	{name: "idx_test_run_expires_at", table: tableTestRun, columns: []string{"expires_at"}},
 	{
 		name: "idx_test_run_stats_heal", table: tableTestRun,
 		columns: []string{"stats_written_at"}, partial: "opt_in_stats = 1 AND stats_written_at IS NULL",
 	},
+	// idx_test_run_opt_in_active_ready is the lock-wait finder: partial on
+	// opted-in inactive passive_running rows. Unique on test_run_id is
+	// redundant with the PK (one waiter per run). Multiple ready waiters
+	// may coexist while idx_test_run_one_active owns the single active slot.
+	{
+		name: "idx_test_run_opt_in_active_ready", table: tableTestRun, unique: true,
+		columns: []string{colTestRunID},
+		partial: "opt_in_active = 1 AND is_active = 0 AND state = 'passive_running'",
+	},
+	{
+		name: "idx_test_run_outgoing_invite", table: tableTestRun, unique: true,
+		columns: []string{colOutgoingInviteID}, partial: "outgoing_invite_id IS NOT NULL",
+	},
 	{
 		name: "idx_share_corr_unique", table: tableShareCorrelation, unique: true,
 		columns: []string{colTestRunID, "role", "sender_host", colProviderID, colLocalIdentity},
-	},
-	{
-		name: "idx_share_corr_outgoing_invite_slot", table: tableShareCorrelation, unique: true,
-		columns: []string{colTestRunID}, partial: "role = 'outgoing_invite'",
 	},
 	{
 		name: "idx_share_corr_incoming_invite_slot", table: tableShareCorrelation, unique: true,
@@ -255,15 +311,14 @@ var validatorIndexContract = []indexContract{
 	},
 	{
 		name: "idx_evidence_row", table: tableEvidenceRow, unique: true,
-		columns: []string{colTestRunID, colArea, "step", "reason_code"},
+		columns: []string{colTestRunID, colLeg, colArea, "step", "reason_code"},
 	},
-	{name: "idx_evidence_row_area", table: tableEvidenceRow, columns: []string{colTestRunID, colArea}},
+	{name: "idx_evidence_row_area", table: tableEvidenceRow, columns: []string{colArea}},
+	{name: "idx_evidence_row_leg", table: tableEvidenceRow, columns: []string{colLeg}},
 	{name: "idx_stats_raw_host_hash", table: tableStatsRaw, columns: []string{colHostHash}},
 	{name: "idx_stats_raw_session_kind", table: tableStatsRaw, columns: []string{colSessionKind}},
-	{name: "idx_stats_raw_platform", table: tableStatsRaw, columns: []string{"platform"}},
+	{name: "idx_stats_raw_platform", table: tableStatsRaw, columns: []string{colPlatform}},
 	{name: "idx_stats_raw_created_at", table: tableStatsRaw, columns: []string{colCreatedAt}},
-	{name: "idx_stats_raw_window_bucket", table: tableStatsRaw, columns: []string{"window_bucket"}},
-	{name: "idx_stats_agg_last_seen", table: tableStatsAggregate, columns: []string{"last_seen_ts"}},
 }
 
 // validatorUniqueColumns pins the inline UNIQUE column constraints of the
@@ -290,8 +345,8 @@ const fkRestrict = "RESTRICT"
 // validatorForeignKeys pins the exact FK contract per table/column: referenced
 // table and column plus both actions. SQLite reports an unspecified action as
 // NO ACTION. Validator-owned child tables restrict test_run delete;
-// evidence_row.exchange_id keeps SET NULL. Tables absent from this map must
-// have no foreign keys at all.
+// evidence_row.exchange_id is ON UPDATE CASCADE ON DELETE SET NULL. Tables
+// absent from this map must have no foreign keys at all.
 var validatorForeignKeys = map[string]map[string]fkExpectation{
 	tableShareCorrelation: {
 		colTestRunID: {tableTestRun, colTestRunID, fkCascade, fkRestrict},
@@ -300,10 +355,10 @@ var validatorForeignKeys = map[string]map[string]fkExpectation{
 		colTestRunID: {tableTestRun, colTestRunID, fkCascade, fkRestrict},
 	},
 	tableEvidenceRow: {
-		colTestRunID:  {tableTestRun, colTestRunID, fkNoAction, fkRestrict},
-		colExchangeID: {tableReportExchange, colExchangeID, fkNoAction, fkSetNull},
+		colTestRunID:  {tableTestRun, colTestRunID, fkCascade, fkRestrict},
+		colExchangeID: {tableReportExchange, colExchangeID, fkCascade, fkSetNull},
 	},
 	tableDispatchReservation: {
-		colTestRunID: {tableTestRun, colTestRunID, fkNoAction, fkRestrict},
+		colTestRunID: {tableTestRun, colTestRunID, fkCascade, fkRestrict},
 	},
 }

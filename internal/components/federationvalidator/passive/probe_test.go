@@ -23,12 +23,11 @@ func TestProbeRunner_ReachesPassiveComplete(t *testing.T) {
 	runID := "run-async-probe"
 
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StateCreated,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "probe.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      validatorcore.StateCreated,
+		TargetHost: "probe.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.CreatePassiveSession(ctx, row); err != nil {

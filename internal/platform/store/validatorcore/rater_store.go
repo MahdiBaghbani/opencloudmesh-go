@@ -12,8 +12,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// LoadSpecificationRating loads this run's evidence rows and report exchanges
-// in one read transaction and folds them with RateSpecification.
+// LoadSpecificationRating loads this run's evidence rows in one read
+// transaction and folds them with RateSpecification. Report exchanges are
+// not loaded; they are transcript-only and do not affect the score.
 func (c *Core) LoadSpecificationRating(
 	ctx context.Context,
 	run *TestRun,
@@ -36,17 +37,17 @@ func (c *Core) LoadSpecificationRating(
 	)
 
 	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		rows, exchanges, loadErr := loadSpecificationRatingInputs(tx, run.TestRunID)
+		rows, loadErr := loadSpecificationRatingInputs(tx, run.TestRunID)
 		if loadErr != nil {
 			return loadErr
 		}
 
-		rated, items, rateErr := RateSpecification(run, rows, exchanges)
+		rated, items, rateErr := RateSpecification(run, rows, nil)
 		if rateErr != nil {
 			return rateErr
 		}
 
-		if err := verifyRatingInputsBelongToRun(run.TestRunID, rows, exchanges); err != nil {
+		if err := verifyRatingInputsBelongToRun(run.TestRunID, rows); err != nil {
 			return err
 		}
 
@@ -69,47 +70,25 @@ func (c *Core) LoadSpecificationRating(
 func loadSpecificationRatingInputs(
 	tx *gorm.DB,
 	testRunID string,
-) ([]EvidenceRow, []ReportExchange, error) {
+) ([]EvidenceRow, error) {
 	var rows []EvidenceRow
 	if err := tx.
 		Where("test_run_id = ?", testRunID).
 		Order("created_at ASC, id ASC").
 		Find(&rows).Error; err != nil {
-		return nil, nil, fmt.Errorf("validatorcore: load evidence rows: %w", err)
-	}
-
-	var exchanges []ReportExchange
-	if err := tx.
-		Where("test_run_id = ?", testRunID).
-		Order("seq ASC, exchange_id ASC").
-		Find(&exchanges).Error; err != nil {
-		return nil, nil, fmt.Errorf("validatorcore: load report exchanges: %w", err)
+		return nil, fmt.Errorf("validatorcore: load evidence rows: %w", err)
 	}
 
 	if rows == nil {
 		rows = []EvidenceRow{}
 	}
 
-	if exchanges == nil {
-		exchanges = []ReportExchange{}
-	}
-
-	return rows, exchanges, nil
+	return rows, nil
 }
 
-func verifyRatingInputsBelongToRun(
-	testRunID string,
-	rows []EvidenceRow,
-	exchanges []ReportExchange,
-) error {
+func verifyRatingInputsBelongToRun(testRunID string, rows []EvidenceRow) error {
 	for _, row := range rows {
 		if row.TestRunID != testRunID {
-			return ErrCrossRunRow
-		}
-	}
-
-	for _, ex := range exchanges {
-		if ex.TestRunID != testRunID {
 			return ErrCrossRunRow
 		}
 	}

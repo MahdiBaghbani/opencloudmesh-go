@@ -7,6 +7,7 @@ package validatorcore
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	store "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
@@ -69,6 +70,85 @@ func TestAttach_UnknownVersionFailsClosed(t *testing.T) {
 	}
 }
 
+// TestAttach_RecordedV1LeftoverAggregateFailsClosed proves a recorded
+// version-1 database whose final validator tables are otherwise valid still
+// fails closed when leftover stats_aggregate remains. Attach must refuse the
+// shape, leave validator and peer rows in place, and must not drop the
+// leftover table.
+func TestAttach_RecordedV1LeftoverAggregateFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	sqlCore := openPeerStore(t)
+	db := sqlCore.DB()
+
+	peer := store.OutgoingShare{
+		ShareID:    "share-agg",
+		ProviderID: "provider-agg",
+		WebDAVID:   "webdav-agg",
+		CreatedAt:  1,
+	}
+
+	if err := db.Create(&peer).Error; err != nil {
+		t.Fatalf("seed peer row: %v", err)
+	}
+
+	if _, err := Attach(db, DefaultSessionConfig()); err != nil {
+		t.Fatalf("initial Attach: %v", err)
+	}
+
+	createTestRun(t, db, "run-agg")
+	mustExec(t, db, "CREATE TABLE stats_aggregate (host_hash TEXT PRIMARY KEY)")
+	mustExec(t, db, "INSERT INTO stats_aggregate (host_hash) VALUES ('leftover')")
+
+	_, err := Attach(db, DefaultSessionConfig())
+	if err == nil {
+		t.Fatal("Attach must fail closed on leftover stats_aggregate under recorded version 1")
+	}
+
+	if !errors.Is(err, ErrValidatorSchemaShapeMismatch) {
+		t.Fatalf("error = %v, want ErrValidatorSchemaShapeMismatch", err)
+	}
+
+	if !strings.Contains(err.Error(), tableStatsAggregate) {
+		t.Fatalf("error = %v, want retired table %s named", err, tableStatsAggregate)
+	}
+
+	if !strings.Contains(err.Error(), "validator_schema") ||
+		!strings.Contains(err.Error(), "never ocm.db") {
+		t.Fatalf("shape-mismatch error must document validator_schema/DataDir recovery and never ocm.db, got %v", err)
+	}
+
+	if !db.Migrator().HasTable(tableStatsAggregate) {
+		t.Fatal("leftover stats_aggregate must survive failed Attach (no drop on recorded v1)")
+	}
+
+	var leftover string
+
+	if err := db.Raw("SELECT host_hash FROM stats_aggregate").Scan(&leftover).Error; err != nil {
+		t.Fatalf("leftover stats_aggregate row must survive: %v", err)
+	}
+
+	if leftover != "leftover" {
+		t.Fatalf("stats_aggregate host_hash = %q, want leftover", leftover)
+	}
+
+	var runCount int64
+
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM test_run WHERE test_run_id = 'run-agg'", &runCount)
+
+	if runCount != 1 {
+		t.Fatalf("test_run rows = %d, want 1 (validator data must survive)", runCount)
+	}
+
+	var peerCount int64
+
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM outgoing_shares WHERE share_id = 'share-agg'", &peerCount)
+
+	if peerCount != 1 {
+		t.Fatalf("peer rows = %d, want 1 (peer data must survive)", peerCount)
+	}
+}
+
 func TestAttach_MalformedVersionOneFailsClosed(t *testing.T) {
 	t.Parallel()
 
@@ -114,6 +194,15 @@ func TestAttach_MalformedVersionOneFailsClosed(t *testing.T) {
 		t.Fatal("Attach must fail closed on a malformed version-1 schema")
 	}
 
+	if !errors.Is(err, ErrValidatorSchemaShapeMismatch) {
+		t.Fatalf("error = %v, want ErrValidatorSchemaShapeMismatch", err)
+	}
+
+	if !strings.Contains(err.Error(), "validator_schema") ||
+		!strings.Contains(err.Error(), "never ocm.db") {
+		t.Fatalf("shape-mismatch error must document validator_schema/DataDir recovery and never ocm.db, got %v", err)
+	}
+
 	// No repair and no destructive action: the malformed shape must remain.
 	info := tableInfo(t, db, "stats_raw")
 	if _, ok := info["k"]; ok {
@@ -131,5 +220,72 @@ func TestAttach_MalformedVersionOneFailsClosed(t *testing.T) {
 
 	if peerCount != 1 {
 		t.Fatalf("peer rows = %d, want 1 (peer data must survive)", peerCount)
+	}
+}
+
+// TestAttach_RecordedV1NonStateCheckDriftFailsClosed proves a recorded
+// version-1 database whose non-state CHECK constraints have drifted is
+// refused without repairing validator tables or touching peer rows.
+func TestAttach_RecordedV1NonStateCheckDriftFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	sqlCore := openPeerStore(t)
+	db := sqlCore.DB()
+
+	peer := store.OutgoingShare{
+		ShareID:    "share-check",
+		ProviderID: "provider-check",
+		WebDAVID:   "webdav-check",
+		CreatedAt:  1,
+	}
+
+	if err := db.Create(&peer).Error; err != nil {
+		t.Fatalf("seed peer row: %v", err)
+	}
+
+	if _, err := Attach(db, DefaultSessionConfig()); err != nil {
+		t.Fatalf("initial Attach: %v", err)
+	}
+
+	rebuildTestRun(t, db, strings.Replace(
+		testRunDDLWithStates(testRunStates),
+		"is_active INTEGER NOT NULL CHECK (is_active IN (0, 1))",
+		"is_active INTEGER NOT NULL",
+		1,
+	))
+
+	_, err := Attach(db, DefaultSessionConfig())
+	if err == nil {
+		t.Fatal("Attach must fail closed on a drifted non-state CHECK under recorded version 1")
+	}
+
+	if !errors.Is(err, ErrValidatorSchemaShapeMismatch) {
+		t.Fatalf("error = %v, want ErrValidatorSchemaShapeMismatch", err)
+	}
+
+	if !strings.Contains(err.Error(), "test_run is_active CHECK admits unexpected value 2") {
+		t.Fatalf("error = %v, want is_active CHECK drift attributed", err)
+	}
+
+	if !strings.Contains(err.Error(), "validator_schema") ||
+		!strings.Contains(err.Error(), "never ocm.db") {
+		t.Fatalf("shape-mismatch error must document validator_schema row/DataDir recovery and never ocm.db, got %v", err)
+	}
+
+	if err := db.Exec(`INSERT INTO test_run
+		(test_run_id, is_active, state, target_origin, target_host, discovery_url,
+		 manifest_schema, created_at, updated_at)
+		VALUES ('run-drift-flag', 2, 'created', 'https://t.example', 't.example',
+		 'https://t.example/.well-known/ocm',
+		 'ocm-validator-manifest/v1', 1, 1)`).Error; err != nil {
+		t.Fatalf("drifted is_active CHECK must remain missing after refused Attach: %v", err)
+	}
+
+	var survived int64
+
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM outgoing_shares WHERE share_id = 'share-check'", &survived)
+
+	if survived != 1 {
+		t.Fatalf("peer rows = %d, want 1 (peer data must survive)", survived)
 	}
 }

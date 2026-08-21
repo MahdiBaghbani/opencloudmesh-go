@@ -330,7 +330,6 @@ func (h *Handler) handleCreateSession(
 		TargetOrigin: origin,
 		TargetHost:   host,
 		DiscoveryURL: strings.TrimSuffix(origin, "/") + "/.well-known/ocm",
-		SessionKind:  validatorcore.SessionKindPassiveOnly,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}

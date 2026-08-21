@@ -18,7 +18,7 @@ import (
 )
 
 // seedImportedRun drives the real import path and leaves the run in
-// reverse_invite_imported with a pending incoming invite for Bob.
+// reverse_invite_accepted with a pending incoming invite for Bob.
 func (e *testEnv) seedImportedRun(t *testing.T, runID string) (bobID, inviteID string) {
 	t.Helper()
 
@@ -174,10 +174,10 @@ func TestAcceptIncoming_RemoteErrorDoesNotAdvance(t *testing.T) {
 		t.Fatal("accept succeeded against a failing peer")
 	}
 
-	env.requireState(t, runID, validatorcore.StateReverseInviteImported)
+	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
-	if got := env.countEvidence(t, runID); got != 0 {
-		t.Fatalf("evidence rows = %d, want 0", got)
+	if got := env.countEvidence(t, runID); got != 1 {
+		t.Fatalf("evidence rows = %d, want 1 from the paste", got)
 	}
 }
 
@@ -203,7 +203,7 @@ func TestAcceptIncoming_RejectsTokenMismatch(t *testing.T) {
 		t.Fatalf("accept = %v, want ErrCorrelationMismatch", err)
 	}
 
-	env.requireState(t, runID, validatorcore.StateReverseInviteImported)
+	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
 	if env.poster.calls != 0 {
 		t.Fatalf("poster calls = %d, want 0", env.poster.calls)
@@ -232,14 +232,14 @@ func TestAcceptIncoming_RejectsSenderHostMismatch(t *testing.T) {
 		t.Fatalf("accept = %v, want ErrCorrelationMismatch", err)
 	}
 
-	env.requireState(t, runID, validatorcore.StateReverseInviteImported)
+	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
 	if env.poster.calls != 0 {
 		t.Fatalf("poster calls = %d, want 0", env.poster.calls)
 	}
 
-	if got := env.countEvidence(t, runID); got != 0 {
-		t.Fatalf("evidence rows = %d, want 0", got)
+	if got := env.countEvidence(t, runID); got != 1 {
+		t.Fatalf("evidence rows = %d, want 1 from the paste", got)
 	}
 }
 
@@ -249,7 +249,7 @@ func TestAcceptIncoming_RequiresExactCorrelation(t *testing.T) {
 	env := newTestEnv(t)
 	runID := "run-accept-no-corr"
 
-	env.seedRun(t, runID, validatorcore.StateReverseInviteImported)
+	env.seedRun(t, runID, validatorcore.StateReverseAwaitingInvite)
 	env.bindBob(t, runID)
 
 	err := env.svc.AcceptIncoming(t.Context(), runID)

@@ -25,16 +25,16 @@ func requireState(t *testing.T, core *Core, runID, want string) {
 	}
 }
 
-// countReverseAcceptEvidenceRows counts the reverse-invite accept evidence
-// tuple written by the winning accept CAS.
+// countReverseAcceptEvidenceRows counts reverse-leg reverse-invite accept
+// evidence rows written by the winning paste.
 func countReverseAcceptEvidenceRows(t *testing.T, core *Core, runID string) int {
 	t.Helper()
 
 	var count int64
 	if err := core.DB().WithContext(t.Context()).
 		Model(&EvidenceRow{}).
-		Where("test_run_id = ? AND area = ? AND step = ? AND reason_code = ?",
-			runID, "reverse_invite", "invite_accepted", "reverse_invite_accepted").
+		Where("test_run_id = ? AND area = ? AND step = ? AND reason_code = ? AND leg = ?",
+			runID, SpecificationAreaSharing, evidenceStepInviteAccepted, evidenceReasonReverseAccepted, evidenceLegReverse).
 		Count(&count).Error; err != nil {
 		t.Fatalf("count evidence rows: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestRecordOutgoingInviteAccepted_MissFromActiveRunning(t *testing.T) {
 	requireState(t, core, runID, StateActiveRunning)
 }
 
-func TestSolicitReverse_TwoCASesAdvanceToAwaiting(t *testing.T) {
+func TestSolicitReverse_SingleCASAdvancesInviteAcceptedToAwaiting(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -117,6 +117,8 @@ func TestSolicitReverse_TwoCASesAdvanceToAwaiting(t *testing.T) {
 
 	seedReverseInviteRun(t, core, runID, StateInviteAccepted)
 
+	// Single CAS: invite_accepted -> reverse_awaiting_invite. The paste fold
+	// reverse_awaiting_invite -> reverse_invite_accepted is ImportReverseInvite.
 	if err := core.SolicitReverse(ctx, runID); err != nil {
 		t.Fatalf("solicit: %v", err)
 	}
@@ -125,23 +127,6 @@ func TestSolicitReverse_TwoCASesAdvanceToAwaiting(t *testing.T) {
 
 	if err := core.SolicitReverse(ctx, runID); err != nil {
 		t.Fatalf("solicit retry: %v", err)
-	}
-
-	requireState(t, core, runID, StateReverseAwaitingInvite)
-}
-
-func TestSolicitReverse_HealsSolicitedCrashNotch(t *testing.T) {
-	t.Parallel()
-
-	core := openTestCore(t)
-	ctx := t.Context()
-	runID := "run-solicit-notch"
-
-	// Crash notch: the first CAS committed but the second never ran.
-	seedReverseInviteRun(t, core, runID, StateReverseInviteSolicited)
-
-	if err := core.SolicitReverse(ctx, runID); err != nil {
-		t.Fatalf("solicit heal: %v", err)
 	}
 
 	requireState(t, core, runID, StateReverseAwaitingInvite)
@@ -188,8 +173,8 @@ func TestImportReverseInvite_BindsSlotAndAdvances(t *testing.T) {
 		t.Fatalf("GetTestRun: %v", err)
 	}
 
-	if run.State != StateReverseInviteImported {
-		t.Fatalf("state = %q, want %q", run.State, StateReverseInviteImported)
+	if run.State != StateReverseInviteAccepted {
+		t.Fatalf("state = %q, want %q", run.State, StateReverseInviteAccepted)
 	}
 
 	if run.ReverseInviteToken == nil || *run.ReverseInviteToken != "token-1" {
@@ -237,7 +222,11 @@ func TestImportReverseInvite_IdempotentSameToken(t *testing.T) {
 		t.Fatalf("correlation rows = %d, want 1", got)
 	}
 
-	requireState(t, core, runID, StateReverseInviteImported)
+	requireState(t, core, runID, StateReverseInviteAccepted)
+
+	if got := countReverseAcceptEvidenceRows(t, core, runID); got != 1 {
+		t.Fatalf("evidence rows after retry = %d, want 1", got)
+	}
 }
 
 func TestImportReverseInvite_FirstTokenWins(t *testing.T) {
@@ -263,8 +252,8 @@ func TestImportReverseInvite_FirstTokenWins(t *testing.T) {
 		t.Fatalf("GetTestRun: %v", err)
 	}
 
-	if run.State != StateReverseInviteImported {
-		t.Fatalf("state = %q, want %q (no advance)", run.State, StateReverseInviteImported)
+	if run.State != StateReverseInviteAccepted {
+		t.Fatalf("state = %q, want %q (no advance)", run.State, StateReverseInviteAccepted)
 	}
 
 	if run.ReverseInviteToken == nil || *run.ReverseInviteToken != "token-1" {
@@ -297,7 +286,7 @@ func TestImportReverseInvite_MissOutsideAwaiting(t *testing.T) {
 	requireState(t, core, runID, StateInviteAccepted)
 }
 
-func TestAcceptReverseInvite_AdvancesAndWritesEvidenceOnce(t *testing.T) {
+func TestAcceptReverseInvite_IdempotentAfterImport(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -310,10 +299,6 @@ func TestAcceptReverseInvite_AdvancesAndWritesEvidenceOnce(t *testing.T) {
 		t.Fatalf("import: %v", err)
 	}
 
-	if err := core.AcceptReverseInvite(ctx, runID); err != nil {
-		t.Fatalf("accept: %v", err)
-	}
-
 	requireState(t, core, runID, StateReverseInviteAccepted)
 
 	if got := countReverseAcceptEvidenceRows(t, core, runID); got != 1 {
@@ -322,9 +307,13 @@ func TestAcceptReverseInvite_AdvancesAndWritesEvidenceOnce(t *testing.T) {
 
 	var row EvidenceRow
 	if err := core.DB().WithContext(ctx).
-		Where("test_run_id = ? AND area = ?", runID, "reverse_invite").
+		Where("test_run_id = ? AND area = ?", runID, SpecificationAreaSharing).
 		First(&row).Error; err != nil {
 		t.Fatalf("load evidence row: %v", err)
+	}
+
+	if row.Leg == nil || *row.Leg != evidenceLegReverse {
+		t.Fatalf("leg = %v, want %q", row.Leg, evidenceLegReverse)
 	}
 
 	if !row.AffectsGrade {
@@ -335,13 +324,14 @@ func TestAcceptReverseInvite_AdvancesAndWritesEvidenceOnce(t *testing.T) {
 		t.Fatalf("severity = %q, want %q", row.Severity, GradePass)
 	}
 
-	// Retry: idempotent success, and the evidence tuple is not written twice.
 	if err := core.AcceptReverseInvite(ctx, runID); err != nil {
-		t.Fatalf("accept retry: %v", err)
+		t.Fatalf("accept: %v", err)
 	}
 
+	requireState(t, core, runID, StateReverseInviteAccepted)
+
 	if got := countReverseAcceptEvidenceRows(t, core, runID); got != 1 {
-		t.Fatalf("evidence rows after retry = %d, want 1", got)
+		t.Fatalf("evidence rows after accept = %d, want 1", got)
 	}
 }
 
@@ -373,22 +363,19 @@ func TestAcceptReverseInvite_IdempotentFromLaterStates(t *testing.T) {
 	}
 }
 
-func TestAcceptReverseInvite_EvidenceFailureRollsBackCAS(t *testing.T) {
+func TestImportReverseInvite_EvidenceFailureRollsBackCAS(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
 	ctx := t.Context()
-	runID := "run-accept-evidence-rollback"
+	runID := "run-import-evidence-rollback"
 
 	seedReverseInviteRun(t, core, runID, StateReverseAwaitingInvite)
 
-	if err := core.ImportReverseInvite(ctx, runID, "token-1", "incoming-1"); err != nil {
-		t.Fatalf("import: %v", err)
-	}
-
-	// Force the evidence insert inside the accept transaction to fail; the
-	// whole transaction, including the state CAS, must roll back.
-	const cbName = "test_fail_reverse_accept_evidence"
+	// Force the evidence insert inside the paste transaction to fail; the
+	// whole transaction, including the incoming-invite bind and state CAS,
+	// must roll back.
+	const cbName = "test_fail_reverse_import_evidence"
 
 	injected := errors.New("injected evidence failure")
 
@@ -413,12 +400,16 @@ func TestAcceptReverseInvite_EvidenceFailureRollsBackCAS(t *testing.T) {
 		}
 	}()
 
-	err := core.AcceptReverseInvite(ctx, runID)
+	err := core.ImportReverseInvite(ctx, runID, "token-1", "incoming-1")
 	if !errors.Is(err, injected) {
-		t.Fatalf("accept = %v, want injected evidence failure", err)
+		t.Fatalf("import = %v, want injected evidence failure", err)
 	}
 
-	requireState(t, core, runID, StateReverseInviteImported)
+	requireState(t, core, runID, StateReverseAwaitingInvite)
+
+	if got := countCorrelations(t, core, runID, RoleIncomingInvite); got != 0 {
+		t.Fatalf("correlation rows after rollback = %d, want 0", got)
+	}
 
 	if got := countReverseAcceptEvidenceRows(t, core, runID); got != 0 {
 		t.Fatalf("evidence rows after rollback = %d, want 0", got)

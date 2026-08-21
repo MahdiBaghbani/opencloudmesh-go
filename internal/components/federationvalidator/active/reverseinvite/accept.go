@@ -20,10 +20,9 @@ import (
 // AcceptIncoming runs the validator's reverse-invite acceptance: it proves
 // the exact RoleIncomingInvite correlation for the active run, reuses the
 // live incoming-accept domain operations to notify the sender as Bob and
-// persist the accepted status, then CASes reverse_invite_imported ->
-// reverse_invite_accepted (which writes the accept evidence tuple on the
-// winning CAS). A locally already-accepted invite skips the outbound call and
-// only heals the CAS for the same correlated invite ID.
+// persist the accepted status, then heals AcceptReverseInvite (already
+// advanced by the paste). A locally already-accepted invite skips the
+// outbound call and only heals the same correlated invite ID.
 func (s *Service) AcceptIncoming(ctx context.Context, testRunID string) error {
 	run, invite, err := s.exactIncomingCorrelation(ctx, testRunID)
 	if err != nil {

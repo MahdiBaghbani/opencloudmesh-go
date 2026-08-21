@@ -163,7 +163,6 @@ func TestReleaseActiveHardFail_MissesTerminalInactiveAndUnknownRows(t *testing.T
 		TestRunID:      hybridID,
 		IsActive:       true,
 		State:          StateTerminalPass,
-		SessionKind:    SessionKindActiveFull,
 		TargetHost:     "release.example",
 		TerminalReason: &hybridReason,
 		FinishedAt:     &now,
@@ -178,13 +177,12 @@ func TestReleaseActiveHardFail_MissesTerminalInactiveAndUnknownRows(t *testing.T
 	passiveID := "run-hardfail-passive"
 
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
-		TestRunID:   passiveID,
-		IsActive:    false,
-		State:       StateCreated,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "release.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  passiveID,
+		IsActive:   false,
+		State:      StateCreated,
+		TargetHost: "release.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}).Error; err != nil {
 		t.Fatalf("seed passive run: %v", err)
 	}
@@ -228,7 +226,6 @@ func TestReleaseActiveHardFail_PersistsTerminalStats(t *testing.T) {
 		TestRunID:    runID,
 		IsActive:     true,
 		State:        StateActiveRunning,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		OptInStats:   true,

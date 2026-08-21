@@ -19,9 +19,7 @@ func TestSessionStateReachableSet_ActiveNonTerminal(t *testing.T) {
 		StateActiveRunning,
 		StateInviteMinted,
 		StateInviteAccepted,
-		StateReverseInviteSolicited,
 		StateReverseAwaitingInvite,
-		StateReverseInviteImported,
 		StateReverseInviteAccepted,
 		StateForwardShareSent,
 		StateCapabilityExercise,
@@ -86,10 +84,10 @@ func TestSessionStateReachableSet_DormantUnreachable(t *testing.T) {
 	t.Parallel()
 
 	states := []string{
-		StateAwaitingReturnShare,
-		StatePassiveDone,
-		StateReverseShareAccepted,
-		StateReverseCapabilityExercise,
+		"awaiting_return_share",
+		"passive_done",
+		"reverse_share_accepted",
+		"reverse_capability_exercise",
 	}
 
 	for _, state := range states {
@@ -107,13 +105,13 @@ func TestSessionStateReachableSet_DormantUnreachable(t *testing.T) {
 	}
 }
 
-// The 16-value enum is exactly 3 passive plus 10 active non-terminal plus 3
+// The 14-value enum is exactly 3 passive plus 8 active non-terminal plus 3
 // terminal; dormant values never join the set.
 func TestSessionStateReachableSet_EnumSize(t *testing.T) {
 	t.Parallel()
 
-	if len(testRunStates) != 16 {
-		t.Errorf("testRunStates holds %d values, want 16", len(testRunStates))
+	if len(testRunStates) != 14 {
+		t.Errorf("testRunStates holds %d values, want 14", len(testRunStates))
 	}
 }
 
@@ -131,9 +129,7 @@ func TestNextInstructionForState(t *testing.T) {
 		{name: "active running waits on invite mint", state: StateActiveRunning, want: "wait_invite_mint"},
 		{name: "invite minted asks for paste", state: StateInviteMinted, want: "paste_s1"},
 		{name: "invite accepted waits on reverse start", state: StateInviteAccepted, want: "wait_reverse_start"},
-		{name: "reverse invite solicited waits on reverse invite", state: StateReverseInviteSolicited, want: "wait_reverse_invite"},
 		{name: "reverse awaiting invite asks for paste", state: StateReverseAwaitingInvite, want: "paste_s2"},
-		{name: "reverse invite imported waits on reverse accept", state: StateReverseInviteImported, want: "wait_reverse_accept"},
 		{name: "reverse invite accepted waits on forward share", state: StateReverseInviteAccepted, want: "wait_forward_share"},
 		{name: "forward share sent opens forward file", state: StateForwardShareSent, want: "open_forward_file"},
 		{name: "capability exercise waits on open", state: StateCapabilityExercise, want: "wait_oq2_open"},
@@ -141,10 +137,10 @@ func TestNextInstructionForState(t *testing.T) {
 		{name: "terminal pass publishes nothing", state: StateTerminalPass, want: ""},
 		{name: "terminal fail publishes nothing", state: StateTerminalFail, want: ""},
 		{name: "interrupted publishes nothing", state: StateInterrupted, want: ""},
-		{name: "dormant awaiting return share publishes nothing", state: StateAwaitingReturnShare, want: ""},
-		{name: "dormant passive done publishes nothing", state: StatePassiveDone, want: ""},
-		{name: "dormant reverse share accepted publishes nothing", state: StateReverseShareAccepted, want: ""},
-		{name: "dormant reverse capability exercise publishes nothing", state: StateReverseCapabilityExercise, want: ""},
+		{name: "dormant awaiting return share publishes nothing", state: "awaiting_return_share", want: ""},
+		{name: "dormant passive done publishes nothing", state: "passive_done", want: ""},
+		{name: "dormant reverse share accepted publishes nothing", state: "reverse_share_accepted", want: ""},
+		{name: "dormant reverse capability exercise publishes nothing", state: "reverse_capability_exercise", want: ""},
 		{name: "unknown state publishes nothing", state: "bogus", want: ""},
 		{name: "empty state publishes nothing", state: "", want: ""},
 	}

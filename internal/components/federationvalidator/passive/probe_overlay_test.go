@@ -22,8 +22,45 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func TestBuildTerminalOverlay_PopulatesConnectionReport(t *testing.T) {
+func TestCollectPassiveProbeFacts_PersistsPlatformAndTLSGrade(t *testing.T) {
 	t.Parallel()
+
+	server := newNextcloudDiscoveryTLSServer(t)
+	store := openHandlerTestStore(t)
+	runner := NewProbeRunnerWithDiscovery(store, discovery.NewClient(tlsTestClient(), cache.NewDefault()), nil)
+	ctx := context.Background()
+	now := time.Now().Unix()
+	runID := "run-probe-facts"
+
+	row := &validatorcore.TestRun{
+		TestRunID:    runID,
+		State:        validatorcore.StatePassiveRunning,
+		TargetOrigin: server.URL,
+		TargetHost:   strings.TrimPrefix(strings.TrimPrefix(server.URL, "https://"), "http://"),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := store.CreatePassiveSession(ctx, row); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	facts, ok := runner.collectPassiveProbeFacts(ctx, runID)
+	if !ok {
+		t.Fatal("expected probe facts")
+	}
+
+	assertCollectedProbeFacts(t, facts)
+
+	if err := store.RecordPassiveProbeFacts(ctx, runID, facts.platform, facts.apiVersion, facts.tlsGrade); err != nil {
+		t.Fatalf("record facts: %v", err)
+	}
+
+	assertPersistedPlatformAndTLS(t, store, ctx, runID)
+}
+
+func newNextcloudDiscoveryTLSServer(t *testing.T) *httptest.Server {
+	t.Helper()
 
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
@@ -46,57 +83,51 @@ func TestBuildTerminalOverlay_PopulatesConnectionReport(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	store := openHandlerTestStore(t)
-	runner := NewProbeRunnerWithDiscovery(store, discovery.NewClient(tlsTestClient(), cache.NewDefault()), nil)
-	ctx := context.Background()
-	now := time.Now().Unix()
-	runID := "run-overlay-report"
+	return server
+}
 
-	row := &validatorcore.TestRun{
-		TestRunID:    runID,
-		State:        validatorcore.StatePassiveRunning,
-		SessionKind:  validatorcore.SessionKindPassiveOnly,
-		TargetOrigin: server.URL,
-		TargetHost:   strings.TrimPrefix(strings.TrimPrefix(server.URL, "https://"), "http://"),
-		CreatedAt:    now,
-		UpdatedAt:    now,
+func assertCollectedProbeFacts(t *testing.T, facts passiveProbeFacts) {
+	t.Helper()
+
+	if facts.platform != platformdetect.PlatformNextcloud {
+		t.Fatalf("platform = %q, want %q", facts.platform, platformdetect.PlatformNextcloud)
 	}
 
-	if err := store.CreatePassiveSession(ctx, row); err != nil {
-		t.Fatalf("create: %v", err)
+	if facts.tlsGrade == nil || *facts.tlsGrade != validatorcore.GradePass {
+		t.Fatalf("grade_tls = %v, want pass", facts.tlsGrade)
+	}
+}
+
+func assertPersistedPlatformAndTLS(
+	t *testing.T,
+	store *validatorcore.Core,
+	ctx context.Context,
+	runID string,
+) {
+	t.Helper()
+
+	got, err := store.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
 	}
 
-	overlay, ok := runner.buildTerminalOverlay(ctx, runID)
-	if !ok {
-		t.Fatal("expected overlay")
+	if got.Platform == nil || *got.Platform != platformdetect.PlatformNextcloud {
+		t.Fatalf("persisted platform = %v, want %q", got.Platform, platformdetect.PlatformNextcloud)
 	}
 
-	if overlay.Platform != platformdetect.PlatformNextcloud {
-		t.Fatalf("platform = %q, want %q", overlay.Platform, platformdetect.PlatformNextcloud)
+	var evidence []validatorcore.EvidenceRow
+
+	if err := store.DB().WithContext(ctx).
+		Where("test_run_id = ? AND area = ?", runID, validatorcore.SpecificationAreaTLS).
+		Find(&evidence).Error; err != nil {
+		t.Fatalf("load tls evidence: %v", err)
 	}
 
-	if overlay.ConnectionReport == nil {
-		t.Fatal("expected connection report on snapshot overlay")
+	if len(evidence) != 1 {
+		t.Fatalf("tls evidence rows = %d, want 1", len(evidence))
 	}
 
-	if overlay.ConnectionReport.ServerIP == "" {
-		t.Fatal("expected connected server IP in report detail")
-	}
-
-	if overlay.ConnectionReport.TLSVersion == "" {
-		t.Fatal("expected TLS version in report detail")
-	}
-
-	if overlay.ConnectionReport.CipherSuite == "" {
-		t.Fatal("expected cipher suite in report detail")
-	}
-
-	if overlay.GradeTLS == nil || *overlay.GradeTLS != validatorcore.GradePass {
-		t.Fatalf("grade_tls = %v, want pass", overlay.GradeTLS)
-	}
-
-	raw := overlay.ToStatsRaw()
-	if raw.GradeTLS == nil || *raw.GradeTLS != validatorcore.GradePass {
-		t.Fatalf("persisted grade_tls = %v, want pass", raw.GradeTLS)
+	if evidence[0].ReasonCode != "tls_probed" || evidence[0].Severity != validatorcore.GradePass {
+		t.Fatalf("tls evidence = %+v, want tls_probed/pass", evidence[0])
 	}
 }

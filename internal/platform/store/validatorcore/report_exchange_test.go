@@ -6,7 +6,6 @@
 package validatorcore
 
 import (
-	"bytes"
 	"errors"
 	"testing"
 
@@ -107,10 +106,6 @@ func TestInsertReportExchange_WritesFullColumnSet(t *testing.T) {
 	respHash := "bb"
 	reqBytes := int64(2)
 	respBytes := int64(2)
-	grade := GradePass
-	reasons := "ok"
-	reqRaw := []byte{0x01, 0x02}
-	respRaw := []byte{0x03, 0x04}
 
 	row := &ReportExchange{
 		TestRunID:         runID,
@@ -141,16 +136,12 @@ func TestInsertReportExchange_WritesFullColumnSet(t *testing.T) {
 		Digest:            &digest,
 		ReqBodyRedacted:   &reqRed,
 		RespBodyRedacted:  &respRed,
-		ReqBodyRaw:        reqRaw,
-		RespBodyRaw:       respRaw,
 		ReqBodySHA256:     &reqHash,
 		RespBodySHA256:    &respHash,
 		ReqBodyBytes:      &reqBytes,
 		RespBodyBytes:     &respBytes,
 		ReqBodyTruncated:  true,
 		RespBodyTruncated: true,
-		Grade:             &grade,
-		ReasonCodes:       &reasons,
 		CreatedAt:         15,
 	}
 
@@ -182,7 +173,6 @@ func assertFullExchangeRoundTrip(t *testing.T, got, want *ReportExchange) {
 	assertExchangeHTTP(t, got, want)
 	assertExchangeSignature(t, got, want)
 	assertExchangeBodies(t, got, want)
-	assertExchangeGrade(t, got, want)
 }
 
 func assertExchangeIdentity(t *testing.T, got, want *ReportExchange) {
@@ -190,6 +180,10 @@ func assertExchangeIdentity(t *testing.T, got, want *ReportExchange) {
 
 	if got.TestRunID != want.TestRunID || got.Seq != want.Seq || got.CapturedAt != want.CapturedAt {
 		t.Fatalf("identity columns = %+v, want test_run_id/seq/captured_at from input", got)
+	}
+
+	if got.CreatedAt != want.CreatedAt {
+		t.Fatalf("created_at = %d, want %d", got.CreatedAt, want.CreatedAt)
 	}
 
 	if deref(got.StartedAt) != deref(want.StartedAt) ||
@@ -250,8 +244,6 @@ func assertExchangeBodies(t *testing.T, got, want *ReportExchange) {
 
 	if deref(got.ReqBodyRedacted) != deref(want.ReqBodyRedacted) ||
 		deref(got.RespBodyRedacted) != deref(want.RespBodyRedacted) ||
-		!bytes.Equal(got.ReqBodyRaw, want.ReqBodyRaw) ||
-		!bytes.Equal(got.RespBodyRaw, want.RespBodyRaw) ||
 		deref(got.ReqBodySHA256) != deref(want.ReqBodySHA256) ||
 		deref(got.RespBodySHA256) != deref(want.RespBodySHA256) ||
 		deref(got.ReqBodyBytes) != deref(want.ReqBodyBytes) ||
@@ -259,18 +251,6 @@ func assertExchangeBodies(t *testing.T, got, want *ReportExchange) {
 		got.ReqBodyTruncated != want.ReqBodyTruncated ||
 		got.RespBodyTruncated != want.RespBodyTruncated {
 		t.Fatalf("body columns mismatch")
-	}
-}
-
-func assertExchangeGrade(t *testing.T, got, want *ReportExchange) {
-	t.Helper()
-
-	if deref(got.Grade) != deref(want.Grade) || deref(got.ReasonCodes) != deref(want.ReasonCodes) {
-		t.Fatalf("grade=%v reasons=%v", got.Grade, got.ReasonCodes)
-	}
-
-	if got.CreatedAt != want.CreatedAt {
-		t.Fatalf("created_at = %d, want %d", got.CreatedAt, want.CreatedAt)
 	}
 }
 

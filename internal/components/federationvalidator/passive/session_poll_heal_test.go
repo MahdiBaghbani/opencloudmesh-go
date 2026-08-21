@@ -25,13 +25,12 @@ func seedActiveRun(t *testing.T, store *validatorcore.Core, runID, state string,
 	now := time.Now().Unix()
 
 	seedSessionRow(t, store, &validatorcore.TestRun{
-		TestRunID:   runID,
-		IsActive:    isActive,
-		State:       state,
-		SessionKind: validatorcore.SessionKindActiveFull,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		IsActive:   isActive,
+		State:      state,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	})
 }
 

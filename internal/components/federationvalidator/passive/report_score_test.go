@@ -45,10 +45,8 @@ func seedReportEvidence(
 func seedLeakingExchange(t *testing.T, store *validatorcore.Core, runID string) {
 	t.Helper()
 
-	pass := validatorcore.GradePass
 	status := 200
 	sigValid := true
-	reasons := "httpsig_ok"
 	secret := reportLeakSecret
 	host := "leak.example"
 	reqHdr := `{"authorization":"Bearer ` + secret + `"}`
@@ -73,10 +71,6 @@ func seedLeakingExchange(t *testing.T, store *validatorcore.Core, runID string) 
 		SigValid:         &sigValid,
 		ReqBodyRedacted:  &reqBody,
 		RespBodyRedacted: &respBody,
-		ReqBodyRaw:       []byte(reqBody),
-		RespBodyRaw:      []byte(respBody),
-		Grade:            &pass,
-		ReasonCodes:      &reasons,
 		CreatedAt:        1,
 	}
 	if err := store.DB().WithContext(t.Context()).Create(row).Error; err != nil {
@@ -155,8 +149,8 @@ func TestHandleReportJSON_PermanentAddsScoreAndEvidence(t *testing.T) {
 	}
 
 	raw := rec.Body.String()
-	if !strings.Contains(raw, "redacted-capability-note") || !strings.Contains(raw, "httpsig_ok") {
-		t.Fatal("permanent report must include redacted reason and payload")
+	if !strings.Contains(raw, "redacted-capability-note") || !strings.Contains(raw, "webdav_get") {
+		t.Fatal("permanent report must include redacted payload and evidence reason")
 	}
 
 	if strings.Contains(raw, reportLeakSecret) || strings.Contains(raw, "leak.example") {
@@ -181,8 +175,8 @@ func TestHandleReportJSON_PermanentAddsScoreAndEvidence(t *testing.T) {
 		t.Fatalf("evidence: %v", err)
 	}
 
-	if len(evidence) != 2 {
-		t.Fatalf("evidence = %d, want 2", len(evidence))
+	if len(evidence) != 1 {
+		t.Fatalf("evidence = %d, want 1 evidence row", len(evidence))
 	}
 
 	var score validatorcore.SpecificationScore

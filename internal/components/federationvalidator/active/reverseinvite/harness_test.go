@@ -210,13 +210,12 @@ func (e *testEnv) seedRun(t *testing.T, runID, state string) {
 	now := time.Now().Unix()
 
 	if err := e.store.DB().WithContext(t.Context()).Create(&validatorcore.TestRun{
-		TestRunID:   runID,
-		IsActive:    true,
-		State:       state,
-		SessionKind: validatorcore.SessionKindActiveFull,
-		TargetHost:  testTargetHost,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		IsActive:   true,
+		State:      state,
+		TargetHost: testTargetHost,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}).Error; err != nil {
 		t.Fatalf("seed run %s: %v", runID, err)
 	}
@@ -292,7 +291,7 @@ func (e *testEnv) countEvidence(t *testing.T, runID string) int {
 	if err := e.store.DB().WithContext(t.Context()).
 		Model(&validatorcore.EvidenceRow{}).
 		Where("test_run_id = ? AND area = ? AND step = ? AND reason_code = ?",
-			runID, "reverse_invite", "invite_accepted", "reverse_invite_accepted").
+			runID, validatorcore.SpecificationAreaSharing, "invite_accepted", "reverse_invite_accepted").
 		Count(&count).Error; err != nil {
 		t.Fatalf("count evidence: %v", err)
 	}

@@ -6,7 +6,6 @@
 package validatorcore
 
 import (
-	"errors"
 	"testing"
 )
 
@@ -267,66 +266,22 @@ func TestRateSpecification_InterruptedHasNoOverallGrade(t *testing.T) {
 	}
 }
 
-func TestRateSpecification_ExchangeEndpointMapping(t *testing.T) {
+func TestRateSpecification_IgnoresReportExchanges(t *testing.T) {
 	t.Parallel()
 
-	pass := GradePass
-	cases := []struct {
-		endpoint string
-		area     string
-	}{
-		{endpointDiscovery, SpecificationAreaDiscovery},
-		{endpointJWKS, SpecificationAreaJWKS},
-		{endpointHTTPSigProbe, SpecificationAreaHTTPSig},
-		{endpointShares, SpecificationAreaSharing},
-		{endpointInviteAccepted, SpecificationAreaSharing},
-		{endpointNotifications, SpecificationAreaNotification},
-		{endpointOCMToken, SpecificationAreaToken},
-		{endpointWebDAV, SpecificationAreaCapability},
-	}
-
-	exchanges := make([]ReportExchange, 0, len(cases)+1)
-	for i, tc := range cases {
-		exchanges = append(exchanges, ReportExchange{
-			EndpointID: tc.endpoint,
-			Method:     "POST",
-			Grade:      &pass,
-			Seq:        i + 1,
-			CreatedAt:  1,
-		})
-	}
-
-	exchanges = append(exchanges, ReportExchange{
-		EndpointID: "unknown-endpoint",
+	score, evidence, err := RateSpecification(terminalPassRun(), nil, []ReportExchange{{
+		EndpointID: "discovery",
 		Method:     "GET",
-		Grade:      &pass,
-		Seq:        99,
-	})
-
-	score, evidence, err := RateSpecification(terminalPassRun(), nil, exchanges)
+	}})
 	if err != nil {
 		t.Fatalf("RateSpecification: %v", err)
 	}
 
-	if len(evidence) != len(exchanges) {
-		t.Fatalf("evidence = %d, want %d", len(evidence), len(exchanges))
-	}
+	assertNilGrade(t, score.Grade)
+	assertCoverage(t, score, 0)
 
-	if evidence[len(evidence)-1].Source != specificationEvidenceSourceExchange {
-		t.Fatal("unknown endpoint must remain in evidence")
-	}
-
-	assertNilGrade(t, areaByName(score, SpecificationAreaTLS).Grade)
-	assertCoverage(t, score, 7)
-	assertGradeEq(t, score.Grade, GradePass)
-
-	sharing := areaByName(score, SpecificationAreaSharing)
-	if sharing.EvidenceCount != 2 || sharing.GradedEvidenceCount != 2 {
-		t.Fatalf("sharing counts = %d/%d, want 2/2", sharing.EvidenceCount, sharing.GradedEvidenceCount)
-	}
-
-	for _, tc := range cases {
-		assertGradeEq(t, areaByName(score, tc.area).Grade, GradePass)
+	if evidence == nil || len(evidence) != 0 {
+		t.Fatalf("evidence = %#v, want empty when only exchanges are supplied", evidence)
 	}
 }
 
@@ -334,8 +289,10 @@ func TestRateSpecification_ReverseInviteMapsToSharing(t *testing.T) {
 	t.Parallel()
 
 	payload := "invite accepted"
+	reverse := evidenceLegReverse
 	rows := []EvidenceRow{{
-		Area:            evidenceAreaReverseInvite,
+		Leg:             &reverse,
+		Area:            SpecificationAreaSharing,
 		Step:            evidenceStepInviteAccepted,
 		ReasonCode:      evidenceReasonReverseAccepted,
 		Severity:        GradePass,
@@ -355,27 +312,16 @@ func TestRateSpecification_ReverseInviteMapsToSharing(t *testing.T) {
 		t.Fatalf("evidence = %d, want 1", len(evidence))
 	}
 
-	if evidence[0].Area != evidenceAreaReverseInvite {
-		t.Fatalf("area = %q, want %q", evidence[0].Area, evidenceAreaReverseInvite)
+	if evidence[0].Area != SpecificationAreaSharing {
+		t.Fatalf("area = %q, want %q", evidence[0].Area, SpecificationAreaSharing)
 	}
 
-	if evidence[0].ScoreArea != SpecificationAreaSharing {
-		t.Fatalf("scoreArea = %q, want %q", evidence[0].ScoreArea, SpecificationAreaSharing)
+	if evidence[0].ScoreArea != "" {
+		t.Fatalf("scoreArea = %q, want empty when area already maps to itself", evidence[0].ScoreArea)
 	}
-}
 
-func TestRateSpecification_InvalidExchangeGradeReturnsError(t *testing.T) {
-	t.Parallel()
-
-	bad := "green"
-
-	_, _, err := RateSpecification(terminalPassRun(), nil, []ReportExchange{{
-		EndpointID: endpointDiscovery,
-		Method:     "GET",
-		Grade:      &bad,
-	}})
-	if !errors.Is(err, ErrInvalidExchangeGrade) {
-		t.Fatalf("err = %v, want ErrInvalidExchangeGrade", err)
+	if evidence[0].Leg != evidenceLegReverse {
+		t.Fatalf("leg = %q, want %q", evidence[0].Leg, evidenceLegReverse)
 	}
 }
 
@@ -387,8 +333,10 @@ func TestLoadSpecificationRating_ScopesAndOrdersInputs(t *testing.T) {
 	createTestRun(t, core.DB(), "run-a")
 	createTestRun(t, core.DB(), "run-b")
 
+	passive := evidenceLegPassive
 	late := &EvidenceRow{
 		TestRunID:    "run-a",
+		Leg:          &passive,
 		Area:         SpecificationAreaDiscovery,
 		Step:         "late",
 		ReasonCode:   "late",
@@ -398,6 +346,7 @@ func TestLoadSpecificationRating_ScopesAndOrdersInputs(t *testing.T) {
 	}
 	early := &EvidenceRow{
 		TestRunID:    "run-a",
+		Leg:          &passive,
 		Area:         SpecificationAreaJWKS,
 		Step:         "early",
 		ReasonCode:   "early",
@@ -407,6 +356,7 @@ func TestLoadSpecificationRating_ScopesAndOrdersInputs(t *testing.T) {
 	}
 	other := &EvidenceRow{
 		TestRunID:    "run-b",
+		Leg:          &passive,
 		Area:         SpecificationAreaTLS,
 		Step:         "other",
 		ReasonCode:   "other",
@@ -421,46 +371,19 @@ func TestLoadSpecificationRating_ScopesAndOrdersInputs(t *testing.T) {
 		}
 	}
 
-	pass := GradePass
-	fail := GradeFail
-	second := &ReportExchange{
-		TestRunID:  "run-a",
-		Seq:        2,
-		CapturedAt: 2,
-		Direction:  "out",
-		EndpointID: endpointShares,
-		Method:     "POST",
-		URL:        "https://peer.example/shares",
-		Grade:      &pass,
-		CreatedAt:  2,
-	}
-	first := &ReportExchange{
+	foreignExchange := &ReportExchange{
 		TestRunID:  "run-a",
 		Seq:        1,
 		CapturedAt: 1,
 		Direction:  "out",
-		EndpointID: endpointDiscovery,
+		EndpointID: "discovery",
 		Method:     "GET",
 		URL:        "https://peer.example/ocm",
-		Grade:      &pass,
-		CreatedAt:  1,
-	}
-	foreign := &ReportExchange{
-		TestRunID:  "run-b",
-		Seq:        1,
-		CapturedAt: 1,
-		Direction:  "in",
-		EndpointID: endpointWebDAV,
-		Method:     "GET",
-		URL:        "https://other.example/dav",
-		Grade:      &fail,
 		CreatedAt:  1,
 	}
 
-	for _, row := range []*ReportExchange{second, first, foreign} {
-		if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
-			t.Fatalf("seed exchange: %v", err)
-		}
+	if err := core.DB().WithContext(ctx).Create(foreignExchange).Error; err != nil {
+		t.Fatalf("seed exchange: %v", err)
 	}
 
 	runA, err := core.GetTestRun(ctx, "run-a")
@@ -475,25 +398,109 @@ func TestLoadSpecificationRating_ScopesAndOrdersInputs(t *testing.T) {
 		t.Fatalf("LoadSpecificationRating: %v", err)
 	}
 
-	if len(evidence) != 4 {
-		t.Fatalf("evidence = %d, want 4", len(evidence))
+	if len(evidence) != 2 {
+		t.Fatalf("evidence = %d, want 2 evidence rows", len(evidence))
 	}
 
 	if evidence[0].Area != SpecificationAreaJWKS || evidence[1].Area != SpecificationAreaDiscovery {
 		t.Fatalf("row order = %q then %q", evidence[0].Area, evidence[1].Area)
 	}
 
-	if evidence[2].EndpointID != endpointDiscovery || evidence[3].EndpointID != endpointShares {
-		t.Fatalf("exchange order = %q then %q", evidence[2].EndpointID, evidence[3].EndpointID)
-	}
-
 	for _, item := range evidence {
-		if item.Area == SpecificationAreaTLS || item.EndpointID == endpointWebDAV {
+		if item.Area == SpecificationAreaTLS {
 			t.Fatal("loaded rows from another run")
+		}
+
+		if item.Source != specificationEvidenceSourceRow {
+			t.Fatalf("source = %q, want evidence row", item.Source)
+		}
+
+		if item.Leg != evidenceLegPassive {
+			t.Fatalf("leg = %q, want %q from evidence_row", item.Leg, evidenceLegPassive)
 		}
 	}
 
 	assertGradeEq(t, areaByName(score, SpecificationAreaJWKS).Grade, GradeWarn)
 	assertGradeEq(t, areaByName(score, SpecificationAreaDiscovery).Grade, GradePass)
 	assertNilGrade(t, areaByName(score, SpecificationAreaTLS).Grade)
+}
+
+func TestHasReverseInviteAcceptance_RequiresReverseLeg(t *testing.T) {
+	t.Parallel()
+
+	tuple := func(leg string) EvidenceRow {
+		row := EvidenceRow{
+			Area:       SpecificationAreaSharing,
+			Step:       evidenceStepInviteAccepted,
+			ReasonCode: evidenceReasonReverseAccepted,
+		}
+		if leg != "" {
+			row.Leg = &leg
+		}
+
+		return row
+	}
+
+	if hasReverseInviteAcceptance([]EvidenceRow{tuple("")}) {
+		t.Fatal("nil leg must not count as reverse acceptance")
+	}
+
+	if hasReverseInviteAcceptance([]EvidenceRow{tuple(evidenceLegPassive)}) {
+		t.Fatal("passive leg must not count as reverse acceptance")
+	}
+
+	if hasReverseInviteAcceptance([]EvidenceRow{tuple(evidenceLegForward)}) {
+		t.Fatal("forward leg must not count as reverse acceptance")
+	}
+
+	if !hasReverseInviteAcceptance([]EvidenceRow{tuple(evidenceLegReverse)}) {
+		t.Fatal("reverse leg must count as reverse acceptance")
+	}
+}
+
+func TestRateSpecification_NonReverseLegDoesNotGradeReverseAcceptance(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		leg     string
+		wantLeg string
+	}{
+		{name: "passive", leg: evidenceLegPassive, wantLeg: evidenceLegPassive},
+		{name: "forward", leg: evidenceLegForward, wantLeg: evidenceLegForward},
+		{name: "empty", leg: "", wantLeg: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			row := EvidenceRow{
+				Area:         SpecificationAreaSharing,
+				Step:         evidenceStepInviteAccepted,
+				ReasonCode:   evidenceReasonReverseAccepted,
+				Severity:     GradePass,
+				AffectsGrade: true,
+			}
+			if tt.leg != "" {
+				row.Leg = &tt.leg
+			}
+
+			score, evidence, err := RateSpecification(terminalPassRun(), []EvidenceRow{row}, nil)
+			if err != nil {
+				t.Fatalf("RateSpecification: %v", err)
+			}
+
+			assertNilGrade(t, areaByName(score, SpecificationAreaSharing).Grade)
+			assertNilGrade(t, score.Grade)
+
+			if len(evidence) != 1 {
+				t.Fatalf("evidence = %d, want 1 (row is listed, not scored)", len(evidence))
+			}
+
+			if evidence[0].Leg != tt.wantLeg {
+				t.Fatalf("leg = %q, want %q", evidence[0].Leg, tt.wantLeg)
+			}
+		})
+	}
 }

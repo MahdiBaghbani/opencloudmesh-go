@@ -22,12 +22,11 @@ func TestCreatePassiveSession_EnforcesInFlightCap(t *testing.T) {
 	now := time.Now().Unix()
 
 	first := &TestRun{
-		TestRunID:   "run-cap-1",
-		State:       StateCreated,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  "run-cap-1",
+		State:      StateCreated,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.CreatePassiveSession(ctx, first); err != nil {
@@ -35,12 +34,11 @@ func TestCreatePassiveSession_EnforcesInFlightCap(t *testing.T) {
 	}
 
 	second := &TestRun{
-		TestRunID:   "run-cap-2",
-		State:       StateCreated,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "peer2.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  "run-cap-2",
+		State:      StateCreated,
+		TargetHost: "peer2.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	err := core.CreatePassiveSession(ctx, second)
@@ -58,12 +56,11 @@ func TestPassiveProbeTransitions(t *testing.T) {
 	runID := "run-probe"
 
 	row := &TestRun{
-		TestRunID:   runID,
-		State:       StateCreated,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "probe.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      StateCreated,
+		TargetHost: "probe.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.CreatePassiveSession(ctx, row); err != nil {
@@ -106,12 +103,11 @@ func TestEnterTerminalState_PassiveGuard(t *testing.T) {
 	runID := "run-terminal"
 
 	row := &TestRun{
-		TestRunID:   runID,
-		State:       StatePassiveComplete,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "terminal.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      StatePassiveComplete,
+		TargetHost: "terminal.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -131,8 +127,8 @@ func TestEnterTerminalState_PassiveGuard(t *testing.T) {
 		t.Fatalf("state = %q, want %q", got.State, StateTerminalPass)
 	}
 
-	if got.SessionKind != SessionKindPassiveOnly {
-		t.Fatalf("session_kind = %q, want passive_only", got.SessionKind)
+	if SessionKindOf(got) != SessionKindPassiveOnly {
+		t.Fatalf("session_kind = %q, want passive_only", SessionKindOf(got))
 	}
 }
 
@@ -152,12 +148,11 @@ func TestStartupSweep_TerminalizesExpiredPassiveInFlight(t *testing.T) {
 	stale := time.Now().Add(-2 * time.Minute).Unix()
 
 	row := &TestRun{
-		TestRunID:   "run-sweep",
-		State:       StatePassiveRunning,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "sweep.example",
-		CreatedAt:   stale,
-		UpdatedAt:   stale,
+		TestRunID:  "run-sweep",
+		State:      StatePassiveRunning,
+		TargetHost: "sweep.example",
+		CreatedAt:  stale,
+		UpdatedAt:  stale,
 	}
 
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -177,8 +172,8 @@ func TestStartupSweep_TerminalizesExpiredPassiveInFlight(t *testing.T) {
 		t.Fatalf("state = %q, want terminal_fail", got.State)
 	}
 
-	if got.SessionKind != SessionKindPassiveOnly {
-		t.Fatalf("session_kind = %q, want passive_only", got.SessionKind)
+	if SessionKindOf(got) != SessionKindPassiveOnly {
+		t.Fatalf("session_kind = %q, want passive_only", SessionKindOf(got))
 	}
 }
 
@@ -195,13 +190,12 @@ func TestSweepPassiveCompleteTTL_TerminalizesExpiredSession(t *testing.T) {
 	stale := time.Now().Add(-2 * time.Minute).Unix()
 
 	row := &TestRun{
-		TestRunID:   "run-pc-sweep",
-		IsActive:    false,
-		State:       StatePassiveComplete,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "pc.example",
-		CreatedAt:   stale,
-		UpdatedAt:   stale,
+		TestRunID:  "run-pc-sweep",
+		IsActive:   false,
+		State:      StatePassiveComplete,
+		TargetHost: "pc.example",
+		CreatedAt:  stale,
+		UpdatedAt:  stale,
 	}
 
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -221,8 +215,8 @@ func TestSweepPassiveCompleteTTL_TerminalizesExpiredSession(t *testing.T) {
 		t.Fatalf("state = %q, want %q", got.State, StateTerminalFail)
 	}
 
-	if got.SessionKind != SessionKindPassiveOnly {
-		t.Fatalf("session_kind = %q, want %q", got.SessionKind, SessionKindPassiveOnly)
+	if SessionKindOf(got) != SessionKindPassiveOnly {
+		t.Fatalf("session_kind = %q, want %q", SessionKindOf(got), SessionKindPassiveOnly)
 	}
 
 	if got.TerminalReason == nil || *got.TerminalReason != "passive_complete_ttl_expired" {
@@ -258,13 +252,12 @@ func TestSweepPassiveInFlightTTL_ReleasesInFlightCount(t *testing.T) {
 
 	for _, item := range rows {
 		row := &TestRun{
-			TestRunID:   item.id,
-			IsActive:    false,
-			State:       item.state,
-			SessionKind: SessionKindPassiveOnly,
-			TargetHost:  "cap.example",
-			CreatedAt:   stale,
-			UpdatedAt:   stale,
+			TestRunID:  item.id,
+			IsActive:   false,
+			State:      item.state,
+			TargetHost: "cap.example",
+			CreatedAt:  stale,
+			UpdatedAt:  stale,
 		}
 
 		if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -304,8 +297,8 @@ func TestSweepPassiveInFlightTTL_ReleasesInFlightCount(t *testing.T) {
 			t.Fatalf("%s state = %q, want %q", item.id, got.State, StateTerminalFail)
 		}
 
-		if got.SessionKind != SessionKindPassiveOnly {
-			t.Fatalf("%s session_kind = %q, want %q", item.id, got.SessionKind, SessionKindPassiveOnly)
+		if SessionKindOf(got) != SessionKindPassiveOnly {
+			t.Fatalf("%s session_kind = %q, want %q", item.id, SessionKindOf(got), SessionKindPassiveOnly)
 		}
 
 		if got.TerminalReason == nil || *got.TerminalReason != item.reason {
@@ -329,13 +322,12 @@ func TestSweepPassiveInFlightTTL_LeavesActiveInFlightUntouched(t *testing.T) {
 	stale := time.Now().Add(-2 * time.Minute).Unix()
 
 	row := &TestRun{
-		TestRunID:   "run-lb7-active",
-		IsActive:    true,
-		State:       StatePassiveRunning,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "lb7.example",
-		CreatedAt:   stale,
-		UpdatedAt:   stale,
+		TestRunID:  "run-lb7-active",
+		IsActive:   true,
+		State:      StatePassiveRunning,
+		TargetHost: "lb7.example",
+		CreatedAt:  stale,
+		UpdatedAt:  stale,
 	}
 
 	if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
@@ -389,12 +381,11 @@ func TestCreatePassiveSession_PKCollisionIsStoreError(t *testing.T) {
 	now := time.Now().Unix()
 
 	row := &TestRun{
-		TestRunID:   "run-dup",
-		State:       StateCreated,
-		SessionKind: SessionKindPassiveOnly,
-		TargetHost:  "dup.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  "run-dup",
+		State:      StateCreated,
+		TargetHost: "dup.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := core.CreatePassiveSession(ctx, row); err != nil {

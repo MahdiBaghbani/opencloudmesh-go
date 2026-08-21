@@ -26,13 +26,12 @@ import (
 const outgoingInviteTTL = 24 * time.Hour
 
 // MintOutgoingInvite returns the run's single canonical outgoing invite,
-// minting and binding it on first call. The binding (correlation slot plus
+// minting and binding it on first call. The binding (outgoing_invite_id plus
 // the active_running -> invite_minted CAS) commits before the product invite
 // row is created, so concurrent callers race to one binding winner and later
 // callers observe the same canonical invite. A winner that crashes between
-// the binding commit and the invite create leaves a bound-but-missing slot;
-// the next call heals it deterministically by re-creating the row with the
-// bound id and token, so invite_minted never dangles without its invite.
+// the binding commit and the invite create leaves a bound-but-missing id;
+// the next call heals it by re-creating the product row with the bound id.
 func (s *Service) MintOutgoingInvite(ctx context.Context, testRunID string) (*invitesoutgoing.OutgoingInvite, error) {
 	run, err := s.deps.Store.GetTestRun(ctx, testRunID)
 	if err != nil {
@@ -65,8 +64,9 @@ func (s *Service) MintOutgoingInvite(ctx context.Context, testRunID string) (*in
 
 	if mintErr := s.deps.Store.MintOutgoingInviteBinding(ctx, testRunID, inviteID, token); mintErr != nil {
 		if errors.Is(mintErr, validatorcore.ErrShareCorrelationConflict) {
-			// A concurrent mint won the slot; return the canonical invite,
-			// healing the product row when the winner crashed before create.
+			// A concurrent mint won the outgoing invite id; return the
+			// canonical invite, healing the product row when the winner
+			// crashed before create.
 			bound, found, lookupErr := s.existingOutgoingBinding(ctx, testRunID)
 			if lookupErr != nil {
 				return nil, lookupErr
@@ -84,7 +84,9 @@ func (s *Service) MintOutgoingInvite(ctx context.Context, testRunID string) (*in
 	if err := s.deps.OutgoingInvites.Create(ctx, invite); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
 			// A concurrent healer stored the canonical invite first.
-			return s.storedOutgoingInvite(ctx, inviteID, token)
+			// The bound id is the identity; the healer may have minted a
+			// fresh token because the run does not persist the original.
+			return s.storedOutgoingInviteByID(ctx, inviteID)
 		}
 
 		// The binding stays committed; the next mint call heals the missing
@@ -95,30 +97,24 @@ func (s *Service) MintOutgoingInvite(ctx context.Context, testRunID string) (*in
 	return invite, nil
 }
 
-// existingOutgoingBinding loads the invite referenced by the run's outgoing
-// correlation slot; ok is false when the slot is still free. A bound slot
-// whose product invite row is missing is healed in place, so callers never
-// observe invite_minted without its invite.
+// existingOutgoingBinding loads the invite referenced by the run's
+// outgoing_invite_id; ok is false when the pointer is still empty. A bound
+// id whose product invite row is missing is healed in place, so callers
+// never observe invite_minted without its invite.
 func (s *Service) existingOutgoingBinding(ctx context.Context, testRunID string) (invite *invitesoutgoing.OutgoingInvite, ok bool, err error) {
-	corr, err := s.deps.Store.GetShareCorrelation(ctx, testRunID, validatorcore.RoleOutgoingInvite, validatorcore.LocalIdentityA)
-	if errors.Is(err, validatorcore.ErrShareCorrelationNotFound) {
+	run, err := s.deps.Store.GetTestRun(ctx, testRunID)
+	if err != nil {
+		return nil, false, fmt.Errorf("reverseinvite: load test run: %w", err)
+	}
+
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID == "" {
 		return nil, false, nil
 	}
 
-	if err != nil {
-		return nil, false, fmt.Errorf("reverseinvite: load outgoing correlation: %w", err)
-	}
+	inviteID := *run.OutgoingInviteID
 
-	if corr.InviteID == nil || *corr.InviteID == "" || corr.ProviderID == "" {
-		return nil, false, ErrCorrelationMismatch
-	}
-
-	invite, err = s.deps.OutgoingInvites.GetByID(ctx, *corr.InviteID)
+	invite, err = s.deps.OutgoingInvites.GetByID(ctx, inviteID)
 	if err == nil {
-		if invite.Token != corr.ProviderID {
-			return nil, false, ErrCorrelationMismatch
-		}
-
 		return invite, true, nil
 	}
 
@@ -126,7 +122,7 @@ func (s *Service) existingOutgoingBinding(ctx context.Context, testRunID string)
 		return nil, false, fmt.Errorf("reverseinvite: load bound outgoing invite: %w", err)
 	}
 
-	healed, healErr := s.healBoundOutgoingInvite(ctx, corr)
+	healed, healErr := s.healBoundOutgoingInvite(ctx, testRunID, inviteID)
 	if healErr != nil {
 		return nil, false, healErr
 	}
@@ -135,13 +131,19 @@ func (s *Service) existingOutgoingBinding(ctx context.Context, testRunID string)
 }
 
 // healBoundOutgoingInvite re-creates the product invite row for a bound
-// correlation slot whose winner never stored it. The row is deterministic
-// (bound id and token), so concurrent healers converge on one canonical row.
-func (s *Service) healBoundOutgoingInvite(ctx context.Context, corr *validatorcore.ShareCorrelation) (*invitesoutgoing.OutgoingInvite, error) {
-	invite := s.newOutgoingInvite(*corr.InviteID, corr.ProviderID, corr.TestRunID)
+// outgoing_invite_id whose winner never stored it. The validator row does
+// not keep the original token, so the healer mints a fresh token for the
+// same id. Concurrent healers converge on one canonical row.
+func (s *Service) healBoundOutgoingInvite(ctx context.Context, testRunID, inviteID string) (*invitesoutgoing.OutgoingInvite, error) {
+	token, err := generateInviteToken()
+	if err != nil {
+		return nil, err
+	}
+
+	invite := s.newOutgoingInvite(inviteID, token, testRunID)
 	if err := s.deps.OutgoingInvites.Create(ctx, invite); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
-			return s.storedOutgoingInvite(ctx, *corr.InviteID, corr.ProviderID)
+			return s.storedOutgoingInviteByID(ctx, inviteID)
 		}
 
 		return nil, fmt.Errorf("reverseinvite: heal bound outgoing invite: %w", err)
@@ -150,16 +152,10 @@ func (s *Service) healBoundOutgoingInvite(ctx context.Context, corr *validatorco
 	return invite, nil
 }
 
-// storedOutgoingInvite returns the already-stored canonical invite, proving
-// the stored row still carries the bound token.
-func (s *Service) storedOutgoingInvite(ctx context.Context, inviteID, token string) (*invitesoutgoing.OutgoingInvite, error) {
+func (s *Service) storedOutgoingInviteByID(ctx context.Context, inviteID string) (*invitesoutgoing.OutgoingInvite, error) {
 	stored, err := s.deps.OutgoingInvites.GetByID(ctx, inviteID)
 	if err != nil {
 		return nil, fmt.Errorf("reverseinvite: load stored outgoing invite: %w", err)
-	}
-
-	if stored.Token != token {
-		return nil, ErrCorrelationMismatch
 	}
 
 	return stored, nil

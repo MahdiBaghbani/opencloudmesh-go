@@ -35,55 +35,12 @@ func (c *Core) SetStatsHostHasher(hasher StatsHostHasher) {
 	c.statsHasher = hasher
 }
 
-// SetTerminalStatsSnapshot stores the in-memory terminal grade snapshot for
-// testRunID until terminal stats persistence completes. Conformance wiring will
-// populate area grades here; TestRun.overall_grade is not mapped into stats_raw
-// because DeriveHealthy reads area grade columns only.
-func (c *Core) SetTerminalStatsSnapshot(testRunID string, snap StatsSnapshot) {
-	if c == nil || testRunID == "" {
-		return
-	}
-
-	c.terminalStatsSnapshots.Store(testRunID, snap)
-}
-
-func (c *Core) terminalStatsOverlay(testRunID string) (*StatsSnapshot, bool) {
-	if c == nil || testRunID == "" {
-		return nil, false
-	}
-
-	value, ok := c.terminalStatsSnapshots.Load(testRunID)
-	if !ok {
-		return nil, false
-	}
-
-	snap, ok := value.(StatsSnapshot)
-	if !ok {
-		return nil, false
-	}
-
-	return &snap, true
-}
-
-func (c *Core) clearTerminalStatsOverlay(testRunID string) {
-	if c == nil || testRunID == "" {
-		return
-	}
-
-	c.terminalStatsSnapshots.Delete(testRunID)
-}
-
-func (c *Core) clearTerminalStatsState(testRunID string) {
-	c.clearTerminalStatsOverlay(testRunID)
-}
-
-// persistTerminalStats writes one stats_raw row and rebuilds the per-host
-// stats_aggregate atomically when the persisted test_run opted into
-// statistics. Incognito and permanent-only sessions write nothing. Consent is
-// read from the persisted row so it survives process restart, and
-// stats_written_at is the write-once marker that makes retries no-ops.
-// Errors are returned for observability; callers treat persistence as
-// best-effort after the session is already terminal.
+// persistTerminalStats writes one stats_raw row when the persisted test_run
+// opted into statistics. Incognito and permanent-only sessions write
+// nothing. Consent is read from the persisted row so it survives process
+// restart, and stats_written_at is the write-once marker that makes retries
+// no-ops. Errors are returned for observability; callers treat persistence
+// as best-effort after the session is already terminal.
 func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -95,12 +52,8 @@ func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error
 	}
 
 	if !row.OptInStats {
-		c.clearTerminalStatsState(testRunID)
-
 		return nil
 	}
-
-	defer c.clearTerminalStatsState(testRunID)
 
 	if row.FinishedAt == nil {
 		return errors.New("validatorcore: terminal stats require finished_at")
@@ -116,10 +69,9 @@ func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error
 		return fmt.Errorf("validatorcore: stats row key: %w", err)
 	}
 
-	overlay, _ := c.terminalStatsOverlay(testRunID)
-	snap := statsSnapshotFromTestRun(row, hostHash, *row.FinishedAt, overlay)
+	snap := statsSnapshotFromTestRun(row, hostHash, *row.FinishedAt)
 
-	if err := c.writeTerminalStats(ctx, testRunID, hostHash, k, &snap); err != nil {
+	if err := c.writeTerminalStats(ctx, testRunID, k, &snap); err != nil {
 		return err
 	}
 
@@ -127,14 +79,13 @@ func (c *Core) persistTerminalStats(ctx context.Context, testRunID string) error
 }
 
 // writeTerminalStats runs the atomic stats write in one transaction: the
-// write-once stats_written_at guard, one stats_raw insert keyed by the run's
-// dedup key, and a per-host aggregate rebuild. A zero-row guard result means
-// stats were already written (or consent was revoked after the reload), so
-// the call is a no-op. A dedup-key conflict on stats_raw means the row is
-// already counted, so the aggregate is left untouched.
+// write-once stats_written_at guard and one stats_raw insert keyed by the
+// run's dedup key. A zero-row guard result means stats were already written
+// (or consent was revoked after the reload), so the call is a no-op. A
+// dedup-key conflict on stats_raw means the row is already counted.
 func (c *Core) writeTerminalStats(
 	ctx context.Context,
-	testRunID, hostHash, k string,
+	testRunID, k string,
 	snap *StatsSnapshot,
 ) error {
 	now := time.Now().Unix()
@@ -160,17 +111,8 @@ func (c *Core) writeTerminalStats(
 		raw := snap.ToStatsRaw()
 		raw.K = k
 
-		inserted, err := insertStatsRawOrIgnore(tx, &raw)
-		if err != nil {
+		if _, err := insertStatsRawOrIgnore(tx, &raw); err != nil {
 			return fmt.Errorf("validatorcore: insert stats_raw: %w", err)
-		}
-
-		if !inserted {
-			return nil
-		}
-
-		if err := rebuildStatsAggregateForHost(tx, hostHash); err != nil {
-			return fmt.Errorf("validatorcore: rebuild stats aggregate: %w", err)
 		}
 
 		return nil
@@ -183,11 +125,10 @@ func (c *Core) writeTerminalStats(
 }
 
 // fillSnapshotGradesFromRating derives area grades from grade-affecting
-// evidence rows and graded exchanges using the same fold as
-// RateSpecification. It fills only the snapshot's missing grade slots;
-// overlay grades always win. Reverse-invite acceptance marks sharing as
-// exercised. It is a read folded into the persist transaction, not a
-// second write path.
+// evidence rows using the same fold as RateSpecification. It fills only
+// the snapshot's missing grade slots. Reverse-invite acceptance marks
+// sharing as exercised. It is a read folded into the persist transaction,
+// not a second write path.
 func fillSnapshotGradesFromRating(tx *gorm.DB, testRunID string, snap *StatsSnapshot) error {
 	if snap == nil {
 		return errors.New("validatorcore: nil stats snapshot")
@@ -201,18 +142,7 @@ func fillSnapshotGradesFromRating(tx *gorm.DB, testRunID string, snap *StatsSnap
 		return err
 	}
 
-	var exchanges []ReportExchange
-	if err := tx.
-		Where("test_run_id = ? AND grade IS NOT NULL", testRunID).
-		Order("seq ASC, exchange_id ASC").
-		Find(&exchanges).Error; err != nil {
-		return err
-	}
-
-	areas, err := foldSpecificationAreas(rows, exchanges)
-	if err != nil {
-		return err
-	}
+	areas := foldSpecificationAreas(rows)
 
 	for _, area := range areas {
 		if area.Grade == nil {
@@ -260,55 +190,26 @@ func statsSnapshotGradeSlot(snap *StatsSnapshot, area string) **string {
 	}
 }
 
-func statsSnapshotFromTestRun(row *TestRun, hostHash string, finishedAt int64, overlay *StatsSnapshot) StatsSnapshot {
-	kind := row.SessionKind
-	if kind == "" {
-		kind = SessionKindPassiveOnly
-	}
-
+func statsSnapshotFromTestRun(row *TestRun, hostHash string, finishedAt int64) StatsSnapshot {
 	snap := StatsSnapshot{
 		HostHash:    hostHash,
-		SessionKind: kind,
+		SessionKind: SessionKindOf(row),
 		CreatedAt:   finishedAt,
 	}
 
-	if overlay != nil {
-		mergeTerminalStatsOverlay(&snap, overlay)
+	if row == nil {
+		return snap
+	}
+
+	if row.Platform != nil {
+		snap.Platform = *row.Platform
+	}
+
+	if row.APIVersion != nil {
+		snap.APIVersion = *row.APIVersion
 	}
 
 	return snap
-}
-
-func mergeTerminalStatsOverlay(dst *StatsSnapshot, overlay *StatsSnapshot) {
-	if dst == nil || overlay == nil {
-		return
-	}
-
-	dst.ReverseInviteExercised = overlay.ReverseInviteExercised
-	dst.Platform = overlay.Platform
-	dst.APIVersion = overlay.APIVersion
-	dst.GradeDiscovery = overlay.GradeDiscovery
-	dst.GradeTLS = overlay.GradeTLS
-	dst.GradeJWKS = overlay.GradeJWKS
-	dst.GradeHTTPSig = overlay.GradeHTTPSig
-	dst.GradeSharing = overlay.GradeSharing
-	dst.GradeNotification = overlay.GradeNotification
-	dst.GradeToken = overlay.GradeToken
-	dst.GradeCapability = overlay.GradeCapability
-	dst.WindowBucket = overlay.WindowBucket
-	dst.ConnectionReport = cloneConnectionReport(overlay.ConnectionReport)
-}
-
-func cloneConnectionReport(src *StatsConnectionReport) *StatsConnectionReport {
-	if src == nil {
-		return nil
-	}
-
-	dst := *src
-	dst.LeafSANs = append([]string(nil), src.LeafSANs...)
-	dst.ReasonCodes = append([]string(nil), src.ReasonCodes...)
-
-	return &dst
 }
 
 func (c *Core) hashHostForTestRun(row *TestRun) (string, error) {

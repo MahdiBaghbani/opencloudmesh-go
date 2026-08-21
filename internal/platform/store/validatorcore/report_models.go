@@ -45,16 +45,12 @@ type ReportExchange struct {
 	Digest            *string `gorm:"column:digest"`
 	ReqBodyRedacted   *string `gorm:"column:req_body_redacted"`
 	RespBodyRedacted  *string `gorm:"column:resp_body_redacted"`
-	ReqBodyRaw        []byte  `gorm:"column:req_body_raw"`
-	RespBodyRaw       []byte  `gorm:"column:resp_body_raw"`
 	ReqBodySHA256     *string `gorm:"column:req_body_sha256"`
 	RespBodySHA256    *string `gorm:"column:resp_body_sha256"`
 	ReqBodyBytes      *int64  `gorm:"column:req_body_bytes"`
 	RespBodyBytes     *int64  `gorm:"column:resp_body_bytes"`
 	ReqBodyTruncated  bool    `gorm:"column:req_body_truncated;not null;default:0"`
 	RespBodyTruncated bool    `gorm:"column:resp_body_truncated;not null;default:0"`
-	Grade             *string `gorm:"column:grade"`
-	ReasonCodes       *string `gorm:"column:reason_codes"`
 	CreatedAt         int64   `gorm:"column:created_at;not null"`
 }
 
@@ -67,10 +63,11 @@ func (ReportExchange) TableName() string {
 // validator session and optionally to a captured exchange.
 type EvidenceRow struct {
 	ID              uint    `gorm:"column:id;primaryKey;autoIncrement"`
-	TestRunID       string  `gorm:"column:test_run_id;not null;uniqueIndex:idx_evidence_row,priority:1;index:idx_evidence_row_area,priority:1"`
-	Area            string  `gorm:"column:area;not null;uniqueIndex:idx_evidence_row,priority:2;index:idx_evidence_row_area,priority:2"`
-	Step            string  `gorm:"column:step;not null;uniqueIndex:idx_evidence_row,priority:3"`
-	ReasonCode      string  `gorm:"column:reason_code;not null;uniqueIndex:idx_evidence_row,priority:4"`
+	TestRunID       string  `gorm:"column:test_run_id;not null;uniqueIndex:idx_evidence_row,priority:1"`
+	Leg             *string `gorm:"column:leg;uniqueIndex:idx_evidence_row,priority:2;index:idx_evidence_row_leg"`
+	Area            string  `gorm:"column:area;not null;uniqueIndex:idx_evidence_row,priority:3;index:idx_evidence_row_area"`
+	Step            string  `gorm:"column:step;not null;uniqueIndex:idx_evidence_row,priority:4"`
+	ReasonCode      string  `gorm:"column:reason_code;not null;uniqueIndex:idx_evidence_row,priority:5"`
 	Severity        string  `gorm:"column:severity;not null"`
 	AffectsGrade    bool    `gorm:"column:affects_grade;not null"`
 	PayloadRedacted *string `gorm:"column:payload_redacted"`

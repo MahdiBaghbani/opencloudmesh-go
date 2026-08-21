@@ -18,7 +18,6 @@ import (
 // TerminalUpdate carries fields written on a terminal transition.
 type TerminalUpdate struct {
 	State          string
-	SessionKind    string
 	TerminalReason string
 	OverallGrade   *string
 	FinishedAt     int64
@@ -118,11 +117,10 @@ func (c *Core) ExtendToActive(ctx context.Context, testRunID string) error {
 		res := tx.Model(&TestRun{}).
 			Where("test_run_id = ? AND is_active = 0 AND state = ?", testRunID, StatePassiveComplete).
 			Updates(map[string]any{
-				colIsActive:    true,
-				colState:       StateActiveRunning,
-				colSessionKind: SessionKindActiveFull,
-				colBobUserID:   bobID.String(),
-				colUpdatedAt:   now,
+				colIsActive:  true,
+				colState:     StateActiveRunning,
+				colBobUserID: bobID.String(),
+				colUpdatedAt: now,
 			})
 		if res.Error != nil {
 			if errors.Is(res.Error, gorm.ErrDuplicatedKey) {
@@ -207,10 +205,6 @@ func (c *Core) EnterTerminalState(
 		return errors.New("validatorcore: store is not configured")
 	}
 
-	if update.SessionKind == "" {
-		return errors.New("validatorcore: terminal transition requires session_kind")
-	}
-
 	isActive := boolToInt(expectedIsActive)
 	reason := update.TerminalReason
 
@@ -218,7 +212,6 @@ func (c *Core) EnterTerminalState(
 		Where("test_run_id = ? AND is_active = ? AND state = ?", testRunID, isActive, expectedState).
 		Updates(map[string]any{
 			colState:          update.State,
-			colSessionKind:    update.SessionKind,
 			colTerminalReason: reason,
 			colOverallGrade:   update.OverallGrade,
 			colFinishedAt:     update.FinishedAt,
@@ -249,13 +242,65 @@ func (c *Core) CompletePassiveProbe(ctx context.Context, testRunID string) error
 	return c.TransitionState(ctx, testRunID, false, StatePassiveRunning, StatePassiveComplete)
 }
 
+// RecordPassiveProbeFacts writes discovery-derived platform and API version
+// onto the run and, when a TLS grade is present, a first-wins passive TLS
+// evidence row. Terminal stats later read these persisted fields and rows.
+func (c *Core) RecordPassiveProbeFacts(
+	ctx context.Context,
+	testRunID string,
+	platform, apiVersion string,
+	tlsGrade *string,
+) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if testRunID == "" {
+		return errors.New("validatorcore: empty test run id")
+	}
+
+	now := time.Now().Unix()
+	updates := map[string]any{
+		colUpdatedAt: now,
+	}
+
+	if platform != "" {
+		updates["platform"] = platform
+	}
+
+	if apiVersion != "" {
+		updates["api_version"] = apiVersion
+	}
+
+	if len(updates) > 1 {
+		if err := c.db.WithContext(ctx).Model(&TestRun{}).
+			Where("test_run_id = ?", testRunID).
+			Updates(updates).Error; err != nil {
+			return fmt.Errorf("validatorcore: record passive probe facts: %w", err)
+		}
+	}
+
+	if tlsGrade == nil || *tlsGrade == "" {
+		return nil
+	}
+
+	return c.ApplyEvidenceFact(ctx, ApplyEvidenceFactInput{
+		TestRunID:    testRunID,
+		Area:         SpecificationAreaTLS,
+		Step:         "handshake",
+		ReasonCode:   "tls_probed",
+		Severity:     *tlsGrade,
+		AffectsGrade: true,
+		Leg:          evidenceLegPassive,
+	})
+}
+
 // FailRunTerminal transitions a passive created session directly to terminal_fail.
 func (c *Core) FailRunTerminal(ctx context.Context, testRunID, reason string) error {
 	now := time.Now().Unix()
 
 	return c.EnterTerminalState(ctx, testRunID, false, StateCreated, TerminalUpdate{
 		State:          StateTerminalFail,
-		SessionKind:    SessionKindPassiveOnly,
 		TerminalReason: reason,
 		FinishedAt:     now,
 	})
@@ -267,7 +312,6 @@ func (c *Core) FailPassiveRunningTerminal(ctx context.Context, testRunID, reason
 
 	return c.EnterTerminalState(ctx, testRunID, false, StatePassiveRunning, TerminalUpdate{
 		State:          StateTerminalFail,
-		SessionKind:    SessionKindPassiveOnly,
 		TerminalReason: reason,
 		FinishedAt:     now,
 	})
@@ -280,7 +324,6 @@ func (c *Core) StopPassiveComplete(ctx context.Context, testRunID string) error 
 
 	return c.EnterTerminalState(ctx, testRunID, false, StatePassiveComplete, TerminalUpdate{
 		State:          StateTerminalPass,
-		SessionKind:    SessionKindPassiveOnly,
 		TerminalReason: "stopped",
 		OverallGrade:   &pass,
 		FinishedAt:     now,

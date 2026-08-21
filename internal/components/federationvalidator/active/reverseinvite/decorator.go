@@ -110,12 +110,7 @@ func (s *Service) matchAcceptedInvite(ctx context.Context, token string) (runID,
 		return "", "", false
 	}
 
-	corr, err := s.deps.Store.GetShareCorrelation(ctx, runID, validatorcore.RoleOutgoingInvite, validatorcore.LocalIdentityA)
-	if err != nil {
-		return "", "", false
-	}
-
-	if corr.InviteID == nil || *corr.InviteID != invite.ID || corr.ProviderID != token {
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != invite.ID {
 		return "", "", false
 	}
 

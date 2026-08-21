@@ -17,13 +17,12 @@ func seedActiveRunInState(t *testing.T, core *Core, runID, state string) {
 	now := time.Now().Unix()
 
 	if err := core.DB().WithContext(t.Context()).Create(&TestRun{
-		TestRunID:   runID,
-		IsActive:    true,
-		State:       state,
-		SessionKind: SessionKindActiveFull,
-		TargetHost:  "release.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		IsActive:   true,
+		State:      state,
+		TargetHost: "release.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}).Error; err != nil {
 		t.Fatalf("seed active run %s: %v", runID, err)
 	}
@@ -89,10 +88,6 @@ func TestReleaseActiveTerminal_WritesTerminalFieldsAtomically(t *testing.T) {
 
 	if got.OverallGrade == nil || *got.OverallGrade != GradePass {
 		t.Fatalf("overall_grade = %v, want %q", got.OverallGrade, GradePass)
-	}
-
-	if got.SessionKind != SessionKindActiveFull {
-		t.Fatalf("session_kind = %q, want unchanged %q", got.SessionKind, SessionKindActiveFull)
 	}
 }
 

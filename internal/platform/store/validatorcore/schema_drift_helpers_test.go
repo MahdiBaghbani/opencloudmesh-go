@@ -60,30 +60,38 @@ func testRunDDLWithStateCheck(check string) string {
 func testRunDDLWithStateColumn(stateColumn string) string {
 	return fmt.Sprintf(`CREATE TABLE %s (
 		test_run_id TEXT PRIMARY KEY,
-		is_active INTEGER NOT NULL,
+		is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
 		%s,
 		target_origin TEXT NOT NULL,
 		target_host TEXT NOT NULL,
+		starter_ocm_id TEXT,
 		discovery_url TEXT NOT NULL,
-		jwks_uri TEXT NOT NULL,
+		jwks_uri TEXT,
+		platform TEXT,
+		api_version TEXT,
 		terminal_reason TEXT,
 		finished_at INTEGER,
 		overall_grade TEXT,
 		manifest_schema TEXT NOT NULL,
 		manifest_json TEXT,
-		session_kind TEXT NOT NULL,
 		bob_user_id TEXT,
+		outgoing_invite_id TEXT,
+		s1_claimed_at INTEGER,
 		reverse_invite_token TEXT,
 		reverse_invite_imported_at INTEGER,
 		designated_share_with TEXT,
 		reverse_share_provider_id TEXT,
+		passive_ready_at INTEGER,
 		stats_written_at INTEGER,
-		opt_in_stats INTEGER NOT NULL DEFAULT 0,
-		opt_in_permanent INTEGER NOT NULL DEFAULT 0,
+		opt_in_stats INTEGER NOT NULL DEFAULT 0 CHECK (opt_in_stats IN (0, 1)),
+		opt_in_permanent INTEGER NOT NULL DEFAULT 0 CHECK (opt_in_permanent IN (0, 1)),
+		opt_in_active INTEGER NOT NULL DEFAULT 0 CHECK (opt_in_active IN (0, 1)),
 		opt_in_stats_channel TEXT,
 		opt_in_stats_at INTEGER,
 		opt_in_permanent_channel TEXT,
 		opt_in_permanent_at INTEGER,
+		opt_in_active_channel TEXT,
+		opt_in_active_at INTEGER,
 		retention_tier TEXT,
 		retention_locked_at INTEGER,
 		expires_at INTEGER,
@@ -92,7 +100,8 @@ func testRunDDLWithStateColumn(stateColumn string) string {
 		harvested_session_artifacts_at INTEGER,
 		harvest_reason TEXT,
 		created_at INTEGER NOT NULL,
-		updated_at INTEGER NOT NULL
+		updated_at INTEGER NOT NULL,
+		CHECK (NOT (state = 'passive_complete' AND opt_in_active = 1))
 	)`, tableTestRun+"_drift", stateColumn)
 }
 
@@ -107,19 +116,20 @@ func rebuildTestRun(t *testing.T, db *gorm.DB, driftDDL string) {
 	for _, stmt := range []string{
 		`CREATE UNIQUE INDEX idx_test_run_one_active ON test_run (is_active) WHERE is_active = 1`,
 		`CREATE INDEX idx_test_run_state ON test_run (state)`,
-		`CREATE INDEX idx_test_run_session_kind ON test_run (session_kind)`,
 		`CREATE INDEX idx_test_run_bob_user_id ON test_run (bob_user_id)`,
 		`CREATE INDEX idx_test_run_expires_at ON test_run (expires_at)`,
 		`CREATE INDEX idx_test_run_stats_heal ON test_run (stats_written_at) WHERE opt_in_stats = 1 AND stats_written_at IS NULL`,
+		`CREATE UNIQUE INDEX idx_test_run_opt_in_active_ready ON test_run (test_run_id) WHERE opt_in_active = 1 AND is_active = 0 AND state = 'passive_running'`,
+		`CREATE UNIQUE INDEX idx_test_run_outgoing_invite ON test_run (outgoing_invite_id) WHERE outgoing_invite_id IS NOT NULL`,
 	} {
 		mustExec(t, db, stmt)
 	}
 }
 
-// statsRawDDL renders the stats_raw definition under name; uniqueK controls
-// the inline UNIQUE on k and extraFK adds a host_hash reference to
-// stats_aggregate.
-func statsRawDDL(name string, uniqueK, extraFK bool) string {
+// statsRawDDL renders the stats_raw definition as the drift table; uniqueK
+// controls the inline UNIQUE on k and extraFK adds a host_hash reference to
+// test_run so an unexpected foreign key can be injected.
+func statsRawDDL(uniqueK, extraFK bool) string {
 	kColumn := "k TEXT NOT NULL"
 	if uniqueK {
 		kColumn = "k TEXT NOT NULL UNIQUE"
@@ -127,7 +137,7 @@ func statsRawDDL(name string, uniqueK, extraFK bool) string {
 
 	hostColumn := "host_hash TEXT NOT NULL"
 	if extraFK {
-		hostColumn = "host_hash TEXT NOT NULL REFERENCES stats_aggregate (host_hash)"
+		hostColumn = "host_hash TEXT NOT NULL REFERENCES test_run (test_run_id)"
 	}
 
 	return fmt.Sprintf(`CREATE TABLE %s (
@@ -146,7 +156,31 @@ func statsRawDDL(name string, uniqueK, extraFK bool) string {
 		grade_notification TEXT,
 		grade_token TEXT,
 		grade_capability TEXT,
-		created_at INTEGER NOT NULL,
-		window_bucket INTEGER
-	)`, name, kColumn, hostColumn)
+		created_at INTEGER NOT NULL
+	)`, tableStatsRaw+"_drift", kColumn, hostColumn)
+}
+
+const (
+	evidenceLegColumnCanonical  = "leg TEXT CHECK (leg IN ('passive', 'forward', 'reverse'))"
+	evidenceAreaColumnCanonical = "area TEXT NOT NULL CHECK (area IN (" +
+		"'discovery', 'tls', 'jwks', 'httpsig', 'sharing', 'notification', 'token', 'capability'))"
+	evidenceExchangeFKCanonical = "ON UPDATE CASCADE ON DELETE SET NULL"
+)
+
+// evidenceRowDDL renders an evidence_row drift definition so tests can
+// change one CHECK or FK action while keeping the column contract.
+func evidenceRowDDL(exchangeFK, legColumn, areaColumn string) string {
+	return fmt.Sprintf(`CREATE TABLE %s (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		test_run_id TEXT NOT NULL REFERENCES test_run (test_run_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+		%s,
+		%s,
+		step TEXT NOT NULL,
+		reason_code TEXT NOT NULL,
+		severity TEXT NOT NULL,
+		affects_grade INTEGER NOT NULL,
+		payload_redacted TEXT,
+		exchange_id INTEGER REFERENCES report_exchange (exchange_id) %s,
+		created_at INTEGER NOT NULL
+	)`, tableEvidenceRow+"_drift", legColumn, areaColumn, exchangeFK)
 }

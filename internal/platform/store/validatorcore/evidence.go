@@ -20,6 +20,7 @@ const (
 	evidenceStepFileOpened      = "file_opened"
 	evidenceReasonTokenExchange = "token_exchange"
 	evidenceReasonWebDAVGet     = "webdav_get"
+	evidenceLegPassive          = "passive"
 	evidenceLegForward          = "forward"
 	evidenceLegReverse          = "reverse"
 )
@@ -38,10 +39,10 @@ type ApplyEvidenceFactInput struct {
 }
 
 // ApplyEvidenceFact persists a first-wins evidence_row for the fact. A
-// duplicate (test_run_id, area, step, reason_code) is ignored. Empty or
-// unknown legs are rejected so they cannot occupy the first-wins key and
-// block a later valid forward fact. Only the winning insert of a forward
-// capability file-open reason may attempt the non-terminal CAS from
+// duplicate (test_run_id, leg, area, step, reason_code) is ignored. Empty or
+// unknown legs and unknown areas are rejected so they cannot occupy the
+// first-wins key and block a later valid fact. Only the winning insert of a
+// forward capability file-open reason may attempt the non-terminal CAS from
 // forward_share_sent to capability_exercise. A CAS miss is success.
 // Reverse-leg capability file-open facts are ignored.
 func (c *Core) ApplyEvidenceFact(ctx context.Context, in ApplyEvidenceFactInput) error {
@@ -78,6 +79,10 @@ func validateEvidenceFact(in ApplyEvidenceFactInput) error {
 		return errors.New("validatorcore: empty evidence area")
 	}
 
+	if !isKnownEvidenceArea(in.Area) {
+		return errors.New("validatorcore: unknown evidence area")
+	}
+
 	if in.Step == "" {
 		return errors.New("validatorcore: empty evidence step")
 	}
@@ -103,7 +108,23 @@ func validateEvidenceFact(in ApplyEvidenceFactInput) error {
 
 func isKnownEvidenceLeg(leg string) bool {
 	switch leg {
-	case evidenceLegForward, evidenceLegReverse:
+	case evidenceLegPassive, evidenceLegForward, evidenceLegReverse:
+		return true
+	default:
+		return false
+	}
+}
+
+func isKnownEvidenceArea(area string) bool {
+	switch area {
+	case SpecificationAreaDiscovery,
+		SpecificationAreaTLS,
+		SpecificationAreaJWKS,
+		SpecificationAreaHTTPSig,
+		SpecificationAreaSharing,
+		SpecificationAreaNotification,
+		SpecificationAreaToken,
+		SpecificationAreaCapability:
 		return true
 	default:
 		return false
@@ -154,8 +175,16 @@ func evidenceRowFromInput(in ApplyEvidenceFactInput, now int64) *EvidenceRow {
 		payload = &in.PayloadRedacted
 	}
 
+	var leg *string
+
+	if in.Leg != "" {
+		copied := in.Leg
+		leg = &copied
+	}
+
 	return &EvidenceRow{
 		TestRunID:       in.TestRunID,
+		Leg:             leg,
 		Area:            in.Area,
 		Step:            in.Step,
 		ReasonCode:      in.ReasonCode,
@@ -175,6 +204,7 @@ func insertEvidenceRowOrIgnore(tx *gorm.DB, row *EvidenceRow) (bool, error) {
 	res := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: colTestRunID},
+			{Name: colLeg},
 			{Name: colArea},
 			{Name: colStep},
 			{Name: colReasonCode},

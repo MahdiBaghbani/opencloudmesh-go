@@ -184,10 +184,9 @@ func (c *Core) terminalizeUnrecoverableActiveRuns(ctx context.Context) error {
 
 // pruneTerminalRetention hard-deletes aged non-permanent terminal test_run
 // rows after children-first cleanup, then prunes stats_raw for the same
-// retention window and rebuilds stats_aggregate from remaining raw.
-// Permanent rows are spared here and tombstoned by the expiry sweep.
-// PruneStats stays on stats_raw.created_at only and must not consult
-// test_run or delete permanent reports.
+// retention window. Permanent rows are spared here and tombstoned by the
+// expiry sweep. PruneStats stays on stats_raw.created_at only and must not
+// consult test_run or delete permanent reports.
 func (c *Core) pruneTerminalRetention(ctx context.Context, retentionDays int) error {
 	if retentionDays <= 0 {
 		return nil

@@ -33,10 +33,6 @@ func newReportTestRouter(t *testing.T, h *Handler) chi.Router {
 func seedReportRun(t *testing.T, store *validatorcore.Core, row *validatorcore.TestRun) {
 	t.Helper()
 
-	if row.SessionKind == "" {
-		row.SessionKind = validatorcore.SessionKindPassiveOnly
-	}
-
 	if row.State == "" {
 		row.State = validatorcore.StateCreated
 	}

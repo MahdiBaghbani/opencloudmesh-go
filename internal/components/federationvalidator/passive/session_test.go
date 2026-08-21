@@ -84,12 +84,11 @@ func TestHandleSession_ReturnsStateTsAndNextInstruction(t *testing.T) {
 	runID := "run-poll"
 
 	seedSessionRow(t, store, &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StatePassiveComplete,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now + 42,
+		TestRunID:  runID,
+		State:      validatorcore.StatePassiveComplete,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now + 42,
 	})
 
 	payload := pollSession(t, h, runID)
@@ -134,9 +133,7 @@ func TestHandleSession_NextInstructionPerState(t *testing.T) {
 		{name: "active_running", state: validatorcore.StateActiveRunning, isActive: true, want: "wait_invite_mint"},
 		{name: "invite_minted", state: validatorcore.StateInviteMinted, isActive: true, want: "paste_s1"},
 		{name: "invite_accepted", state: validatorcore.StateInviteAccepted, isActive: true, want: "wait_reverse_start"},
-		{name: "reverse_invite_solicited", state: validatorcore.StateReverseInviteSolicited, isActive: true, want: "wait_reverse_invite"},
 		{name: "reverse_awaiting_invite", state: validatorcore.StateReverseAwaitingInvite, isActive: true, want: "paste_s2"},
-		{name: "reverse_invite_imported", state: validatorcore.StateReverseInviteImported, isActive: true, want: "wait_reverse_accept"},
 		{name: "reverse_invite_accepted", state: validatorcore.StateReverseInviteAccepted, isActive: true, want: "wait_forward_share"},
 		{name: "forward_share_sent", state: validatorcore.StateForwardShareSent, isActive: true, want: "open_forward_file"},
 		{name: "capability_exercise", state: validatorcore.StateCapabilityExercise, isActive: true, want: "wait_oq2_open"},
@@ -152,19 +149,13 @@ func TestHandleSession_NextInstructionPerState(t *testing.T) {
 			now := time.Now().Unix()
 			runID := "run-" + tc.name
 
-			sessionKind := validatorcore.SessionKindPassiveOnly
-			if tc.isActive {
-				sessionKind = validatorcore.SessionKindActiveFull
-			}
-
 			seedSessionRow(t, store, &validatorcore.TestRun{
-				TestRunID:   runID,
-				IsActive:    tc.isActive,
-				State:       tc.state,
-				SessionKind: sessionKind,
-				TargetHost:  "peer.example",
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				TestRunID:  runID,
+				IsActive:   tc.isActive,
+				State:      tc.state,
+				TargetHost: "peer.example",
+				CreatedAt:  now,
+				UpdatedAt:  now,
 			})
 
 			payload := pollSession(t, h, runID)
@@ -196,13 +187,12 @@ func TestHandleSession_TerminalStatesOmitNextInstruction(t *testing.T) {
 			runID := "run-" + state
 
 			seedSessionRow(t, store, &validatorcore.TestRun{
-				TestRunID:   runID,
-				State:       state,
-				SessionKind: validatorcore.SessionKindPassiveOnly,
-				TargetHost:  "peer.example",
-				FinishedAt:  &finishedAt,
-				CreatedAt:   now,
-				UpdatedAt:   finishedAt,
+				TestRunID:  runID,
+				State:      state,
+				TargetHost: "peer.example",
+				FinishedAt: &finishedAt,
+				CreatedAt:  now,
+				UpdatedAt:  finishedAt,
 			})
 
 			payload := pollSession(t, h, runID)
@@ -222,12 +212,11 @@ func TestHandleSession_PollDoesNotMutateSession(t *testing.T) {
 	runID := "run-readonly"
 
 	seedSessionRow(t, store, &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StatePassiveComplete,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now + 7,
+		TestRunID:  runID,
+		State:      validatorcore.StatePassiveComplete,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now + 7,
 	})
 
 	before, err := store.GetTestRun(ctx, runID)
@@ -264,7 +253,6 @@ func TestHandleSession_PollOmitsSensitiveSessionFields(t *testing.T) {
 		TestRunID:              runID,
 		IsActive:               true,
 		State:                  validatorcore.StateReverseAwaitingInvite,
-		SessionKind:            validatorcore.SessionKindActiveFull,
 		TargetHost:             "peer.example",
 		BobUserID:              &bobUserID,
 		ReverseInviteToken:     &reverseInvite,

@@ -13,12 +13,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
-// SolicitReverse advances the active run from invite_accepted through
-// reverse_invite_solicited to reverse_awaiting_invite. It reuses the Bob
-// party bound at session extension and never mints a probe user: when Bob is
-// absent from the run or missing from the party repo, the call fails. The
-// store op heals an already-solicited crash notch and is idempotent once the
-// run is awaiting.
+// SolicitReverse advances the active run from invite_accepted to
+// reverse_awaiting_invite. It reuses the Bob party bound at session
+// extension and never mints a probe user: when Bob is absent from the run
+// or missing from the party repo, the call fails. The store op is
+// idempotent once the run is awaiting.
 func (s *Service) SolicitReverse(ctx context.Context, testRunID string) error {
 	run, err := s.deps.Store.GetTestRun(ctx, testRunID)
 	if err != nil {

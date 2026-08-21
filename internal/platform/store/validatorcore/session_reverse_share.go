@@ -199,13 +199,12 @@ func (c *Core) StampReverseShareProviderID(ctx context.Context, testRunID, provi
 
 // upsertTerminalStatsForRun is the stats-only seam shared by the late flip,
 // the strict post-release re-drive, and the missing-stats heal scan. One
-// transaction upserts the stats_raw row keyed by the session dedup key,
-// stamps stats_written_at when still NULL, and rebuilds the same-host
-// aggregate from stats_raw, so repeats never double-count. Every caller runs
-// after the release path already consumed the in-memory overlay, so the
-// snapshot rebuilds from the persisted row and the evidence log only; the
-// upsert keeps previously written grade and platform values when the fresh
-// snapshot carries none.
+// transaction upserts the stats_raw row keyed by the session dedup key
+// and stamps stats_written_at when still NULL, so repeats never
+// double-count. Every caller runs
+// after the release path, so the snapshot rebuilds from the persisted
+// TestRun row and evidence rows only. The upsert keeps previously written
+// grade and platform values when the fresh snapshot carries none.
 func (c *Core) upsertTerminalStatsForRun(ctx context.Context, testRunID string) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -234,7 +233,7 @@ func (c *Core) upsertTerminalStatsForRun(ctx context.Context, testRunID string) 
 		return fmt.Errorf("validatorcore: stats row key: %w", err)
 	}
 
-	snap := statsSnapshotFromTestRun(row, hostHash, *row.FinishedAt, nil)
+	snap := statsSnapshotFromTestRun(row, hostHash, *row.FinishedAt)
 
 	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if gradeErr := fillSnapshotGradesFromRating(tx, testRunID, &snap); gradeErr != nil {
@@ -257,10 +256,6 @@ func (c *Core) upsertTerminalStatsForRun(ctx context.Context, testRunID string) 
 			return fmt.Errorf("validatorcore: stamp stats_written_at: %w", res.Error)
 		}
 
-		if rebuildErr := rebuildStatsAggregateForHost(tx, hostHash); rebuildErr != nil {
-			return fmt.Errorf("validatorcore: rebuild stats aggregate: %w", rebuildErr)
-		}
-
 		return nil
 	})
 	if err != nil {
@@ -272,9 +267,9 @@ func (c *Core) upsertTerminalStatsForRun(ctx context.Context, testRunID string) 
 
 // upsertStatsRaw inserts the stats_raw row or, on a dedup-key conflict,
 // revises the existing row in place. Revision never erases previously written
-// nullable values: grade and window bucket columns keep the stored value when
-// the incoming snapshot has none, platform and api_version keep the stored
-// value when the incoming one is empty, and reverse_invite_exercised stays
+// nullable values: grade columns keep the stored value when the incoming
+// snapshot has none, platform and api_version keep the stored value when
+// the incoming one is empty, and reverse_invite_exercised stays
 // true once set. created_at is insert-only so the row keeps its original
 // finished_at anchor.
 func upsertStatsRaw(tx *gorm.DB, row *StatsRaw) error {
@@ -315,7 +310,6 @@ func upsertStatsRaw(tx *gorm.DB, row *StatsRaw) error {
 			keepWhenNull("grade_notification"),
 			keepWhenNull("grade_token"),
 			keepWhenNull("grade_capability"),
-			keepWhenNull("window_bucket"),
 		}),
 	}).Create(row)
 	if res.Error != nil {

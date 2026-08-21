@@ -6,7 +6,6 @@
 package validatorcore
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -57,124 +56,45 @@ func TestStatsRawK_NotNullUnique(t *testing.T) {
 	}
 }
 
-func TestStatsAggregate_Schema(t *testing.T) {
+func TestStatsRaw_NoWindowBucket(t *testing.T) {
 	t.Parallel()
 
 	db := attachFresh(t)
-	info := tableInfo(t, db, "stats_aggregate")
+	info := tableInfo(t, db, "stats_raw")
 
-	// Exact column set in declaration order: host_hash PK plus six NOT NULL
-	// metric columns, nothing else. SQLite reports a TEXT PRIMARY KEY column
-	// as nullable in PRAGMA table_info (the historical SQLite quirk), so
-	// host_hash is pinned by key position and type, not by the NOT NULL flag.
-	expected := []struct {
-		name string
-		pk   int
-	}{
-		{"host_hash", 1},
-		{"total_sessions", 0},
-		{"healthy_sessions", 0},
-		{"last_platform", 0},
-		{"last_healthy", 0},
-		{"first_seen_ts", 0},
-		{"last_seen_ts", 0},
+	if _, ok := info["window_bucket"]; ok {
+		t.Fatal("stats_raw must not have window_bucket")
 	}
 
-	if len(info) != len(expected) {
-		t.Fatalf("stats_aggregate has %d columns, want %d", len(info), len(expected))
-	}
-
-	for _, col := range expected {
-		got, ok := info[col.name]
-		if !ok {
-			t.Fatalf("stats_aggregate missing column %s", col.name)
-		}
-
-		if got.PK != col.pk {
-			t.Fatalf("stats_aggregate.%s pk = %d, want %d", col.name, got.PK, col.pk)
-		}
-
-		if got.DfltValue != nil {
-			t.Fatalf("stats_aggregate.%s must have no default, got %v", col.name, *got.DfltValue)
-		}
-
-		if col.name == "host_hash" {
-			continue
-		}
-
-		if !got.NotNull {
-			t.Fatalf("stats_aggregate.%s must be NOT NULL", col.name)
-		}
-	}
-
-	if got := info["host_hash"]; !strings.EqualFold(got.Type, "TEXT") {
-		t.Fatalf("stats_aggregate.host_hash must be TEXT, got %q", got.Type)
-	}
-
-	// The locked last-seen index must exist with exactly last_seen_ts as its
-	// single indexed column.
-	var indexSQL string
-
+	var bucketIndex string
 	if err := db.Raw(
-		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?", "idx_stats_agg_last_seen",
-	).Scan(&indexSQL).Error; err != nil {
-		t.Fatalf("read idx_stats_agg_last_seen: %v", err)
+		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_stats_raw_window_bucket'",
+	).Scan(&bucketIndex).Error; err != nil {
+		t.Fatalf("probe window_bucket index: %v", err)
 	}
 
-	if indexSQL == "" {
-		t.Fatal("index idx_stats_agg_last_seen missing")
+	if bucketIndex != "" {
+		t.Fatal("idx_stats_raw_window_bucket must not exist")
 	}
 
-	if strings.Contains(strings.ToUpper(indexSQL), "UNIQUE") {
-		t.Fatalf("idx_stats_agg_last_seen must not be UNIQUE: %s", indexSQL)
+	var kindIndex string
+	if err := db.Raw(
+		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_stats_raw_session_kind'",
+	).Scan(&kindIndex).Error; err != nil {
+		t.Fatalf("read session_kind index: %v", err)
 	}
 
-	var indexed []struct {
-		Seqno int    `gorm:"column:seqno"`
-		CID   int    `gorm:"column:cid"`
-		Name  string `gorm:"column:name"`
-	}
-
-	if err := db.Raw("PRAGMA index_info(idx_stats_agg_last_seen)").Scan(&indexed).Error; err != nil {
-		t.Fatalf("PRAGMA index_info(idx_stats_agg_last_seen): %v", err)
-	}
-
-	if len(indexed) != 1 || indexed[0].Name != "last_seen_ts" {
-		t.Fatalf("idx_stats_agg_last_seen columns = %+v, want [last_seen_ts]", indexed)
+	if kindIndex == "" {
+		t.Fatal("idx_stats_raw_session_kind must exist")
 	}
 }
 
-func TestStatsAggregate_Constraints(t *testing.T) {
+func TestStatsAggregate_Absent(t *testing.T) {
 	t.Parallel()
 
 	db := attachFresh(t)
 
-	row := StatsAggregate{
-		HostHash:        "host-agg",
-		TotalSessions:   3,
-		HealthySessions: 2,
-		LastPlatform:    "nextcloud",
-		LastHealthy:     true,
-		FirstSeenTS:     10,
-		LastSeenTS:      30,
-	}
-
-	if err := db.Create(&row).Error; err != nil {
-		t.Fatalf("insert stats_aggregate: %v", err)
-	}
-
-	// host_hash is the primary key: a second row with the same host_hash must
-	// be rejected.
-	dup := row
-	if err := db.Create(&dup).Error; err == nil {
-		t.Fatal("duplicate stats_aggregate.host_hash must be rejected")
-	}
-
-	// Every metric column is NOT NULL: omitting one must be rejected.
-	err := db.Exec(`INSERT INTO stats_aggregate
-		(host_hash, total_sessions, healthy_sessions, last_platform, last_healthy, first_seen_ts)
-		VALUES ('host-agg-2', 1, 1, 'nextcloud', TRUE, 1)`).Error
-	if err == nil {
-		t.Fatal("stats_aggregate insert without last_seen_ts must be rejected (NOT NULL)")
+	if db.Migrator().HasTable(tableStatsAggregate) {
+		t.Fatal("stats_aggregate must not exist")
 	}
 }

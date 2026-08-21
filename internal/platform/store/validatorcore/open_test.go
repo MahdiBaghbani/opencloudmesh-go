@@ -35,7 +35,6 @@ func TestAttach_CreatesValidatorSchemaOnSharedHandle(t *testing.T) {
 		"test_run",
 		"share_correlation",
 		"stats_raw",
-		"stats_aggregate",
 		"report_exchange",
 		"evidence_row",
 		"dispatch_reservation",
@@ -47,7 +46,7 @@ func TestAttach_CreatesValidatorSchemaOnSharedHandle(t *testing.T) {
 	}
 }
 
-func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
+func TestPruneTerminalRetention_PrunesStatsRaw(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -82,39 +81,25 @@ func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
 		}
 	}
 
-	if err := core.DB().WithContext(ctx).Create(&StatsAggregate{
-		HostHash:        hostHash,
-		TotalSessions:   99,
-		HealthySessions: 99,
-		LastPlatform:    "Stale",
-		LastHealthy:     true,
-		FirstSeenTS:     1,
-		LastSeenTS:      1,
-	}).Error; err != nil {
-		t.Fatalf("seed stale aggregate: %v", err)
-	}
-
 	staleFinished := now - int64(60*24*3600)
 	recentFinished := now - 3600
 
 	for _, row := range []TestRun{
 		{
-			TestRunID:   "run-stale-terminal",
-			State:       StateTerminalFail,
-			SessionKind: SessionKindPassiveOnly,
-			TargetHost:  "stale.example",
-			FinishedAt:  &staleFinished,
-			CreatedAt:   staleFinished,
-			UpdatedAt:   staleFinished,
+			TestRunID:  "run-stale-terminal",
+			State:      StateTerminalFail,
+			TargetHost: "stale.example",
+			FinishedAt: &staleFinished,
+			CreatedAt:  staleFinished,
+			UpdatedAt:  staleFinished,
 		},
 		{
-			TestRunID:   "run-recent-terminal",
-			State:       StateTerminalPass,
-			SessionKind: SessionKindActiveFull,
-			TargetHost:  "recent.example",
-			FinishedAt:  &recentFinished,
-			CreatedAt:   recentFinished,
-			UpdatedAt:   recentFinished,
+			TestRunID:  "run-recent-terminal",
+			State:      StateTerminalPass,
+			TargetHost: "recent.example",
+			FinishedAt: &recentFinished,
+			CreatedAt:  recentFinished,
+			UpdatedAt:  recentFinished,
 		},
 	} {
 		if err := core.DB().WithContext(ctx).Create(&row).Error; err != nil {
@@ -133,19 +118,6 @@ func TestPruneTerminalRetention_RebuildsStatsAggregate(t *testing.T) {
 
 	if rawCount != 1 {
 		t.Fatalf("stats_raw rows = %d, want 1 after retention prune", rawCount)
-	}
-
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg, "host_hash = ?", hostHash).Error; err != nil {
-		t.Fatalf("load rebuilt aggregate: %v", err)
-	}
-
-	if agg.TotalSessions != 1 {
-		t.Fatalf("rebuilt total_sessions = %d, want 1", agg.TotalSessions)
-	}
-
-	if agg.LastPlatform != "Recent" {
-		t.Fatalf("rebuilt last_platform = %q, want Recent", agg.LastPlatform)
 	}
 
 	var liveTerminalCount int64
@@ -186,7 +158,6 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 		{
 			TestRunID:      foreverID,
 			State:          StateTerminalPass,
-			SessionKind:    SessionKindPassiveOnly,
 			TargetHost:     "forever.example",
 			FinishedAt:     &staleFinished,
 			OptInPermanent: true,
@@ -197,7 +168,6 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 		{
 			TestRunID:      tier90ID,
 			State:          StateTerminalPass,
-			SessionKind:    SessionKindPassiveOnly,
 			TargetHost:     "ninety.example",
 			FinishedAt:     &staleFinished,
 			OptInPermanent: true,
@@ -209,7 +179,6 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 		{
 			TestRunID:      tombstonedID,
 			State:          StateTerminalFail,
-			SessionKind:    SessionKindPassiveOnly,
 			TargetHost:     "tombstone.example",
 			FinishedAt:     &staleFinished,
 			OptInPermanent: true,
@@ -219,31 +188,28 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 			UpdatedAt:      staleFinished,
 		},
 		{
-			TestRunID:   stalePassID,
-			State:       StateTerminalPass,
-			SessionKind: SessionKindPassiveOnly,
-			TargetHost:  "stale-pass.example",
-			FinishedAt:  &staleFinished,
-			CreatedAt:   staleFinished,
-			UpdatedAt:   staleFinished,
+			TestRunID:  stalePassID,
+			State:      StateTerminalPass,
+			TargetHost: "stale-pass.example",
+			FinishedAt: &staleFinished,
+			CreatedAt:  staleFinished,
+			UpdatedAt:  staleFinished,
 		},
 		{
-			TestRunID:   staleFailID,
-			State:       StateTerminalFail,
-			SessionKind: SessionKindPassiveOnly,
-			TargetHost:  "stale-fail.example",
-			FinishedAt:  &staleFinished,
-			CreatedAt:   staleFinished,
-			UpdatedAt:   staleFinished,
+			TestRunID:  staleFailID,
+			State:      StateTerminalFail,
+			TargetHost: "stale-fail.example",
+			FinishedAt: &staleFinished,
+			CreatedAt:  staleFinished,
+			UpdatedAt:  staleFinished,
 		},
 		{
-			TestRunID:   staleInterruptedID,
-			State:       StateInterrupted,
-			SessionKind: SessionKindPassiveOnly,
-			TargetHost:  "stale-interrupted.example",
-			FinishedAt:  &staleFinished,
-			CreatedAt:   staleFinished,
-			UpdatedAt:   staleFinished,
+			TestRunID:  staleInterruptedID,
+			State:      StateInterrupted,
+			TargetHost: "stale-interrupted.example",
+			FinishedAt: &staleFinished,
+			CreatedAt:  staleFinished,
+			UpdatedAt:  staleFinished,
 		},
 	} {
 		if err := core.DB().WithContext(ctx).Create(&row).Error; err != nil {
@@ -319,16 +285,12 @@ func TestStartupMaintenance_PrunesTerminalRetention(t *testing.T) {
 		t.Fatalf("startupMaintenance: %v", err)
 	}
 
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg, "host_hash = ?", "startup-host").Error; err != nil {
-		t.Fatalf("load aggregate after startup maintenance: %v", err)
+	var remaining []StatsRaw
+	if err := core.DB().WithContext(ctx).Find(&remaining).Error; err != nil {
+		t.Fatalf("load stats_raw after startup maintenance: %v", err)
 	}
 
-	if agg.TotalSessions != 1 {
-		t.Fatalf("aggregate total_sessions = %d, want 1 after startup prune/rebuild", agg.TotalSessions)
-	}
-
-	if agg.LastPlatform != "New" {
-		t.Fatalf("aggregate last_platform = %q, want New", agg.LastPlatform)
+	if len(remaining) != 1 || remaining[0].K != "k-startup-new" {
+		t.Fatalf("startup prune remaining = %+v, want only k-startup-new", remaining)
 	}
 }

@@ -35,7 +35,6 @@ func seedInterruptedRun(t *testing.T, core *Core, runID, reason string, optInSta
 		TestRunID:      runID,
 		IsActive:       false,
 		State:          StateInterrupted,
-		SessionKind:    SessionKindActiveFull,
 		TargetOrigin:   "https://peer.example",
 		TargetHost:     "peer.example",
 		TerminalReason: &reason,
@@ -141,15 +140,6 @@ func TestFlipLateReverseShareToPass_DuplicateDeliveryDoesNotDoubleCount(t *testi
 
 	if count := countStatsRaw(t, core); count != 1 {
 		t.Fatalf("stats_raw count after duplicate = %d, want 1 (no double count)", count)
-	}
-
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg).Error; err != nil {
-		t.Fatalf("load stats aggregate: %v", err)
-	}
-
-	if agg.TotalSessions != 1 {
-		t.Fatalf("aggregate total_sessions = %d, want 1 (no double count)", agg.TotalSessions)
 	}
 }
 
@@ -267,7 +257,6 @@ func TestHealMissingTerminalStats_HealsOnlyOptedInTerminalGaps(t *testing.T) {
 		TestRunID:    "run-heal-gap",
 		IsActive:     false,
 		State:        StateTerminalPass,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		FinishedAt:   &finished,
@@ -283,7 +272,6 @@ func TestHealMissingTerminalStats_HealsOnlyOptedInTerminalGaps(t *testing.T) {
 		TestRunID:    "run-heal-opted-out",
 		IsActive:     false,
 		State:        StateTerminalPass,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://other.example",
 		TargetHost:   "other.example",
 		FinishedAt:   &finished,
@@ -334,7 +322,6 @@ func TestSweepStalledActiveSessions_ReverseShareWaitFlipsToTimeout(t *testing.T)
 		TestRunID:    runID,
 		IsActive:     true,
 		State:        StateReverseAwaitingShare,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		CreatedAt:    stale,
@@ -385,7 +372,6 @@ func TestSweepStalledActiveSessions_CapabilityExerciseStallStaysUnflippable(t *t
 		TestRunID:    runID,
 		IsActive:     true,
 		State:        StateCapabilityExercise,
-		SessionKind:  SessionKindActiveFull,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		CreatedAt:    stale,

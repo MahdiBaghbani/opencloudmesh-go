@@ -146,7 +146,6 @@ func TestProbeRunner_WithDiscoveryStillReachesPassiveComplete(t *testing.T) {
 	row := &validatorcore.TestRun{
 		TestRunID:    runID,
 		State:        validatorcore.StateCreated,
-		SessionKind:  validatorcore.SessionKindPassiveOnly,
 		TargetOrigin: "http://127.0.0.1:1",
 		TargetHost:   "127.0.0.1",
 		CreatedAt:    now,

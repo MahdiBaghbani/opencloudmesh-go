@@ -37,9 +37,9 @@ type reverseInviteResponse struct {
 
 // HandleReverseInvite serves POST /validator/api/session/{id}/reverse-invite.
 // It validates the pasted invite against the active run's target host,
-// solicits the reverse leg as needed, imports first-token-wins, and continues
-// into acceptance in the same request; success is only reported once the
-// accept CAS has completed.
+// solicits the reverse leg as needed, pastes first-token-wins into
+// reverse_invite_accepted, and continues into product acceptance in the
+// same request.
 func (s *Service) HandleReverseInvite(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "id")
 	if runID == "" {

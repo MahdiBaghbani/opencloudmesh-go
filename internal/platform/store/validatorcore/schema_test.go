@@ -203,7 +203,6 @@ func createTestRun(t *testing.T, db *gorm.DB, id string) {
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
-		SessionKind:    SessionKindPassiveOnly,
 		CreatedAt:      time.Now().Unix(),
 		UpdatedAt:      time.Now().Unix(),
 	}
@@ -241,11 +240,15 @@ func TestApplyValidatorSchema_CreatesVersionOne(t *testing.T) {
 
 	for _, table := range []string{
 		"test_run", "share_correlation", "report_exchange", "evidence_row",
-		"dispatch_reservation", "stats_raw", "stats_aggregate", "validator_schema",
+		"dispatch_reservation", "stats_raw", "validator_schema",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("table %s missing after ApplyValidatorSchema", table)
 		}
+	}
+
+	if db.Migrator().HasTable(tableStatsAggregate) {
+		t.Fatal("stats_aggregate must not exist after ApplyValidatorSchema")
 	}
 }
 

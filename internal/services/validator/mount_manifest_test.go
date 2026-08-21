@@ -154,12 +154,11 @@ func TestMountPlaneARoutes_SessionAnonymousGET(t *testing.T) {
 	runID := "run-mount-poll"
 
 	row := &validatorcore.TestRun{
-		TestRunID:   runID,
-		State:       validatorcore.StateCreated,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  "peer.example",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		TestRunID:  runID,
+		State:      validatorcore.StateCreated,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {

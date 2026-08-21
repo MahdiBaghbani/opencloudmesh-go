@@ -34,7 +34,6 @@ type StatsRaw struct {
 	GradeToken             *string `gorm:"column:grade_token"`
 	GradeCapability        *string `gorm:"column:grade_capability"`
 	CreatedAt              int64   `gorm:"column:created_at;not null;index:idx_stats_raw_created_at"`
-	WindowBucket           *int64  `gorm:"column:window_bucket;index:idx_stats_raw_window_bucket"`
 }
 
 // TableName returns the GORM table name for StatsRaw.
@@ -42,24 +41,8 @@ func (StatsRaw) TableName() string {
 	return tableStatsRaw
 }
 
-// StatsAggregate holds per-host_hash rolling counters (no raw host names).
-type StatsAggregate struct {
-	HostHash        string `gorm:"column:host_hash;primaryKey"`
-	TotalSessions   int64  `gorm:"column:total_sessions;not null"`
-	HealthySessions int64  `gorm:"column:healthy_sessions;not null"`
-	LastPlatform    string `gorm:"column:last_platform;not null"`
-	LastHealthy     bool   `gorm:"column:last_healthy;not null"`
-	FirstSeenTS     int64  `gorm:"column:first_seen_ts;not null"`
-	LastSeenTS      int64  `gorm:"column:last_seen_ts;not null;index:idx_stats_agg_last_seen"`
-}
-
-// TableName returns the GORM table name for StatsAggregate.
-func (StatsAggregate) TableName() string {
-	return tableStatsAggregate
-}
-
 // StatsConnectionReport holds report-only connection detail on the in-memory
-// terminal snapshot. It is never copied into stats_raw or stats_aggregate.
+// terminal snapshot. It is never copied into stats_raw.
 type StatsConnectionReport struct {
 	ServerIP      string
 	TLSVersion    string
@@ -73,7 +56,7 @@ type StatsConnectionReport struct {
 }
 
 // StatsSnapshot is an in-memory terminal snapshot copied into stats_raw. It is
-// not a database table.
+// built from persisted TestRun fields and evidence rows, not a database table.
 type StatsSnapshot struct {
 	HostHash               string
 	SessionKind            string
@@ -89,7 +72,6 @@ type StatsSnapshot struct {
 	GradeToken             *string
 	GradeCapability        *string
 	CreatedAt              int64
-	WindowBucket           *int64
 	ConnectionReport       *StatsConnectionReport
 }
 
@@ -110,6 +92,5 @@ func (s StatsSnapshot) ToStatsRaw() StatsRaw {
 		GradeToken:             s.GradeToken,
 		GradeCapability:        s.GradeCapability,
 		CreatedAt:              s.CreatedAt,
-		WindowBucket:           s.WindowBucket,
 	}
 }

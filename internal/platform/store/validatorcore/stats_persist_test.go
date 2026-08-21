@@ -39,7 +39,6 @@ func seedPassiveComplete(t *testing.T, core *Core, runID, targetOrigin string, o
 	row := &TestRun{
 		TestRunID:    runID,
 		State:        StatePassiveComplete,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: targetOrigin,
 		TargetHost:   "peer.example",
 		OptInStats:   optInStats,
@@ -58,7 +57,6 @@ func seedTerminalStatsRun(t *testing.T, core *Core, runID string, finishedAt int
 	row := &TestRun{
 		TestRunID:    runID,
 		State:        StateTerminalPass,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		FinishedAt:   &finishedAt,
@@ -75,13 +73,14 @@ func seedTerminalStatsRun(t *testing.T, core *Core, runID string, finishedAt int
 func seedEvidenceRow(
 	t *testing.T,
 	core *Core,
-	runID, area, step, reasonCode, severity string,
+	runID, leg, area, step, reasonCode, severity string,
 	affectsGrade bool,
 ) {
 	t.Helper()
 
 	row := &EvidenceRow{
 		TestRunID:    runID,
+		Leg:          &leg,
 		Area:         area,
 		Step:         step,
 		ReasonCode:   reasonCode,
@@ -95,7 +94,7 @@ func seedEvidenceRow(
 	}
 }
 
-func TestPersistTerminalStats_OptInWritesRawAndAggregate(t *testing.T) {
+func TestPersistTerminalStats_OptInWritesRaw(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -131,17 +130,8 @@ func TestPersistTerminalStats_OptInWritesRawAndAggregate(t *testing.T) {
 		t.Fatalf("host_hash must not contain raw host, got %q", raw.HostHash)
 	}
 
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg, "host_hash = ?", raw.HostHash).Error; err != nil {
-		t.Fatalf("load stats_aggregate: %v", err)
-	}
-
-	if agg.TotalSessions != 1 {
-		t.Fatalf("total_sessions = %d, want 1", agg.TotalSessions)
-	}
-
-	if agg.HealthySessions != 0 {
-		t.Fatalf("healthy_sessions = %d, want 0 for all-null grades", agg.HealthySessions)
+	if DeriveHealthy(raw) {
+		t.Fatal("expected all-null grades to be unhealthy")
 	}
 }
 
@@ -181,7 +171,6 @@ func TestPersistTerminalStats_PermanentOnlyWritesNothing(t *testing.T) {
 	row := &TestRun{
 		TestRunID:      runID,
 		State:          StatePassiveComplete,
-		SessionKind:    SessionKindPassiveOnly,
 		TargetOrigin:   "https://peer.example",
 		TargetHost:     "peer.example",
 		OptInStats:     false,
@@ -220,7 +209,6 @@ func TestPersistTerminalStats_PersistedOptInWritesWithoutMemoryFlag(t *testing.T
 	row := &TestRun{
 		TestRunID:    runID,
 		State:        StatePassiveComplete,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		OptInStats:   true,
@@ -243,6 +231,88 @@ func TestPersistTerminalStats_PersistedOptInWritesWithoutMemoryFlag(t *testing.T
 
 	if rawCount != 1 {
 		t.Fatalf("stats_raw count = %d, want 1 from persisted opt_in_stats", rawCount)
+	}
+}
+
+func TestPersistTerminalStats_DerivesSessionKindFromBobUserID(t *testing.T) {
+	t.Parallel()
+
+	bobID := "bob-session-kind"
+
+	tests := []struct {
+		name      string
+		bobUserID *string
+		wantKind  string
+		wipePII   bool
+	}{
+		{
+			name:      "bob_user_id set persists active_full",
+			bobUserID: &bobID,
+			wantKind:  SessionKindActiveFull,
+			wipePII:   true,
+		},
+		{
+			name:      "bob_user_id unset persists passive_only",
+			bobUserID: nil,
+			wantKind:  SessionKindPassiveOnly,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			core := openTestCore(t)
+			core.SetStatsHostHasher(testStatsHostHasher(t))
+			ctx := t.Context()
+			now := time.Now().Unix()
+			runID := "run-session-kind-" + tt.wantKind
+
+			row := &TestRun{
+				TestRunID:    runID,
+				State:        StateTerminalPass,
+				TargetOrigin: "https://peer.example",
+				TargetHost:   "peer.example",
+				FinishedAt:   &now,
+				OptInStats:   true,
+				BobUserID:    tt.bobUserID,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			}
+			if err := core.DB().WithContext(ctx).Create(row).Error; err != nil {
+				t.Fatalf("seed terminal run: %v", err)
+			}
+
+			if err := core.persistTerminalStats(ctx, runID); err != nil {
+				t.Fatalf("persist: %v", err)
+			}
+
+			if tt.wipePII {
+				if err := core.DB().WithContext(ctx).Model(&TestRun{}).
+					Where("test_run_id = ?", runID).
+					Updates(map[string]any{colBobUserID: nil}).Error; err != nil {
+					t.Fatalf("wipe bob_user_id: %v", err)
+				}
+
+				wiped, err := core.GetTestRun(ctx, runID)
+				if err != nil {
+					t.Fatalf("GetTestRun after wipe: %v", err)
+				}
+
+				if wiped.BobUserID != nil {
+					t.Fatalf("bob_user_id = %v after wipe, want nil", wiped.BobUserID)
+				}
+			}
+
+			var raw StatsRaw
+			if err := core.DB().WithContext(ctx).First(&raw).Error; err != nil {
+				t.Fatalf("load stats_raw: %v", err)
+			}
+
+			if raw.SessionKind != tt.wantKind {
+				t.Fatalf("session_kind = %q, want %q", raw.SessionKind, tt.wantKind)
+			}
+		})
 	}
 }
 
@@ -272,7 +342,7 @@ func TestHashHostForTestRun_DeterministicAcrossEquivalentOrigins(t *testing.T) {
 	}
 }
 
-func TestPersistTerminalStats_DerivesHealthyFromTerminalSnapshotHook(t *testing.T) {
+func TestPersistTerminalStats_DerivesFromEvidenceFold(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -285,7 +355,6 @@ func TestPersistTerminalStats_DerivesHealthyFromTerminalSnapshotHook(t *testing.
 	row := &TestRun{
 		TestRunID:    runID,
 		State:        StatePassiveComplete,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		OptInStats:   true,
@@ -297,7 +366,7 @@ func TestPersistTerminalStats_DerivesHealthyFromTerminalSnapshotHook(t *testing.
 		t.Fatalf("CreatePassiveSession: %v", err)
 	}
 
-	core.SetTerminalStatsSnapshot(runID, StatsSnapshot{GradeDiscovery: &pass})
+	seedEvidenceRow(t, core, runID, evidenceLegPassive, SpecificationAreaDiscovery, "fetch", "discovery_ok", pass, true)
 
 	if err := core.StopPassiveComplete(ctx, runID); err != nil {
 		t.Fatalf("StopPassiveComplete: %v", err)
@@ -309,24 +378,11 @@ func TestPersistTerminalStats_DerivesHealthyFromTerminalSnapshotHook(t *testing.
 	}
 
 	if raw.GradeDiscovery == nil || *raw.GradeDiscovery != GradePass {
-		t.Fatalf("grade_discovery = %v, want pass from terminal snapshot overlay", raw.GradeDiscovery)
+		t.Fatalf("grade_discovery = %v, want pass from evidence", raw.GradeDiscovery)
 	}
 
 	if !DeriveHealthy(raw) {
 		t.Fatal("expected pass grade snapshot to be healthy")
-	}
-
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg, "host_hash = ?", raw.HostHash).Error; err != nil {
-		t.Fatalf("load aggregate: %v", err)
-	}
-
-	if agg.HealthySessions != 1 {
-		t.Fatalf("healthy_sessions = %d, want 1", agg.HealthySessions)
-	}
-
-	if !agg.LastHealthy {
-		t.Fatal("expected last_healthy true from pass-grade snapshot")
 	}
 }
 
@@ -342,7 +398,6 @@ func TestPersistTerminalStats_OverallGradeDoesNotDriveHealthy(t *testing.T) {
 	row := &TestRun{
 		TestRunID:    runID,
 		State:        StatePassiveComplete,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		OptInStats:   true,
@@ -366,15 +421,6 @@ func TestPersistTerminalStats_OverallGradeDoesNotDriveHealthy(t *testing.T) {
 	if DeriveHealthy(raw) {
 		t.Fatal("overall_grade on test_run must not substitute for area grades in DeriveHealthy")
 	}
-
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg, "host_hash = ?", raw.HostHash).Error; err != nil {
-		t.Fatalf("load aggregate: %v", err)
-	}
-
-	if agg.HealthySessions != 0 {
-		t.Fatalf("healthy_sessions = %d, want 0 without area grades", agg.HealthySessions)
-	}
 }
 
 func TestSweepPassiveCompleteTTL_PersistsOptedInStatsAfterTransactionCommit(t *testing.T) {
@@ -396,7 +442,6 @@ func TestSweepPassiveCompleteTTL_PersistsOptedInStatsAfterTransactionCommit(t *t
 		TestRunID:    runID,
 		IsActive:     false,
 		State:        StatePassiveComplete,
-		SessionKind:  SessionKindPassiveOnly,
 		TargetOrigin: "https://peer.example",
 		TargetHost:   "peer.example",
 		OptInStats:   true,
@@ -408,7 +453,7 @@ func TestSweepPassiveCompleteTTL_PersistsOptedInStatsAfterTransactionCommit(t *t
 		t.Fatalf("seed: %v", err)
 	}
 
-	core.SetTerminalStatsSnapshot(runID, StatsSnapshot{GradeDiscovery: &pass})
+	seedEvidenceRow(t, core, runID, evidenceLegPassive, SpecificationAreaDiscovery, "fetch", "discovery_ok", pass, true)
 
 	if err := core.sweepPassiveCompleteTTL(ctx); err != nil {
 		t.Fatalf("sweepPassiveCompleteTTL: %v", err)
@@ -429,11 +474,11 @@ func TestSweepPassiveCompleteTTL_PersistsOptedInStatsAfterTransactionCommit(t *t
 	}
 
 	if !DeriveHealthy(raw) {
-		t.Fatal("expected healthy stats row from terminal snapshot overlay")
+		t.Fatal("expected healthy stats row from discovery evidence")
 	}
 }
 
-func TestPruneStats_RemovesStaleRawAndRebuildsAggregate(t *testing.T) {
+func TestPruneStats_RemovesStaleRaw(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -479,12 +524,12 @@ func TestPruneStats_RemovesStaleRawAndRebuildsAggregate(t *testing.T) {
 		t.Fatalf("stats_raw count = %d, want 1 after prune", rawCount)
 	}
 
-	var agg StatsAggregate
-	if err := core.DB().WithContext(ctx).First(&agg, "host_hash = ?", "hash-prune").Error; err != nil {
-		t.Fatalf("load aggregate: %v", err)
+	var surviving StatsRaw
+	if err := core.DB().WithContext(ctx).First(&surviving).Error; err != nil {
+		t.Fatalf("load surviving stats_raw: %v", err)
 	}
 
-	if agg.TotalSessions != 1 {
-		t.Fatalf("total_sessions = %d, want 1 after rebuild", agg.TotalSessions)
+	if surviving.K != "k-prune-recent" {
+		t.Fatalf("surviving k = %q, want k-prune-recent", surviving.K)
 	}
 }

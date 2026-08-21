@@ -138,6 +138,14 @@ func TestAttach_LegacyTablesRecovered(t *testing.T) {
 		t.Fatal("final test_run must have bob_user_id after recovery")
 	}
 
+	if _, ok := info["outgoing_invite_id"]; !ok {
+		t.Fatal("final test_run must have outgoing_invite_id after recovery")
+	}
+
+	if db.Migrator().HasTable(tableStatsAggregate) {
+		t.Fatal("stats_aggregate must be dropped during recovery")
+	}
+
 	rawInfo := tableInfo(t, db, "stats_raw")
 	if _, ok := rawInfo["k"]; !ok {
 		t.Fatal("final stats_raw must have k after recovery")
@@ -182,6 +190,64 @@ func assertPeerRowsIntact(t *testing.T, db *gorm.DB) {
 
 	if invite.Token != "token-legacy" || invite.RecipientUserID != "alice" {
 		t.Fatalf("peer invite data corrupted by recovery: %+v", invite)
+	}
+}
+
+// TestAttach_EmptyValidatorSchemaRecovers proves that deleting the
+// validator_schema row (table left in place, zero rows) is the same recovery
+// as a missing table: Attach recreates the final schema, drops leftover
+// validator rows, and leaves peer tables untouched.
+func TestAttach_EmptyValidatorSchemaRecovers(t *testing.T) {
+	t.Parallel()
+
+	sqlCore := openPeerStore(t)
+	db := sqlCore.DB()
+
+	peerShare := store.OutgoingShare{
+		ShareID:    "share-empty",
+		ProviderID: "provider-empty",
+		WebDAVID:   "webdav-empty",
+		CreatedAt:  1,
+	}
+	if err := db.Create(&peerShare).Error; err != nil {
+		t.Fatalf("seed peer share: %v", err)
+	}
+
+	if _, err := Attach(db, DefaultSessionConfig()); err != nil {
+		t.Fatalf("initial Attach: %v", err)
+	}
+
+	createTestRun(t, db, "run-before-empty")
+	mustExec(t, db, "DELETE FROM validator_schema")
+
+	if _, err := Attach(db, DefaultSessionConfig()); err != nil {
+		t.Fatalf("Attach over empty validator_schema must recreate: %v", err)
+	}
+
+	versions := schemaVersions(t, db)
+	if len(versions) != 1 || versions[0] != validatorSchemaVersion {
+		t.Fatalf("validator_schema rows = %v, want exactly [%d]", versions, validatorSchemaVersion)
+	}
+
+	var runCount int64
+
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM test_run", &runCount)
+
+	if runCount != 0 {
+		t.Fatalf("empty validator_schema recovery must drop leftover test_run rows, got %d", runCount)
+	}
+
+	info := tableInfo(t, db, "test_run")
+	if _, ok := info["bob_user_id"]; !ok {
+		t.Fatal("final test_run must have bob_user_id after empty-table recovery")
+	}
+
+	var peerCount int64
+
+	mustQueryCount(t, db, "SELECT COUNT(*) FROM outgoing_shares WHERE share_id = 'share-empty'", &peerCount)
+
+	if peerCount != 1 {
+		t.Fatalf("peer rows = %d, want 1 (peer data must survive empty-table recovery)", peerCount)
 	}
 }
 

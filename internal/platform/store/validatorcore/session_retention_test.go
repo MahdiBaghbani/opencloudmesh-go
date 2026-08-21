@@ -55,6 +55,7 @@ func TestSweepExpiredPermanentReports_HardExpiryWipesAndKeepsParent(t *testing.T
 	}
 
 	assertHardExpiryTombstone(t, got)
+	assertOutgoingInviteReusableAfterTombstone(t, db, ctx, "run-hard-expiry", now)
 	assertChildRowCount(t, db, "report_exchange", "run-hard-expiry", 0)
 	assertChildRowCount(t, db, "evidence_row", "run-hard-expiry", 0)
 	assertChildRowCount(t, db, "dispatch_reservation", "run-hard-expiry", 0)
@@ -191,6 +192,11 @@ func assertSweepGuardUnchanged(t *testing.T, core *Core, db *gorm.DB, id string)
 		t.Fatalf("%s target_origin = %q, want original PII", id, got.TargetOrigin)
 	}
 
+	wantInvite := seedOutgoingInviteID(id)
+	if got.OutgoingInviteID == nil || *got.OutgoingInviteID != wantInvite {
+		t.Fatalf("%s outgoing_invite_id = %v, want %q", id, got.OutgoingInviteID, wantInvite)
+	}
+
 	assertChildRowCount(t, db, "report_exchange", id, 1)
 	assertChildRowCount(t, db, "evidence_row", id, 1)
 	assertChildRowCount(t, db, "dispatch_reservation", id, 1)
@@ -222,6 +228,17 @@ func assertHardExpiryTombstone(t *testing.T, got *TestRun) {
 func assertWipedPermanentPII(t *testing.T, got *TestRun) {
 	t.Helper()
 
+	assertWipedPermanentContactPII(t, got)
+	assertWipedPermanentIdentityPII(t, got)
+
+	if !got.OptInActive {
+		t.Fatal("opt_in_active cleared, want retained")
+	}
+}
+
+func assertWipedPermanentContactPII(t *testing.T, got *TestRun) {
+	t.Helper()
+
 	if got.TargetOrigin != "" {
 		t.Fatalf("target_origin = %q, want empty", got.TargetOrigin)
 	}
@@ -245,6 +262,10 @@ func assertWipedPermanentPII(t *testing.T, got *TestRun) {
 	if got.OverallGrade != nil {
 		t.Fatalf("overall_grade = %v, want nil", got.OverallGrade)
 	}
+}
+
+func assertWipedPermanentIdentityPII(t *testing.T, got *TestRun) {
+	t.Helper()
 
 	if got.BobUserID != nil {
 		t.Fatalf("bob_user_id = %v, want nil", got.BobUserID)
@@ -265,6 +286,53 @@ func assertWipedPermanentPII(t *testing.T, got *TestRun) {
 	if got.DesignatedShareWith != nil {
 		t.Fatalf("designated_share_with = %v, want nil", got.DesignatedShareWith)
 	}
+
+	if got.StarterOCMID != nil {
+		t.Fatalf("starter_ocm_id = %v, want nil", got.StarterOCMID)
+	}
+
+	if got.S1ClaimedAt != nil {
+		t.Fatalf("s1_claimed_at = %v, want nil", got.S1ClaimedAt)
+	}
+
+	if got.OutgoingInviteID != nil {
+		t.Fatalf("outgoing_invite_id = %v, want nil", got.OutgoingInviteID)
+	}
+}
+
+func assertOutgoingInviteReusableAfterTombstone(
+	t *testing.T,
+	db *gorm.DB,
+	ctx context.Context,
+	tombstonedID string,
+	now int64,
+) {
+	t.Helper()
+
+	inviteID := seedOutgoingInviteID(tombstonedID)
+	reuse := &TestRun{
+		TestRunID:        "run-reuse-outgoing-invite",
+		State:            StateCreated,
+		TargetOrigin:     "https://reuse.example",
+		TargetHost:       "reuse.example",
+		DiscoveryURL:     "https://reuse.example/.well-known/ocm",
+		ManifestSchema:   "ocm-validator-manifest/v1",
+		OutgoingInviteID: &inviteID,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	if err := db.WithContext(ctx).Create(reuse).Error; err != nil {
+		t.Fatalf(
+			"reuse outgoing_invite_id %q after tombstone: %v (unique index must be free)",
+			inviteID,
+			err,
+		)
+	}
+}
+
+func seedOutgoingInviteID(runID string) string {
+	return "invite-" + runID
 }
 
 func assertStatsRawCount(t *testing.T, db *gorm.DB, ctx context.Context, want int64) {
@@ -295,6 +363,8 @@ func seedExpiredPermanentRun(
 	token := "invite-token"
 	shareWith := "alice@pii.example"
 	provider := "prov-pii"
+	starter := "ocm-starter-pii"
+	outgoingInvite := seedOutgoingInviteID(id)
 	tier := RetentionTier7
 	reportID := id
 
@@ -303,18 +373,21 @@ func seedExpiredPermanentRun(
 		State:                   StateTerminalPass,
 		TargetOrigin:            "https://pii.example",
 		TargetHost:              "pii.example",
+		StarterOCMID:            &starter,
+		OutgoingInviteID:        &outgoingInvite,
 		DiscoveryURL:            "https://pii.example/.well-known/ocm",
 		JwksURI:                 "https://pii.example/jwks.json",
 		ManifestSchema:          "ocm-validator-manifest/v1",
 		ManifestJSON:            &manifest,
 		OverallGrade:            &grade,
-		SessionKind:             SessionKindPassiveOnly,
 		BobUserID:               &bob,
+		S1ClaimedAt:             &finished,
 		ReverseInviteToken:      &token,
 		ReverseInviteImportedAt: &finished,
 		DesignatedShareWith:     &shareWith,
 		ReverseShareProviderID:  &provider,
 		OptInPermanent:          true,
+		OptInActive:             true,
 		RetentionTier:           &tier,
 		ExpiresAt:               &expires,
 		PermanentReportID:       &reportID,
@@ -339,7 +412,7 @@ func seedExpiryChildRows(t *testing.T, db *gorm.DB, runID string) {
 		VALUES ('`+runID+`', 1, 1, 'out', 'validator', 'discovery', 'GET', 'https://pii.example/x', 1)`)
 	mustExec(t, db, `INSERT INTO evidence_row
 		(test_run_id, area, step, reason_code, severity, affects_grade, exchange_id, created_at)
-		VALUES ('`+runID+`', 'http', 'request', 'timeout', 'important', TRUE, 1, 1)`)
+		VALUES ('`+runID+`', 'discovery', 'request', 'timeout', 'important', TRUE, 1, 1)`)
 	mustExec(t, db, `INSERT INTO dispatch_reservation
 		(test_run_id, provider_id, webdav_id, shared_secret, receiver_host, share_with, probe_file_path, status, created_at)
 		VALUES ('`+runID+`', 'prov-`+runID+`', 'wd-`+runID+`', 'secret', 'receiver.example', 'bob', '/probe.bin', 'dispatch_reserved', 1)`)

@@ -58,13 +58,12 @@ func TestShareCorrelation_UniqueCompositeIndex(t *testing.T) {
 
 	runID := "run-unique"
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
-		TestRunID:   runID,
-		IsActive:    true,
-		State:       StateActiveRunning,
-		SessionKind: SessionKindActiveFull,
-		TargetHost:  "unique.example",
-		CreatedAt:   1,
-		UpdatedAt:   1,
+		TestRunID:  runID,
+		IsActive:   true,
+		State:      StateActiveRunning,
+		TargetHost: "unique.example",
+		CreatedAt:  1,
+		UpdatedAt:  1,
 	}).Error; err != nil {
 		t.Fatalf("create test run: %v", err)
 	}
@@ -111,13 +110,12 @@ func TestShareCorrelation_UniqueCompositeIndex_LocalIdentityCoexistence(t *testi
 
 	runID := "run-local-identity"
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
-		TestRunID:   runID,
-		IsActive:    true,
-		State:       StateActiveRunning,
-		SessionKind: SessionKindActiveFull,
-		TargetHost:  "identity.example",
-		CreatedAt:   1,
-		UpdatedAt:   1,
+		TestRunID:  runID,
+		IsActive:   true,
+		State:      StateActiveRunning,
+		TargetHost: "identity.example",
+		CreatedAt:  1,
+		UpdatedAt:  1,
 	}).Error; err != nil {
 		t.Fatalf("create test run: %v", err)
 	}
@@ -169,13 +167,12 @@ func TestShareCorrelation_DefaultStatusConfirmed(t *testing.T) {
 
 	runID := "run-default-status"
 	if err := core.DB().WithContext(ctx).Create(&TestRun{
-		TestRunID:   runID,
-		IsActive:    true,
-		State:       StateActiveRunning,
-		SessionKind: SessionKindActiveFull,
-		TargetHost:  "default.example",
-		CreatedAt:   1,
-		UpdatedAt:   1,
+		TestRunID:  runID,
+		IsActive:   true,
+		State:      StateActiveRunning,
+		TargetHost: "default.example",
+		CreatedAt:  1,
+		UpdatedAt:  1,
 	}).Error; err != nil {
 		t.Fatalf("create test run: %v", err)
 	}

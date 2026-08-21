@@ -298,8 +298,8 @@ func TestHandleReportHTML_PermanentRendersRedactedEvidence(t *testing.T) {
 		t.Fatal("permanent page must render evidence list")
 	}
 
-	if !strings.Contains(body, "redacted-capability-note") || !strings.Contains(body, "httpsig_ok") {
-		t.Fatal("permanent page must show redacted reason and payload")
+	if !strings.Contains(body, "redacted-capability-note") || !strings.Contains(body, "webdav_get") {
+		t.Fatal("permanent page must show redacted payload and evidence reason")
 	}
 
 	banned := []string{

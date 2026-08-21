@@ -129,16 +129,13 @@ func TestMintOutgoingInvite_ConcurrentCreatesRaceToOneWinner(t *testing.T) {
 		t.Fatalf("stored invite = %q, want canonical %q", all[0].ID, canonical)
 	}
 
-	var corrCount int64
-	if err := env.store.DB().WithContext(ctx).
-		Model(&validatorcore.ShareCorrelation{}).
-		Where("test_run_id = ? AND role = ?", runID, validatorcore.RoleOutgoingInvite).
-		Count(&corrCount).Error; err != nil {
-		t.Fatalf("count correlations: %v", err)
+	run, err := env.store.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
 	}
 
-	if corrCount != 1 {
-		t.Fatalf("correlation rows = %d, want 1", corrCount)
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != canonical {
+		t.Fatalf("outgoing_invite_id = %v, want %q", run.OutgoingInviteID, canonical)
 	}
 
 	env.requireState(t, runID, validatorcore.StateInviteMinted)
@@ -183,23 +180,19 @@ func TestMintOutgoingInvite_CreateFailureHealsOnRetry(t *testing.T) {
 	}
 
 	// The retry must heal the bound-but-missing slot: same bound invite id
-	// and token, exactly one stored row.
+	// and exactly one stored row. The healer mints a fresh token.
 	healed, err := env.svc.MintOutgoingInvite(ctx, runID)
 	if err != nil {
 		t.Fatalf("mint retry: %v", err)
 	}
 
-	corr, err := env.store.GetShareCorrelation(ctx, runID, validatorcore.RoleOutgoingInvite, validatorcore.LocalIdentityA)
-	if err != nil {
-		t.Fatalf("GetShareCorrelation: %v", err)
+	run, loadErr := env.store.GetTestRun(ctx, runID)
+	if loadErr != nil {
+		t.Fatalf("GetTestRun: %v", loadErr)
 	}
 
-	if corr.InviteID == nil || *corr.InviteID != healed.ID {
-		t.Fatalf("healed invite id = %q, want bound %v", healed.ID, corr.InviteID)
-	}
-
-	if healed.Token != corr.ProviderID {
-		t.Fatalf("healed token = %q, want bound %q", healed.Token, corr.ProviderID)
+	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != healed.ID {
+		t.Fatalf("healed invite id = %q, want bound %v", healed.ID, run.OutgoingInviteID)
 	}
 
 	all, err := env.outgoing.List(ctx)
@@ -232,13 +225,12 @@ func TestMintOutgoingInvite_RequiresActiveRun(t *testing.T) {
 	runID := "run-mint-inactive"
 
 	if err := env.store.DB().WithContext(ctx).Create(&validatorcore.TestRun{
-		TestRunID:   runID,
-		IsActive:    false,
-		State:       validatorcore.StateCreated,
-		SessionKind: validatorcore.SessionKindPassiveOnly,
-		TargetHost:  testTargetHost,
-		CreatedAt:   1,
-		UpdatedAt:   1,
+		TestRunID:  runID,
+		IsActive:   false,
+		State:      validatorcore.StateCreated,
+		TargetHost: testTargetHost,
+		CreatedAt:  1,
+		UpdatedAt:  1,
 	}).Error; err != nil {
 		t.Fatalf("seed passive run: %v", err)
 	}

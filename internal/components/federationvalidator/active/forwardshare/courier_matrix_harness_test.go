@@ -166,8 +166,8 @@ func (e *courierMatrixEnv) startActiveSession(t *testing.T) string {
 		t.Fatal("is_active = false, want true")
 	}
 
-	if run.SessionKind != validatorcore.SessionKindActiveFull {
-		t.Fatalf("session_kind = %q, want %q", run.SessionKind, validatorcore.SessionKindActiveFull)
+	if validatorcore.SessionKindOf(run) != validatorcore.SessionKindActiveFull {
+		t.Fatalf("session kind = %q, want %q", validatorcore.SessionKindOf(run), validatorcore.SessionKindActiveFull)
 	}
 
 	if run.BobUserID == nil || *run.BobUserID == "" {
@@ -328,7 +328,7 @@ func (e *courierMatrixEnv) pasteReverseInvite(t *testing.T, runID string) string
 		t.Fatalf("incoming invite status = %q, want %q", invite.Status, invites.InviteStatusAccepted)
 	}
 
-	rows := e.evidenceRows(t, runID, "reverse_invite", "invite_accepted", "reverse_invite_accepted")
+	rows := e.evidenceRows(t, runID, validatorcore.SpecificationAreaSharing, "invite_accepted", "reverse_invite_accepted")
 	if len(rows) != 1 {
 		t.Fatalf("reverse-invite evidence rows = %d, want 1", len(rows))
 	}
