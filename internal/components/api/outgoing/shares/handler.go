@@ -54,6 +54,7 @@ type Handler struct {
 	currentUser        func(context.Context) (*identity.User, error)
 	logger             *slog.Logger
 	allowedPaths       []string
+	dispatchHook       DispatchHook
 }
 
 // NewHandler returns a Handler with the given dependencies. Panics if discoveryClient is nil.
@@ -104,12 +105,55 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Local resource validation runs before the dispatch guard so an
+	// invalid path can never create or strand a dispatch reservation.
 	cleanPath, resourceType, name, ok := h.resolveLocalResource(w, r, req)
 	if !ok {
 		return
 	}
 
-	providerID, webdavID, sharedSecret, ok := h.generateShareIdentifiers(w, r)
+	plan, ok := h.guardDispatch(w, r, req, user.ID)
+	if !ok {
+		return
+	}
+
+	h.deliverOutgoingShare(w, r, req, user, cleanPath, resourceType, name, plan)
+}
+
+// deliverOutgoingShare persists the share and delivers it to the receiver. A
+// granted plan owns the single send permit; any exit before a recorded
+// delivery must release it so a later attempt can retry.
+func (h *Handler) deliverOutgoingShare(
+	w http.ResponseWriter,
+	r *http.Request,
+	req sharesoutgoing.OutgoingShareRequest,
+	user *identity.User,
+	cleanPath string,
+	resourceType string,
+	name string,
+	plan *DispatchPlan,
+) {
+	delivered := false
+
+	if plan != nil {
+		defer func(ctx context.Context) {
+			if delivered {
+				return
+			}
+
+			// The release must outlive the client request: a canceled
+			// request context would fail the write and strand the claimed
+			// permit.
+			releaseCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), dispatchReleaseTimeout)
+			defer stop()
+
+			if err := h.dispatchHook.AbortSend(releaseCtx, plan); err != nil {
+				h.logger.Error("failed to release dispatch permit", "test_run_id", plan.TestRunID, "error", err)
+			}
+		}(r.Context())
+	}
+
+	providerID, webdavID, sharedSecret, ok := h.plannedShareIdentifiers(w, r, plan)
 	if !ok {
 		return
 	}
@@ -119,34 +163,13 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	webdavURI, ok := h.buildWebDAVURI(w, r, req, webdavID, disc)
+	webdavURI, ok := h.dispatchWebDAVURI(w, r, req, plan, webdavID, disc)
 	if !ok {
 		return
 	}
 
 	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
-
-	webdavProto := &spec.WebDAVProtocol{
-		URI:          webdavURI,
-		SharedSecret: sharedSecret,
-		Permissions:  req.Permissions,
-		Requirements: requirements,
-	}
-
-	payload := spec.NewShareRequest{
-		ShareWith:    req.ShareWith,
-		Name:         name,
-		ProviderID:   providerID.String(),
-		Owner:        owner,
-		Sender:       sender,
-		ShareType:    "user",
-		ResourceType: resourceType,
-		Protocol: spec.Protocol{
-			Name:   "multi",
-			WebDAV: webdavProto,
-		},
-	}
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:       providerID.String(),
@@ -166,29 +189,51 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		Requirements:     requirements,
 	}
 
-	if err := h.repo.Create(r.Context(), share); err != nil {
+	if plan != nil {
+		stored, ok := h.persistPlannedShare(w, r, share)
+		if !ok {
+			return
+		}
+
+		share = stored
+	} else if err := h.repo.Create(r.Context(), share); err != nil {
 		h.logger.Error("failed to store outgoing share", "error", err)
 		api.WriteInternalError(w, "failed to create share")
 
 		return
 	}
 
-	if err := h.sendShareToReceiver(r.Context(), origin, disc, payload); err != nil {
-		h.logger.Warn("failed to deliver share to receiver", "receiver", req.ReceiverDomain, "error", err)
+	// The payload is built from the persisted row, so a retried dispatch
+	// replays the exact snapshot the first attempt stored.
+	payload := outgoingSharePayload(share, webdavURI)
 
-		share.Status = ocmshares.OutgoingShareStatusFailed
-		share.Error = err.Error()
-
-		if uerr := h.repo.Update(r.Context(), share); uerr != nil {
-			h.logger.Error("failed to mark outgoing share as failed", "share_id", share.ShareID, "error", uerr)
-		}
-
-		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, "failed to deliver share to receiver")
-
+	if !h.deliverShare(w, r, req, origin, disc, share, payload, plan) {
 		return
 	}
 
+	// The delivery is recorded from here on: a later failure must not release
+	// the send permit, because the receiver may already hold the share.
+	delivered = true
+
+	// The dispatch commit runs before the local sent stamp so a stamp failure
+	// still leaves a remote_sent reservation the next replay can reconcile.
+	// Like the permit release, the commit must outlive the client request: a
+	// client that disconnects after the receiver accepted the share must not
+	// abort the CAS and strand the reservation at remote_sent.
+	if plan != nil {
+		commitCtx, stop := context.WithTimeout(context.WithoutCancel(r.Context()), dispatchReleaseTimeout)
+		defer stop()
+
+		if err := h.dispatchHook.CommitSent(commitCtx, plan, share); err != nil {
+			h.logger.Error("failed to commit dispatched share", "share_id", share.ShareID, "error", err)
+			api.WriteInternalError(w, "share sent but session commit failed")
+
+			return
+		}
+	}
+
 	share.Status = ocmshares.OutgoingShareStatusSent
+	share.Error = ""
 	sentAt := time.Now()
 	share.SentAt = &sentAt
 
@@ -204,17 +249,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		"provider_id", share.ProviderID,
 		"receiver", req.ReceiverDomain)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"shareId":    share.ShareID,
-		"providerId": share.ProviderID,
-		"webdavId":   share.WebDAVID,
-		"status":     string(share.Status),
-	}); err != nil {
-		h.logger.Error("failed to encode share response", "error", err)
-	}
+	h.writeShareCreated(w, share)
 }
 
 // validateLocalPath resolves relative paths under the managed content root,
@@ -435,31 +470,4 @@ func (h *Handler) resolveReceiverAndRequirements(w http.ResponseWriter, r *http.
 	}
 
 	return origin, disc, requirements, true
-}
-
-func (h *Handler) buildWebDAVURI(w http.ResponseWriter, _ *http.Request, req sharesoutgoing.OutgoingShareRequest, webdavID uuid.UUID, disc *spec.Discovery) (string, bool) {
-	webdavURI := webdavID.String()
-	if disc.WebDAVReceiveURIKind() == spec.WebDAVReceiveURIAbsolute {
-		absURI, buildErr := disc.BuildWebDAVURL(webdavID.String())
-		if buildErr != nil {
-			h.logger.Warn("failed to build absolute webdav uri", "receiver", req.ReceiverDomain, "error", buildErr)
-			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-				"receiver webdav-receive absolute uri could not be built")
-
-			return "", false
-		}
-
-		if h.peerOrigin == nil || !h.peerOrigin.IsAbsoluteURIAllowed(absURI, req.ReceiverDomain) {
-			h.logger.Warn("absolute webdav uri failed peer authority check",
-				"receiver", req.ReceiverDomain, "uri", absURI)
-			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-				"receiver webdav-receive absolute uri failed authority check")
-
-			return "", false
-		}
-
-		webdavURI = absURI
-	}
-
-	return webdavURI, true
 }

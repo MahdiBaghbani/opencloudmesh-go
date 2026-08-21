@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/forwardshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
@@ -27,16 +28,23 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/wellknown"
 )
 
-// coreServiceBuilder builds one core service. The shared reverse-invite
-// service is built once per process (when the validator store exists) and
-// handed to every builder; only the ocm decorator and the validator paste
-// route consume it.
+// validatorLegs carries the active-session validator services built once per
+// process (when the validator store exists) and handed to every builder; only
+// the ocm decorator, the validator paste route, and the api outgoing-share
+// dispatch hook consume them.
+type validatorLegs struct {
+	reverseInvite *reverseinvite.Service
+	forwardShare  *forwardshare.Service
+}
+
+// coreServiceBuilder builds one core service from config, logger, deps, and
+// the shared validator legs (nil outside validator mode).
 type coreServiceBuilder func(
 	*config.Config,
 	map[string]any,
 	*slog.Logger,
 	*Deps,
-	*reverseinvite.Service,
+	*validatorLegs,
 ) (service.Service, error)
 
 // coreServiceBuilders maps descriptor Build keys to wiring constructors.
@@ -80,18 +88,19 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[st
 		return nil, server.ErrMissingRealIP
 	}
 
-	// In validator mode the reverse-invite leg is built once up front and
-	// shared by the ocm decorator and the validator paste route. A
-	// construction failure is a boot error, never a silently missing route.
-	var reverseSvc *reverseinvite.Service
+	// In validator mode the active-session legs are built once up front and
+	// shared by the ocm decorator, the validator paste route, and the api
+	// outgoing-share dispatch hook. A construction failure is a boot error,
+	// never a silently missing route.
+	var legs *validatorLegs
 
 	if d.ValidatorStore != nil {
-		built, err := buildReverseInviteService(d, logger)
+		built, err := buildValidatorLegs(d, logger)
 		if err != nil {
 			return nil, err
 		}
 
-		reverseSvc = built
+		legs = built
 	}
 
 	descs := service.Descriptors()
@@ -112,7 +121,7 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[st
 			svcCfg = make(map[string]any)
 		}
 
-		svc, err := build(cfg, svcCfg, logger, d, reverseSvc)
+		svc, err := build(cfg, svcCfg, logger, d, legs)
 		if err != nil {
 			return nil, fmt.Errorf("create service %q: %w", desc.Name, err)
 		}
@@ -130,7 +139,7 @@ func ratelimitInputs(d *Deps) ratelimit.Inputs {
 	}
 }
 
-func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *reverseinvite.Service) (service.Service, error) {
+func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *validatorLegs) (service.Service, error) {
 	svc, err := wellknown.New(wellknown.Inputs{
 		Resolve:             resolveInputs(cfg, d),
 		SignatureMiddleware: d.SignatureMiddleware,
@@ -142,7 +151,7 @@ func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.
 	return svc, nil
 }
 
-func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, reverseSvc *reverseinvite.Service) (service.Service, error) {
+func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, legs *validatorLegs) (service.Service, error) {
 	tokenPath := cfg.TokenExchange.Path
 	if tokenPath == "" {
 		tokenPath = "token"
@@ -170,8 +179,8 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	// In validator mode the invite-accepted protocol endpoint is wrapped from
 	// outside so the validator can observe acceptances; the product handler
 	// stays unaware of test runs.
-	if reverseSvc != nil {
-		inputs.InviteAcceptedDecorator = reverseSvc.DecorateInviteAccepted
+	if legs != nil && legs.reverseInvite != nil {
+		inputs.InviteAcceptedDecorator = legs.reverseInvite.DecorateInviteAccepted
 	}
 
 	svc, err := ocm.New(inputs, svcCfg, log)
@@ -182,9 +191,10 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	return svc, nil
 }
 
-// buildReverseInviteService assembles the validator reverse-invite
-// orchestration on the shared stores and the live outbound poster.
-func buildReverseInviteService(d *Deps, log *slog.Logger) (*reverseinvite.Service, error) {
+// buildValidatorLegs assembles the active-session validator legs on the
+// shared stores: the reverse-invite orchestration on the live outbound
+// poster, and the forward-share dispatch guard on the outgoing share repo.
+func buildValidatorLegs(d *Deps, log *slog.Logger) (*validatorLegs, error) {
 	poster := api.NewInviteAcceptedPoster(outbound.NewPoster(
 		d.HTTPClient,
 		d.DiscoveryClient,
@@ -192,7 +202,7 @@ func buildReverseInviteService(d *Deps, log *slog.Logger) (*reverseinvite.Servic
 		d.PeerOrigin,
 	))
 
-	svc, err := reverseinvite.New(reverseinvite.Deps{
+	reverseSvc, err := reverseinvite.New(reverseinvite.Deps{
 		Store:           d.ValidatorStore,
 		OutgoingInvites: d.OutgoingInviteRepo,
 		IncomingInvites: d.IncomingInviteRepo,
@@ -205,10 +215,22 @@ func buildReverseInviteService(d *Deps, log *slog.Logger) (*reverseinvite.Servic
 		return nil, fmt.Errorf("wiring: build reverse invite service: %w", err)
 	}
 
-	return svc, nil
+	forwardSvc, err := forwardshare.New(forwardshare.Deps{
+		Store:          d.ValidatorStore,
+		OutgoingShares: d.OutgoingShareRepo,
+		LocalIdentity:  d.LocalIdentity,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("wiring: build forward share service: %w", err)
+	}
+
+	return &validatorLegs{
+		reverseInvite: reverseSvc,
+		forwardShare:  forwardSvc,
+	}, nil
 }
 
-func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *reverseinvite.Service) (service.Service, error) {
+func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *validatorLegs) (service.Service, error) {
 	var profiles map[string]map[string]any
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
@@ -227,7 +249,7 @@ func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Log
 	return svc, nil
 }
 
-func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *reverseinvite.Service) (service.Service, error) {
+func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, legs *validatorLegs) (service.Service, error) {
 	var profiles map[string]map[string]any
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
@@ -256,7 +278,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	resolved := resolve.Resolve(&providerCfg, rawOCMProvider, resolveInputs(cfg, d))
 	localTokenEndpoint := resolved.Params.TokenEndPoint
 
-	svc, err := api.New(api.Inputs{
+	inputs := api.Inputs{
 		PartyRepo:             d.PartyRepo,
 		SessionRepo:           d.SessionRepo,
 		UserAuth:              d.UserAuth,
@@ -274,7 +296,16 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		ContentDir:            cfg.Persistence.ContentDir,
 		Ratelimit:             ratelimitInputs(d),
 		InterceptorProfiles:   profiles,
-	}, svcCfg, log)
+	}
+
+	// In validator mode the outgoing-share handler gains the dispatch policy
+	// guard; outside validator mode the hook seat stays empty and the generic
+	// flow is unchanged.
+	if legs != nil && legs.forwardShare != nil {
+		inputs.OutgoingDispatchHook = legs.forwardShare
+	}
+
+	svc, err := api.New(inputs, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire api service: %w", err)
 	}
@@ -282,7 +313,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	return svc, nil
 }
 
-func buildUIService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *reverseinvite.Service) (service.Service, error) {
+func buildUIService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *validatorLegs) (service.Service, error) {
 	svc, err := ui.New(ui.Inputs{
 		LocalIdentity: d.LocalIdentity,
 	}, svcCfg, log)
@@ -293,7 +324,7 @@ func buildUIService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d
 	return svc, nil
 }
 
-func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *reverseinvite.Service) (service.Service, error) {
+func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, _ *validatorLegs) (service.Service, error) {
 	svc, err := webdav.New(webdav.Inputs{
 		OutgoingShareRepo: d.OutgoingShareRepo,
 		TokenStore:        d.TokenStore,
@@ -305,10 +336,15 @@ func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logge
 	return svc, nil
 }
 
-func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, reverseSvc *reverseinvite.Service) (service.Service, error) {
+func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps, legs *validatorLegs) (service.Service, error) {
 	var profiles map[string]map[string]any
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
+	}
+
+	var reverseSvc *reverseinvite.Service
+	if legs != nil {
+		reverseSvc = legs.reverseInvite
 	}
 
 	svc, err := validator.New(validator.Inputs{

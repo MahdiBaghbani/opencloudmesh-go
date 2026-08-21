@@ -124,6 +124,10 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	)
 	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
 
+	if inputs.OutgoingDispatchHook != nil {
+		outgoingHandler.SetDispatchHook(inputs.OutgoingDispatchHook)
+	}
+
 	allowedPaths, err := resolveOutgoingAllowedPaths(inputs.ContentDir, c.AllowedPaths)
 	if err != nil {
 		return nil, fmt.Errorf("api: resolve allowed paths: %w", err)
