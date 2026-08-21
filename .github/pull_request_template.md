@@ -14,9 +14,9 @@ for e2e, nu scripts/maide.nu cursor check file for .cursor/skills edits). -->
 
 ## Changelog
 
-Add a changelog fragment under `.changes/unreleased/` with `changie new`, or apply
-the `skip-changelog` label if this change needs no changelog entry (e.g. docs,
-CI-only).
+Add a changelog fragment under `.changes/unreleased/` with `changie new`.
+CI, tests, and contributor-doc-only PRs skip automatically. Apply the
+`skip-changelog` label for other changes that need no user-facing entry.
 
 See CONTRIBUTING and SECURITY.md for policies. Report security issues via GitHub
 Private Vulnerability Reporting.
