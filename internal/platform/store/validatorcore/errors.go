@@ -75,9 +75,6 @@ var (
 	// rejected before any UPDATE runs.
 	ErrActiveHardFailReasonInvalid = errors.New("invalid active hard-fail reason")
 
-	// ErrInvalidStartBody is returned for malformed POST /start bodies.
-	ErrInvalidStartBody = errors.New("invalid start request body")
-
 	// ErrInvalidLocalIdentity is returned when a finder local_identity is empty
 	// or not a recognized occupancy slot.
 	ErrInvalidLocalIdentity = errors.New("invalid local identity")
