@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -59,6 +60,13 @@ type Inputs struct {
 	// opener wraps the session poll route so a session still in the
 	// capability exercise re-enters the event-driven wait on a poll.
 	ReverseShare *reverseshare.Service
+
+	// PartyRepo is the shared in-process party store. When set, extend
+	// materializes Bob before the session can become paste-ready.
+	PartyRepo identity.PartyRepo
+
+	// LocalProviderDomain is the realm written on the reverse-receiver party.
+	LocalProviderDomain string
 }
 
 // Service is the federation validator HTTP service shell.
@@ -99,6 +107,16 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			passiveHandler.SetExternalBasePath(inputs.Config.ExternalBasePath)
 		}
 
+		if inputs.PartyRepo != nil {
+			email, displayName := reverseReceiverProbe(inputs.Config)
+			passiveHandler.SetReverseReceiver(
+				inputs.PartyRepo,
+				inputs.LocalProviderDomain,
+				email,
+				displayName,
+			)
+		}
+
 		var reverseWaitOpen passive.ReverseWaitOpener
 		if inputs.ReverseShare != nil {
 			reverseWaitOpen = inputs.ReverseShare.OpenReverseShareWait
@@ -134,6 +152,25 @@ func validateInputs(in Inputs) error {
 	}
 
 	return nil
+}
+
+func reverseReceiverProbe(cfg *config.Config) (email, displayName string) {
+	email = config.DefaultValidatorProbeEmail
+	displayName = config.DefaultValidatorProbeDisplayName
+
+	if cfg == nil {
+		return email, displayName
+	}
+
+	if cfg.Validator.Probe.Email != "" {
+		email = cfg.Validator.Probe.Email
+	}
+
+	if cfg.Validator.Probe.DisplayName != "" {
+		displayName = cfg.Validator.Probe.DisplayName
+	}
+
+	return email, displayName
 }
 
 // Handler returns the service HTTP handler; implements service.Service.

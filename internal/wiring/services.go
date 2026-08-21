@@ -390,6 +390,8 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 		Log:                 log,
 		ReverseInvite:       reverseSvc,
 		ReverseShare:        reverseShareSvc,
+		PartyRepo:           d.PartyRepo,
+		LocalProviderDomain: d.LocalIdentity.ProviderDomain,
 	}, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire validator service: %w", err)

@@ -51,8 +51,13 @@ func (s *Service) MintOutgoingInvite(ctx context.Context, testRunID string) (*in
 		return bound, nil
 	}
 
-	if partyErr := s.ensureSessionPartyA(ctx, run); partyErr != nil {
-		return nil, partyErr
+	if _, partyErr := identity.EnsureSessionInviter(
+		ctx,
+		s.deps.Parties,
+		run.TestRunID,
+		s.deps.LocalIdentity.ProviderDomain,
+	); partyErr != nil {
+		return nil, fmt.Errorf("reverseinvite: ensure session inviter: %w", partyErr)
 	}
 
 	token, err := generateInviteToken()
@@ -173,36 +178,6 @@ func (s *Service) newOutgoingInvite(inviteID, token, createdBy string) *inviteso
 		ExpiresAt:       time.Now().Add(outgoingInviteTTL),
 		Status:          invites.InviteStatusPending,
 	}
-}
-
-// ensureSessionPartyA materializes the inviting party the product
-// invite-accepted handler looks up when it builds its identity response. The
-// party ID is the session run ID so the decorator can prove the accepted
-// invite belongs to this run.
-func (s *Service) ensureSessionPartyA(ctx context.Context, run *validatorcore.TestRun) error {
-	if _, err := s.deps.Parties.Get(ctx, run.TestRunID); err == nil {
-		return nil
-	} else if !errors.Is(err, identity.ErrUserNotFound) {
-		return fmt.Errorf("reverseinvite: get session party: %w", err)
-	}
-
-	user := &identity.User{
-		ID:          run.TestRunID,
-		Username:    "session-inviter-" + run.TestRunID,
-		DisplayName: "Session Inviter",
-		Role:        identity.RoleProbe,
-		Realm:       s.deps.LocalIdentity.ProviderDomain,
-		CreatedAt:   time.Now(),
-	}
-	if err := s.deps.Parties.Create(ctx, user); err != nil {
-		if errors.Is(err, identity.ErrUserIDExists) || errors.Is(err, identity.ErrUserExists) {
-			return nil
-		}
-
-		return fmt.Errorf("reverseinvite: create session party: %w", err)
-	}
-
-	return nil
 }
 
 func generateInviteToken() (string, error) {

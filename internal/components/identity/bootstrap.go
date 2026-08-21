@@ -191,60 +191,6 @@ func generateRandomPassword() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-// ProbeUserTTL is the default TTL for probe users.
-const ProbeUserTTL = 24 * time.Hour
-
-// CreateProbeUser creates a temporary probe user with isolated realm and storage.
-func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, realm, storageRoot string) (*User, error) {
-	// Check if user already exists
-	existing, err := b.repo.GetByUsername(ctx, username)
-	if err == nil {
-		if existing.IsProbe() && existing.Realm == realm {
-			return existing, nil
-		}
-
-		return nil, ErrUserExists
-	}
-
-	if !errors.Is(err, ErrUserNotFound) {
-		return nil, fmt.Errorf("identity: get user by username: %w", err)
-	}
-
-	hash, err := b.auth.HashPassword(password)
-	if err != nil {
-		return nil, err
-	}
-
-	now := time.Now()
-	expiresAt := now.Add(ProbeUserTTL)
-
-	id, err := UUIDv7()
-	if err != nil {
-		return nil, err
-	}
-
-	user := &User{
-		ID:           id,
-		Username:     username,
-		Email:        "",
-		DisplayName:  "Probe User",
-		PasswordHash: hash,
-		Role:         "probe",
-		Realm:        realm,
-		StorageRoot:  storageRoot,
-		CreatedAt:    now,
-		ExpiresAt:    &expiresAt,
-	}
-
-	if err := b.repo.Create(ctx, user); err != nil {
-		return nil, fmt.Errorf("identity: create probe user: %w", err)
-	}
-
-	b.log.Info("created probe user", "username", username, "realm", realm, "expires_at", expiresAt)
-
-	return user, nil
-}
-
 func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, password string) error {
 	hash, err := b.auth.HashPassword(password)
 	if err != nil {

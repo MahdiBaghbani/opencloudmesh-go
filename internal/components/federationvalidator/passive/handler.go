@@ -33,6 +33,10 @@ type Handler struct {
 	probe            *ProbeRunner
 	log              *slog.Logger
 	externalBasePath string
+	parties          identity.PartyRepo
+	receiverRealm    string
+	receiverEmail    string
+	receiverName     string
 	// afterRetentionPatchReady is a test-only interleave after the PATCH
 	// unlocked pre-check and before the guarded UPDATE.
 	afterRetentionPatchReady func()
@@ -357,6 +361,18 @@ func (h *Handler) handleExtendSession(w http.ResponseWriter, r *http.Request, te
 
 	if err := h.store.ExtendToActive(ctx, testRunID); err != nil {
 		writeStoreError(w, h.log, err)
+
+		return
+	}
+
+	if err := h.materializeReverseReceiver(ctx, testRunID); err != nil {
+		writeJSONError(
+			w,
+			h.log,
+			http.StatusInternalServerError,
+			"receiver_provision_failed",
+			"failed to materialize recipient party",
+		)
 
 		return
 	}
