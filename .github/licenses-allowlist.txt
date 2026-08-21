@@ -7,6 +7,9 @@
 # Aligned with .github/workflows/ci-security-dependency-review.yml allow-licenses.
 # go-licenses classifier emits bare AGPL-3.0 for this repo's LICENSE, so
 # AGPL-3.0 is listed in addition to the SPDX -only / -or-later forms.
+# LicenseRef-scancode-google-patent-license-golang is the Go PATENTS grant
+# that GitHub dependency-review ANDs with BSD-3-Clause for golang.org/x/*.
+# go-licenses reports bare BSD-3-Clause and does not emit this token.
 Apache-2.0
 BSD-2-Clause
 BSD-3-Clause
@@ -25,3 +28,4 @@ AGPL-3.0-or-later
 Unlicense
 0BSD
 Zlib
+LicenseRef-scancode-google-patent-license-golang
