@@ -38,8 +38,9 @@ check re-runs automatically.
 
 ## No user-visible change?
 
-Docs, tests, CI, and refactors do not need a fragment. Add the `skip-changelog`
-label to this PR instead and the check will pass.
+Docs, tests, CI, and other non-user-facing paths skip automatically.
+If this check still asks for a fragment, add the `skip-changelog` label
+and the check will pass.
 
 ## More help
 
