@@ -78,6 +78,22 @@ var (
 	// ErrInvalidLocalIdentity is returned when a finder local_identity is empty
 	// or not a recognized occupancy slot.
 	ErrInvalidLocalIdentity = errors.New("invalid local identity")
+
+	// ErrStoreNotConfigured is returned when Core or its DB handle is missing.
+	ErrStoreNotConfigured = errors.New("validatorcore: store is not configured")
+
+	// ErrNilTestRun is returned when a rating helper is called with a nil run.
+	ErrNilTestRun = errors.New("validatorcore: nil test run")
+
+	// ErrEmptyTestRunID is returned when a rating helper is called without a run id.
+	ErrEmptyTestRunID = errors.New("validatorcore: empty test run id")
+
+	// ErrCrossRunRow is returned when a loaded rating row belongs to another run.
+	ErrCrossRunRow = errors.New("validatorcore: row does not belong to test run")
+
+	// ErrInvalidExchangeGrade is returned when a report exchange grade is not
+	// pass, warn, or fail.
+	ErrInvalidExchangeGrade = errors.New("validatorcore: invalid exchange grade")
 )
 
 // StoreError wraps a store failure with the operation that caused it.

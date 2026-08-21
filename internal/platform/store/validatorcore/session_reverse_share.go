@@ -237,8 +237,8 @@ func (c *Core) upsertTerminalStatsForRun(ctx context.Context, testRunID string) 
 	snap := statsSnapshotFromTestRun(row, hostHash, *row.FinishedAt, nil)
 
 	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if gradeErr := fillSnapshotGradesFromEvidence(tx, testRunID, &snap); gradeErr != nil {
-			return fmt.Errorf("validatorcore: load evidence grades: %w", gradeErr)
+		if gradeErr := fillSnapshotGradesFromRating(tx, testRunID, &snap); gradeErr != nil {
+			return fmt.Errorf("validatorcore: fill snapshot grades from rating: %w", gradeErr)
 		}
 
 		raw := snap.ToStatsRaw()

@@ -39,7 +39,42 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
       <dd id="report-session-api">{{.SessionAPIPath}}</dd>
       <dt>reportApiPath</dt>
       <dd id="report-api">{{.ReportAPIPath}}</dd>
+      <dt>score</dt>
+      <dd id="report-score-grade">{{if .Score.Grade}}{{.Score.Grade}}{{else}}unassessed{{end}}</dd>
+      <dt>coverage</dt>
+      <dd id="report-score-coverage">{{.Score.AssessedAreas}} / {{.Score.TotalAreas}}</dd>
+      <dt>areas</dt>
+      <dd>
+        <ul id="report-score-areas">
+          {{range .Score.Areas}}
+          <li>{{.Area}}: {{if .Grade}}{{.Grade}}{{else}}unassessed{{end}}</li>
+          {{end}}
+        </ul>
+      </dd>
+      <dt>evidenceCount</dt>
+      <dd id="report-evidence-count">{{.EvidenceCount}}</dd>
     </dl>
+    {{if .ShowEvidence}}
+    <ul id="report-evidence">
+      {{range .Evidence}}
+      <li>
+        {{.Source}}
+        {{if .Area}} {{.Area}}{{end}}
+        {{if .ScoreArea}} {{.ScoreArea}}{{end}}
+        {{if .Step}} {{.Step}}{{end}}
+        {{if .ReasonCode}} {{.ReasonCode}}{{end}}
+        {{if .ReasonCodes}} {{.ReasonCodes}}{{end}}
+        {{if .Severity}} {{.Severity}}{{end}}
+        {{if .Grade}} {{.Grade}}{{end}}
+        {{if .PayloadRedacted}} {{.PayloadRedacted}}{{end}}
+        {{if .EndpointID}} {{.EndpointID}}{{end}}
+        {{if .Method}} {{.Method}}{{end}}
+        {{if .StatusCode}} {{.StatusCode}}{{end}}
+        {{if .Direction}} {{.Direction}}{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{end}}
     <p id="next-instruction"></p>
     <script>
       (function () {

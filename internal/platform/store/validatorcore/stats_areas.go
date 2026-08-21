@@ -13,12 +13,12 @@ type statsAreaSpec struct {
 
 // statsAreaOrder is the stable public ordering for area aggregates.
 var statsAreaOrder = []statsAreaSpec{
-	{Name: "discovery", Grade: func(r StatsRaw) *string { return r.GradeDiscovery }},
-	{Name: "tls", Grade: func(r StatsRaw) *string { return r.GradeTLS }},
-	{Name: "jwks", Grade: func(r StatsRaw) *string { return r.GradeJWKS }},
-	{Name: "httpsig", Grade: func(r StatsRaw) *string { return r.GradeHTTPSig }},
-	{Name: "sharing", Grade: func(r StatsRaw) *string { return r.GradeSharing }},
-	{Name: "notification", Grade: func(r StatsRaw) *string { return r.GradeNotification }},
-	{Name: "token", Grade: func(r StatsRaw) *string { return r.GradeToken }},
-	{Name: "capability", Grade: func(r StatsRaw) *string { return r.GradeCapability }},
+	{Name: SpecificationAreaDiscovery, Grade: func(r StatsRaw) *string { return r.GradeDiscovery }},
+	{Name: SpecificationAreaTLS, Grade: func(r StatsRaw) *string { return r.GradeTLS }},
+	{Name: SpecificationAreaJWKS, Grade: func(r StatsRaw) *string { return r.GradeJWKS }},
+	{Name: SpecificationAreaHTTPSig, Grade: func(r StatsRaw) *string { return r.GradeHTTPSig }},
+	{Name: SpecificationAreaSharing, Grade: func(r StatsRaw) *string { return r.GradeSharing }},
+	{Name: SpecificationAreaNotification, Grade: func(r StatsRaw) *string { return r.GradeNotification }},
+	{Name: SpecificationAreaToken, Grade: func(r StatsRaw) *string { return r.GradeToken }},
+	{Name: SpecificationAreaCapability, Grade: func(r StatsRaw) *string { return r.GradeCapability }},
 }

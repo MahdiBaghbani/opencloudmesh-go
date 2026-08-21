@@ -7,7 +7,9 @@ package passive
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"fmt"
 	"html/template"
 	"net/http"
 
@@ -34,6 +36,10 @@ type reportPageData struct {
 	ReportURL      string
 	SessionAPIPath string
 	ReportAPIPath  string
+	Score          validatorcore.SpecificationScore
+	EvidenceCount  int
+	Evidence       []validatorcore.SpecificationEvidence
+	ShowEvidence   bool
 }
 
 // HandleReportHTML serves GET /report/{id}.
@@ -59,8 +65,15 @@ func (h *Handler) HandleReportHTML(w http.ResponseWriter, r *http.Request) {
 
 	switch vis {
 	case ReportVisibilitySession, ReportVisibilityPermanent:
+		data, buildErr := h.buildReportPageData(r.Context(), row, vis)
+		if buildErr != nil {
+			http.Error(w, "validator store error", http.StatusInternalServerError)
+
+			return
+		}
+
 		setReportCacheControl(w, vis)
-		h.writeReportTemplate(w, "report.html", http.StatusOK, h.buildReportPageData(row))
+		h.writeReportTemplate(w, "report.html", http.StatusOK, data)
 	case ReportVisibilityExpired:
 		setReportCacheControl(w, vis)
 		h.writeReportTemplate(w, "expired.html", http.StatusGone, reportPageData{})
@@ -71,9 +84,13 @@ func (h *Handler) HandleReportHTML(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) buildReportPageData(row *validatorcore.TestRun) reportPageData {
+func (h *Handler) buildReportPageData(
+	ctx context.Context,
+	row *validatorcore.TestRun,
+	visibility string,
+) (reportPageData, error) {
 	if row == nil {
-		return reportPageData{}
+		return reportPageData{}, nil
 	}
 
 	data := reportPageData{
@@ -85,12 +102,25 @@ func (h *Handler) buildReportPageData(row *validatorcore.TestRun) reportPageData
 		ReportURL:      joinReportPath(h.externalBasePath, "validator", "report", row.TestRunID),
 		SessionAPIPath: joinReportPath(h.externalBasePath, "validator", "api", "session", row.TestRunID),
 		ReportAPIPath:  joinReportPath(h.externalBasePath, "validator", "api", "report", row.TestRunID),
+		ShowEvidence:   visibility == ReportVisibilityPermanent,
 	}
 	if row.OverallGrade != nil {
 		data.Grade = *row.OverallGrade
 	}
 
-	return data
+	score, evidence, err := h.store.LoadSpecificationRating(ctx, row)
+	if err != nil {
+		return reportPageData{}, fmt.Errorf("load specification rating: %w", err)
+	}
+
+	data.Score = score
+	data.EvidenceCount = len(evidence)
+
+	if data.ShowEvidence {
+		data.Evidence = evidence
+	}
+
+	return data, nil
 }
 
 func (h *Handler) writeReportTemplate(

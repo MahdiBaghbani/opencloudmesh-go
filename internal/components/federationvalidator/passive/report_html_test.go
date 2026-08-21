@@ -178,3 +178,140 @@ func TestHandleReportHTML_RendersLockedFields(t *testing.T) {
 		t.Fatal("report page must not use innerHTML")
 	}
 }
+
+func TestHandleReportHTML_RendersSpecificationScore(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	runID := "run-html-score"
+	seedReportRun(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StateTerminalPass,
+		OptInPermanent: true,
+	})
+	seedReportEvidence(t, store, runID)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/report/"+runID, nil)
+	rec := httptest.NewRecorder()
+	newReportTestRouter(t, h).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	body := rec.Body.String()
+
+	want := []string{
+		`id="report-score-grade">pass<`,
+		`id="report-score-coverage"`,
+		"1 / 8",
+		`id="report-score-areas"`,
+		validatorcore.SpecificationAreaDiscovery,
+		validatorcore.SpecificationAreaTLS,
+		validatorcore.SpecificationAreaJWKS,
+		validatorcore.SpecificationAreaHTTPSig,
+		validatorcore.SpecificationAreaSharing,
+		validatorcore.SpecificationAreaNotification,
+		validatorcore.SpecificationAreaToken,
+		validatorcore.SpecificationAreaCapability,
+		`id="report-evidence-count"`,
+		"textContent",
+	}
+	for _, fragment := range want {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("report page missing %q", fragment)
+		}
+	}
+
+	for _, wrong := range []string{
+		`id="report-score-grade">fail<`,
+		`id="report-score-grade">warn<`,
+		`id="report-score-grade">unassessed<`,
+	} {
+		if strings.Contains(body, wrong) {
+			t.Fatalf("report page pinned wrong score grade %q", wrong)
+		}
+	}
+}
+
+func TestHandleReportHTML_SessionHidesEvidenceDetails(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	runID := "run-html-session-evidence"
+	seedReportRun(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StatePassiveRunning,
+		OptInPermanent: true,
+	})
+	seedReportEvidence(t, store, runID)
+	seedLeakingExchange(t, store, runID)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/report/"+runID, nil)
+	rec := httptest.NewRecorder()
+	newReportTestRouter(t, h).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="report-evidence-count"`) {
+		t.Fatal("session page must show evidence count")
+	}
+
+	if strings.Contains(body, `id="report-evidence"`) {
+		t.Fatal("session page must hide evidence details")
+	}
+
+	if strings.Contains(body, reportLeakSecret) || strings.Contains(body, "redacted-capability-note") {
+		t.Fatal("session page leaked evidence details")
+	}
+}
+
+func TestHandleReportHTML_PermanentRendersRedactedEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	runID := "run-html-permanent-evidence"
+	seedReportRun(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StateTerminalPass,
+		OptInPermanent: true,
+	})
+	seedReportEvidence(t, store, runID)
+	seedLeakingExchange(t, store, runID)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/report/"+runID, nil)
+	rec := httptest.NewRecorder()
+	newReportTestRouter(t, h).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="report-evidence"`) {
+		t.Fatal("permanent page must render evidence list")
+	}
+
+	if !strings.Contains(body, "redacted-capability-note") || !strings.Contains(body, "httpsig_ok") {
+		t.Fatal("permanent page must show redacted reason and payload")
+	}
+
+	banned := []string{
+		reportLeakSecret,
+		"leak.example",
+		"authorization",
+		"password",
+		"sig-" + reportLeakSecret,
+	}
+	for _, secret := range banned {
+		if strings.Contains(body, secret) {
+			t.Fatalf("permanent page leaked %q", secret)
+		}
+	}
+}

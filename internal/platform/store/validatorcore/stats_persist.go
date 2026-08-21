@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -154,8 +153,8 @@ func (c *Core) writeTerminalStats(
 			return nil
 		}
 
-		if err := fillSnapshotGradesFromEvidence(tx, testRunID, snap); err != nil {
-			return fmt.Errorf("validatorcore: load evidence grades: %w", err)
+		if err := fillSnapshotGradesFromRating(tx, testRunID, snap); err != nil {
+			return fmt.Errorf("validatorcore: fill snapshot grades from rating: %w", err)
 		}
 
 		raw := snap.ToStatsRaw()
@@ -183,96 +182,78 @@ func (c *Core) writeTerminalStats(
 	return nil
 }
 
-// fillSnapshotGradesFromEvidence derives area grades from grade-affecting
-// evidence_row entries and fills only the snapshot's missing grade slots;
-// overlay grades always win. It is a read folded into the persist
-// transaction, not a second write path.
-func fillSnapshotGradesFromEvidence(tx *gorm.DB, testRunID string, snap *StatsSnapshot) error {
+// fillSnapshotGradesFromRating derives area grades from grade-affecting
+// evidence rows and graded exchanges using the same fold as
+// RateSpecification. It fills only the snapshot's missing grade slots;
+// overlay grades always win. Reverse-invite acceptance marks sharing as
+// exercised. It is a read folded into the persist transaction, not a
+// second write path.
+func fillSnapshotGradesFromRating(tx *gorm.DB, testRunID string, snap *StatsSnapshot) error {
+	if snap == nil {
+		return errors.New("validatorcore: nil stats snapshot")
+	}
+
 	var rows []EvidenceRow
 	if err := tx.
-		Select("area", "severity").
 		Where("test_run_id = ? AND affects_grade = ?", testRunID, true).
+		Order("created_at ASC, id ASC").
 		Find(&rows).Error; err != nil {
 		return err
 	}
 
-	if len(rows) == 0 {
-		return nil
+	var exchanges []ReportExchange
+	if err := tx.
+		Where("test_run_id = ? AND grade IS NOT NULL", testRunID).
+		Order("seq ASC, exchange_id ASC").
+		Find(&exchanges).Error; err != nil {
+		return err
 	}
 
-	worst := make(map[string]string, len(rows))
+	areas, err := foldSpecificationAreas(rows, exchanges)
+	if err != nil {
+		return err
+	}
 
-	for _, row := range rows {
-		grade := evidenceSeverityGrade(row.Severity)
-
-		if existing, ok := worst[row.Area]; ok {
-			worst[row.Area] = worseGrade(existing, grade)
-
+	for _, area := range areas {
+		if area.Grade == nil {
 			continue
 		}
 
-		worst[row.Area] = grade
-	}
-
-	for area, grade := range worst {
-		slot := statsSnapshotGradeSlot(snap, area)
+		slot := statsSnapshotGradeSlot(snap, area.Area)
 		if slot == nil || *slot != nil {
 			continue
 		}
 
-		derived := grade
+		derived := *area.Grade
 		*slot = &derived
+	}
+
+	if hasReverseInviteAcceptance(rows) {
+		snap.ReverseInviteExercised = true
 	}
 
 	return nil
 }
 
-// evidenceSeverityGrade maps an evidence_row severity label to a stats grade.
-// Fail-like severities dominate, then warn-like; any other grade-affecting
-// row means the area was exercised without a finding, which reads as pass.
-func evidenceSeverityGrade(severity string) string {
-	switch strings.ToLower(strings.TrimSpace(severity)) {
-	case "fail", "failure", "critical", "error", "fatal":
-		return GradeFail
-	case "warn", "warning", "important":
-		return GradeWarn
-	default:
-		return GradePass
-	}
-}
-
-func worseGrade(a, b string) string {
-	if a == GradeFail || b == GradeFail {
-		return GradeFail
-	}
-
-	if a == GradeWarn || b == GradeWarn {
-		return GradeWarn
-	}
-
-	return GradePass
-}
-
-// statsSnapshotGradeSlot returns the snapshot's grade slot for an evidence
-// area, or nil for areas outside the statistics grade set. Area names mirror
-// the public statistics area ordering in stats_areas.go.
+// statsSnapshotGradeSlot returns the snapshot's grade slot for a scored
+// area, or nil for areas outside the statistics grade set.
 func statsSnapshotGradeSlot(snap *StatsSnapshot, area string) **string {
 	switch area {
-	case "discovery":
+	case SpecificationAreaDiscovery:
 		return &snap.GradeDiscovery
-	case "tls":
+	case SpecificationAreaTLS:
 		return &snap.GradeTLS
-	case "jwks":
+	case SpecificationAreaJWKS:
 		return &snap.GradeJWKS
-	case "httpsig":
+	case SpecificationAreaHTTPSig:
 		return &snap.GradeHTTPSig
-	case "sharing":
+	case SpecificationAreaSharing:
 		return &snap.GradeSharing
-	case "notification":
+	case SpecificationAreaNotification:
 		return &snap.GradeNotification
-	case "token":
+	case SpecificationAreaToken:
 		return &snap.GradeToken
-	case "capability":
+	case SpecificationAreaCapability:
 		return &snap.GradeCapability
 	default:
 		return nil

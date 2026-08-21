@@ -30,12 +30,14 @@ const (
 // reportJSONResponse is the federation_tester_report.v1 success payload.
 // Additive fields only; keys are camelCase per .golangci.yml json: camel.
 type reportJSONResponse struct {
-	Schema        string  `json:"schema"`
-	ID            string  `json:"id"`
-	Visibility    string  `json:"visibility"`
-	ReportURL     string  `json:"reportUrl"`
-	URL           string  `json:"url,omitempty"`
-	RetentionTier *string `json:"retentionTier"`
+	Schema        string                                 `json:"schema"`
+	ID            string                                 `json:"id"`
+	Visibility    string                                 `json:"visibility"`
+	ReportURL     string                                 `json:"reportUrl"`
+	URL           string                                 `json:"url,omitempty"`
+	RetentionTier *string                                `json:"retentionTier"`
+	Score         validatorcore.SpecificationScore       `json:"score"`
+	Evidence      *[]validatorcore.SpecificationEvidence `json:"evidence,omitempty"`
 }
 
 type reportExpiredJSONResponse struct {
@@ -67,8 +69,15 @@ func (h *Handler) HandleReportJSON(w http.ResponseWriter, r *http.Request) {
 
 	switch vis {
 	case ReportVisibilitySession, ReportVisibilityPermanent:
+		payload, buildErr := h.buildReportJSON(r, row, vis)
+		if buildErr != nil {
+			writeStoreError(w, h.log, buildErr)
+
+			return
+		}
+
 		setReportCacheControl(w, vis)
-		writeJSON(w, h.log, http.StatusOK, h.buildReportJSON(r, row, vis))
+		writeJSON(w, h.log, http.StatusOK, payload)
 	case ReportVisibilityExpired:
 		setReportCacheControl(w, vis)
 		writeJSON(w, h.log, http.StatusGone, buildExpiredReportJSON(r, row))
@@ -109,7 +118,7 @@ func (h *Handler) buildReportJSON(
 	r *http.Request,
 	row *validatorcore.TestRun,
 	visibility string,
-) reportJSONResponse {
+) (reportJSONResponse, error) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
 
 	var tier *string
@@ -132,7 +141,35 @@ func (h *Handler) buildReportJSON(
 		payload.URL = abs
 	}
 
-	return payload
+	if err := h.attachReportRating(r, row, visibility, &payload); err != nil {
+		return reportJSONResponse{}, err
+	}
+
+	return payload, nil
+}
+
+func (h *Handler) attachReportRating(
+	r *http.Request,
+	row *validatorcore.TestRun,
+	visibility string,
+	payload *reportJSONResponse,
+) error {
+	if row == nil || payload == nil {
+		return nil
+	}
+
+	score, evidence, err := h.store.LoadSpecificationRating(r.Context(), row)
+	if err != nil {
+		return fmt.Errorf("load specification rating: %w", err)
+	}
+
+	payload.Score = score
+
+	if visibility == ReportVisibilityPermanent {
+		payload.Evidence = &evidence
+	}
+
+	return nil
 }
 
 func buildExpiredReportJSON(r *http.Request, row *validatorcore.TestRun) reportExpiredJSONResponse {

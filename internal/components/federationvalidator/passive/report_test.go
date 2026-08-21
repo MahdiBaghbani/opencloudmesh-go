@@ -82,7 +82,7 @@ func TestHandleReportJSON_SuccessWireKeys(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	assertExactKeys(t, payload, []string{"id", "reportUrl", "retentionTier", "schema", "visibility"})
+	assertExactKeys(t, payload, []string{"id", "reportUrl", "retentionTier", "schema", "score", "visibility"})
 
 	var schema string
 	if err := json.Unmarshal(payload["schema"], &schema); err != nil {
@@ -137,7 +137,7 @@ func TestHandleReportJSON_PermanentVisibility(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	assertExactKeys(t, payload, []string{"id", "reportUrl", "retentionTier", "schema", "visibility"})
+	assertExactKeys(t, payload, []string{"evidence", "id", "reportUrl", "retentionTier", "schema", "score", "visibility"})
 
 	var visibility string
 	if err := json.Unmarshal(payload["visibility"], &visibility); err != nil {
@@ -432,7 +432,7 @@ func TestHandleReportJSON_AbsoluteURLOnlyWhenSchemePresent(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	assertExactKeys(t, payload, []string{"id", "reportUrl", "retentionTier", "schema", "url", "visibility"})
+	assertExactKeys(t, payload, []string{"id", "reportUrl", "retentionTier", "schema", "score", "url", "visibility"})
 
 	var abs string
 	if err := json.Unmarshal(payload["url"], &abs); err != nil {
