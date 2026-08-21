@@ -47,6 +47,7 @@ var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Le
 
 type testEnv struct {
 	store       *validatorcore.Core
+	repos       *repos.Repos
 	svc         *forwardshare.Service
 	handler     *outgoingshares.Handler
 	shares      sharesoutgoing.OutgoingShareRepo
@@ -102,6 +103,7 @@ func newTestEnv(t *testing.T, withHook bool) *testEnv {
 
 	env := &testEnv{
 		store:       store,
+		repos:       r,
 		shares:      r.OutgoingShares,
 		postCount:   &atomic.Int32{},
 		failPosts:   &atomic.Int32{},
