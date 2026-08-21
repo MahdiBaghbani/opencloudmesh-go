@@ -39,10 +39,14 @@ jobs:
       # Positive user-facing path set. The changelog job always runs (required
       # check name `changelog`); skip is a step output, not a skipped job.
       # Pinned dorny/paths-filter SHA matches .github/action-pins.yml.
+      # Default `some` treats standalone `!` patterns as OR matches, so
+      # CI-only files become product. `some-with-excludes` is required for
+      # include-plus-exclude (match a positive glob and no negated glob).
       - id: product
         name: Detect user-facing paths
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
             product:
               - 'cmd/**'
