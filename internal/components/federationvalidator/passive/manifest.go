@@ -236,7 +236,7 @@ func buildManifest(externalBasePath string) manifestRouteResponse {
 		},
 		Report:        buildManifestReportMeta(externalBasePath),
 		Retention:     buildManifestRetentionMeta(externalBasePath),
-		ReverseInvite: manifestAvailabilityMeta{Available: false},
+		ReverseInvite: manifestAvailabilityMeta{Available: true},
 		Platform:      manifestAvailabilityMeta{Available: true},
 		TLSSummary:    manifestAvailabilityMeta{Available: true},
 	}

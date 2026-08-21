@@ -381,12 +381,66 @@ func TestHandleManifest_CapabilityMetadataLockedValues(t *testing.T) {
 
 	assertConsentAdvertisement(t, payload)
 
-	if payload.ReverseInvite.Available {
-		t.Fatal("reverseInvite.available must be false in v1.3.0")
+	if !payload.ReverseInvite.Available {
+		t.Fatal("reverseInvite.available must be true")
 	}
 
 	if !payload.Platform.Available || !payload.TLSSummary.Available {
 		t.Fatalf("platform = %+v tlsSummary = %+v", payload.Platform, payload.TLSSummary)
+	}
+}
+
+func TestHandleManifest_ServesReverseInviteAvailable(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(openHandlerTestStore(t), nil)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/manifest", nil)
+	rec := httptest.NewRecorder()
+	h.HandleManifest(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	reverseInvite := mustRawObject(t, raw["reverseInvite"], "reverseInvite")
+	assertExactKeys(t, reverseInvite, []string{"available"})
+
+	var available bool
+	if err := json.Unmarshal(reverseInvite["available"], &available); err != nil {
+		t.Fatalf("reverseInvite.available: %v", err)
+	}
+
+	if !available {
+		t.Fatal("reverseInvite.available must be true on served manifest")
+	}
+}
+
+func TestMountPlaneARoutes_ManifestServesReverseInviteAvailable(t *testing.T) {
+	t.Parallel()
+
+	r := newPlaneATestRouter(t)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, RouteAPIManifest, nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var payload manifestRouteResponse
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if !payload.ReverseInvite.Available {
+		t.Fatal("mounted manifest must advertise reverseInvite.available true")
 	}
 }
 
