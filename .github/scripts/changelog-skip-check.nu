@@ -3,8 +3,9 @@
 #
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-# Decide whether the changelog gate should skip. Reads PR_AUTHOR and
-# GITHUB_EVENT_PATH; appends skip to GITHUB_OUTPUT. Always exits 0 on a
+# Decide whether the changelog gate should skip. Reads PR_AUTHOR,
+# GITHUB_EVENT_PATH, and optional PRODUCT_CHANGED (dorny/paths-filter:
+# "true" or "false"); appends skip to GITHUB_OUTPUT. Always exits 0 on a
 # successful decision; fails non-zero if the event file cannot be read.
 
 def append-output [name: string, value: string] {
@@ -61,6 +62,13 @@ def main [] {
   if ('skip-changelog' in $labels) {
     append-output 'skip' 'true'
     print 'Skipping changelog check: skip-changelog label'
+    return
+  }
+
+  let product_changed = ($env.PRODUCT_CHANGED? | default '')
+  if $product_changed == 'false' {
+    append-output 'skip' 'true'
+    print 'Skipping changelog check: no user-facing path changes'
     return
   }
 

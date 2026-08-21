@@ -146,6 +146,29 @@ repos/opencloudmesh-go` first when your shell cwd is the meta root).
 The legacy `.githooks/pre-commit` path is retired; use pre-commit install
 instead.
 
+## Changelog
+
+User-facing changes need a changie fragment under `.changes/unreleased/`
+(`changie new`). The required CI check named `changelog` looks for one
+unless the PR is skipped.
+
+The gate skips automatically when any of these hold:
+
+- the author is Dependabot
+- the PR is a release (`release/<v>` or title `chore(release):`)
+- every changed file is outside the user-facing path set
+- the `skip-changelog` label is present
+
+User-facing paths include `cmd/`, most of `internal/` (not architecture
+guards or test helpers), `go.mod` / `go.sum`, `Makefile`, `docker/`,
+`.goreleaser.yaml`, `assets/`, `README.md`, `SECURITY.md`, the
+release/image publish workflows, and `.github/actions/build-go/`.
+
+CI workflows, tests, contributor docs, lint config, and the license
+allowlist do not need a fragment and do not get the changie reminder.
+Use the `skip-changelog` label for gray cases: a refactor that still
+touches a user-facing path but has no user-visible effect.
+
 ## Before you open a pull request
 
 Run the smallest relevant checks for your change. In most cases that means:

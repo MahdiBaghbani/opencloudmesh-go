@@ -36,17 +36,51 @@ jobs:
         with:
           nu-version: ${{ env.NU_VERSION }}
 
-      # Skip the gate for dependabot or PRs carrying the skip-changelog label.
-      # The step always exits 0 (never fails the job) and emits a `skip` output
-      # that gates every later step, so skipped PRs do not run the fragment gate.
+      # Positive user-facing path set. The changelog job always runs (required
+      # check name `changelog`); skip is a step output, not a skipped job.
+      # Pinned dorny/paths-filter SHA matches .github/action-pins.yml.
+      - id: product
+        name: Detect user-facing paths
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            product:
+              - 'cmd/**'
+              - 'internal/**'
+              - '!internal/architecture/**'
+              - '!internal/testsupport/**'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+              - 'docker/**'
+              - 'scripts/build-docker.sh'
+              - '.goreleaser.yaml'
+              - 'assets/**'
+              - 'README.md'
+              - 'SECURITY.md'
+              - '.github/workflows/release.yml'
+              - '.github/workflows/release-binary.yml'
+              - '.github/workflows/release-finalize.yml'
+              - '.github/workflows/docker-build.yml'
+              - '.github/actions/build-go/**'
+
+      - name: Test skip script
+        run: nu .github/scripts/changelog-skip-check-test.nu
+
+      # Skip the gate for dependabot, release PRs, skip-changelog, or PRs
+      # with no user-facing path changes. The step always exits 0 on a
+      # successful decision and emits a `skip` output that gates later
+      # steps, so skipped PRs do not run the fragment gate.
       - id: skip
         name: Skip check
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PRODUCT_CHANGED: ${{ steps.product.outputs.product }}
         run: nu .github/scripts/changelog-skip-check.nu
 
-      # When the gate is skipped (release PR, dependabot, or skip-changelog
-      # label), remove any prior reminder comment so it does not linger.
+      # When the gate is skipped (release PR, dependabot, skip-changelog
+      # label, or no user-facing paths), remove any prior reminder comment
+      # so it does not linger.
       - if: steps.skip.outputs.skip == 'true'
         name: Remove changelog reminder
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88
