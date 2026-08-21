@@ -88,7 +88,7 @@ test: test-go test-integration
 
 # Enforce a minimum statement-coverage floor on the unit suite. The unit
 # profile (coverage-unit.out) is produced by test-go; run `make test-go` first.
-# The threshold is the CII/OCM silver bar (80%). Raise the floor, not lower it.
+# The threshold is 80%. Raise the floor, not lower it.
 COVERAGE_THRESHOLD ?= 80
 coverage-check:
 	@test -f coverage-unit.out || { echo "coverage-check: coverage-unit.out missing; run 'make test-go' first" >&2; exit 1; }
@@ -288,7 +288,7 @@ yamllint:
 	$(YAMLLINT) -c .yamllint $(YAMLLINT_PATHS)
 
 # Light local check: no full lint, no security scan.
-check: fmt-check vet lint-new test-go
+check: fmt-check vet lint-new test-go file-length
 
 # Install pre-commit.com git hooks (.pre-commit-config.yaml).
 # Staged: gofmt/goimports. Index snapshot (full module): go-vet.

@@ -47,7 +47,7 @@ test suites:
   `-coverpkg=./internal/...,./cmd/...`.
 - `make coverage-check` reads that profile, prints the unit statement
   coverage percentage, and fails if it is below `COVERAGE_THRESHOLD`
-  (default 80, the CII/OCM silver bar).
+  (default 80).
 - CI runs `make coverage-check` after the unit tests, so a pull request that
   drops unit coverage below 80% fails the `ci` rollup.
 
