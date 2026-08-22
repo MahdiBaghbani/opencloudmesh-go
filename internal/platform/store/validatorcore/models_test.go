@@ -78,6 +78,32 @@ func TestSessionStateReachableSet_Terminal(t *testing.T) {
 	}
 }
 
+func TestPrunableTerminalStates(t *testing.T) {
+	t.Parallel()
+
+	wantPrunable := []string{StateTerminalPass, StateTerminalFail}
+	if got := prunableTerminalStateSet(); !slices.Equal(got, wantPrunable) {
+		t.Errorf("prunableTerminalStateSet() = %v, want %v", got, wantPrunable)
+	}
+
+	for _, state := range testRunStates {
+		writerTerminal := isTerminalState(state)
+		prunable := isPrunableTerminalState(state)
+		wantWriter := state == StateTerminalPass ||
+			state == StateTerminalFail ||
+			state == StateInterrupted
+		wantPrunable := state == StateTerminalPass || state == StateTerminalFail
+
+		if writerTerminal != wantWriter {
+			t.Errorf("isTerminalState(%q) = %v, want %v", state, writerTerminal, wantWriter)
+		}
+
+		if prunable != wantPrunable {
+			t.Errorf("isPrunableTerminalState(%q) = %v, want %v", state, prunable, wantPrunable)
+		}
+	}
+}
+
 // Dormant states stay off the reachable graph: outside the schema state set,
 // non-terminal, and without a nextInstruction key.
 func TestSessionStateReachableSet_DormantUnreachable(t *testing.T) {
@@ -97,6 +123,10 @@ func TestSessionStateReachableSet_DormantUnreachable(t *testing.T) {
 
 		if isTerminalState(state) {
 			t.Errorf("dormant state %q must not be terminal", state)
+		}
+
+		if isPrunableTerminalState(state) {
+			t.Errorf("dormant state %q must not be prunable", state)
 		}
 
 		if NextInstructionForState(state) != "" {

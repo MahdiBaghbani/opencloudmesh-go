@@ -146,6 +146,7 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 	forever := RetentionTierForever
 	tier90 := RetentionTier90
 	knownReason := HarvestReasonExpired
+	timeoutReason := ReasonReverseShareTimeout
 
 	foreverID := "run-permanent-forever"
 	tier90ID := "run-permanent-90"
@@ -204,12 +205,13 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 			UpdatedAt:  staleFinished,
 		},
 		{
-			TestRunID:  staleInterruptedID,
-			State:      StateInterrupted,
-			TargetHost: "stale-interrupted.example",
-			FinishedAt: &staleFinished,
-			CreatedAt:  staleFinished,
-			UpdatedAt:  staleFinished,
+			TestRunID:      staleInterruptedID,
+			State:          StateInterrupted,
+			TargetHost:     "stale-interrupted.example",
+			TerminalReason: &timeoutReason,
+			FinishedAt:     &staleFinished,
+			CreatedAt:      staleFinished,
+			UpdatedAt:      staleFinished,
 		},
 	} {
 		if err := core.DB().WithContext(ctx).Create(&row).Error; err != nil {
@@ -217,9 +219,9 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 		}
 	}
 
+	seedRunChildSet(t, core.DB(), staleInterruptedID)
 	seedExpiryChildRows(t, core.DB(), stalePassID)
 	seedExpiryChildRows(t, core.DB(), staleFailID)
-	seedRunChildSet(t, core.DB(), staleInterruptedID)
 
 	if err := core.pruneTerminalRetention(ctx, 30); err != nil {
 		t.Fatalf("pruneTerminalRetention: %v", err)
@@ -229,7 +231,25 @@ func TestPruneTerminalRetention_SparesPermanentReports(t *testing.T) {
 	assertNoTombstone(t, core, tier90ID, StateTerminalPass)
 	assertRunHardDeleted(t, core, core.DB(), stalePassID)
 	assertRunHardDeleted(t, core, core.DB(), staleFailID)
-	assertRunHardDeleted(t, core, core.DB(), staleInterruptedID)
+	assertNoTombstone(t, core, staleInterruptedID, StateInterrupted)
+	assertChildRowCount(t, core.DB(), "report_exchange", staleInterruptedID, 1)
+	assertChildRowCount(t, core.DB(), "evidence_row", staleInterruptedID, 1)
+	assertChildRowCount(t, core.DB(), "dispatch_reservation", staleInterruptedID, 1)
+	assertChildRowCount(t, core.DB(), "share_correlation", staleInterruptedID, 1)
+
+	interrupted, err := core.GetTestRun(ctx, staleInterruptedID)
+	if err != nil {
+		t.Fatalf("GetTestRun %s: %v (interrupted run must remain)", staleInterruptedID, err)
+	}
+
+	if interrupted.TerminalReason == nil || *interrupted.TerminalReason != ReasonReverseShareTimeout {
+		t.Fatalf(
+			"%s terminal_reason = %v, want %q",
+			staleInterruptedID,
+			interrupted.TerminalReason,
+			ReasonReverseShareTimeout,
+		)
+	}
 
 	tombstoned, err := core.GetTestRun(ctx, tombstonedID)
 	if err != nil {

@@ -252,6 +252,25 @@ func isTerminalState(state string) bool {
 	return state == StateTerminalPass || state == StateTerminalFail || state == StateInterrupted
 }
 
+// isPrunableTerminalState reports whether retention may delete or tombstone
+// the row. Interrupted stays writer-terminal so a later resume or flip can
+// still find it.
+func isPrunableTerminalState(state string) bool {
+	return state == StateTerminalPass || state == StateTerminalFail
+}
+
+func prunableTerminalStateSet() []string {
+	states := make([]string, 0, len(testRunStates))
+
+	for _, state := range testRunStates {
+		if isPrunableTerminalState(state) {
+			states = append(states, state)
+		}
+	}
+
+	return states
+}
+
 func normalizeStatsHost(authority, scheme string) (string, error) {
 	normalized, err := hostport.Normalize(authority, scheme)
 	if err != nil {

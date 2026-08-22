@@ -63,6 +63,75 @@ func TestSweepExpiredPermanentReports_HardExpiryWipesAndKeepsParent(t *testing.T
 	assertStatsRawCount(t, db, ctx, 1)
 }
 
+func TestSweepExpiredPermanentReports_SkipsExpiredInterrupted(t *testing.T) {
+	t.Parallel()
+
+	sqlCore := openPeerStore(t)
+
+	core, attachErr := Attach(sqlCore.DB(), DefaultSessionConfig())
+	if attachErr != nil {
+		t.Fatalf("Attach: %v", attachErr)
+	}
+
+	db := core.DB()
+	ctx := t.Context()
+	now := time.Now().Unix()
+	finished := now - int64(40*24*3600)
+	expires := now - 60
+	passID := "run-hard-expiry-pass"
+	interruptedID := "run-hard-expiry-interrupted"
+
+	seedExpiredPermanentRun(t, db, ctx, passID, finished, expires)
+	seedExpiredPermanentRun(t, db, ctx, interruptedID, finished, expires)
+	seedExpiryChildRows(t, db, interruptedID)
+	seedExpiryChildRows(t, db, passID)
+	mustExec(t, db, "UPDATE test_run SET state = '"+StateInterrupted+
+		"', terminal_reason = '"+ReasonReverseShareTimeout+
+		"' WHERE test_run_id = '"+interruptedID+"'")
+
+	if err := core.SweepExpiredPermanentReports(ctx); err != nil {
+		t.Fatalf("SweepExpiredPermanentReports: %v", err)
+	}
+
+	pass, err := core.GetTestRun(ctx, passID)
+	if err != nil {
+		t.Fatalf("GetTestRun %s: %v (parent must survive as a tombstone)", passID, err)
+	}
+
+	assertHardExpiryTombstone(t, pass)
+	assertChildRowCount(t, db, "report_exchange", passID, 0)
+	assertChildRowCount(t, db, "evidence_row", passID, 0)
+
+	assertSweepGuardUnchanged(t, core, db, interruptedID)
+
+	interrupted, err := core.GetTestRun(ctx, interruptedID)
+	if err != nil {
+		t.Fatalf("GetTestRun %s: %v (interrupted permanent must survive)", interruptedID, err)
+	}
+
+	if interrupted.State != StateInterrupted {
+		t.Fatalf("%s state = %q, want %q", interruptedID, interrupted.State, StateInterrupted)
+	}
+
+	if interrupted.HarvestedAt != nil || interrupted.HarvestReason != nil {
+		t.Fatalf(
+			"%s tombstone = (%v, %v), want both NULL",
+			interruptedID,
+			interrupted.HarvestedAt,
+			interrupted.HarvestReason,
+		)
+	}
+
+	if interrupted.TerminalReason == nil || *interrupted.TerminalReason != ReasonReverseShareTimeout {
+		t.Fatalf(
+			"%s terminal_reason = %v, want %q",
+			interruptedID,
+			interrupted.TerminalReason,
+			ReasonReverseShareTimeout,
+		)
+	}
+}
+
 func TestStartRetentionSweep_StopsOnCancel(t *testing.T) {
 	t.Parallel()
 

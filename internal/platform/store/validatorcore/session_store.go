@@ -331,16 +331,17 @@ func (c *Core) StopPassiveComplete(ctx context.Context, testRunID string) error 
 }
 
 // harvestReasonRetentionExpired is the harvest_reason stamped on permanent
-// test_run rows tombstoned by the retention sweep. Non-permanent terminal
-// rows are hard-deleted children first, then parent; only permanent rows
-// are tombstoned, and only by that sweep.
+// test_run rows tombstoned by the retention sweep. Non-permanent pass and
+// fail rows are hard-deleted children first, then parent; only permanent
+// rows are tombstoned, and only by that sweep.
 const harvestReasonRetentionExpired = HarvestReasonExpired
 
-// PruneTerminalSessions applies retention to aged non-permanent terminal rows.
-// opt_in_permanent=1 rows are skipped so durable reports survive the default
-// window. Already-harvested rows, nonterminal rows, is_active=1 rows, and
-// rows newer than the cutoff are excluded. Child rows are harvested first
-// (RESTRICT FKs), then the parent test_run is hard-deleted.
+// PruneTerminalSessions applies retention to aged non-permanent pass and
+// fail rows. Interrupted rows stay so a later resume or flip can still find
+// them. opt_in_permanent=1 rows are skipped so durable reports survive the
+// default window. Already-harvested rows, nonterminal rows, is_active=1
+// rows, and rows newer than the cutoff are excluded. Child rows are
+// harvested first (RESTRICT FKs), then the parent test_run is hard-deleted.
 func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -359,7 +360,7 @@ func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) err
 			Where(
 				"state IN ? AND finished_at IS NOT NULL AND finished_at < ? "+
 					"AND harvested_at IS NULL AND opt_in_permanent = 0 AND is_active = 0",
-				[]string{StateTerminalPass, StateTerminalFail, StateInterrupted},
+				prunableTerminalStateSet(),
 				cutoff,
 			).
 			Select(colTestRunID).

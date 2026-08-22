@@ -19,9 +19,10 @@ import (
 // expiry is handler-side and does not wait for this ticker.
 const RetentionSweepInterval = time.Hour
 
-// SweepExpiredPermanentReports tombstones opted-in terminal reports whose
-// expires_at has elapsed. The parent row stays so the report URL still
-// resolves; evidence children are deleted and PII columns are wiped.
+// SweepExpiredPermanentReports tombstones opted-in pass and fail reports
+// whose expires_at has elapsed. Interrupted permanent reports stay live so
+// a later flip can resume them. The parent row stays so the report URL
+// still resolves; evidence children are deleted and PII columns are wiped.
 func (c *Core) SweepExpiredPermanentReports(ctx context.Context) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -35,7 +36,7 @@ func (c *Core) SweepExpiredPermanentReports(ctx context.Context) error {
 			"opt_in_permanent = 1 AND is_active = 0 AND harvested_at IS NULL "+
 				"AND expires_at IS NOT NULL AND expires_at <= ? AND state IN ?",
 			now,
-			[]string{StateTerminalPass, StateTerminalFail, StateInterrupted},
+			prunableTerminalStateSet(),
 		).
 		Pluck(colTestRunID, &ids).Error
 	if err != nil {

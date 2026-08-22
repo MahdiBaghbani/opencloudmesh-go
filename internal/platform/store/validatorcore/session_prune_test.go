@@ -102,7 +102,7 @@ func TestPruneTerminalSessions_HardDeletesRunAndChildren(t *testing.T) {
 	}
 }
 
-func TestPruneTerminalSessions_DeletesInterruptedNonPermanentRun(t *testing.T) {
+func TestPruneTerminalSessions_SkipsInterruptedTimeoutRun(t *testing.T) {
 	t.Parallel()
 
 	sqlCore := openPeerStore(t)
@@ -117,9 +117,12 @@ func TestPruneTerminalSessions_DeletesInterruptedNonPermanentRun(t *testing.T) {
 
 	now := time.Now().Unix()
 	staleFinished := now - int64(60*24*3600)
+	timeoutReason := ReasonReverseShareTimeout
+	staleReason := "probe_finished"
 
-	// An aged non-permanent interrupted run is hard-deleted after its
-	// children, so a restart-interrupted incognito session does not linger.
+	// An aged non-permanent interrupted run with reverse_share_timeout
+	// stays so a late reverse share can still flip it. The same prune
+	// still hard-deletes an aged pass row.
 	interrupted := &TestRun{
 		TestRunID:      "run-prune-interrupted",
 		State:          StateInterrupted,
@@ -128,6 +131,7 @@ func TestPruneTerminalSessions_DeletesInterruptedNonPermanentRun(t *testing.T) {
 		DiscoveryURL:   "https://target.example/.well-known/ocm",
 		JwksURI:        "https://target.example/jwks.json",
 		ManifestSchema: "ocm-validator-manifest/v1",
+		TerminalReason: &timeoutReason,
 		FinishedAt:     &staleFinished,
 		CreatedAt:      staleFinished,
 		UpdatedAt:      staleFinished,
@@ -138,12 +142,28 @@ func TestPruneTerminalSessions_DeletesInterruptedNonPermanentRun(t *testing.T) {
 	}
 
 	seedRunChildSet(t, db, "run-prune-interrupted")
+	seedTerminalRun(t, db, ctx, "run-prune-stale-pass", staleFinished, staleReason)
 
 	if pruneErr := core.PruneTerminalSessions(ctx, 30); pruneErr != nil {
 		t.Fatalf("PruneTerminalSessions: %v", pruneErr)
 	}
 
-	assertRunHardDeleted(t, core, db, "run-prune-interrupted")
+	assertNoTombstone(t, core, "run-prune-interrupted", StateInterrupted)
+	assertChildRowCount(t, db, "report_exchange", "run-prune-interrupted", 1)
+	assertChildRowCount(t, db, "evidence_row", "run-prune-interrupted", 1)
+	assertChildRowCount(t, db, "dispatch_reservation", "run-prune-interrupted", 1)
+	assertChildRowCount(t, db, "share_correlation", "run-prune-interrupted", 1)
+
+	got, err := core.GetTestRun(ctx, "run-prune-interrupted")
+	if err != nil {
+		t.Fatalf("GetTestRun run-prune-interrupted: %v", err)
+	}
+
+	if got.TerminalReason == nil || *got.TerminalReason != ReasonReverseShareTimeout {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, ReasonReverseShareTimeout)
+	}
+
+	assertRunHardDeleted(t, core, db, "run-prune-stale-pass")
 }
 
 func TestPruneTerminalSessions_SkipsActiveSameBootRow(t *testing.T) {
