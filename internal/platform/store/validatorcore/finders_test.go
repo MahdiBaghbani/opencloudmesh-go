@@ -26,7 +26,7 @@ func TestFindActiveCorrelation_ExcludesPending(t *testing.T) {
 	seedActiveRun(t, core, runID, "peer.example", true)
 	seedCorrelation(t, core, ShareCorrelation{
 		TestRunID:     runID,
-		Role:          RoleOutgoingInvite,
+		Role:          RoleOutgoingToTarget,
 		SenderHost:    "peer.example",
 		ProviderID:    "token-1",
 		LocalIdentity: LocalIdentityA,
@@ -36,7 +36,7 @@ func TestFindActiveCorrelation_ExcludesPending(t *testing.T) {
 
 	if _, err := core.FindActiveCorrelation(
 		ctx,
-		RoleOutgoingInvite,
+		RoleOutgoingToTarget,
 		"peer.example",
 		"token-1",
 		LocalIdentityA,
@@ -52,7 +52,7 @@ func TestFindActiveCorrelation_ExcludesPending(t *testing.T) {
 
 	got, err := core.FindActiveCorrelation(
 		ctx,
-		RoleOutgoingInvite,
+		RoleOutgoingToTarget,
 		"peer.example",
 		"token-1",
 		LocalIdentityA,
@@ -76,7 +76,7 @@ func TestFindCorrelationAnyStatus_IncludesPending(t *testing.T) {
 	seedActiveRun(t, core, runID, "peer.example", true)
 	seedCorrelation(t, core, ShareCorrelation{
 		TestRunID:     runID,
-		Role:          RoleOutgoingInvite,
+		Role:          RoleOutgoingToTarget,
 		SenderHost:    "peer.example",
 		ProviderID:    "token-pending",
 		LocalIdentity: LocalIdentityA,
@@ -86,7 +86,7 @@ func TestFindCorrelationAnyStatus_IncludesPending(t *testing.T) {
 
 	got, err := core.FindCorrelationAnyStatus(
 		ctx,
-		RoleOutgoingInvite,
+		RoleOutgoingToTarget,
 		"peer.example",
 		"token-pending",
 		LocalIdentityA,
@@ -204,7 +204,7 @@ func TestFinders_InvalidLocalIdentityDoesNotQuery(t *testing.T) {
 
 			if _, err := core.FindActiveCorrelation(
 				ctx,
-				RoleOutgoingInvite,
+				RoleOutgoingToTarget,
 				"peer.example",
 				"token-1",
 				tt.identity,
@@ -214,7 +214,7 @@ func TestFinders_InvalidLocalIdentityDoesNotQuery(t *testing.T) {
 
 			if _, err := core.FindCorrelationAnyStatus(
 				ctx,
-				RoleOutgoingInvite,
+				RoleOutgoingToTarget,
 				"peer.example",
 				"token-1",
 				tt.identity,

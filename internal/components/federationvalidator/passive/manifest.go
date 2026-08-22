@@ -158,6 +158,10 @@ func mountedAPIRoutes(externalBasePath string) []MountedAPIRoute {
 			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPISession),
 		},
 		{
+			Method:   http.MethodPost,
+			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPISessionInvite),
+		},
+		{
 			Method:   http.MethodGet,
 			FullPath: joinReportPath(externalBasePath, manifestServicePrefix, RouteAPIReport),
 		},

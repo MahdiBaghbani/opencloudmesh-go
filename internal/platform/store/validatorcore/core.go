@@ -22,6 +22,11 @@ type Core struct {
 	db          *gorm.DB
 	sessionCfg  SessionConfig
 	statsHasher StatsHostHasher
+	// claimPayloadLoadHook is a test seam invoked while loading the
+	// outgoing invite row inside the claim transaction. Production
+	// leaves it nil. A non-nil error aborts the transaction so
+	// s1_claimed_at is not written.
+	claimPayloadLoadHook func() error
 }
 
 // NewCore wraps an existing GORM DB handle for validator persistence.

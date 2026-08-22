@@ -203,3 +203,73 @@ func TestRouteSpecs_SessionGatedByValidatorFeature(t *testing.T) {
 		t.Fatal("expected protected session path when validator disabled")
 	}
 }
+
+func TestRouteSpecs_SessionInviteClaimPublicAnonymous(t *testing.T) {
+	t.Parallel()
+
+	enabled := service.RouteOpts{
+		ValidatorEnabled:  true,
+		TokenExchangePath: "token",
+	}
+
+	var claimSpec *service.RouteSpec
+
+	for _, spec := range service.RegisteredRouteSpecs(enabled) {
+		if spec.Pattern == RouteAPISessionInvite {
+			claimSpec = &spec
+
+			break
+		}
+	}
+
+	if claimSpec == nil {
+		t.Fatal("expected session invite claim route spec")
+	}
+
+	if claimSpec.ID != service.RouteIDValidatorAPISessionInvite {
+		t.Fatalf("ID = %q, want %q", claimSpec.ID, service.RouteIDValidatorAPISessionInvite)
+	}
+
+	if claimSpec.Method != http.MethodPost {
+		t.Fatalf("Method = %q, want POST", claimSpec.Method)
+	}
+
+	if claimSpec.SessionPolicy != service.SessionPublic {
+		t.Fatalf("SessionPolicy = %q, want public", claimSpec.SessionPolicy)
+	}
+
+	if claimSpec.HandlerAuth != service.HandlerAuthRateLimitOnly {
+		t.Fatalf("HandlerAuth = %q, want rate limit only", claimSpec.HandlerAuth)
+	}
+
+	if claimSpec.FeatureCondition != service.FeatureValidatorEnabled {
+		t.Fatalf("FeatureCondition = %q, want validator enabled gate", claimSpec.FeatureCondition)
+	}
+
+	if service.SessionAuthRequiredForPath("/validator/api/session/run-1/invite", enabled) {
+		t.Fatal("expected anonymous access to /validator/api/session/run-1/invite")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1/invite/extra", enabled) {
+		t.Fatal("expected /validator/api/session/run-1/invite/extra protected via MatchExact")
+	}
+}
+
+func TestRouteSpecs_SessionInviteGatedByValidatorFeature(t *testing.T) {
+	t.Parallel()
+
+	enabled := service.RouteOpts{ValidatorEnabled: true, TokenExchangePath: "token"}
+	disabled := service.RouteOpts{ValidatorEnabled: false, TokenExchangePath: "token"}
+
+	if !routeSpecPresent(t, enabled, RouteAPISessionInvite) {
+		t.Fatal("expected session invite claim route when validator enabled")
+	}
+
+	if routeSpecPresent(t, disabled, RouteAPISessionInvite) {
+		t.Fatal("session invite claim route must be absent when validator disabled")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1/invite", disabled) {
+		t.Fatal("expected protected claim path when validator disabled")
+	}
+}

@@ -58,18 +58,6 @@ func TestShareCorrelation_RoleSlotsAndComposite(t *testing.T) {
 	db := attachFresh(t)
 	createTestRun(t, db, "run-corr")
 
-	outgoing := newCorrelation(RoleOutgoingInvite, "prov-a", "alice")
-
-	if err := db.Create(&outgoing).Error; err != nil {
-		t.Fatalf("insert outgoing invite: %v", err)
-	}
-
-	second := newCorrelation(RoleOutgoingInvite, "prov-b", "bob")
-
-	if err := db.Create(&second).Error; err != nil {
-		t.Fatalf("second outgoing_invite row with a distinct composite must be accepted: %v", err)
-	}
-
 	incoming := newCorrelation(RoleIncomingInvite, "prov-c", "carol")
 
 	if err := db.Create(&incoming).Error; err != nil {

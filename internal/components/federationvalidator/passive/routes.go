@@ -30,6 +30,10 @@ const (
 	// RouteAPISession is GET /api/session/{id} on the validator service router.
 	RouteAPISession = "/api/session/{id}"
 
+	// RouteAPISessionInvite is POST /api/session/{id}/invite.
+	// Duplicated in services/validator; keep the strings synchronized.
+	RouteAPISessionInvite = "/api/session/{id}/invite"
+
 	// RouteAPIReport is GET /api/report/{id} on the validator service router.
 	// Duplicated in services/validator because this package cannot import that
 	// service package; keep the strings synchronized.
@@ -60,6 +64,23 @@ func CreateSessionRouteSpec() service.RouteSpec {
 		Service:       ValidatorServiceName,
 		Method:        http.MethodPost,
 		Pattern:       RouteStartCreateSession,
+		SessionPolicy: service.SessionPublic,
+		HandlerAuth:   service.HandlerAuthRateLimitOnly,
+		Middleware:    []string{"ratelimit"},
+		SurfaceClass:  service.SurfaceAPI,
+		TrustClass:    service.TrustPeerNone,
+	}
+}
+
+// ClaimInviteRouteSpec returns POST /api/session/{id}/invite for the
+// one-time session invite claim. Ratelimit uses the same start_public
+// profile as create-session.
+func ClaimInviteRouteSpec() service.RouteSpec {
+	return service.RouteSpec{
+		ID:            service.RouteIDValidatorAPISessionInvite,
+		Service:       ValidatorServiceName,
+		Method:        http.MethodPost,
+		Pattern:       RouteAPISessionInvite,
 		SessionPolicy: service.SessionPublic,
 		HandlerAuth:   service.HandlerAuthRateLimitOnly,
 		Middleware:    []string{"ratelimit"},

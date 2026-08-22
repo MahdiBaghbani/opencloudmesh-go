@@ -62,6 +62,11 @@ func TestMintOutgoingInvite_OneCanonicalInvitePerRun(t *testing.T) {
 	}
 
 	env.requireState(t, runID, validatorcore.StateInviteMinted)
+	env.requireNoS1Claim(t, runID)
+
+	if all[0].Token != first.Token {
+		t.Fatalf("stored token changed on retry")
+	}
 }
 
 func TestMintOutgoingInvite_ConcurrentCreatesRaceToOneWinner(t *testing.T) {
@@ -98,7 +103,8 @@ func TestMintOutgoingInvite_ConcurrentCreatesRaceToOneWinner(t *testing.T) {
 	wg.Wait()
 
 	// No worker error is swallowed: every caller must observe the one
-	// canonical invite, whether it won the binding race or healed it.
+	// canonical invite, whether it won the binding race or recovered
+	// the already-bound invite by pointer without reminting.
 	for i, err := range errs {
 		if err != nil {
 			t.Errorf("worker %d failed: %v", i, err)
@@ -139,60 +145,54 @@ func TestMintOutgoingInvite_ConcurrentCreatesRaceToOneWinner(t *testing.T) {
 	}
 
 	env.requireState(t, runID, validatorcore.StateInviteMinted)
+	env.requireNoS1Claim(t, runID)
 }
 
-func TestMintOutgoingInvite_CreateFailureHealsOnRetry(t *testing.T) {
+func TestMintOutgoingInvite_RetryAfterClaimDoesNotRearm(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t)
 	ctx := t.Context()
-	runID := "run-mint-heal"
+	runID := "run-mint-no-rearm"
 
 	env.seedRun(t, runID, validatorcore.StateActiveRunning)
 
-	// First mint wins the binding but crashes before the product invite
-	// create commits: the run is left in invite_minted with no invite row.
-	flaky := &failOnceOutgoingRepo{inner: env.outgoing}
-	flaky.failCreate.Store(true)
-
-	crashingSvc, newErr := reverseinvite.New(reverseinvite.Deps{
-		Store:           env.store,
-		OutgoingInvites: flaky,
-		IncomingInvites: env.incoming,
-		Parties:         env.parties,
-		Poster:          env.poster,
-		LocalIdentity:   testLocalIdentity(),
-	})
-	if newErr != nil {
-		t.Fatalf("reverseinvite.New: %v", newErr)
+	first, err := env.svc.MintOutgoingInvite(ctx, runID)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
 	}
 
-	if _, err := crashingSvc.MintOutgoingInvite(ctx, runID); err == nil {
-		t.Fatal("mint with failing create succeeded, want injected failure")
+	if _, claimErr := env.store.ClaimOutgoingInvite(ctx, runID); claimErr != nil {
+		t.Fatalf("claim: %v", claimErr)
 	}
 
-	env.requireState(t, runID, validatorcore.StateInviteMinted)
-
-	if all, listErr := env.outgoing.List(ctx); listErr != nil {
-		t.Fatalf("list outgoing: %v", listErr)
-	} else if len(all) != 0 {
-		t.Fatalf("outgoing invites after crash = %d, want 0", len(all))
+	claimed, loadErr := env.store.GetTestRun(ctx, runID)
+	if loadErr != nil {
+		t.Fatalf("GetTestRun after claim: %v", loadErr)
 	}
 
-	// The retry must heal the bound-but-missing slot: same bound invite id
-	// and exactly one stored row. The healer mints a fresh token.
-	healed, err := env.svc.MintOutgoingInvite(ctx, runID)
+	if claimed.S1ClaimedAt == nil {
+		t.Fatal("s1_claimed_at is nil after claim")
+	}
+
+	claimedAt := *claimed.S1ClaimedAt
+
+	again, err := env.svc.MintOutgoingInvite(ctx, runID)
 	if err != nil {
 		t.Fatalf("mint retry: %v", err)
 	}
 
-	run, loadErr := env.store.GetTestRun(ctx, runID)
-	if loadErr != nil {
-		t.Fatalf("GetTestRun: %v", loadErr)
+	if again.ID != first.ID || again.Token != first.Token {
+		t.Fatalf("retry reminted %q/%q, want %q/%q", again.ID, again.Token, first.ID, first.Token)
 	}
 
-	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != healed.ID {
-		t.Fatalf("healed invite id = %q, want bound %v", healed.ID, run.OutgoingInviteID)
+	after, err := env.store.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun after retry: %v", err)
+	}
+
+	if after.S1ClaimedAt == nil || *after.S1ClaimedAt != claimedAt {
+		t.Fatalf("s1_claimed_at = %v, want %d", after.S1ClaimedAt, claimedAt)
 	}
 
 	all, err := env.outgoing.List(ctx)
@@ -203,18 +203,6 @@ func TestMintOutgoingInvite_CreateFailureHealsOnRetry(t *testing.T) {
 	if len(all) != 1 {
 		t.Fatalf("outgoing invites = %d, want 1", len(all))
 	}
-
-	// A third caller observes the healed canonical invite.
-	again, err := env.svc.MintOutgoingInvite(ctx, runID)
-	if err != nil {
-		t.Fatalf("mint after heal: %v", err)
-	}
-
-	if again.ID != healed.ID || again.Token != healed.Token {
-		t.Fatalf("post-heal mint = %q/%q, want canonical %q/%q", again.ID, again.Token, healed.ID, healed.Token)
-	}
-
-	env.requireState(t, runID, validatorcore.StateInviteMinted)
 }
 
 func TestMintOutgoingInvite_RequiresActiveRun(t *testing.T) {

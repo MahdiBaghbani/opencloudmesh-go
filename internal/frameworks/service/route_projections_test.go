@@ -150,6 +150,22 @@ func TestPathMatchesRoute_MatchExact(t *testing.T) {
 	}
 }
 
+func TestPathMatchesRoute_MatchExactSessionInvite(t *testing.T) {
+	t.Parallel()
+
+	if !pathMatchesRoute("/validator/api/session/run-1/invite", "/validator/api/session/{id}/invite", true) {
+		t.Fatal("expected session invite claim path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1/invite/extra", "/validator/api/session/{id}/invite", true) {
+		t.Fatal("expected session invite suffix path to not match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1", "/validator/api/session/{id}/invite", true) {
+		t.Fatal("expected session poll path to not match invite claim pattern")
+	}
+}
+
 func TestSessionAuthChecker_MatchesSessionAuthRequiredForPath(t *testing.T) {
 	t.Parallel()
 

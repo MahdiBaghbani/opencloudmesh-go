@@ -78,12 +78,20 @@ func TestHandleManifest_AdvertisesSessionAndReport(t *testing.T) {
 
 	var hasReport bool
 
+	var hasClaimPost bool
+
+	var hasClaimGet bool
+
 	for _, route := range payload.Routes {
 		switch {
 		case route.FullPath == "/validator/api/session/{id}" && route.Method == http.MethodGet:
 			hasSession = true
 		case route.FullPath == "/validator/api/report/{id}" && route.Method == http.MethodGet:
 			hasReport = true
+		case route.FullPath == "/validator/api/session/{id}/invite" && route.Method == http.MethodPost:
+			hasClaimPost = true
+		case route.FullPath == "/validator/api/session/{id}/invite" && route.Method == http.MethodGet:
+			hasClaimGet = true
 		}
 	}
 
@@ -93,6 +101,14 @@ func TestHandleManifest_AdvertisesSessionAndReport(t *testing.T) {
 
 	if !hasReport {
 		t.Fatal("expected GET /validator/api/report/{id} in manifest routes")
+	}
+
+	if !hasClaimPost {
+		t.Fatal("expected POST /validator/api/session/{id}/invite in manifest routes")
+	}
+
+	if hasClaimGet {
+		t.Fatal("GET /validator/api/session/{id}/invite must not be advertised")
 	}
 }
 

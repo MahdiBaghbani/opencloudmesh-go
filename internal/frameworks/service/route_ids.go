@@ -20,6 +20,8 @@ const (
 	RouteIDValidatorAPIStatistics = "validator-api-statistics"
 	// RouteIDValidatorAPISession is the validator session polling route identifier.
 	RouteIDValidatorAPISession = "validator-api-session"
+	// RouteIDValidatorAPISessionInvite is the validator session invite-claim route identifier.
+	RouteIDValidatorAPISessionInvite = "validator-api-session-invite"
 	// RouteIDValidatorAPISessionReverseInvite is the validator reverse-invite paste route identifier.
 	RouteIDValidatorAPISessionReverseInvite = "validator-api-session-reverse-invite"
 	// RouteIDValidatorAPIReport is the validator JSON report route identifier.

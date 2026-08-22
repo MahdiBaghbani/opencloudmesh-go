@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 // Evidence tuple written by the winning reverse-invite paste. The reverse
@@ -80,48 +83,127 @@ func reverseInviteAcceptEvidence(testRunID string) ApplyEvidenceFactInput {
 	}
 }
 
-// MintOutgoingInviteBinding writes outgoing_invite_id on the run and CASes
-// active_running -> invite_minted in one transaction. Retrying with the same
-// invite ID is idempotent; a different ID is a conflict. The invite token is
-// not stored on the validator row. Concurrent mints race to exactly one
-// winner.
-func (c *Core) MintOutgoingInviteBinding(ctx context.Context, testRunID, inviteID, token string) error {
-	if testRunID == "" || inviteID == "" || token == "" {
-		return errors.New("validatorcore: mint outgoing invite binding requires run id, invite id, and token")
+// OutgoingInviteMint is the product-row payload written in the same
+// transaction as the run pointer bind and invite_minted CAS.
+type OutgoingInviteMint struct {
+	ID              string
+	Token           string
+	ProviderFQDN    string
+	InviteString    string
+	CreatedByUserID string
+	Status          string
+	CreatedAt       int64
+	ExpiresAt       int64
+}
+
+// MintOutgoingInvite inserts the product outgoing invite, binds
+// outgoing_invite_id, and CASes active_running -> invite_minted in one
+// transaction on the shared handle. Retrying with the same invite ID is
+// idempotent and does not write s1_claimed_at. A different ID is a
+// conflict. The invite token is stored only on the product row.
+func (c *Core) MintOutgoingInvite(ctx context.Context, testRunID string, invite OutgoingInviteMint) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if testRunID == "" || invite.ID == "" || invite.Token == "" {
+		return errors.New("validatorcore: mint outgoing invite requires run id, invite id, and token")
 	}
 
 	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return mintOutgoingInviteTx(tx, testRunID, inviteID, time.Now().Unix())
+		return mintOutgoingInviteTx(tx, testRunID, invite, time.Now().Unix())
 	})
 	if err == nil {
 		return nil
 	}
 
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return c.classifyOutgoingInviteRace(ctx, testRunID, inviteID, err)
+		return c.classifyOutgoingInviteRace(ctx, testRunID, invite.ID, err)
 	}
 
-	return fmt.Errorf("validatorcore: mint outgoing invite binding: %w", err)
+	return fmt.Errorf("validatorcore: mint outgoing invite: %w", err)
 }
 
-func mintOutgoingInviteTx(tx *gorm.DB, testRunID, inviteID string, now int64) error {
+func mintOutgoingInviteTx(tx *gorm.DB, testRunID string, invite OutgoingInviteMint, now int64) error {
+	run, err := loadTestRunTx(tx, testRunID)
+	if err != nil {
+		return err
+	}
+
+	skip, precheckErr := outgoingMintSkipOrErr(run, invite.ID)
+	if precheckErr != nil {
+		return precheckErr
+	}
+
+	if skip {
+		return nil
+	}
+
+	if insertErr := insertOutgoingInviteTx(tx, invite, now); insertErr != nil {
+		return insertErr
+	}
+
+	if bindErr := bindOutgoingInviteTx(tx, testRunID, invite.ID, now); bindErr != nil {
+		return bindErr
+	}
+
+	return casInviteMintedTx(tx, testRunID, now)
+}
+
+func loadTestRunTx(tx *gorm.DB, testRunID string) (*TestRun, error) {
 	var run TestRun
+
 	if err := tx.First(&run, "test_run_id = ?", testRunID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrSessionNotFound
+			return nil, ErrSessionNotFound
 		}
 
-		return fmt.Errorf("validatorcore: load test run: %w", err)
+		return nil, fmt.Errorf("validatorcore: load test run: %w", err)
 	}
 
+	return &run, nil
+}
+
+func outgoingMintSkipOrErr(run *TestRun, inviteID string) (skip bool, err error) {
 	if run.OutgoingInviteID != nil && *run.OutgoingInviteID != "" {
 		if *run.OutgoingInviteID == inviteID {
-			return nil
+			return true, nil
 		}
 
-		return ErrShareCorrelationConflict
+		return false, ErrShareCorrelationConflict
 	}
 
+	if !run.IsActive || run.State != StateActiveRunning {
+		return false, ErrStateTransitionMiss
+	}
+
+	return false, nil
+}
+
+func insertOutgoingInviteTx(tx *gorm.DB, invite OutgoingInviteMint, now int64) error {
+	if err := invites.ValidateCreateInviteStatus(invite.Status, "", ""); err != nil {
+		return fmt.Errorf("validatorcore: validate outgoing invite: %w", err)
+	}
+
+	row := store.OutgoingInvite{
+		ID:              invite.ID,
+		Token:           invite.Token,
+		ProviderFQDN:    invite.ProviderFQDN,
+		InviteString:    invite.InviteString,
+		CreatedByUserID: invite.CreatedByUserID,
+		Status:          invite.Status,
+		CreatedAt:       invite.CreatedAt,
+		ExpiresAt:       invite.ExpiresAt,
+		UpdatedAt:       now,
+	}
+	if err := tx.Create(&row).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func bindOutgoingInviteTx(tx *gorm.DB, testRunID, inviteID string, now int64) error {
 	res := tx.Model(&TestRun{}).
 		Where("test_run_id = ? AND "+colOutgoingInviteID+" IS NULL", testRunID).
 		Updates(map[string]any{
@@ -140,6 +222,10 @@ func mintOutgoingInviteTx(tx *gorm.DB, testRunID, inviteID string, now int64) er
 		return gorm.ErrDuplicatedKey
 	}
 
+	return nil
+}
+
+func casInviteMintedTx(tx *gorm.DB, testRunID string, now int64) error {
 	cas := tx.Model(&TestRun{}).
 		Where("test_run_id = ? AND is_active = 1 AND state = ?", testRunID, StateActiveRunning).
 		Updates(map[string]any{

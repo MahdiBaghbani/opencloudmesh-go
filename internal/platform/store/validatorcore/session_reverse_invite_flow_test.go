@@ -218,7 +218,7 @@ func TestImportReverseInvite_IdempotentSameToken(t *testing.T) {
 		}
 	}
 
-	if got := countCorrelations(t, core, runID, RoleIncomingInvite); got != 1 {
+	if got := countIncomingInviteCorrelations(t, core, runID); got != 1 {
 		t.Fatalf("correlation rows = %d, want 1", got)
 	}
 
@@ -260,7 +260,7 @@ func TestImportReverseInvite_FirstTokenWins(t *testing.T) {
 		t.Fatalf("reverse_invite_token = %v, want token-1 (first wins)", run.ReverseInviteToken)
 	}
 
-	if got := countCorrelations(t, core, runID, RoleIncomingInvite); got != 1 {
+	if got := countIncomingInviteCorrelations(t, core, runID); got != 1 {
 		t.Fatalf("correlation rows = %d, want 1", got)
 	}
 }
@@ -279,7 +279,7 @@ func TestImportReverseInvite_MissOutsideAwaiting(t *testing.T) {
 		t.Fatalf("import = %v, want ErrStateTransitionMiss", err)
 	}
 
-	if got := countCorrelations(t, core, runID, RoleIncomingInvite); got != 0 {
+	if got := countIncomingInviteCorrelations(t, core, runID); got != 0 {
 		t.Fatalf("correlation rows = %d, want 0 (rolled back)", got)
 	}
 
@@ -407,7 +407,7 @@ func TestImportReverseInvite_EvidenceFailureRollsBackCAS(t *testing.T) {
 
 	requireState(t, core, runID, StateReverseAwaitingInvite)
 
-	if got := countCorrelations(t, core, runID, RoleIncomingInvite); got != 0 {
+	if got := countIncomingInviteCorrelations(t, core, runID); got != 0 {
 		t.Fatalf("correlation rows after rollback = %d, want 0", got)
 	}
 

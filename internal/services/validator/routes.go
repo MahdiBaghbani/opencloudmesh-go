@@ -33,6 +33,9 @@ const (
 	RouteAPIScan = "/api/scan"
 	// RouteAPISession is GET /validator/api/session/{id}.
 	RouteAPISession = "/api/session/{id}"
+	// RouteAPISessionInvite is POST /validator/api/session/{id}/invite.
+	// Duplicated in the passive package; keep the strings synchronized.
+	RouteAPISessionInvite = "/api/session/{id}/invite"
 	// RouteAPISessionReverseInvite is POST /validator/api/session/{id}/reverse-invite.
 	RouteAPISessionReverseInvite = "/api/session/{id}/reverse-invite"
 	// RouteAPIReport is GET /validator/api/report/{id}.
@@ -101,6 +104,18 @@ func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 			Pattern:          RouteAPISession,
 			SessionPolicy:    service.SessionPublic,
 			HandlerAuth:      service.HandlerAuthNone,
+			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               service.RouteIDValidatorAPISessionInvite,
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodPost,
+			Pattern:          RouteAPISessionInvite,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthRateLimitOnly,
+			Middleware:       []string{"ratelimit"},
 			SurfaceClass:     service.SurfaceAPI,
 			TrustClass:       service.TrustPeerNone,
 			FeatureCondition: service.FeatureValidatorEnabled,

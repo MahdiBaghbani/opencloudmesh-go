@@ -51,7 +51,9 @@ func NewHandler(
 	}
 }
 
-// HandleCreateOutgoing handles POST /api/invites/outgoing.
+// HandleCreateOutgoing handles POST /api/invites/outgoing. This product
+// route is a second invite-token writer beside the validator session mint
+// that binds one canonical outgoing invite per interactive run.
 func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

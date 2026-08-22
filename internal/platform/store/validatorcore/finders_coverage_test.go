@@ -25,9 +25,9 @@ func TestFinders_SharedCoreConcurrent(t *testing.T) {
 	setBobUserID(t, core, runID, "bob-shared")
 	seedCorrelation(t, core, ShareCorrelation{
 		TestRunID:     runID,
-		Role:          RoleOutgoingInvite,
+		Role:          RoleIncomingFromTarget,
 		SenderHost:    "peer.example",
-		ProviderID:    "token-shared",
+		ProviderID:    "share-in",
 		LocalIdentity: LocalIdentityA,
 		Status:        CorrelationStatusConfirmed,
 		CreatedAt:     1,
@@ -183,9 +183,9 @@ func TestFinders_InactiveRunCorrelationNotFound(t *testing.T) {
 			seedActiveRun(t, core, tt.runID, "peer.example", false)
 			seedCorrelation(t, core, ShareCorrelation{
 				TestRunID:     tt.runID,
-				Role:          RoleOutgoingInvite,
+				Role:          RoleOutgoingToTarget,
 				SenderHost:    "peer.example",
-				ProviderID:    "token-inactive",
+				ProviderID:    "share-inactive",
 				LocalIdentity: LocalIdentityA,
 				Status:        tt.status,
 				CreatedAt:     1,
@@ -193,9 +193,9 @@ func TestFinders_InactiveRunCorrelationNotFound(t *testing.T) {
 
 			if _, err := core.FindActiveCorrelation(
 				ctx,
-				RoleOutgoingInvite,
+				RoleOutgoingToTarget,
 				"peer.example",
-				"token-inactive",
+				"share-inactive",
 				LocalIdentityA,
 			); !errors.Is(err, gorm.ErrRecordNotFound) {
 				t.Fatalf(
@@ -207,9 +207,9 @@ func TestFinders_InactiveRunCorrelationNotFound(t *testing.T) {
 
 			if _, err := core.FindCorrelationAnyStatus(
 				ctx,
-				RoleOutgoingInvite,
+				RoleOutgoingToTarget,
 				"peer.example",
-				"token-inactive",
+				"share-inactive",
 				LocalIdentityA,
 			); !errors.Is(err, gorm.ErrRecordNotFound) {
 				t.Fatalf(
@@ -323,9 +323,9 @@ func probeSharedCoreFinders(
 			invoke: func() (string, error) {
 				return core.FindActiveCorrelation(
 					ctx,
-					RoleOutgoingInvite,
+					RoleIncomingFromTarget,
 					"peer.example",
-					"token-shared",
+					"share-in",
 					LocalIdentityA,
 				)
 			},
@@ -335,9 +335,9 @@ func probeSharedCoreFinders(
 			invoke: func() (string, error) {
 				return core.FindCorrelationAnyStatus(
 					ctx,
-					RoleOutgoingInvite,
+					RoleIncomingFromTarget,
 					"peer.example",
-					"token-shared",
+					"share-in",
 					LocalIdentityA,
 				)
 			},

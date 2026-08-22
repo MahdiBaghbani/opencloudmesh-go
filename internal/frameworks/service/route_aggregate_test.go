@@ -161,6 +161,27 @@ func TestRoutes_ValidatorSessionMatchExactOnRouteRow(t *testing.T) {
 	if service.SessionAuthRequiredForPath("/validator/api/session/run-1", opts) {
 		t.Error("expected /validator/api/session/run-1 public")
 	}
+
+	inviteRow := findRouteRowByID(t, opts, service.RouteIDValidatorAPISessionInvite)
+	if !inviteRow.MatchExact {
+		t.Fatal("expected MatchExact true on RouteRow for session invite claim")
+	}
+
+	if inviteRow.FullPath != "/validator/api/session/{id}/invite" {
+		t.Fatalf("invite FullPath = %q, want /validator/api/session/{id}/invite", inviteRow.FullPath)
+	}
+
+	if inviteRow.Method != http.MethodPost {
+		t.Fatalf("invite Method = %q, want POST", inviteRow.Method)
+	}
+
+	if service.SessionAuthRequiredForPath("/validator/api/session/run-1/invite", opts) {
+		t.Error("expected /validator/api/session/run-1/invite public")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1/invite/extra", opts) {
+		t.Error("expected /validator/api/session/run-1/invite/extra protected via RouteRow MatchExact")
+	}
 }
 
 func TestRoutes_ReportTrailingSlashDoesNotInheritPublicExact(t *testing.T) {
@@ -203,6 +224,7 @@ func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 	wantExact := map[string]struct{}{
 		service.RouteIDValidatorAPIStatistics:      {},
 		service.RouteIDValidatorAPISession:         {},
+		service.RouteIDValidatorAPISessionInvite:   {},
 		service.RouteIDValidatorAPIReport:          {},
 		service.RouteIDValidatorHTMLReport:         {},
 		service.RouteIDValidatorAPIReportRetention: {},
@@ -310,6 +332,19 @@ func TestRoutes_ValidatorAPIRoutesGatedByFeature(t *testing.T) {
 		if _, ok := disabledByPath[path]; ok {
 			t.Errorf("disabled: path %q must not be mounted", path)
 		}
+	}
+
+	invitePath := "/validator/api/session/{id}/invite"
+
+	inviteRow, ok := enabledByPath[invitePath]
+	if !ok {
+		t.Errorf("enabled: expected path %q mounted as product route row", invitePath)
+	} else if inviteRow.Method != http.MethodPost {
+		t.Errorf("enabled: path %q Method = %q, want POST", invitePath, inviteRow.Method)
+	}
+
+	if _, ok := disabledByPath[invitePath]; ok {
+		t.Errorf("disabled: path %q must not be mounted", invitePath)
 	}
 }
 

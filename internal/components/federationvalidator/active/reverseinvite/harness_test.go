@@ -7,12 +7,10 @@ package reverseinvite_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,7 +18,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -57,78 +54,6 @@ func (p *stubPoster) PostInviteAccepted(_ context.Context, _ string, body []byte
 		StatusCode: p.status,
 		Body:       io.NopCloser(strings.NewReader(p.body)),
 	}, nil
-}
-
-// failOnceOutgoingRepo wraps the real outgoing invite repo and fails the next
-// Create call once, simulating a crash between the binding commit and the
-// product invite create.
-type failOnceOutgoingRepo struct {
-	inner      invitesoutgoing.OutgoingInviteRepo
-	failCreate atomic.Bool
-}
-
-func (r *failOnceOutgoingRepo) Create(ctx context.Context, invite *invitesoutgoing.OutgoingInvite) error {
-	if r.failCreate.CompareAndSwap(true, false) {
-		return errors.New("injected create failure")
-	}
-
-	if err := r.inner.Create(ctx, invite); err != nil {
-		return fmt.Errorf("failonce create: %w", err)
-	}
-
-	return nil
-}
-
-func (r *failOnceOutgoingRepo) GetByID(ctx context.Context, id string) (*invitesoutgoing.OutgoingInvite, error) {
-	invite, err := r.inner.GetByID(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("failonce get by id: %w", err)
-	}
-
-	return invite, nil
-}
-
-func (r *failOnceOutgoingRepo) GetByToken(ctx context.Context, token string) (*invitesoutgoing.OutgoingInvite, error) {
-	invite, err := r.inner.GetByToken(ctx, token)
-	if err != nil {
-		return nil, fmt.Errorf("failonce get by token: %w", err)
-	}
-
-	return invite, nil
-}
-
-func (r *failOnceOutgoingRepo) List(ctx context.Context) ([]*invitesoutgoing.OutgoingInvite, error) {
-	all, err := r.inner.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failonce list: %w", err)
-	}
-
-	return all, nil
-}
-
-func (r *failOnceOutgoingRepo) UpdateStatus(
-	ctx context.Context,
-	id string,
-	status invites.InviteStatus,
-	acceptance *invitesoutgoing.Acceptance,
-) error {
-	if err := r.inner.UpdateStatus(ctx, id, status, acceptance); err != nil {
-		return fmt.Errorf("failonce update status: %w", err)
-	}
-
-	return nil
-}
-
-func (r *failOnceOutgoingRepo) FindAcceptedForRecipient(
-	ctx context.Context,
-	senderUserID, recipientUserID, recipientFQDNNormalized string,
-) (*invitesoutgoing.OutgoingInvite, error) {
-	invite, err := r.inner.FindAcceptedForRecipient(ctx, senderUserID, recipientUserID, recipientFQDNNormalized)
-	if err != nil {
-		return nil, fmt.Errorf("failonce find accepted: %w", err)
-	}
-
-	return invite, nil
 }
 
 func testLocalIdentity() localidentity.Identity {
@@ -210,12 +135,14 @@ func (e *testEnv) seedRun(t *testing.T, runID, state string) {
 	now := time.Now().Unix()
 
 	if err := e.store.DB().WithContext(t.Context()).Create(&validatorcore.TestRun{
-		TestRunID:  runID,
-		IsActive:   true,
-		State:      state,
-		TargetHost: testTargetHost,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		TestRunID:    runID,
+		IsActive:     true,
+		State:        state,
+		TargetOrigin: "https://" + testTargetHost,
+		TargetHost:   testTargetHost,
+		DiscoveryURL: "https://" + testTargetHost + "/.well-known/ocm",
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}).Error; err != nil {
 		t.Fatalf("seed run %s: %v", runID, err)
 	}
@@ -269,6 +196,19 @@ func (e *testEnv) createIncoming(
 	}
 
 	return invite, nil
+}
+
+func (e *testEnv) requireNoS1Claim(t *testing.T, runID string) {
+	t.Helper()
+
+	run, err := e.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.S1ClaimedAt != nil {
+		t.Fatalf("s1_claimed_at = %v, want nil", run.S1ClaimedAt)
+	}
 }
 
 func (e *testEnv) requireState(t *testing.T, runID, want string) {

@@ -106,13 +106,13 @@ func SessionKindOf(row *TestRun) string {
 	return SessionKindPassiveOnly
 }
 
-// ShareCorrelation role values. sender_host is the TARGET authority for all four
-// roles (the authority advertised by the target discovery document), not an
-// operator alias and not identity B as sender.
+// ShareCorrelation role values. sender_host is the TARGET authority for every
+// role (the authority advertised by the target discovery document), not an
+// operator alias and not identity B as sender. Session outgoing invites bind
+// through test_run.outgoing_invite_id, not a correlation role.
 const (
 	RoleOutgoingToTarget   = "outgoing_to_target"
 	RoleIncomingFromTarget = "incoming_from_target"
-	RoleOutgoingInvite     = "outgoing_invite"
 	RoleIncomingInvite     = "incoming_invite"
 )
 

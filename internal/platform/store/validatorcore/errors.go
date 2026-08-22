@@ -26,6 +26,7 @@ const (
 	CodeSessionNotFound          = "SESSION_NOT_FOUND"
 	CodeInFlightPassiveLimit     = "IN_FLIGHT_PASSIVE_LIMIT"
 	CodeStopSessionMiss          = "STOP_SESSION_MISS"
+	CodeInviteAlreadyClaimed     = "INVITE_ALREADY_CLAIMED"
 )
 
 var (
@@ -43,6 +44,9 @@ var (
 
 	// ErrStopSessionMiss is returned when stop cannot match passive_complete.
 	ErrStopSessionMiss = errors.New(CodeStopSessionMiss)
+
+	// ErrInviteAlreadyClaimed is returned when the session invite was already claimed.
+	ErrInviteAlreadyClaimed = errors.New(CodeInviteAlreadyClaimed)
 
 	// ErrStateTransitionMiss is returned when a guarded update affects zero rows.
 	ErrStateTransitionMiss = errors.New("state transition miss")

@@ -22,8 +22,8 @@ type PlaneAAPIRoutePatterns struct {
 	Report     string
 }
 
-// MountPlaneARoutes registers plane-A validator routes on r. startRatelimit may be
-// nil to skip the POST /start ratelimit wrapper.
+// MountPlaneARoutes registers plane-A validator routes on r. startRatelimit may
+// be nil to skip the shared wrapper on POST /start and the invite claim.
 func MountPlaneARoutes(
 	r chi.Router,
 	h *Handler,
@@ -46,11 +46,7 @@ func MountPlaneARoutesWithHeal(
 	start := CreateSessionRouteSpec()
 	stop := StopSessionRouteSpec()
 
-	if startRatelimit != nil {
-		r.With(startRatelimit).Method(start.Method, start.Pattern, http.HandlerFunc(h.HandleStart))
-	} else {
-		r.Method(start.Method, start.Pattern, http.HandlerFunc(h.HandleStart))
-	}
+	mountRateLimited(r, startRatelimit, start.Method, start.Pattern, http.HandlerFunc(h.HandleStart))
 
 	sessionHandler := http.HandlerFunc(h.HandleSession)
 	if reverseWaitOpen != nil {
@@ -58,6 +54,9 @@ func MountPlaneARoutesWithHeal(
 	}
 
 	r.Method(stop.Method, stop.Pattern, http.HandlerFunc(h.HandleStop))
+
+	claim := ClaimInviteRouteSpec()
+	mountRateLimited(r, startRatelimit, claim.Method, claim.Pattern, http.HandlerFunc(h.HandleClaimInvite))
 	r.Method(http.MethodGet, api.Scan, http.HandlerFunc(h.HandleScan))
 	r.Method(http.MethodGet, api.Session, sessionHandler)
 	r.Method(http.MethodGet, api.Manifest, http.HandlerFunc(h.HandleManifest))
@@ -89,6 +88,21 @@ func EnumeratePlaneARoutes(r chi.Router) ([]MountedAPIRoute, error) {
 	}
 
 	return routes, nil
+}
+
+func mountRateLimited(
+	r chi.Router,
+	startRatelimit func(http.Handler) http.Handler,
+	method, pattern string,
+	handler http.Handler,
+) {
+	if startRatelimit != nil {
+		r.With(startRatelimit).Method(method, pattern, handler)
+
+		return
+	}
+
+	r.Method(method, pattern, handler)
 }
 
 func serviceRelativeToFullPath(pattern string) string {

@@ -6,6 +6,9 @@
 package passive
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -28,6 +31,33 @@ func newPlaneATestRouter(t *testing.T) chi.Router {
 	MountPlaneARoutes(r, NewHandler(openHandlerTestStore(t), nil), nil, defaultPlaneAAPIRoutePatterns())
 
 	return r
+}
+
+func TestMountPlaneARoutes_ClaimUsesSharedStartLimiter(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+
+	limiter := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hits.Add(1)
+
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	r := chi.NewRouter()
+	MountPlaneARoutes(r, NewHandler(openHandlerTestStore(t), nil), limiter, defaultPlaneAAPIRoutePatterns())
+
+	startReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, RouteStartCreateSession, nil)
+	r.ServeHTTP(httptest.NewRecorder(), startReq)
+
+	claimReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/session/run-1/invite", nil)
+	r.ServeHTTP(httptest.NewRecorder(), claimReq)
+
+	if got := hits.Load(); got != 2 {
+		t.Fatalf("shared limiter hits = %d, want 2", got)
+	}
 }
 
 func mountedRouteSet(t *testing.T, r chi.Router) map[MountedAPIRoute]struct{} {
