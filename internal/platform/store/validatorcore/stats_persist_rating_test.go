@@ -10,6 +10,37 @@ import (
 	"time"
 )
 
+func TestFillSnapshotGradesFromRating_ExchangeOnlyDoesNotGrade(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	core.SetStatsHostHasher(testStatsHostHasher(t))
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-rating-exchange-only"
+
+	seedTerminalStatsRun(t, core, runID, now)
+
+	row := IncomingSharesExchange(runID)
+	if _, err := core.PersistActiveExchange(ctx, row); err != nil {
+		t.Fatalf("persist exchange: %v", err)
+	}
+
+	if err := core.persistTerminalStats(ctx, runID); err != nil {
+		t.Fatalf("persist: %v", err)
+	}
+
+	var raw StatsRaw
+	if err := core.DB().WithContext(ctx).First(&raw).Error; err != nil {
+		t.Fatalf("load stats_raw: %v", err)
+	}
+
+	if raw.GradeSharing != nil || raw.GradeNotification != nil || raw.GradeToken != nil {
+		t.Fatalf("exchange-only grades = sharing=%v notification=%v token=%v, want all nil",
+			raw.GradeSharing, raw.GradeNotification, raw.GradeToken)
+	}
+}
+
 func TestFillSnapshotGradesFromRating_UsesEvidenceRows(t *testing.T) {
 	t.Parallel()
 

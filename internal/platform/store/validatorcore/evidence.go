@@ -151,22 +151,6 @@ func isKnownEvidenceLeg(leg string) bool {
 	}
 }
 
-func isKnownEvidenceArea(area string) bool {
-	switch area {
-	case SpecificationAreaDiscovery,
-		SpecificationAreaTLS,
-		SpecificationAreaJWKS,
-		SpecificationAreaHTTPSig,
-		SpecificationAreaSharing,
-		SpecificationAreaNotification,
-		SpecificationAreaToken,
-		SpecificationAreaCapability:
-		return true
-	default:
-		return false
-	}
-}
-
 func isIgnoredReverseFileOpenedFact(in ApplyEvidenceFactInput) bool {
 	capabilityFileOpened := in.Area == evidenceAreaCapability &&
 		in.Step == evidenceStepFileOpened

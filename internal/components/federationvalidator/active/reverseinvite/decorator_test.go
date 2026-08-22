@@ -86,6 +86,8 @@ func TestDecorator_AdvancesOnExactMatch200(t *testing.T) {
 	if run.DesignatedShareWith == nil || *run.DesignatedShareWith != "accepter-user" {
 		t.Fatalf("designated_share_with = %v, want accepter-user", run.DesignatedShareWith)
 	}
+
+	requireInboundInviteAcceptedSibling(t, env, runID)
 }
 
 func TestDecorator_AdvancesOnConflictWithIdentity(t *testing.T) {
@@ -122,6 +124,8 @@ func TestDecorator_AdvancesOnConflictWithIdentity(t *testing.T) {
 	if run.DesignatedShareWith == nil || *run.DesignatedShareWith != "accepter-user" {
 		t.Fatalf("designated_share_with = %v, want accepter-user", run.DesignatedShareWith)
 	}
+
+	requireInboundInviteAcceptedSibling(t, env, runID)
 }
 
 func TestDecorator_IgnoresConflictWithoutIdentity(t *testing.T) {

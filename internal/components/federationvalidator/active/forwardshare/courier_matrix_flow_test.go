@@ -144,9 +144,9 @@ func requireNoTerminalFootprint(t *testing.T, env *courierMatrixEnv, runID strin
 	}
 }
 
-// requirePassEvidenceTuple proves the run recorded exactly one reverse-invite
-// accept, one capability exchange, and one reverse-share receipt, and nothing
-// else.
+// requirePassEvidenceTuple proves the pass path recorded the reverse-invite
+// accept, outgoing invite-accepted, forward-share send, reverse-share receipt,
+// token exchange, and capability exercise facts.
 func requirePassEvidenceTuple(t *testing.T, env *courierMatrixEnv, runID string) {
 	t.Helper()
 
@@ -162,8 +162,20 @@ func requirePassEvidenceTuple(t *testing.T, env *courierMatrixEnv, runID string)
 		t.Fatalf("reverse-share evidence = %d, want 1", got)
 	}
 
-	if got := env.countEvidence(t, runID); got != 3 {
-		t.Fatalf("evidence rows = %d, want 3", got)
+	if got := len(env.evidenceRows(t, runID, validatorcore.SpecificationAreaSharing, "share_sent", "forward_share_sent")); got != 1 {
+		t.Fatalf("forward-share evidence = %d, want 1", got)
+	}
+
+	if got := len(env.evidenceRows(t, runID, validatorcore.SpecificationAreaSharing, "invite_accepted", "outgoing_invite_accepted")); got != 1 {
+		t.Fatalf("outgoing invite-accepted evidence = %d, want 1", got)
+	}
+
+	if got := len(env.evidenceRows(t, runID, validatorcore.SpecificationAreaToken, "exchange", "token_exchanged")); got != 1 {
+		t.Fatalf("token evidence = %d, want 1", got)
+	}
+
+	if got := env.countEvidence(t, runID); got != 6 {
+		t.Fatalf("evidence rows = %d, want 6", got)
 	}
 }
 

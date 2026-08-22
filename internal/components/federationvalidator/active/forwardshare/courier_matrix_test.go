@@ -30,8 +30,8 @@ func testCourierMatrixReverseInvitation(t *testing.T) {
 
 	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
-	if got := env.countEvidence(t, runID); got != 1 {
-		t.Fatalf("evidence rows = %d, want 1", got)
+	if got := env.countEvidence(t, runID); got != 2 {
+		t.Fatalf("evidence rows = %d, want 2 (outgoing accept plus reverse paste)", got)
 	}
 
 	if got := len(env.listShares(t)); got != 0 {
@@ -156,8 +156,14 @@ func testCourierMatrixTerminalPass(t *testing.T) {
 		t.Fatalf("capability area grade = %v, want %q", capability.Grade, validatorcore.GradePass)
 	}
 
-	if score.AssessedAreas != 2 {
-		t.Fatalf("assessed areas = %d, want 2", score.AssessedAreas)
+	token := requireAreaScore(t, score, validatorcore.SpecificationAreaToken)
+
+	if token.Grade == nil || *token.Grade != validatorcore.GradePass {
+		t.Fatalf("token area grade = %v, want %q", token.Grade, validatorcore.GradePass)
+	}
+
+	if score.AssessedAreas != 3 {
+		t.Fatalf("assessed areas = %d, want 3", score.AssessedAreas)
 	}
 
 	if score.TotalAreas != 8 {

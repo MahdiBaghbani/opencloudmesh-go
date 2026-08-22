@@ -8,6 +8,7 @@ package reverseinvite
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
@@ -43,6 +44,10 @@ func (s *Service) AcceptIncoming(ctx context.Context, testRunID string) error {
 	if invite.Status == invites.InviteStatusAccepted {
 		// Retry after a crash between the remote accept and the local CAS:
 		// heal the same correlated invite ID, never pick another invite.
+		if recErr := s.recordOutgoingInviteAccepted(ctx, testRunID, 0); recErr != nil {
+			return recErr
+		}
+
 		return s.acceptReverseCAS(ctx, testRunID)
 	}
 
@@ -77,7 +82,28 @@ func (s *Service) AcceptIncoming(ctx context.Context, testRunID string) error {
 		return fmt.Errorf("reverseinvite: persist invite acceptance: %w", err)
 	}
 
+	status := http.StatusOK
+	if result.AlreadyAccepted {
+		status = http.StatusConflict
+	}
+
+	if err := s.recordOutgoingInviteAccepted(ctx, testRunID, status); err != nil {
+		return err
+	}
+
 	return s.acceptReverseCAS(ctx, testRunID)
+}
+
+func (s *Service) recordOutgoingInviteAccepted(ctx context.Context, testRunID string, status int) error {
+	if err := s.deps.Store.PersistActiveExchangeAndFact(
+		ctx,
+		validatorcore.OutgoingInviteAcceptedExchange(testRunID, status),
+		validatorcore.ReverseInviteAcceptedFact(testRunID, nil),
+	); err != nil {
+		return fmt.Errorf("reverseinvite: record outgoing invite-accepted: %w", err)
+	}
+
+	return nil
 }
 
 // exactIncomingCorrelation proves the active run, its RoleIncomingInvite

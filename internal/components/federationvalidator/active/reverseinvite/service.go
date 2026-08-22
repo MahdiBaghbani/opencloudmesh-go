@@ -10,6 +10,7 @@
 package reverseinvite
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 
@@ -56,6 +57,10 @@ type Deps struct {
 type Service struct {
 	deps Deps
 	log  *slog.Logger
+
+	// recordAccepted, when set, replaces recordIncomingInviteAccepted. Tests
+	// use it to prove a failed evidence write cannot advance the run.
+	recordAccepted func(context.Context, string, int) error
 }
 
 // New validates deps and returns the service.

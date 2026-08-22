@@ -149,17 +149,7 @@ func TestHandleReportJSON_PermanentAddsScoreAndEvidence(t *testing.T) {
 	}
 
 	raw := rec.Body.String()
-	if !strings.Contains(raw, "redacted-capability-note") || !strings.Contains(raw, "webdav_get") {
-		t.Fatal("permanent report must include redacted payload and evidence reason")
-	}
-
-	if strings.Contains(raw, reportLeakSecret) || strings.Contains(raw, "leak.example") {
-		t.Fatal("permanent report leaked raw host, url, or secret")
-	}
-
-	if strings.Contains(raw, "authorization") || strings.Contains(raw, "password") {
-		t.Fatal("permanent report leaked raw headers or bodies")
-	}
+	requirePermanentReportSafe(t, raw)
 
 	var payload map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
@@ -186,5 +176,25 @@ func TestHandleReportJSON_PermanentAddsScoreAndEvidence(t *testing.T) {
 
 	if score.Grade == nil || *score.Grade != validatorcore.GradePass {
 		t.Fatalf("score.grade = %v, want pass", score.Grade)
+	}
+}
+
+func requirePermanentReportSafe(t *testing.T, raw string) {
+	t.Helper()
+
+	if !strings.Contains(raw, "redacted-capability-note") || !strings.Contains(raw, "webdav_get") {
+		t.Fatal("permanent report must include redacted payload and evidence reason")
+	}
+
+	if strings.Contains(raw, reportLeakSecret) || strings.Contains(raw, "leak.example") {
+		t.Fatal("permanent report leaked raw host, url, or secret")
+	}
+
+	if strings.Contains(raw, "authorization") || strings.Contains(raw, "password") {
+		t.Fatal("permanent report leaked raw headers or bodies")
+	}
+
+	if strings.Contains(raw, "exchangeId") || strings.Contains(raw, "exchange_id") {
+		t.Fatal("permanent report leaked exchange identity")
 	}
 }

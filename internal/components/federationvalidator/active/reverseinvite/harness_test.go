@@ -238,3 +238,111 @@ func (e *testEnv) countEvidence(t *testing.T, runID string) int {
 
 	return int(count)
 }
+
+func (e *testEnv) outboundInviteAcceptedExchanges(t *testing.T, runID string) []validatorcore.ReportExchange {
+	t.Helper()
+
+	var rows []validatorcore.ReportExchange
+	if err := e.store.DB().WithContext(t.Context()).
+		Where("test_run_id = ? AND endpoint_id = ? AND direction = ?",
+			runID, validatorcore.EndpointInviteAccepted, "out").
+		Find(&rows).Error; err != nil {
+		t.Fatalf("list outbound invite-accepted exchanges: %v", err)
+	}
+
+	return rows
+}
+
+func (e *testEnv) reverseInviteAcceptedEvidence(t *testing.T, runID string) []validatorcore.EvidenceRow {
+	t.Helper()
+
+	var rows []validatorcore.EvidenceRow
+	if err := e.store.DB().WithContext(t.Context()).
+		Where("test_run_id = ? AND area = ? AND step = ? AND reason_code = ? AND leg = ?",
+			runID,
+			validatorcore.SpecificationAreaSharing,
+			"invite_accepted",
+			"reverse_invite_accepted",
+			validatorcore.EvidenceLegReverse,
+		).
+		Find(&rows).Error; err != nil {
+		t.Fatalf("list reverse-invite evidence: %v", err)
+	}
+
+	return rows
+}
+
+func (e *testEnv) inboundInviteAcceptedExchanges(t *testing.T, runID string) []validatorcore.ReportExchange {
+	t.Helper()
+
+	var rows []validatorcore.ReportExchange
+	if err := e.store.DB().WithContext(t.Context()).
+		Where("test_run_id = ? AND endpoint_id = ? AND direction = ?",
+			runID, validatorcore.EndpointInviteAccepted, "in").
+		Find(&rows).Error; err != nil {
+		t.Fatalf("list inbound invite-accepted exchanges: %v", err)
+	}
+
+	return rows
+}
+
+func (e *testEnv) outgoingInviteAcceptedEvidence(t *testing.T, runID string) []validatorcore.EvidenceRow {
+	t.Helper()
+
+	var rows []validatorcore.EvidenceRow
+	if err := e.store.DB().WithContext(t.Context()).
+		Where("test_run_id = ? AND area = ? AND step = ? AND reason_code = ? AND leg = ?",
+			runID,
+			validatorcore.SpecificationAreaSharing,
+			"invite_accepted",
+			"outgoing_invite_accepted",
+			validatorcore.EvidenceLegForward,
+		).
+		Find(&rows).Error; err != nil {
+		t.Fatalf("list outgoing-invite-accepted evidence: %v", err)
+	}
+
+	return rows
+}
+
+func requireInboundInviteAcceptedSibling(t *testing.T, env *testEnv, runID string) {
+	t.Helper()
+
+	exchanges := env.inboundInviteAcceptedExchanges(t, runID)
+	if len(exchanges) != 1 {
+		t.Fatalf("inbound invite-accepted exchanges = %d, want 1", len(exchanges))
+	}
+
+	if exchanges[0].EndpointID != validatorcore.EndpointInviteAccepted {
+		t.Fatalf("endpoint = %q, want %q", exchanges[0].EndpointID, validatorcore.EndpointInviteAccepted)
+	}
+
+	if exchanges[0].Direction != "in" {
+		t.Fatalf("direction = %q, want in", exchanges[0].Direction)
+	}
+
+	if exchanges[0].Leg == nil || *exchanges[0].Leg != validatorcore.EvidenceLegForward {
+		t.Fatalf("exchange leg = %v, want %q", exchanges[0].Leg, validatorcore.EvidenceLegForward)
+	}
+
+	rows := env.outgoingInviteAcceptedEvidence(t, runID)
+	if len(rows) != 1 {
+		t.Fatalf("sibling evidence = %d, want 1", len(rows))
+	}
+
+	if rows[0].Area != validatorcore.SpecificationAreaSharing {
+		t.Fatalf("area = %q, want %q", rows[0].Area, validatorcore.SpecificationAreaSharing)
+	}
+
+	if rows[0].Step != "invite_accepted" {
+		t.Fatalf("step = %q, want invite_accepted", rows[0].Step)
+	}
+
+	if rows[0].ReasonCode != "outgoing_invite_accepted" {
+		t.Fatalf("reason_code = %q, want outgoing_invite_accepted", rows[0].ReasonCode)
+	}
+
+	if rows[0].Leg == nil || *rows[0].Leg != validatorcore.EvidenceLegForward {
+		t.Fatalf("leg = %v, want %q", rows[0].Leg, validatorcore.EvidenceLegForward)
+	}
+}

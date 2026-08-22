@@ -27,12 +27,18 @@ const (
 	ocmErrShareStatusConflict = "SHARE_STATUS_CONFLICT"
 )
 
+// Observer runs after a successful outgoing-share lifecycle notification is
+// applied, before the 200 is encoded. A nil observer keeps the product path
+// unaware of validator sessions.
+type Observer func(ctx context.Context, share *sharesoutgoing.OutgoingShare) error
+
 // Handler serves POST /ocm/notifications for inbound share lifecycle updates.
 type Handler struct {
 	outgoingRepo sharesoutgoing.OutgoingShareRepo
 	incomingRepo sharesincoming.IncomingShareRepo
 	localScheme  string
 	log          *slog.Logger
+	observer     Observer
 }
 
 // NewHandler creates the notifications handler.
@@ -48,6 +54,11 @@ func NewHandler(
 		localScheme:  localScheme,
 		log:          logutil.NoopIfNil(log),
 	}
+}
+
+// SetObserver installs the optional post-success observer.
+func (h *Handler) SetObserver(observer Observer) {
+	h.observer = observer
 }
 
 // HandleNotification handles POST /ocm/notifications.
@@ -147,7 +158,7 @@ func (h *Handler) updateOutgoingShareStatus(
 	}
 
 	if share.Status == wantStatus {
-		writeNotificationSuccess(w)
+		h.finishOutgoingNotification(w, ctx, share)
 
 		return
 	}
@@ -171,6 +182,23 @@ func (h *Handler) updateOutgoingShareStatus(
 	}
 
 	h.log.Info(successLog, "provider_id", req.ProviderID)
+	h.finishOutgoingNotification(w, ctx, share)
+}
+
+func (h *Handler) finishOutgoingNotification(
+	w http.ResponseWriter,
+	ctx context.Context,
+	share *sharesoutgoing.OutgoingShare,
+) {
+	if h.observer != nil {
+		if err := h.observer(ctx, share); err != nil {
+			h.log.Error("notification observer failed", "error", err)
+			spec.WriteOCMError(w, http.StatusInternalServerError, "INTERNAL_ERROR")
+
+			return
+		}
+	}
+
 	writeNotificationSuccess(w)
 }
 

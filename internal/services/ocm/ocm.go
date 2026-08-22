@@ -109,6 +109,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalIdentity.Scheme,
 		log,
 	)
+	notificationsHandler.SetObserver(inputs.NotificationObserver)
 
 	peerResolver := peer.NewResolver()
 	r := chi.NewRouter()

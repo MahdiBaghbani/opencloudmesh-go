@@ -133,6 +133,79 @@ func (e *testEnv) requireRun(t *testing.T, runID string) *validatorcore.TestRun 
 	return run
 }
 
+func (e *testEnv) evidenceRows(
+	t *testing.T,
+	runID, area, step, reason string,
+) []validatorcore.EvidenceRow {
+	t.Helper()
+
+	var rows []validatorcore.EvidenceRow
+	if err := e.store.DB().WithContext(t.Context()).
+		Where("test_run_id = ? AND area = ? AND step = ? AND reason_code = ?", runID, area, step, reason).
+		Find(&rows).Error; err != nil {
+		t.Fatalf("list evidence rows: %v", err)
+	}
+
+	return rows
+}
+
+func (e *testEnv) requireLateShareStats(t *testing.T, runID string) {
+	t.Helper()
+
+	if count := e.countStatsRaw(t); count != 1 {
+		t.Fatalf("stats_raw count = %d, want 1", count)
+	}
+
+	var raw validatorcore.StatsRaw
+	if err := e.store.DB().WithContext(t.Context()).First(&raw).Error; err != nil {
+		t.Fatalf("load stats_raw: %v", err)
+	}
+
+	if raw.GradeSharing == nil || *raw.GradeSharing != validatorcore.GradePass {
+		t.Fatalf("late grade_sharing = %v, want %q from share evidence",
+			raw.GradeSharing, validatorcore.GradePass)
+	}
+
+	e.requireReverseShareEvidence(t, runID)
+}
+
+func (e *testEnv) requireReverseShareEvidence(t *testing.T, runID string) {
+	t.Helper()
+
+	rows := e.evidenceRows(
+		t,
+		runID,
+		validatorcore.SpecificationAreaSharing,
+		"reverse_share",
+		"reverse_share_received",
+	)
+	if len(rows) != 1 {
+		t.Fatalf("reverse-share evidence = %d, want 1", len(rows))
+	}
+
+	if rows[0].Severity != validatorcore.GradePass {
+		t.Fatalf("reverse-share severity = %q, want %q", rows[0].Severity, validatorcore.GradePass)
+	}
+
+	if !rows[0].AffectsGrade {
+		t.Fatal("reverse-share evidence must affect grade")
+	}
+}
+
+func (e *testEnv) countReportExchanges(t *testing.T, runID string) int64 {
+	t.Helper()
+
+	var count int64
+	if err := e.store.DB().WithContext(t.Context()).
+		Model(&validatorcore.ReportExchange{}).
+		Where("test_run_id = ?", runID).
+		Count(&count).Error; err != nil {
+		t.Fatalf("count report exchanges: %v", err)
+	}
+
+	return count
+}
+
 func (e *testEnv) countStatsRaw(t *testing.T) int64 {
 	t.Helper()
 

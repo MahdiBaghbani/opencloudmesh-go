@@ -82,16 +82,8 @@ func (s *Service) observeCapabilityExercise(
 		return nil
 	}
 
-	if err := s.deps.Store.ApplyEvidenceFact(ctx, validatorcore.ApplyEvidenceFactInput{
-		TestRunID:    runID,
-		Area:         evidenceAreaCapability,
-		Step:         evidenceStepFileOpened,
-		ReasonCode:   reason,
-		Severity:     validatorcore.GradePass,
-		AffectsGrade: true,
-		Leg:          evidenceLegForward,
-	}); err != nil {
-		return fmt.Errorf("reverseshare: apply capability evidence: %w", err)
+	if err := s.recordCapabilityObservation(ctx, runID, reason); err != nil {
+		return err
 	}
 
 	// The fact may have landed before the forward-share commit CAS; the
@@ -102,4 +94,82 @@ func (s *Service) observeCapabilityExercise(
 	}
 
 	return s.OpenReverseShareWait(ctx, runID)
+}
+
+// recordCapabilityObservation persists the inbound transcript and sibling
+// evidence for one capability exercise. Token exchange writes the explicit
+// token-area fact and a grade-affecting capability fact. WebDAV is
+// transcript-only: the sibling does not grade, and capability still advances
+// through the existing file-opened reason.
+func (s *Service) recordCapabilityObservation(
+	ctx context.Context,
+	runID, reason string,
+) error {
+	exchangeID, err := s.persistCapabilityExchange(ctx, runID, reason)
+	if err != nil {
+		return err
+	}
+
+	if reason == evidenceReasonTokenExchange {
+		fact := validatorcore.TokenExchangedFact(runID, exchangeID)
+		if applyErr := s.deps.Store.ApplyEvidenceFact(ctx, fact); applyErr != nil {
+			return fmt.Errorf("reverseshare: record token evidence: %w", applyErr)
+		}
+	}
+
+	if reason == evidenceReasonWebDAVGet {
+		fact := validatorcore.WebDAVTranscriptFact(runID, exchangeID)
+		if applyErr := s.deps.Store.ApplyEvidenceFact(ctx, fact); applyErr != nil {
+			return fmt.Errorf("reverseshare: record webdav transcript: %w", applyErr)
+		}
+	}
+
+	capability := validatorcore.ApplyEvidenceFactInput{
+		TestRunID:    runID,
+		Area:         evidenceAreaCapability,
+		Step:         evidenceStepFileOpened,
+		ReasonCode:   reason,
+		Severity:     validatorcore.GradePass,
+		AffectsGrade: true,
+		Leg:          evidenceLegForward,
+		ExchangeID:   exchangeID,
+	}
+	if applyErr := s.deps.Store.ApplyEvidenceFact(ctx, capability); applyErr != nil {
+		return fmt.Errorf("reverseshare: apply capability evidence: %w", applyErr)
+	}
+
+	return nil
+}
+
+func (s *Service) persistCapabilityExchange(
+	ctx context.Context,
+	runID, reason string,
+) (*uint, error) {
+	var draft validatorcore.ActiveExchangeDraft
+
+	switch reason {
+	case evidenceReasonTokenExchange:
+		draft = validatorcore.IncomingTokenExchange(runID)
+	case evidenceReasonWebDAVGet:
+		draft = validatorcore.IncomingWebDAVExchange(runID)
+	default:
+		return nil, fmt.Errorf("reverseshare: unknown capability reason %q", reason)
+	}
+
+	id, err := s.deps.Store.PersistActiveExchange(ctx, draft)
+	if err != nil {
+		return nil, fmt.Errorf("reverseshare: persist %s exchange: %w", reason, err)
+	}
+
+	return optionalExchangeID(id), nil
+}
+
+func optionalExchangeID(id uint) *uint {
+	if id == 0 {
+		return nil
+	}
+
+	copied := id
+
+	return &copied
 }

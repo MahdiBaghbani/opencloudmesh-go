@@ -21,17 +21,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
-// Evidence tuple recorded when the peer's reverse share reaches Bob. The
-// sharing area feeds the terminal statistics sharing grade; the reverse leg
-// keeps the fact out of the forward capability advance.
-const (
-	evidenceAreaSharing         = "sharing"
-	evidenceStepReverseShare    = "reverse_share"
-	evidenceReasonShareReceived = "reverse_share_received"
-	evidenceLegReverse          = "reverse"
-	evidenceSeverityInfo        = "info"
-)
-
 // Deps carries the collaborators the reverse-share leg needs. LocalIdentity
 // supplies the local scheme for the scheme-aware sender-host normalization
 // the observer and the inbox scan share with inbound share handling.
@@ -46,6 +35,10 @@ type Deps struct {
 type Service struct {
 	deps Deps
 	log  *slog.Logger
+
+	// shareReceived, when set, replaces recordShareReceived. Tests use it to
+	// prove a failed evidence write cannot commit terminal_pass.
+	shareReceived func(context.Context, string) error
 }
 
 // New validates deps and returns the service.
@@ -75,25 +68,28 @@ func reverseSharePassUpdate() validatorcore.ActiveTerminalUpdate {
 	}
 }
 
-// recordShareReceived persists the reverse-share evidence fact so terminal
-// statistics carry the sharing grade. Best-effort: the fact is first-wins and
-// the run row is already loaded by the caller, so a failure only degrades the
-// audit trail and never blocks the state transition.
-func (s *Service) recordShareReceived(ctx context.Context, testRunID string) {
-	err := s.deps.Store.ApplyEvidenceFact(ctx, validatorcore.ApplyEvidenceFactInput{
-		TestRunID:    testRunID,
-		Area:         evidenceAreaSharing,
-		Step:         evidenceStepReverseShare,
-		ReasonCode:   evidenceReasonShareReceived,
-		Severity:     evidenceSeverityInfo,
-		AffectsGrade: true,
-		Leg:          evidenceLegReverse,
-	})
-	if err != nil {
-		s.log.Warn("reverse-share evidence not recorded",
-			"test_run_id", testRunID,
-			"error", err)
+// recordShareReceived persists the inbound share transcript and the
+// reverse-share evidence fact so terminal statistics carry the sharing grade.
+// The fact is first-wins and must land before terminal_pass; a failure
+// withholds the CAS so a retry can heal.
+func (s *Service) recordShareArrival(ctx context.Context, testRunID string) error {
+	if s.shareReceived != nil {
+		return s.shareReceived(ctx, testRunID)
 	}
+
+	return s.recordShareReceived(ctx, testRunID)
+}
+
+func (s *Service) recordShareReceived(ctx context.Context, testRunID string) error {
+	if err := s.deps.Store.PersistActiveExchangeAndFact(
+		ctx,
+		validatorcore.IncomingSharesExchange(testRunID),
+		validatorcore.ReverseShareReceivedFact(testRunID, nil),
+	); err != nil {
+		return fmt.Errorf("reverseshare: record share received: %w", err)
+	}
+
+	return nil
 }
 
 // driveReverseShareSuccess passes the run for the arrived reverse share. The
@@ -114,7 +110,9 @@ func (s *Service) driveReverseShareSuccess(ctx context.Context, testRunID, provi
 		return fmt.Errorf("reverseshare: load run: %w", err)
 	}
 
-	s.recordShareReceived(ctx, testRunID)
+	if recErr := s.recordShareArrival(ctx, testRunID); recErr != nil {
+		return recErr
+	}
 
 	if run.IsActive && (run.State == validatorcore.StateCapabilityExercise ||
 		run.State == validatorcore.StateReverseAwaitingShare) {

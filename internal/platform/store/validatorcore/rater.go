@@ -67,7 +67,6 @@ type SpecificationEvidence struct {
 	Grade           *string `json:"grade"`
 	AffectsGrade    bool    `json:"affectsGrade"`
 	PayloadRedacted string  `json:"payloadRedacted,omitempty"`
-	ExchangeID      *uint   `json:"exchangeId,omitempty"`
 	CreatedAt       int64   `json:"createdAt"`
 }
 
@@ -98,7 +97,7 @@ func RateSpecification(
 		AssessedAreas: assessed,
 		TotalAreas:    len(specificationAreaOrder),
 		Areas:         areaScores,
-	}, evidence, nil
+	}, ProjectPublicEvidence(evidence), nil
 }
 
 type areaFold struct {
@@ -202,7 +201,6 @@ func specificationEvidenceFromRow(row EvidenceRow) SpecificationEvidence {
 		ReasonCode:   row.ReasonCode,
 		Severity:     row.Severity,
 		AffectsGrade: row.AffectsGrade,
-		ExchangeID:   row.ExchangeID,
 		CreatedAt:    row.CreatedAt,
 	}
 
@@ -228,22 +226,6 @@ func appendSpecificationEvidence(dest *[]SpecificationEvidence, item Specificati
 	}
 
 	*dest = append(*dest, item)
-}
-
-func mapEvidenceScoreArea(area string) (string, bool) {
-	switch area {
-	case SpecificationAreaDiscovery,
-		SpecificationAreaTLS,
-		SpecificationAreaJWKS,
-		SpecificationAreaHTTPSig,
-		SpecificationAreaSharing,
-		SpecificationAreaNotification,
-		SpecificationAreaToken,
-		SpecificationAreaCapability:
-		return area, true
-	default:
-		return "", false
-	}
 }
 
 func severityToGrade(severity string) string {

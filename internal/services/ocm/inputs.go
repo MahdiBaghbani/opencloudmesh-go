@@ -12,6 +12,7 @@ import (
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	notificationsincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
@@ -53,4 +54,9 @@ type Inputs struct {
 	// it to observe the capability exercise without the product handler
 	// knowing about test runs.
 	TokenExchangeObserver tokenincoming.ExchangeObserver
+	// NotificationObserver optionally runs after a successful outgoing-share
+	// lifecycle notification, before the 200 is encoded; the validator uses
+	// it to record notification evidence without the product handler knowing
+	// about test runs.
+	NotificationObserver notificationsincoming.Observer
 }

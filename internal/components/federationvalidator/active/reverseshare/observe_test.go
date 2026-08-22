@@ -65,6 +65,8 @@ func TestObserveCreatedShare_EarlySharePassesThroughTimelyPath(t *testing.T) {
 	if raw.GradeSharing == nil || *raw.GradeSharing != validatorcore.GradePass {
 		t.Fatalf("grade_sharing = %v, want %q from the share evidence", raw.GradeSharing, validatorcore.GradePass)
 	}
+
+	env.requireReverseShareEvidence(t, "run-observe-early")
 }
 
 func TestObserveCreatedShare_LateShareFlipsAfterTimeout(t *testing.T) {
@@ -115,9 +117,7 @@ func TestObserveCreatedShare_LateShareFlipsAfterTimeout(t *testing.T) {
 		t.Fatalf("reverse_share_provider_id = %v, want %q", run.ReverseShareProviderID, "provider-late")
 	}
 
-	if count := env.countStatsRaw(t); count != 1 {
-		t.Fatalf("stats_raw count = %d, want 1", count)
-	}
+	env.requireLateShareStats(t, "run-observe-late")
 
 	// The idempotent duplicate delivery of the same share re-enters the
 	// observer: already terminal_pass, so only the stats upsert re-runs.
@@ -203,6 +203,8 @@ func TestObserveCreatedShare_StatsFailureSuppressesSuccessAndDuplicateHeals(t *t
 	if run.ReverseShareProviderID != nil {
 		t.Fatalf("reverse_share_provider_id = %v, want nil before stats succeed", run.ReverseShareProviderID)
 	}
+
+	env.requireReverseShareEvidence(t, "run-observe-stats-fail")
 
 	// The client's retry takes the idempotent-duplicate path, which re-enters
 	// the same observer and heals through the keyed stats upsert.

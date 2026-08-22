@@ -39,6 +39,45 @@ func (e *testEnv) seedImportedRun(t *testing.T, runID string) (bobID, inviteID s
 	return bobID, invite.ID
 }
 
+func TestAcceptIncoming_PersistsOutboundExchangeAndSiblingEvidence(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t)
+	runID := "run-accept-sibling"
+
+	env.seedImportedRun(t, runID)
+
+	if err := env.svc.AcceptIncoming(t.Context(), runID); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+
+	exchanges := env.outboundInviteAcceptedExchanges(t, runID)
+	if len(exchanges) != 1 {
+		t.Fatalf("outbound invite-accepted exchanges = %d, want 1", len(exchanges))
+	}
+
+	if exchanges[0].EndpointID != validatorcore.EndpointInviteAccepted {
+		t.Fatalf("endpoint = %q, want %q", exchanges[0].EndpointID, validatorcore.EndpointInviteAccepted)
+	}
+
+	rows := env.reverseInviteAcceptedEvidence(t, runID)
+	if len(rows) != 1 {
+		t.Fatalf("sibling evidence = %d, want 1", len(rows))
+	}
+
+	if rows[0].Area != validatorcore.SpecificationAreaSharing {
+		t.Fatalf("area = %q, want %q", rows[0].Area, validatorcore.SpecificationAreaSharing)
+	}
+
+	if rows[0].Step != "invite_accepted" {
+		t.Fatalf("step = %q, want invite_accepted", rows[0].Step)
+	}
+
+	if rows[0].Leg == nil || *rows[0].Leg != validatorcore.EvidenceLegReverse {
+		t.Fatalf("leg = %v, want %q", rows[0].Leg, validatorcore.EvidenceLegReverse)
+	}
+}
+
 func TestAcceptIncoming_SendsAsBobAndAdvances(t *testing.T) {
 	t.Parallel()
 

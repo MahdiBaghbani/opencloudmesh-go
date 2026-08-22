@@ -79,8 +79,8 @@ func TestObserveTokenExchange_AdvancesAndOpensWait(t *testing.T) {
 			run.State, validatorcore.StateReverseAwaitingShare)
 	}
 
-	if count := env.countEvidence(t, "run-observe-token"); count != 1 {
-		t.Fatalf("evidence count = %d, want 1", count)
+	if count := env.countEvidence(t, "run-observe-token"); count != 2 {
+		t.Fatalf("evidence count = %d, want 2 (token area plus capability)", count)
 	}
 }
 
@@ -99,6 +99,10 @@ func TestObserveWebDAVGet_AdvancesAndOpensWait(t *testing.T) {
 
 	if run.State != validatorcore.StateReverseAwaitingShare {
 		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateReverseAwaitingShare)
+	}
+
+	if count := env.countEvidence(t, "run-observe-get"); count != 2 {
+		t.Fatalf("evidence count = %d, want 2 (webdav transcript plus capability)", count)
 	}
 }
 
@@ -232,8 +236,8 @@ func TestObserveCapabilityExercise_CommitRaceHealsOnNextExercise(t *testing.T) {
 			run.State, validatorcore.StateReverseAwaitingShare)
 	}
 
-	if count := env.countEvidence(t, "run-observe-race"); count != 2 {
-		t.Fatalf("evidence count = %d, want 2 (one fact per exercise reason)", count)
+	if count := env.countEvidence(t, "run-observe-race"); count != 4 {
+		t.Fatalf("evidence count = %d, want 4 (token, webdav transcript, two capability reasons)", count)
 	}
 }
 
@@ -259,7 +263,7 @@ func TestObserveCapabilityExercise_IdempotentRetry(t *testing.T) {
 		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateReverseAwaitingShare)
 	}
 
-	if count := env.countEvidence(t, "run-observe-retry"); count != 1 {
-		t.Fatalf("evidence count = %d, want 1 (first-wins fact)", count)
+	if count := env.countEvidence(t, "run-observe-retry"); count != 2 {
+		t.Fatalf("evidence count = %d, want 2 (first-wins token and capability)", count)
 	}
 }

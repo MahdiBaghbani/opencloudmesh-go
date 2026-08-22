@@ -46,38 +46,78 @@ func (s *Service) DecorateInviteAccepted(next http.HandlerFunc) http.HandlerFunc
 		cw := &observingWriter{ResponseWriter: w}
 		next(cw, r)
 
-		s.observeAccepted(r, reqBody, cw.status, cw.captured())
+		if err := s.observeAccepted(r, reqBody, cw.status, cw.captured()); err != nil {
+			s.log.Error("reverseinvite: observe invite-accepted", "error", err)
+		}
 	}
 }
 
 // observeAccepted advances invite_minted -> invite_accepted when the protocol
-// exchange matches the active run's bound outgoing invite exactly. Any
-// mismatch or lookup failure skips the advance without disturbing the
-// protocol response.
-func (s *Service) observeAccepted(r *http.Request, reqBody []byte, status int, respBody []byte) {
+// exchange matches the active run's bound outgoing invite exactly. Evidence
+// must persist before the run advances; a persist failure is returned so the
+// caller can surface it and a later request can retry. Mismatch or lookup
+// failures skip without disturbing the protocol response.
+func (s *Service) observeAccepted(r *http.Request, reqBody []byte, status int, respBody []byte) error {
 	if status != http.StatusOK && status != http.StatusConflict {
-		return
+		return nil
 	}
 
-	var req spec.InviteAcceptedRequest
-	if err := json.Unmarshal(reqBody, &req); err != nil || req.Token == "" {
-		return
+	token, ok := inviteAcceptedToken(reqBody)
+	if !ok {
+		return nil
 	}
 
 	// Only a 409 that still carries the sender identity body counts as an
 	// acceptance observation; a plain 409 message does not.
 	if status == http.StatusConflict && !decodableIdentity(respBody) {
-		return
+		return nil
 	}
 
-	runID, shareWith, ok := s.matchAcceptedInvite(r.Context(), req.Token)
+	runID, shareWith, ok := s.matchAcceptedInvite(r.Context(), token)
 	if !ok {
-		return
+		return nil
+	}
+
+	if err := s.recordIncomingInviteAccepted(r.Context(), runID, status); err != nil {
+		return err
 	}
 
 	if err := s.deps.Store.RecordOutgoingInviteAccepted(r.Context(), runID, shareWith); err != nil {
-		s.log.Warn("reverseinvite: record outgoing invite accepted", "error", err)
+		return fmt.Errorf("reverseinvite: record outgoing invite accepted: %w", err)
 	}
+
+	return nil
+}
+
+func (s *Service) recordIncomingInviteAccepted(ctx context.Context, runID string, status int) error {
+	if s.recordAccepted != nil {
+		return s.recordAccepted(ctx, runID, status)
+	}
+
+	if err := s.deps.Store.PersistActiveExchangeAndFact(
+		ctx,
+		validatorcore.IncomingInviteAcceptedExchange(runID, status),
+		validatorcore.OutgoingInviteAcceptedFact(runID, nil),
+	); err != nil {
+		return fmt.Errorf("reverseinvite: record incoming invite-accepted: %w", err)
+	}
+
+	return nil
+}
+
+// inviteAcceptedToken reports the request token when the body is a usable
+// invite-accepted payload.
+func inviteAcceptedToken(reqBody []byte) (string, bool) {
+	var req spec.InviteAcceptedRequest
+	if err := json.Unmarshal(reqBody, &req); err != nil {
+		return "", false
+	}
+
+	if req.Token == "" {
+		return "", false
+	}
+
+	return req.Token, true
 }
 
 // decodableIdentity reports whether a conflict response body still carries

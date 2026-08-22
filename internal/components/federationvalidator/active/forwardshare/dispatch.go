@@ -152,6 +152,10 @@ func (s *Service) commitAndHeal(
 	webdavURI string,
 	outgoingShareID string,
 ) error {
+	if err := s.recordOutgoingShare(ctx, run.TestRunID); err != nil {
+		return err
+	}
+
 	if reservation.CASCommittedAt == nil {
 		if err := s.commitForwardShareSent(ctx, run, reservation, webdavURI, outgoingShareID); err != nil {
 			return err
@@ -229,6 +233,18 @@ func (s *Service) commitForwardShareSent(
 	// classifies the run state and treats the committed run as idempotent
 	// success.
 	return s.classifyCommitMiss(ctx, run.TestRunID)
+}
+
+func (s *Service) recordOutgoingShare(ctx context.Context, testRunID string) error {
+	if err := s.deps.Store.PersistActiveExchangeAndFact(
+		ctx,
+		validatorcore.OutgoingSharesExchange(testRunID),
+		validatorcore.ForwardShareSentFact(testRunID, nil),
+	); err != nil {
+		return fmt.Errorf("forwardshare: record outgoing share: %w", err)
+	}
+
+	return nil
 }
 
 // classifyCommitMiss decides what a commit CAS miss means from the run's

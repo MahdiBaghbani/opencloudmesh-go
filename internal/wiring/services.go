@@ -190,6 +190,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	if legs != nil && legs.reverseShare != nil {
 		inputs.IncomingShareObserver = legs.reverseShare.ObserveCreatedShare
 		inputs.TokenExchangeObserver = legs.reverseShare.ObserveTokenExchange
+		inputs.NotificationObserver = legs.reverseShare.ObserveNotification
 	}
 
 	svc, err := ocm.New(inputs, svcCfg, log)

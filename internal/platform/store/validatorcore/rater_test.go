@@ -6,6 +6,7 @@
 package validatorcore
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -266,6 +267,56 @@ func TestRateSpecification_InterruptedHasNoOverallGrade(t *testing.T) {
 	}
 }
 
+func TestRateSpecification_PassiveOnlyIsAtMostFour(t *testing.T) {
+	t.Parallel()
+
+	rows := []EvidenceRow{
+		affectingRow(SpecificationAreaDiscovery, GradePass),
+		affectingRow(SpecificationAreaTLS, GradePass),
+		affectingRow(SpecificationAreaJWKS, GradePass),
+		affectingRow(SpecificationAreaHTTPSig, GradePass),
+	}
+
+	score, _, err := RateSpecification(terminalPassRun(), rows, []ReportExchange{{
+		EndpointID: EndpointShares,
+		Method:     "POST",
+	}})
+	if err != nil {
+		t.Fatalf("RateSpecification: %v", err)
+	}
+
+	assertCoverage(t, score, 4)
+	assertGradeEq(t, score.Grade, GradePass)
+
+	if areaByName(score, SpecificationAreaSharing).Grade != nil ||
+		areaByName(score, SpecificationAreaNotification).Grade != nil ||
+		areaByName(score, SpecificationAreaToken).Grade != nil ||
+		areaByName(score, SpecificationAreaCapability).Grade != nil {
+		t.Fatal("passive-only fixture must leave active areas unassessed")
+	}
+}
+
+func TestRateSpecification_ActiveFullReachesEight(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]EvidenceRow, 0, len(specificationAreaOrder))
+	for _, area := range specificationAreaOrder {
+		rows = append(rows, affectingRow(area, GradePass))
+	}
+
+	score, evidence, err := RateSpecification(terminalPassRun(), rows, nil)
+	if err != nil {
+		t.Fatalf("RateSpecification: %v", err)
+	}
+
+	assertCoverage(t, score, 8)
+	assertGradeEq(t, score.Grade, GradePass)
+
+	if len(evidence) != 8 {
+		t.Fatalf("evidence = %d, want 8", len(evidence))
+	}
+}
+
 func TestRateSpecification_IgnoresReportExchanges(t *testing.T) {
 	t.Parallel()
 
@@ -282,6 +333,34 @@ func TestRateSpecification_IgnoresReportExchanges(t *testing.T) {
 
 	if evidence == nil || len(evidence) != 0 {
 		t.Fatalf("evidence = %#v, want empty when only exchanges are supplied", evidence)
+	}
+}
+
+func TestRateSpecification_PublicEvidenceOmitsExchangeID(t *testing.T) {
+	t.Parallel()
+
+	exchangeID := uint(99)
+	rows := []EvidenceRow{{
+		Area:         SpecificationAreaDiscovery,
+		Step:         "fetch",
+		ReasonCode:   "discovery_probed",
+		Severity:     GradePass,
+		AffectsGrade: true,
+		ExchangeID:   &exchangeID,
+	}}
+
+	_, evidence, err := RateSpecification(terminalPassRun(), rows, nil)
+	if err != nil {
+		t.Fatalf("RateSpecification: %v", err)
+	}
+
+	if len(evidence) != 1 {
+		t.Fatalf("evidence = %d, want 1", len(evidence))
+	}
+
+	raw := mustJSON(t, evidence)
+	if strings.Contains(raw, "exchangeId") || strings.Contains(raw, "99") {
+		t.Fatalf("public evidence leaked exchange identity: %s", raw)
 	}
 }
 
