@@ -218,24 +218,24 @@ func assertPublicStatistics(t *testing.T, env *courierMatrixEnv) {
 		t.Fatalf("QueryFederationTesterStatistics: %v", err)
 	}
 
-	if stats.Totals.Sessions != 3 {
-		t.Fatalf("public sessions = %d, want 3", stats.Totals.Sessions)
+	if stats.Totals.Sessions != 0 {
+		t.Fatalf("public sessions = %d, want 0 below unique-host threshold", stats.Totals.Sessions)
 	}
 
-	if stats.Totals.UniqueHosts != 1 {
-		t.Fatalf("public unique hosts = %d, want 1", stats.Totals.UniqueHosts)
+	if stats.Totals.UniqueHosts != 0 {
+		t.Fatalf("public unique hosts = %d, want 0 below unique-host threshold", stats.Totals.UniqueHosts)
 	}
 
 	sharingArea := findPublicArea(stats, validatorcore.SpecificationAreaSharing)
 
-	if sharingArea == nil || sharingArea.Pass != 2 || sharingArea.Fail != 1 {
-		t.Fatalf("public sharing area = %+v, want pass 2 fail 1", sharingArea)
+	if sharingArea == nil || sharingArea.Pass != 0 || sharingArea.Fail != 0 {
+		t.Fatalf("public sharing area = %+v, want suppressed zeros", sharingArea)
 	}
 
 	capabilityArea := findPublicArea(stats, validatorcore.SpecificationAreaCapability)
 
-	if capabilityArea == nil || capabilityArea.Pass != 2 {
-		t.Fatalf("public capability area = %+v, want pass 2", capabilityArea)
+	if capabilityArea == nil || capabilityArea.Pass != 0 {
+		t.Fatalf("public capability area = %+v, want suppressed zeros", capabilityArea)
 	}
 }
 

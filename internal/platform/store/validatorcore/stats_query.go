@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	// statsPlatformKAnonymity is the k-anonymity threshold for platform buckets.
-	// Platforms with at most this many unique hosts are folded into "other".
-	// The "unknown" platform label is exempt from suppression.
+	// statsPlatformKAnonymity is the unique-host threshold for published
+	// totals, per-area, per-day, named-platform, and other groups. A group
+	// is kept when it has at least this many unique hosts. The unknown
+	// platform label stays visible and is not counted toward other groups.
 	statsPlatformKAnonymity = 5
 
 	statsPlatformOther   = "other"
@@ -197,17 +198,19 @@ func lastRowPerHost(rows []StatsRaw) map[string]StatsRaw {
 }
 
 func computeStatisticsTotals(rows []StatsRaw, lastByHost map[string]StatsRaw) StatisticsTotals {
-	uniqueHosts := int64(len(lastByHost))
-	healthy := int64(0)
+	published := publishedPlatformCounts(countHostsByPlatform(lastByHost))
+	visibleLast := lastHostsPublishedInAggregates(lastByHost, published)
+	uniqueHosts := int64(len(visibleLast))
 
-	for _, row := range lastByHost {
-		if DeriveHealthy(row) {
-			healthy++
-		}
+	if uniqueHosts < statsPlatformKAnonymity {
+		return StatisticsTotals{}
 	}
 
+	healthy := countHealthyHosts(visibleLast)
+	visibleRows := rowsForVisibleHosts(rows, visibleLast)
+
 	return StatisticsTotals{
-		Sessions:    int64(len(rows)),
+		Sessions:    int64(len(visibleRows)),
 		UniqueHosts: uniqueHosts,
 		HealthyPct:  pctHealthy(healthy, uniqueHosts),
 	}
@@ -235,39 +238,15 @@ func normalizePlatformLabel(raw string) string {
 }
 
 func computeStatisticsPlatforms(lastByHost map[string]StatsRaw) []StatisticsPlatform {
-	counts := map[string]int64{}
-
-	for _, row := range lastByHost {
-		label := normalizePlatformLabel(row.Platform)
-		counts[label]++
-	}
-
-	visible := map[string]int64{}
-
-	var otherCount int64
-
-	for label, count := range counts {
-		if label == statsPlatformUnknown || count > statsPlatformKAnonymity {
-			visible[label] += count
-
-			continue
-		}
-
-		otherCount += count
-	}
-
-	if otherCount > 0 {
-		visible[statsPlatformOther] = otherCount
-	}
-
-	totalVisible := int64(len(lastByHost))
+	visible := publishedPlatformCounts(countHostsByPlatform(lastByHost))
+	totalVisible := sumInt64Values(visible)
 	platforms := make([]StatisticsPlatform, 0, len(visible))
 
 	for label, count := range visible {
 		platforms = append(platforms, StatisticsPlatform{
 			Platform: label,
 			Count:    count,
-			Pct:      roundPct(100.0 * float64(count) / float64(totalVisible)),
+			Pct:      platformSharePct(count, totalVisible),
 		})
 	}
 
@@ -279,33 +258,26 @@ func computeStatisticsPlatforms(lastByHost map[string]StatsRaw) []StatisticsPlat
 		return platforms[i].Platform < platforms[j].Platform
 	})
 
-	if platforms == nil {
-		return []StatisticsPlatform{}
-	}
-
 	return platforms
 }
 
 func computeStatisticsAreas(rows []StatsRaw) []StatisticsArea {
+	lastByHost := lastRowPerHost(rows)
+	published := publishedPlatformCounts(countHostsByPlatform(lastByHost))
+	visibleLast := lastHostsPublishedInAggregates(lastByHost, published)
+	visibleRows := rowsForVisibleHosts(rows, visibleLast)
 	areas := make([]StatisticsArea, 0, len(statsAreaOrder))
 
 	for _, spec := range statsAreaOrder {
 		area := StatisticsArea{Area: spec.Name}
+		if uniqueHostsWithGrade(visibleRows, spec.Grade) < statsPlatformKAnonymity {
+			areas = append(areas, area)
 
-		for _, row := range rows {
-			grade := spec.Grade(row)
-			if grade == nil {
-				continue
-			}
+			continue
+		}
 
-			switch *grade {
-			case GradePass:
-				area.Pass++
-			case GradeWarn:
-				area.Warn++
-			case GradeFail:
-				area.Fail++
-			}
+		for _, row := range visibleRows {
+			addAreaGrade(&area, spec.Grade(row))
 		}
 
 		areas = append(areas, area)
@@ -319,9 +291,11 @@ func computeStatisticsDaily(rows []StatsRaw, from, to int64) []StatisticsDaily {
 		return []StatisticsDaily{}
 	}
 
+	lastByHost := lastRowPerHost(rows)
+	published := publishedPlatformCounts(countHostsByPlatform(lastByHost))
+	visibleLast := lastHostsPublishedInAggregates(lastByHost, published)
 	dayStart := utcDayStartUnix(from)
 	endDay := utcDayStartUnix(to)
-
 	buckets := map[int64][]StatsRaw{}
 
 	for _, row := range rows {
@@ -336,24 +310,162 @@ func computeStatisticsDaily(rows []StatsRaw, from, to int64) []StatisticsDaily {
 	daily := make([]StatisticsDaily, 0)
 
 	for ts := dayStart; ts <= endDay; ts += secondsPerDay {
-		dayRows := buckets[ts]
-		lastByHost := lastRowPerHost(dayRows)
-		healthy := int64(0)
-
-		for _, row := range lastByHost {
-			if DeriveHealthy(row) {
-				healthy++
-			}
-		}
-
-		daily = append(daily, StatisticsDaily{
-			TS:         ts,
-			Sessions:   int64(len(dayRows)),
-			HealthyPct: pctHealthy(healthy, int64(len(lastByHost))),
-		})
+		daily = append(daily, statisticsDailyBucket(ts, buckets[ts], visibleLast))
 	}
 
 	return daily
+}
+
+func countHostsByPlatform(lastByHost map[string]StatsRaw) map[string]int64 {
+	counts := map[string]int64{}
+
+	for _, row := range lastByHost {
+		counts[normalizePlatformLabel(row.Platform)]++
+	}
+
+	return counts
+}
+
+func publishedPlatformCounts(counts map[string]int64) map[string]int64 {
+	visible := map[string]int64{}
+
+	var otherCount int64
+
+	for label, count := range counts {
+		if label == statsPlatformUnknown || count >= statsPlatformKAnonymity {
+			visible[label] += count
+
+			continue
+		}
+
+		otherCount += count
+	}
+
+	if otherCount >= statsPlatformKAnonymity {
+		visible[statsPlatformOther] = otherCount
+	}
+
+	return visible
+}
+
+func countsTowardAggregates(row StatsRaw, published map[string]int64) bool {
+	label := normalizePlatformLabel(row.Platform)
+	if label == statsPlatformUnknown {
+		return false
+	}
+
+	if _, named := published[label]; named {
+		return true
+	}
+
+	_, otherVisible := published[statsPlatformOther]
+
+	return otherVisible
+}
+
+func lastHostsPublishedInAggregates(
+	lastByHost map[string]StatsRaw,
+	published map[string]int64,
+) map[string]StatsRaw {
+	visible := make(map[string]StatsRaw, len(lastByHost))
+
+	for hash, row := range lastByHost {
+		if countsTowardAggregates(row, published) {
+			visible[hash] = row
+		}
+	}
+
+	return visible
+}
+
+// rowsForVisibleHosts keeps a historical row only when its host is visible
+// by latest membership. Visibility is a host-level property: a suppressed
+// host cannot leak older rows from any platform into totals, areas, or days.
+func rowsForVisibleHosts(rows []StatsRaw, visibleLast map[string]StatsRaw) []StatsRaw {
+	visible := make([]StatsRaw, 0, len(rows))
+
+	for _, row := range rows {
+		if _, ok := visibleLast[row.HostHash]; ok {
+			visible = append(visible, row)
+		}
+	}
+
+	return visible
+}
+
+func countHealthyHosts(lastByHost map[string]StatsRaw) int64 {
+	var healthy int64
+
+	for _, row := range lastByHost {
+		if DeriveHealthy(row) {
+			healthy++
+		}
+	}
+
+	return healthy
+}
+
+func uniqueHostsWithGrade(rows []StatsRaw, gradeOf func(StatsRaw) *string) int64 {
+	seen := map[string]struct{}{}
+
+	for _, row := range rows {
+		if gradeOf(row) == nil {
+			continue
+		}
+
+		seen[row.HostHash] = struct{}{}
+	}
+
+	return int64(len(seen))
+}
+
+func addAreaGrade(area *StatisticsArea, grade *string) {
+	if area == nil || grade == nil {
+		return
+	}
+
+	switch *grade {
+	case GradePass:
+		area.Pass++
+	case GradeWarn:
+		area.Warn++
+	case GradeFail:
+		area.Fail++
+	}
+}
+
+func statisticsDailyBucket(ts int64, dayRows []StatsRaw, visibleLast map[string]StatsRaw) StatisticsDaily {
+	visibleRows := rowsForVisibleHosts(dayRows, visibleLast)
+	lastVisible := lastRowPerHost(visibleRows)
+	uniqueHosts := int64(len(lastVisible))
+
+	if uniqueHosts < statsPlatformKAnonymity {
+		return StatisticsDaily{TS: ts}
+	}
+
+	return StatisticsDaily{
+		TS:         ts,
+		Sessions:   int64(len(visibleRows)),
+		HealthyPct: pctHealthy(countHealthyHosts(lastVisible), uniqueHosts),
+	}
+}
+
+func sumInt64Values(values map[string]int64) int64 {
+	var total int64
+
+	for _, value := range values {
+		total += value
+	}
+
+	return total
+}
+
+func platformSharePct(count, total int64) float64 {
+	if total == 0 {
+		return 0
+	}
+
+	return roundPct(100.0 * float64(count) / float64(total))
 }
 
 func utcDayStartUnix(ts int64) int64 {
