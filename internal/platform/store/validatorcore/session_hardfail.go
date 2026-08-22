@@ -40,6 +40,12 @@ const (
 	// ReasonOperatorAborted is recorded when the operator aborts the active
 	// run through the validator-only abort seat.
 	ReasonOperatorAborted = "operator_aborted"
+
+	// ReasonWrongAccepter is recorded when the accepting peer's host or
+	// enforceable local user does not match the session. It is first-advance
+	// only: like every non-identity reason, it is refused in the graded
+	// exercise states so a late observation cannot rewrite a pass-capable run.
+	ReasonWrongAccepter = "wrong_accepter"
 )
 
 // hardFailReasons is the closed set of hard-fail terminal reasons.
@@ -49,6 +55,7 @@ var hardFailReasons = []string{
 	ReasonActiveHardFailDispatch,
 	ReasonActiveHardFailCorrelation,
 	ReasonOperatorAborted,
+	ReasonWrongAccepter,
 }
 
 // hardFailProtectedStates are the in-flight graded exercise states. A

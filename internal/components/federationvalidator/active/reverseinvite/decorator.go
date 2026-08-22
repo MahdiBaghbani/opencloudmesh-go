@@ -12,15 +12,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/identitybind"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
-// maxObservedBodyBytes bounds the request body read and the response capture
-// so a large or streaming body can never grow the decorator's buffer.
-const maxObservedBodyBytes = 64 << 10
+const (
+	// maxObservedBodyBytes bounds the request body read and the response
+	// capture so a large or streaming body can never grow the decorator's
+	// buffer.
+	maxObservedBodyBytes = 64 << 10
+
+	evidenceReasonAccepterUnenforceable = "accepter_user_unenforceable"
+	evidenceStepInviteAccepted          = "invite_accepted"
+)
 
 // DecorateInviteAccepted wraps the product POST /ocm/invite-accepted handler
 // with validator observation. The wrapped handler stays TestRun-unaware; the
@@ -73,16 +83,31 @@ func (s *Service) observeAccepted(r *http.Request, reqBody []byte, status int, r
 		return nil
 	}
 
-	runID, shareWith, ok := s.matchAcceptedInvite(r.Context(), token)
+	match, ok := s.correlateAcceptedInvite(r.Context(), token)
 	if !ok {
 		return nil
 	}
 
-	if err := s.recordIncomingInviteAccepted(r.Context(), runID, status); err != nil {
+	if match.run.State == validatorcore.StateInviteMinted {
+		bound, bindErr := s.bindAcceptedIdentity(r.Context(), match)
+		if bindErr != nil {
+			return bindErr
+		}
+
+		if !bound {
+			return nil
+		}
+	}
+
+	if err := s.recordIncomingInviteAccepted(r.Context(), match.run.TestRunID, status); err != nil {
 		return err
 	}
 
-	if err := s.deps.Store.RecordOutgoingInviteAccepted(r.Context(), runID, shareWith); err != nil {
+	if err := s.deps.Store.RecordOutgoingInviteAccepted(
+		r.Context(),
+		match.run.TestRunID,
+		match.invite.AcceptedUserID,
+	); err != nil {
 		return fmt.Errorf("reverseinvite: record outgoing invite accepted: %w", err)
 	}
 
@@ -131,42 +156,132 @@ func decodableIdentity(respBody []byte) bool {
 	return resp.UserID != ""
 }
 
-// matchAcceptedInvite loads the active run, the observed invite, and the
-// correlation row, and reports the run ID and accepted user only when the
-// exchange matches the run's bound outgoing invite exactly.
-func (s *Service) matchAcceptedInvite(ctx context.Context, token string) (runID, shareWith string, ok bool) {
+// acceptedInviteMatch is the correlated outgoing invite for one observation.
+type acceptedInviteMatch struct {
+	run    *validatorcore.TestRun
+	invite *invitesoutgoing.OutgoingInvite
+}
+
+// correlateAcceptedInvite loads the active run and the observed invite and
+// reports them only when the pointer, creator, and token match and the
+// accepted user and host fields are present. It does not bind identity or
+// pin designated_share_with.
+func (s *Service) correlateAcceptedInvite(ctx context.Context, token string) (acceptedInviteMatch, bool) {
+	var none acceptedInviteMatch
+
 	runID, err := s.deps.Store.FindOneActive(ctx, validatorcore.LocalIdentityA)
 	if err != nil {
-		return "", "", false
+		return none, false
 	}
 
 	run, err := s.deps.Store.GetTestRun(ctx, runID)
 	if err != nil {
-		return "", "", false
+		return none, false
 	}
 
 	invite, err := s.deps.OutgoingInvites.GetByToken(ctx, token)
 	if err != nil {
-		return "", "", false
+		return none, false
 	}
 
 	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != invite.ID {
-		return "", "", false
+		return none, false
 	}
 
 	if invite.CreatedByUserID != run.TestRunID {
-		return "", "", false
+		return none, false
 	}
 
-	if invite.AcceptedProviderFQDNNormalized == "" || invite.AcceptedProviderFQDNNormalized != run.TargetHost {
-		return "", "", false
+	if invite.AcceptedProviderFQDN == "" || invite.AcceptedUserID == "" {
+		return none, false
 	}
 
-	if invite.AcceptedUserID == "" {
-		return "", "", false
+	return acceptedInviteMatch{run: run, invite: invite}, true
+}
+
+// bindAcceptedIdentity compares the composed incoming accepter identity to
+// the session starter. Wrong host or a plain local-user mismatch hard-fails
+// the run without pinning. Opaque or UUID users warn and continue. A bare
+// URL start enforces host only.
+func (s *Service) bindAcceptedIdentity(ctx context.Context, match acceptedInviteMatch) (bool, error) {
+	scheme := schemeFromOrigin(match.run.TargetOrigin, s.deps.LocalIdentity.Scheme)
+
+	incoming, err := identitybind.Canonicalize(composeAcceptedIdentity(match.invite), scheme)
+	if err != nil {
+		s.log.Warn("reverseinvite: canonicalize accepted identity", "error", err)
+
+		return false, nil
 	}
 
-	return runID, invite.AcceptedUserID, true
+	if incoming.Provider != match.run.TargetHost {
+		return false, s.haltWrongAccepter(ctx, match.run.TestRunID)
+	}
+
+	if match.run.StarterOCMID == nil || *match.run.StarterOCMID == "" {
+		return true, nil
+	}
+
+	starter, err := identitybind.Canonicalize(*match.run.StarterOCMID, scheme)
+	if err != nil {
+		s.log.Warn("reverseinvite: canonicalize starter identity", "error", err)
+
+		return false, nil
+	}
+
+	decision := identitybind.Compare(starter, incoming)
+	if !decision.HostsEqual {
+		return false, s.haltWrongAccepter(ctx, match.run.TestRunID)
+	}
+
+	if decision.UserEnforceable && !decision.UsersEqual {
+		return false, s.haltWrongAccepter(ctx, match.run.TestRunID)
+	}
+
+	if !decision.UserEnforceable {
+		if warnErr := s.warnUnenforceableAccepter(ctx, match.run.TestRunID); warnErr != nil {
+			return false, warnErr
+		}
+	}
+
+	return true, nil
+}
+
+func composeAcceptedIdentity(invite *invitesoutgoing.OutgoingInvite) string {
+	return invite.AcceptedUserID + "@" + invite.AcceptedProviderFQDN
+}
+
+func schemeFromOrigin(origin, fallback string) string {
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Scheme == "" {
+		return fallback
+	}
+
+	return strings.ToLower(parsed.Scheme)
+}
+
+func (s *Service) haltWrongAccepter(ctx context.Context, runID string) error {
+	if err := s.deps.Store.ReleaseActiveHardFail(ctx, runID, validatorcore.ReasonWrongAccepter); err != nil {
+		return fmt.Errorf("reverseinvite: hard-fail wrong accepter: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Service) warnUnenforceableAccepter(ctx context.Context, runID string) error {
+	err := s.deps.Store.ApplyEvidenceFact(ctx, validatorcore.ApplyEvidenceFactInput{
+		TestRunID:    runID,
+		Area:         validatorcore.SpecificationAreaSharing,
+		Step:         evidenceStepInviteAccepted,
+		ReasonCode:   evidenceReasonAccepterUnenforceable,
+		Severity:     validatorcore.GradeWarn,
+		AffectsGrade: true,
+		Leg:          validatorcore.EvidenceLegForward,
+	})
+	if err != nil {
+		return fmt.Errorf("reverseinvite: record unenforceable accepter: %w", err)
+	}
+
+	return nil
 }
 
 // observingWriter captures status and a bounded body copy while passing every

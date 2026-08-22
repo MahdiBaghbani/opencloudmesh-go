@@ -82,3 +82,53 @@ func TestReleaseActiveHardFail_ClosedReasonSet(t *testing.T) {
 		})
 	}
 }
+
+func TestReleaseActiveHardFail_WrongAccepterRefusedInGradedStates(t *testing.T) {
+	t.Parallel()
+
+	for _, state := range hardFailProtectedStates {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+
+			core := openTestCore(t)
+			ctx := t.Context()
+			runID := "run-hardfail-wrong-accepter-" + state
+
+			seedActiveRunInState(t, core, runID, state)
+
+			err := core.ReleaseActiveHardFail(ctx, runID, ReasonWrongAccepter)
+			if !errors.Is(err, ErrActiveHardFailRefused) {
+				t.Fatalf("error = %v, want ErrActiveHardFailRefused", err)
+			}
+
+			assertActiveInState(t, core, runID, state)
+		})
+	}
+}
+
+func TestReleaseActiveHardFail_WrongAccepterFromInviteMinted(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-hardfail-wrong-accepter-minted"
+
+	seedActiveRunInState(t, core, runID, StateInviteMinted)
+
+	if err := core.ReleaseActiveHardFail(ctx, runID, ReasonWrongAccepter); err != nil {
+		t.Fatalf("ReleaseActiveHardFail: %v", err)
+	}
+
+	got, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if got.IsActive || got.State != StateTerminalFail {
+		t.Fatalf("is_active=%v state=%q, want released terminal_fail", got.IsActive, got.State)
+	}
+
+	if got.TerminalReason == nil || *got.TerminalReason != ReasonWrongAccepter {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, ReasonWrongAccepter)
+	}
+}

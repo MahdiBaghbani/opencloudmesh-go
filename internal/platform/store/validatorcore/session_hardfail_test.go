@@ -378,6 +378,41 @@ func TestReleaseActiveHardFail_EmitsNameAgnosticNotInGuard(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("wrong accepter adds the graded exercise exclusions", func(t *testing.T) {
+		t.Parallel()
+
+		core := openTestCore(t)
+		ctx := t.Context()
+		runID := "run-hardfail-sql-wrong-accepter"
+
+		seedActiveRunInState(t, core, runID, StateActiveRunning)
+
+		recorder := &sqlStatementLogger{}
+		core.DB().Logger = recorder
+
+		if err := core.ReleaseActiveHardFail(ctx, runID, ReasonWrongAccepter); err != nil {
+			t.Fatalf("ReleaseActiveHardFail: %v", err)
+		}
+
+		stmt := recorder.guardedStateUpdate(t)
+
+		if !strings.Contains(stmt, "state NOT IN") {
+			t.Fatalf("guarded UPDATE = %q, want a name-agnostic state NOT IN guard", stmt)
+		}
+
+		for _, excluded := range []string{
+			StateTerminalPass,
+			StateTerminalFail,
+			StateInterrupted,
+			StateCapabilityExercise,
+			StateReverseAwaitingShare,
+		} {
+			if !strings.Contains(stmt, excluded) {
+				t.Fatalf("guarded UPDATE = %q, want %q in the exclusion list", stmt, excluded)
+			}
+		}
+	})
 }
 
 // sqlStatementLogger records every explained SQL statement gorm emits, so a

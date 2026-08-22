@@ -132,15 +132,24 @@ func newTestEnv(t *testing.T) *testEnv {
 func (e *testEnv) seedRun(t *testing.T, runID, state string) {
 	t.Helper()
 
+	e.seedRunAt(t, runID, state, testTargetHost, nil)
+}
+
+// seedRunAt creates the singleton active run at host, optionally with a
+// starter OCM address.
+func (e *testEnv) seedRunAt(t *testing.T, runID, state, host string, starter *string) {
+	t.Helper()
+
 	now := time.Now().Unix()
 
 	if err := e.store.DB().WithContext(t.Context()).Create(&validatorcore.TestRun{
 		TestRunID:    runID,
 		IsActive:     true,
 		State:        state,
-		TargetOrigin: "https://" + testTargetHost,
-		TargetHost:   testTargetHost,
-		DiscoveryURL: "https://" + testTargetHost + "/.well-known/ocm",
+		TargetOrigin: "https://" + host,
+		TargetHost:   host,
+		StarterOCMID: starter,
+		DiscoveryURL: "https://" + host + "/.well-known/ocm",
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}).Error; err != nil {

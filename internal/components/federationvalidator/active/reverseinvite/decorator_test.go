@@ -6,14 +6,17 @@
 package reverseinvite_test
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing/accepted"
@@ -31,16 +34,78 @@ func (e *testEnv) inviteAcceptedEndpoint() http.HandlerFunc {
 func postInviteAccepted(t *testing.T, handler http.HandlerFunc, token, recipientProvider string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	body := `{"recipientProvider":"` + recipientProvider + `","token":"` + token +
-		`","userID":"accepter-user","email":"a@example","name":"Accepter"}`
+	return postInviteAcceptedAs(t, handler, token, recipientProvider, "accepter-user")
+}
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/ocm/invite-accepted", strings.NewReader(body))
+func postInviteAcceptedAs(
+	t *testing.T,
+	handler http.HandlerFunc,
+	token, recipientProvider, userID string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	body := fmt.Sprintf(
+		`{"recipientProvider":%s,"token":%s,"userID":%s,"email":"a@example","name":"Accepter"}`,
+		strconv.Quote(recipientProvider),
+		strconv.Quote(token),
+		strconv.Quote(userID),
+	)
+
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/ocm/invite-accepted",
+		strings.NewReader(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
 	return rec
+}
+
+func (e *testEnv) requireWrongAccepterHalt(t *testing.T, runID string) {
+	t.Helper()
+
+	run, err := e.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.IsActive {
+		t.Fatal("is_active = 1, want 0")
+	}
+
+	if run.State != validatorcore.StateTerminalFail {
+		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateTerminalFail)
+	}
+
+	if run.TerminalReason == nil || *run.TerminalReason != validatorcore.ReasonWrongAccepter {
+		t.Fatalf("terminal_reason = %v, want %q", run.TerminalReason, validatorcore.ReasonWrongAccepter)
+	}
+
+	if run.DesignatedShareWith != nil {
+		t.Fatalf("designated_share_with = %v, want nil after identity halt", run.DesignatedShareWith)
+	}
+}
+
+func (e *testEnv) unenforceableAccepterEvidence(t *testing.T, runID string) []validatorcore.EvidenceRow {
+	t.Helper()
+
+	var rows []validatorcore.EvidenceRow
+	if err := e.store.DB().WithContext(t.Context()).
+		Where("test_run_id = ? AND area = ? AND step = ? AND reason_code = ?",
+			runID,
+			validatorcore.SpecificationAreaSharing,
+			"invite_accepted",
+			"accepter_user_unenforceable",
+		).
+		Find(&rows).Error; err != nil {
+		t.Fatalf("list unenforceable-accepter evidence: %v", err)
+	}
+
+	return rows
 }
 
 func (e *testEnv) markInviteAccepted(t *testing.T, inviteID, userID, normalizedHost string) {
@@ -234,7 +299,7 @@ func TestDecorator_SkipsForeignCreator(t *testing.T) {
 	env.requireState(t, runID, validatorcore.StateInviteMinted)
 }
 
-func TestDecorator_SkipsWrongAcceptedProvider(t *testing.T) {
+func TestDecorator_WrongAcceptedHostHaltsWrongAccepter(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t)
@@ -247,15 +312,12 @@ func TestDecorator_SkipsWrongAcceptedProvider(t *testing.T) {
 		t.Fatalf("mint: %v", err)
 	}
 
-	// The accepter reports a recipient provider that is not the session
-	// target; the protocol accept still succeeds but the validator must not
-	// advance.
 	rec := postInviteAccepted(t, env.inviteAcceptedEndpoint(), invite.Token, "other-host.example")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (protocol unaffected)", rec.Code)
 	}
 
-	env.requireState(t, runID, validatorcore.StateInviteMinted)
+	env.requireWrongAccepterHalt(t, runID)
 }
 
 func TestDecorator_NoActiveRunKeepsProtocolResponse(t *testing.T) {
@@ -361,5 +423,195 @@ func TestDecorator_BodyAtCapPassesThrough(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestDecorator_PlainUserMismatchHaltsWrongAccepter(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t)
+	runID := "run-dec-plain-mismatch"
+
+	env.seedRunAt(t, runID, validatorcore.StateActiveRunning, "o.com", new("malek@o.com"))
+
+	invite, err := env.svc.MintOutgoingInvite(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+
+	rec := postInviteAcceptedAs(t, env.inviteAcceptedEndpoint(), invite.Token, "o.com", "omar")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (protocol unaffected)", rec.Code)
+	}
+
+	env.requireWrongAccepterHalt(t, runID)
+}
+
+func TestDecorator_OpaqueUserMismatchWarnsAndAdvances(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t)
+	runID := "run-dec-opaque-warn"
+	opaqueUser := address.EncodeFederatedOpaqueID("omar", "o.com")
+
+	env.seedRunAt(t, runID, validatorcore.StateActiveRunning, "o.com", new("malek@o.com"))
+
+	invite, err := env.svc.MintOutgoingInvite(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+
+	rec := postInviteAcceptedAs(t, env.inviteAcceptedEndpoint(), invite.Token, "o.com", opaqueUser)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	run, err := env.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.State != validatorcore.StateInviteAccepted {
+		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateInviteAccepted)
+	}
+
+	if run.DesignatedShareWith == nil || *run.DesignatedShareWith != opaqueUser {
+		t.Fatalf("designated_share_with = %v, want wire opaque id", run.DesignatedShareWith)
+	}
+
+	rows := env.unenforceableAccepterEvidence(t, runID)
+	if len(rows) != 1 {
+		t.Fatalf("unenforceable evidence = %d, want 1", len(rows))
+	}
+
+	if rows[0].Severity != validatorcore.GradeWarn {
+		t.Fatalf("severity = %q, want %q", rows[0].Severity, validatorcore.GradeWarn)
+	}
+
+	requireInboundInviteAcceptedSibling(t, env, runID)
+}
+
+func TestDecorator_BareURLStartEnforcesHostOnly(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t)
+	runID := "run-dec-bare-url"
+
+	env.seedRun(t, runID, validatorcore.StateActiveRunning)
+
+	invite, err := env.svc.MintOutgoingInvite(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+
+	rec := postInviteAcceptedAs(t, env.inviteAcceptedEndpoint(), invite.Token, testTargetHost, "omar")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	run, err := env.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.State != validatorcore.StateInviteAccepted {
+		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateInviteAccepted)
+	}
+
+	if run.DesignatedShareWith == nil || *run.DesignatedShareWith != "omar" {
+		t.Fatalf("designated_share_with = %v, want omar", run.DesignatedShareWith)
+	}
+
+	if len(env.unenforceableAccepterEvidence(t, runID)) != 0 {
+		t.Fatal("bare URL start must not write unenforceable-user evidence")
+	}
+}
+
+func TestDecorator_ConflictReplayDoesNotOverwritePin(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t)
+	runID := "run-dec-replay-pin"
+
+	env.seedRunAt(t, runID, validatorcore.StateActiveRunning, testTargetHost, new("malek@"+testTargetHost))
+
+	invite, err := env.svc.MintOutgoingInvite(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+
+	first := postInviteAcceptedAs(t, env.inviteAcceptedEndpoint(), invite.Token, testTargetHost, "malek")
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status = %d, want 200", first.Code)
+	}
+
+	replay := postInviteAcceptedAs(t, env.inviteAcceptedEndpoint(), invite.Token, testTargetHost, "omar")
+	if replay.Code != http.StatusConflict {
+		t.Fatalf("replay status = %d, want 409", replay.Code)
+	}
+
+	run, err := env.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.State != validatorcore.StateInviteAccepted {
+		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateInviteAccepted)
+	}
+
+	if run.DesignatedShareWith == nil || *run.DesignatedShareWith != "malek" {
+		t.Fatalf("designated_share_with = %v, want malek", run.DesignatedShareWith)
+	}
+}
+
+func TestDecorator_ConflictReplayDoesNotMoveCapabilityExercise(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t)
+	runID := "run-dec-replay-exercise"
+
+	env.seedRunAt(t, runID, validatorcore.StateActiveRunning, testTargetHost, new("malek@"+testTargetHost))
+
+	invite, err := env.svc.MintOutgoingInvite(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+
+	first := postInviteAcceptedAs(t, env.inviteAcceptedEndpoint(), invite.Token, testTargetHost, "malek")
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status = %d, want 200", first.Code)
+	}
+
+	if updateErr := env.store.DB().WithContext(t.Context()).
+		Model(&validatorcore.TestRun{}).
+		Where("test_run_id = ?", runID).
+		Update("state", validatorcore.StateCapabilityExercise).Error; updateErr != nil {
+		t.Fatalf("force capability_exercise: %v", updateErr)
+	}
+
+	replay := postInviteAcceptedAs(t, env.inviteAcceptedEndpoint(), invite.Token, testTargetHost, "omar")
+	if replay.Code != http.StatusConflict {
+		t.Fatalf("replay status = %d, want 409", replay.Code)
+	}
+
+	run, err := env.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !run.IsActive {
+		t.Fatal("is_active = 0, replay must not release the run")
+	}
+
+	if run.State != validatorcore.StateCapabilityExercise {
+		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateCapabilityExercise)
+	}
+
+	if run.DesignatedShareWith == nil || *run.DesignatedShareWith != "malek" {
+		t.Fatalf("designated_share_with = %v, want malek", run.DesignatedShareWith)
+	}
+
+	if run.TerminalReason != nil {
+		t.Fatalf("terminal_reason = %v, want nil", run.TerminalReason)
 	}
 }
