@@ -84,15 +84,6 @@ type startExtendResponse struct {
 	State string `json:"state"`
 }
 
-type stopRequest struct {
-	ID string `json:"id"`
-}
-
-type stopResponse struct {
-	ID    string `json:"id"`
-	State string `json:"state"`
-}
-
 type sessionPollResponse struct {
 	State           string `json:"state"`
 	Ts              int64  `json:"ts"`
@@ -159,87 +150,6 @@ func (h *Handler) HandleStart(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "request body requires target or id")
 	}
-}
-
-// HandleStop serves POST /stop for core-only terminalization from passive_complete.
-func (h *Handler) HandleStop(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-
-		return
-	}
-
-	if h.store == nil {
-		writeJSONError(w, h.log, http.StatusInternalServerError, "store_unavailable", "validator store is not configured")
-
-		return
-	}
-
-	body, err := readLimitedBody(w, h.log, r, maxStartBodyBytes)
-	if err != nil {
-		return
-	}
-
-	var req stopRequest
-	if unmarshalErr := json.Unmarshal(body, &req); unmarshalErr != nil {
-		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "invalid JSON body")
-
-		return
-	}
-
-	id := strings.TrimSpace(req.ID)
-	if id == "" {
-		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "id is required")
-
-		return
-	}
-
-	ctx := r.Context()
-
-	row, err := h.store.GetTestRun(ctx, id)
-	if err != nil {
-		writeStoreError(w, h.log, err)
-
-		return
-	}
-
-	if row.State != validatorcore.StatePassiveComplete {
-		writeJSONError(
-			w,
-			h.log,
-			http.StatusConflict,
-			validatorcore.CodeSessionNotReady,
-			"session is not ready for stop",
-		)
-
-		return
-	}
-
-	if row.IsActive {
-		writeJSONError(
-			w,
-			h.log,
-			http.StatusConflict,
-			validatorcore.CodeSessionNotReady,
-			"session is not ready for stop",
-		)
-
-		return
-	}
-
-	if err := h.store.StopPassiveComplete(ctx, id); err != nil {
-		if errors.Is(err, validatorcore.ErrStateTransitionMiss) {
-			writeJSONError(w, h.log, http.StatusConflict, validatorcore.CodeStopSessionMiss, "stop did not match session state")
-
-			return
-		}
-
-		writeStoreError(w, h.log, err)
-
-		return
-	}
-
-	writeJSON(w, h.log, http.StatusOK, stopResponse{ID: id, State: validatorcore.StateTerminalPass})
 }
 
 // HandleScan serves GET /api/scan for passive-core session creation with optional

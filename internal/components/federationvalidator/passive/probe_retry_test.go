@@ -209,8 +209,8 @@ func TestProbeRunner_RetryLastWinsAreaGrade(t *testing.T) {
 		assertRatedAreaGrade(t, store, runID, validatorcore.SpecificationAreaJWKS, validatorcore.GradePass)
 		assertEvidenceUsesLatestExchange(t, store, runID, validatorcore.SpecificationAreaJWKS, exchangeJWKSID)
 
-		if err := store.StopPassiveComplete(t.Context(), runID); err != nil {
-			t.Fatalf("StopPassiveComplete: %v", err)
+		if err := store.StopPassive(t.Context(), runID); err != nil {
+			t.Fatalf("StopPassive: %v", err)
 		}
 
 		assertStatsJWKSGrade(t, store, validatorcore.GradePass)

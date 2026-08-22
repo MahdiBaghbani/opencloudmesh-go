@@ -127,7 +127,7 @@ func validateEvidenceFact(in ApplyEvidenceFactInput) error {
 		return errors.New("validatorcore: empty evidence reason_code")
 	}
 
-	if in.Severity == "" {
+	if canonicalSeverity(in.Severity) == "" {
 		return errors.New("validatorcore: empty evidence severity")
 	}
 
@@ -223,7 +223,7 @@ func evidenceRowFromInput(in ApplyEvidenceFactInput, now int64) *EvidenceRow {
 		Area:            in.Area,
 		Step:            in.Step,
 		ReasonCode:      in.ReasonCode,
-		Severity:        in.Severity,
+		Severity:        canonicalSeverity(in.Severity),
 		AffectsGrade:    in.AffectsGrade,
 		PayloadRedacted: payload,
 		ExchangeID:      in.ExchangeID,

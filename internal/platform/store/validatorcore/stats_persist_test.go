@@ -104,8 +104,8 @@ func TestPersistTerminalStats_OptInWritesRaw(t *testing.T) {
 	runID := "run-stats-opt-in"
 	seedPassiveComplete(t, core, runID, "https://Peer.Example:443", true)
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	var rawCount int64
@@ -145,8 +145,8 @@ func TestPersistTerminalStats_IncognitoWritesNothing(t *testing.T) {
 	runID := "run-stats-incognito"
 	seedPassiveComplete(t, core, runID, "https://peer.example", false)
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	var rawCount int64
@@ -183,8 +183,8 @@ func TestPersistTerminalStats_PermanentOnlyWritesNothing(t *testing.T) {
 		t.Fatalf("CreatePassiveSession: %v", err)
 	}
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	var rawCount int64
@@ -220,8 +220,8 @@ func TestPersistTerminalStats_PersistedOptInWritesWithoutMemoryFlag(t *testing.T
 		t.Fatalf("CreatePassiveSession: %v", err)
 	}
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	var rawCount int64
@@ -368,8 +368,8 @@ func TestPersistTerminalStats_DerivesFromEvidenceFold(t *testing.T) {
 
 	seedEvidenceRow(t, core, runID, evidenceLegPassive, SpecificationAreaDiscovery, "fetch", "discovery_ok", pass, true)
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	var raw StatsRaw
@@ -409,8 +409,8 @@ func TestPersistTerminalStats_OverallGradeDoesNotDriveHealthy(t *testing.T) {
 		t.Fatalf("CreatePassiveSession: %v", err)
 	}
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	var raw StatsRaw

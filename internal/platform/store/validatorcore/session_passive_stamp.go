@@ -16,7 +16,6 @@ const (
 	colJwksURI        = "jwks_uri"
 	colAPIVersion     = "api_version"
 	colPassiveReadyAt = "passive_ready_at"
-	reasonProbeFailed = "passive_probe_failed"
 )
 
 // StampPassiveProbeMetadata writes discovery-derived JWKS URI, platform, and
@@ -92,18 +91,4 @@ func (c *Core) StampPassiveReadyAt(ctx context.Context, testRunID string) error 
 	}
 
 	return nil
-}
-
-// FailPassive terminalizes a passive session from expectedState. The only
-// supported expected state is passive_running.
-func (c *Core) FailPassive(ctx context.Context, testRunID, expectedState, reason string) error {
-	if expectedState != StatePassiveRunning {
-		return fmt.Errorf("validatorcore: unsupported fail-passive state %q", expectedState)
-	}
-
-	if reason == "" {
-		reason = reasonProbeFailed
-	}
-
-	return c.FailPassiveRunningTerminal(ctx, testRunID, reason)
 }

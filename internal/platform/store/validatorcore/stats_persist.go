@@ -248,6 +248,13 @@ func targetOriginAuthority(targetOrigin string) (authority, scheme string, err e
 	return parsed.Host, parsed.Scheme, nil
 }
 
+// IsTerminalState reports whether state is a first-write closed state:
+// terminal_pass, terminal_fail, or interrupted. Interrupted stays closed
+// even though retention does not prune it.
+func IsTerminalState(state string) bool {
+	return isTerminalState(state)
+}
+
 func isTerminalState(state string) bool {
 	return state == StateTerminalPass || state == StateTerminalFail || state == StateInterrupted
 }

@@ -59,8 +59,8 @@ func TestPersistTerminalStats_StateCASCommitsAfterStatsFailure(t *testing.T) {
 	runID := "run-stats-state-first"
 	seedPassiveComplete(t, core, runID, "https://peer.example", true)
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	row, err := core.GetTestRun(ctx, runID)
@@ -97,8 +97,8 @@ func TestPersistTerminalStats_StateCASCommittedWhenStatsTxRollsBack(t *testing.T
 	unregister := registerStatsRawCreateFailure(t, core, errors.New("injected stats_raw failure"))
 	defer unregister()
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	row, err := core.GetTestRun(ctx, runID)

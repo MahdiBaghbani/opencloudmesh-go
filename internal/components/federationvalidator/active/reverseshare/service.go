@@ -55,18 +55,7 @@ func New(deps Deps) (*Service, error) {
 	return &Service{deps: deps, log: logutil.NoopIfNil(deps.Logger)}, nil
 }
 
-// reverseSharePassUpdate is the terminal update for a run the peer's reverse
-// share passed: terminal_pass with the reverse_share_observed reason and a
-// pass grade.
-func reverseSharePassUpdate() validatorcore.ActiveTerminalUpdate {
-	grade := validatorcore.GradePass
-
-	return validatorcore.ActiveTerminalUpdate{
-		State:          validatorcore.StateTerminalPass,
-		TerminalReason: "reverse_share_observed",
-		OverallGrade:   &grade,
-	}
-}
+const reasonReverseShareObserved = "reverse_share_observed"
 
 // recordShareReceived persists the inbound share transcript and the
 // reverse-share evidence fact so terminal statistics carry the sharing grade.
@@ -116,11 +105,11 @@ func (s *Service) driveReverseShareSuccess(ctx context.Context, testRunID, provi
 
 	if run.IsActive && (run.State == validatorcore.StateCapabilityExercise ||
 		run.State == validatorcore.StateReverseAwaitingShare) {
-		releaseErr := s.deps.Store.ReleaseActiveTerminalFrom(
+		releaseErr := s.deps.Store.PassActiveFrom(
 			ctx,
 			testRunID,
 			validatorcore.ActivePassExpectedStates(),
-			reverseSharePassUpdate(),
+			reasonReverseShareObserved,
 		)
 
 		switch {

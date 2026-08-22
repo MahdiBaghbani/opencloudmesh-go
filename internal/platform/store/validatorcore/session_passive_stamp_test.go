@@ -115,12 +115,12 @@ func TestStampPassiveReadyAt_FirstWins(t *testing.T) {
 	}
 }
 
-func TestFailPassive_RequiresRunning(t *testing.T) {
+func TestFailPassive_RejectsActiveState(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
 
-	err := core.FailPassive(t.Context(), "run-x", StateCreated, "passive_probe_failed")
+	err := core.FailPassive(t.Context(), "run-x", StateActiveRunning, "passive_probe_failed")
 	if err == nil {
 		t.Fatal("expected unsupported state error")
 	}

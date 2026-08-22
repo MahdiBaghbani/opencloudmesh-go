@@ -94,7 +94,7 @@ func TestPassiveProbeTransitions(t *testing.T) {
 	}
 }
 
-func TestEnterTerminalState_PassiveGuard(t *testing.T) {
+func TestStopPassive_PassiveGuard(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -114,8 +114,8 @@ func TestEnterTerminalState_PassiveGuard(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	if err := core.StopPassiveComplete(ctx, runID); err != nil {
-		t.Fatalf("StopPassiveComplete: %v", err)
+	if err := core.StopPassive(ctx, runID); err != nil {
+		t.Fatalf("StopPassive: %v", err)
 	}
 
 	got, err := core.GetTestRun(ctx, runID)

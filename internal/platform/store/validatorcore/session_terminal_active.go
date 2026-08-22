@@ -7,17 +7,14 @@ package validatorcore
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"slices"
-	"time"
 
 	"gorm.io/gorm"
 )
 
-// ActiveTerminalUpdate carries the terminal fields written when the active
-// session is released. OverallGrade may be nil (an interrupted run carries no
-// grade). finished_at and updated_at are stamped by the writer; session_kind
+// ActiveTerminalUpdate carries the terminal fields written on a first-write
+// terminal transition. OverallGrade may be nil (an interrupted run carries no
+// grade). finished_at and updated_at are stamped by WriteTerminal; session_kind
 // is never rewritten.
 type ActiveTerminalUpdate struct {
 	State          string
@@ -47,22 +44,15 @@ func (c *Core) ReleaseActiveTerminal(
 // state is in expectedStates. The set must be non-empty (empty never means
 // any) and must not contain a terminal state, so an already-terminal row can
 // never match and is never rewritten. update.State must be one of
-// terminal_pass, terminal_fail, or interrupted.
+// terminal_pass, terminal_fail, or interrupted. The first-write lands through
+// WriteTerminal.
 func (c *Core) ReleaseActiveTerminalFrom(
 	ctx context.Context,
 	testRunID string,
 	expectedStates []string,
 	update ActiveTerminalUpdate,
 ) error {
-	if c == nil || c.db == nil {
-		return errors.New("validatorcore: store is not configured")
-	}
-
-	if err := validateActiveTerminalRelease(expectedStates, update.State); err != nil {
-		return err
-	}
-
-	return c.writeTerminalFields(ctx, testRunID, expectedStates, update)
+	return c.WriteTerminal(ctx, testRunID, true, expectedStates, update)
 }
 
 func validateActiveTerminalRelease(expectedStates []string, terminalState string) error {
@@ -89,22 +79,15 @@ func validateActiveTerminalRelease(expectedStates []string, terminalState string
 // state do not drift when the state enum grows. The terminal states are
 // always excluded by construction, so an already-terminal row can never
 // match and is never rewritten; an empty extra set therefore means any
-// non-terminal state. update.State must be terminal.
+// non-terminal state. update.State must be terminal. The first-write lands
+// through WriteTerminal.
 func (c *Core) ReleaseActiveTerminalExcept(
 	ctx context.Context,
 	testRunID string,
 	extraExcludedStates []string,
 	update ActiveTerminalUpdate,
 ) error {
-	if c == nil || c.db == nil {
-		return errors.New("validatorcore: store is not configured")
-	}
-
-	if err := validateActiveTerminalExclusion(extraExcludedStates, update.State); err != nil {
-		return err
-	}
-
-	return c.writeTerminalFieldsExcept(ctx, testRunID, extraExcludedStates, update)
+	return c.writeTerminalExcept(ctx, testRunID, extraExcludedStates, update)
 }
 
 func validateActiveTerminalExclusion(extraExcludedStates []string, terminalState string) error {
@@ -119,89 +102,12 @@ func validateActiveTerminalExclusion(extraExcludedStates []string, terminalState
 	return nil
 }
 
-// writeTerminalFields is the shared low-level active-terminalization writer.
-// One guarded UPDATE matches the row by test_run_id with is_active=1 and
-// state in the caller's expected non-terminal set, and writes is_active=0,
-// the terminal state, terminal_reason, updated_at, and overall_grade in the
-// same statement; session_kind is left unchanged. finished_at is
-// first-write-only: a NULL value gets the current timestamp, an existing
-// value is preserved. A zero-row result returns ErrStateTransitionMiss, so a
-// row that already moved on is never terminalized a second time. On success,
-// expires_at is sealed for rows that opted into permanent retention. Callers
-// must validate the expected set and the terminal state before invoking the
-// writer.
-func (c *Core) writeTerminalFields(
-	ctx context.Context,
-	testRunID string,
-	expectedStates []string,
-	update ActiveTerminalUpdate,
-) error {
-	return c.writeTerminalFieldsWithStateGuard(ctx, testRunID, update, "IN", expectedStates)
-}
-
-// writeTerminalFieldsExcept is the name-agnostic form of writeTerminalFields:
-// the guarded UPDATE matches state NOT IN the terminal set union the caller's
-// extra exclusions, so the guard never enumerates the non-terminal forward
-// names. The terminal set is derived from the state enum, which keeps an
-// already-terminal row unmatchable by construction.
-func (c *Core) writeTerminalFieldsExcept(
-	ctx context.Context,
-	testRunID string,
-	extraExcludedStates []string,
-	update ActiveTerminalUpdate,
-) error {
-	excluded := slices.Concat(terminalStateSet(), extraExcludedStates)
-
-	return c.writeTerminalFieldsWithStateGuard(ctx, testRunID, update, "NOT IN", excluded)
-}
-
-// writeTerminalFieldsWithStateGuard runs the shared guarded UPDATE behind
-// both release forms. stateOp is the internal predicate operator ("IN" or
-// "NOT IN") chosen by the typed wrappers above; it is never caller input.
-func (c *Core) writeTerminalFieldsWithStateGuard(
-	ctx context.Context,
-	testRunID string,
-	update ActiveTerminalUpdate,
-	stateOp string,
-	states []string,
-) error {
-	now := time.Now().Unix()
-
-	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&TestRun{}).
-			Where("test_run_id = ? AND is_active = 1 AND state "+stateOp+" ?", testRunID, states).
-			Updates(map[string]any{
-				colIsActive:       false,
-				colState:          update.State,
-				colFinishedAt:     gorm.Expr("COALESCE("+colFinishedAt+", ?)", now),
-				colTerminalReason: update.TerminalReason,
-				colUpdatedAt:      now,
-				colOverallGrade:   update.OverallGrade,
-			})
-		if res.Error != nil {
-			return res.Error
-		}
-
-		if res.RowsAffected == 0 {
-			return ErrStateTransitionMiss
-		}
-
-		return sealTerminalExpiresAt(tx, testRunID, now)
-	})
-	if err != nil {
-		return fmt.Errorf("validatorcore: release active terminal: %w", err)
-	}
-
-	bestEffortPersistTerminalStats(c, ctx, testRunID)
-
-	return nil
-}
-
 // sealTerminalExpiresAt stamps expires_at on a just-terminalized row that
 // opted into permanent retention: forever keeps expires_at NULL, finite tiers
 // expire finished_at + tier days, anchored to the post-update finished_at so
 // a preserved first-write value stays the base. Non-permanent rows are never
-// sealed.
+// sealed. Hybrid lock repair also uses this helper without rewriting terminal
+// fields or persisting statistics.
 func sealTerminalExpiresAt(tx *gorm.DB, testRunID string, finishedAt int64) error {
 	var row TestRun
 

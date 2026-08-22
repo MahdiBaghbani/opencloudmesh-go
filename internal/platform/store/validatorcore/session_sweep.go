@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 func (c *Core) sweepPassiveInFlightTTL(ctx context.Context) error {
@@ -42,7 +40,7 @@ func (c *Core) sweepPassiveInFlightTTL(ctx context.Context) error {
 		}
 
 		for _, id := range ids {
-			if err := c.terminalizePassiveTTL(ctx, id, item.state, item.reason, now); err != nil {
+			if err := c.failPassiveTTL(ctx, id, item.state, item.reason); err != nil {
 				return err
 			}
 		}
@@ -68,7 +66,7 @@ func (c *Core) sweepPassiveCompleteTTL(ctx context.Context) error {
 	}
 
 	for _, id := range ids {
-		if err := c.terminalizePassiveTTL(ctx, id, StatePassiveComplete, "passive_complete_ttl_expired", now); err != nil {
+		if err := c.failPassiveTTL(ctx, id, StatePassiveComplete, "passive_complete_ttl_expired"); err != nil {
 			return err
 		}
 	}
@@ -76,54 +74,11 @@ func (c *Core) sweepPassiveCompleteTTL(ctx context.Context) error {
 	return nil
 }
 
-func (c *Core) terminalizePassiveTTL(
-	ctx context.Context,
-	testRunID, expectedState, reason string,
-	now int64,
-) error {
-	var terminalized bool
-
-	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var row TestRun
-
-		loadErr := tx.Where(
-			"test_run_id = ? AND is_active = 0 AND state = ?",
-			testRunID,
-			expectedState,
-		).First(&row).Error
-		if errors.Is(loadErr, gorm.ErrRecordNotFound) {
-			return nil
-		}
-
-		if loadErr != nil {
-			return loadErr
-		}
-
-		res := tx.Model(&TestRun{}).
-			Where("test_run_id = ? AND is_active = 0 AND state = ?", testRunID, expectedState).
-			Updates(map[string]any{
-				colState:          StateTerminalFail,
-				colTerminalReason: reason,
-				colFinishedAt:     now,
-				colUpdatedAt:      now,
-			})
-		if res.Error != nil {
-			return res.Error
-		}
-
-		if res.RowsAffected > 0 {
-			terminalized = true
-		}
-
+func (c *Core) failPassiveTTL(ctx context.Context, testRunID, expectedState, reason string) error {
+	err := c.FailPassive(ctx, testRunID, expectedState, reason)
+	if err == nil || errors.Is(err, ErrStateTransitionMiss) {
 		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("validatorcore: terminalize passive ttl: %w", err)
 	}
 
-	if terminalized {
-		bestEffortPersistTerminalStats(c, ctx, testRunID)
-	}
-
-	return nil
+	return err
 }

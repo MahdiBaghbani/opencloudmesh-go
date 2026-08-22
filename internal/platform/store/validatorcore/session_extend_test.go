@@ -130,6 +130,63 @@ func TestExtendToActive_RepeatedExtensionReturnsInteractiveConflict(t *testing.T
 	}
 }
 
+func TestExtendToActive_RefusesPersistedDiscoveryFail(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-extend-fail-gate"
+
+	seedPassiveComplete(t, core, runID, "https://peer.example", false)
+	seedGradedEvidence(t, core, runID, SpecificationAreaDiscovery, GradeFail)
+
+	err := core.ExtendToActive(ctx, runID)
+	if !errors.Is(err, ErrSessionNotReady) {
+		t.Fatalf("ExtendToActive error = %v, want ErrSessionNotReady", err)
+	}
+
+	got, getErr := core.GetTestRun(ctx, runID)
+	if getErr != nil {
+		t.Fatalf("GetTestRun: %v", getErr)
+	}
+
+	if got.IsActive {
+		t.Fatal("failed-probe run must not take the active lock")
+	}
+
+	if got.State != StatePassiveComplete {
+		t.Fatalf("state = %q, want %q", got.State, StatePassiveComplete)
+	}
+}
+
+func TestExtendToActive_AllowsWarnEvidence(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-extend-warn"
+
+	seedPassiveComplete(t, core, runID, "https://peer.example", false)
+	seedGradedEvidence(t, core, runID, SpecificationAreaTLS, GradeWarn)
+
+	if err := core.ExtendToActive(ctx, runID); err != nil {
+		t.Fatalf("ExtendToActive: %v", err)
+	}
+
+	got, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !got.IsActive {
+		t.Fatal("warn evidence must still allow extend")
+	}
+
+	if got.State != StateActiveRunning {
+		t.Fatalf("state = %q, want %q", got.State, StateActiveRunning)
+	}
+}
+
 func TestExtendToActive_WritesBobUserIDOnPromotion(t *testing.T) {
 	t.Parallel()
 

@@ -228,8 +228,12 @@ func appendSpecificationEvidence(dest *[]SpecificationEvidence, item Specificati
 	*dest = append(*dest, item)
 }
 
+func canonicalSeverity(severity string) string {
+	return strings.ToLower(strings.TrimSpace(severity))
+}
+
 func severityToGrade(severity string) string {
-	switch strings.ToLower(strings.TrimSpace(severity)) {
+	switch canonicalSeverity(severity) {
 	case GradeFail, "failure", "critical", "error", "fatal":
 		return GradeFail
 	case GradeWarn, "warning", "important":
