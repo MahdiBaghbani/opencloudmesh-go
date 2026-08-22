@@ -112,6 +112,35 @@ func TestHandleManifest_AdvertisesSessionAndReport(t *testing.T) {
 	}
 }
 
+func TestHandleManifest_AdvertisesAbort(t *testing.T) {
+	t.Parallel()
+
+	var hasAbortPost bool
+
+	var hasAbortGet bool
+
+	for _, route := range BuildManifest().Routes {
+		if route.FullPath != "/validator/api/session/{id}/abort" {
+			continue
+		}
+
+		switch route.Method {
+		case http.MethodPost:
+			hasAbortPost = true
+		case http.MethodGet:
+			hasAbortGet = true
+		}
+	}
+
+	if !hasAbortPost {
+		t.Fatal("expected POST /validator/api/session/{id}/abort in manifest routes")
+	}
+
+	if hasAbortGet {
+		t.Fatal("GET /validator/api/session/{id}/abort must not be advertised")
+	}
+}
+
 func TestHandleManifest_ScanSchemaMatchesLiveHandler(t *testing.T) {
 	t.Parallel()
 

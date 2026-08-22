@@ -57,6 +57,9 @@ func MountPlaneARoutesWithHeal(
 
 	claim := ClaimInviteRouteSpec()
 	mountRateLimited(r, startRatelimit, claim.Method, claim.Pattern, http.HandlerFunc(h.HandleClaimInvite))
+
+	abort := AbortSessionRouteSpec()
+	r.Method(abort.Method, abort.Pattern, http.HandlerFunc(h.HandleAbort))
 	r.Method(http.MethodGet, api.Scan, http.HandlerFunc(h.HandleScan))
 	r.Method(http.MethodGet, api.Session, sessionHandler)
 	r.Method(http.MethodGet, api.Manifest, http.HandlerFunc(h.HandleManifest))

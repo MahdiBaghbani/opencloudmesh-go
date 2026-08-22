@@ -34,6 +34,10 @@ const (
 	// Duplicated in services/validator; keep the strings synchronized.
 	RouteAPISessionInvite = "/api/session/{id}/invite"
 
+	// RouteAPISessionAbort is POST /api/session/{id}/abort.
+	// Duplicated in services/validator; keep the strings synchronized.
+	RouteAPISessionAbort = "/api/session/{id}/abort"
+
 	// RouteAPIReport is GET /api/report/{id} on the validator service router.
 	// Duplicated in services/validator because this package cannot import that
 	// service package; keep the strings synchronized.
@@ -96,6 +100,21 @@ func StopSessionRouteSpec() service.RouteSpec {
 		Service:       ValidatorServiceName,
 		Method:        http.MethodPost,
 		Pattern:       RouteStopSession,
+		SessionPolicy: service.SessionPublic,
+		HandlerAuth:   service.HandlerAuthNone,
+		SurfaceClass:  service.SurfaceAPI,
+		TrustClass:    service.TrustPeerNone,
+	}
+}
+
+// AbortSessionRouteSpec returns POST /api/session/{id}/abort for an
+// operator-initiated hard-fail of an active run.
+func AbortSessionRouteSpec() service.RouteSpec {
+	return service.RouteSpec{
+		ID:            service.RouteIDValidatorAPISessionAbort,
+		Service:       ValidatorServiceName,
+		Method:        http.MethodPost,
+		Pattern:       RouteAPISessionAbort,
 		SessionPolicy: service.SessionPublic,
 		HandlerAuth:   service.HandlerAuthNone,
 		SurfaceClass:  service.SurfaceAPI,

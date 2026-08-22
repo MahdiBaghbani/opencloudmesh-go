@@ -36,6 +36,9 @@ const (
 	// RouteAPISessionInvite is POST /validator/api/session/{id}/invite.
 	// Duplicated in the passive package; keep the strings synchronized.
 	RouteAPISessionInvite = "/api/session/{id}/invite"
+	// RouteAPISessionAbort is POST /validator/api/session/{id}/abort.
+	// Duplicated in the passive package; keep the strings synchronized.
+	RouteAPISessionAbort = "/api/session/{id}/abort"
 	// RouteAPISessionReverseInvite is POST /validator/api/session/{id}/reverse-invite.
 	RouteAPISessionReverseInvite = "/api/session/{id}/reverse-invite"
 	// RouteAPIReport is GET /validator/api/report/{id}.
@@ -116,6 +119,17 @@ func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 			SessionPolicy:    service.SessionPublic,
 			HandlerAuth:      service.HandlerAuthRateLimitOnly,
 			Middleware:       []string{"ratelimit"},
+			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               service.RouteIDValidatorAPISessionAbort,
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodPost,
+			Pattern:          RouteAPISessionAbort,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthNone,
 			SurfaceClass:     service.SurfaceAPI,
 			TrustClass:       service.TrustPeerNone,
 			FeatureCondition: service.FeatureValidatorEnabled,

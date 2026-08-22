@@ -182,6 +182,27 @@ func TestRoutes_ValidatorSessionMatchExactOnRouteRow(t *testing.T) {
 	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1/invite/extra", opts) {
 		t.Error("expected /validator/api/session/run-1/invite/extra protected via RouteRow MatchExact")
 	}
+
+	abortRow := findRouteRowByID(t, opts, service.RouteIDValidatorAPISessionAbort)
+	if !abortRow.MatchExact {
+		t.Fatal("expected MatchExact true on RouteRow for session abort")
+	}
+
+	if abortRow.FullPath != "/validator/api/session/{id}/abort" {
+		t.Fatalf("abort FullPath = %q, want /validator/api/session/{id}/abort", abortRow.FullPath)
+	}
+
+	if abortRow.Method != http.MethodPost {
+		t.Fatalf("abort Method = %q, want POST", abortRow.Method)
+	}
+
+	if service.SessionAuthRequiredForPath("/validator/api/session/run-1/abort", opts) {
+		t.Error("expected /validator/api/session/run-1/abort public")
+	}
+
+	if !service.SessionAuthRequiredForPath("/validator/api/session/run-1/abort/extra", opts) {
+		t.Error("expected /validator/api/session/run-1/abort/extra protected via RouteRow MatchExact")
+	}
 }
 
 func TestRoutes_ReportTrailingSlashDoesNotInheritPublicExact(t *testing.T) {
@@ -225,6 +246,7 @@ func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 		service.RouteIDValidatorAPIStatistics:      {},
 		service.RouteIDValidatorAPISession:         {},
 		service.RouteIDValidatorAPISessionInvite:   {},
+		service.RouteIDValidatorAPISessionAbort:    {},
 		service.RouteIDValidatorAPIReport:          {},
 		service.RouteIDValidatorHTMLReport:         {},
 		service.RouteIDValidatorAPIReportRetention: {},
@@ -345,6 +367,19 @@ func TestRoutes_ValidatorAPIRoutesGatedByFeature(t *testing.T) {
 
 	if _, ok := disabledByPath[invitePath]; ok {
 		t.Errorf("disabled: path %q must not be mounted", invitePath)
+	}
+
+	abortPath := "/validator/api/session/{id}/abort"
+
+	abortRow, abortOK := enabledByPath[abortPath]
+	if !abortOK {
+		t.Errorf("enabled: expected path %q mounted as product route row", abortPath)
+	} else if abortRow.Method != http.MethodPost {
+		t.Errorf("enabled: path %q Method = %q, want POST", abortPath, abortRow.Method)
+	}
+
+	if _, ok := disabledByPath[abortPath]; ok {
+		t.Errorf("disabled: path %q must not be mounted", abortPath)
 	}
 }
 

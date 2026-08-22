@@ -26,6 +26,8 @@ const (
 	CodeSessionNotFound          = "SESSION_NOT_FOUND"
 	CodeInFlightPassiveLimit     = "IN_FLIGHT_PASSIVE_LIMIT"
 	CodeStopSessionMiss          = "STOP_SESSION_MISS"
+	CodeAbortRefused             = "ABORT_REFUSED"
+	CodeAbortSessionMiss         = "ABORT_SESSION_MISS"
 	CodeInviteAlreadyClaimed     = "INVITE_ALREADY_CLAIMED"
 )
 

@@ -166,6 +166,22 @@ func TestPathMatchesRoute_MatchExactSessionInvite(t *testing.T) {
 	}
 }
 
+func TestPathMatchesRoute_MatchExactSessionAbort(t *testing.T) {
+	t.Parallel()
+
+	if !pathMatchesRoute("/validator/api/session/run-1/abort", "/validator/api/session/{id}/abort", true) {
+		t.Fatal("expected session abort path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1/abort/extra", "/validator/api/session/{id}/abort", true) {
+		t.Fatal("expected session abort suffix path to not match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1", "/validator/api/session/{id}/abort", true) {
+		t.Fatal("expected session poll path to not match abort pattern")
+	}
+}
+
 func TestSessionAuthChecker_MatchesSessionAuthRequiredForPath(t *testing.T) {
 	t.Parallel()
 

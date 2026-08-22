@@ -22,6 +22,8 @@ const (
 	RouteIDValidatorAPISession = "validator-api-session"
 	// RouteIDValidatorAPISessionInvite is the validator session invite-claim route identifier.
 	RouteIDValidatorAPISessionInvite = "validator-api-session-invite"
+	// RouteIDValidatorAPISessionAbort is the validator active-session abort route identifier.
+	RouteIDValidatorAPISessionAbort = "validator-api-session-abort"
 	// RouteIDValidatorAPISessionReverseInvite is the validator reverse-invite paste route identifier.
 	RouteIDValidatorAPISessionReverseInvite = "validator-api-session-reverse-invite"
 	// RouteIDValidatorAPIReport is the validator JSON report route identifier.

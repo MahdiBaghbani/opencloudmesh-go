@@ -76,6 +76,8 @@ func TestRouteSpecs_SessionAuthProjection_StartStopPublic(t *testing.T) {
 	}{
 		{"/validator/start", false},
 		{"/validator/stop", false},
+		{"/validator/api/session/run-1/abort", false},
+		{"/validator/api/session/run-1/abort/extra", true},
 	}
 
 	for _, tc := range cases {

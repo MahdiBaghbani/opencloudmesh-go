@@ -60,7 +60,7 @@ var hardFailReasons = []string{
 var hardFailProtectedStates = []string{StateCapabilityExercise, StateReverseAwaitingShare}
 
 // ReleaseActiveHardFail terminalizes the active session as terminal_fail
-// with the caller's reason. The guarded update requires is_active=1 and
+// with the caller's reason and GradeFail. The guarded update requires is_active=1 and
 // state NOT IN the terminal states, so an already-terminal or
 // already-released row is never rewritten and the guard never enumerates the
 // non-terminal forward names. The exclusion is reason-conditional: the
@@ -79,9 +79,12 @@ func (c *Core) ReleaseActiveHardFail(ctx context.Context, testRunID, reason stri
 		return err
 	}
 
+	grade := GradeFail
+
 	err = c.ReleaseActiveTerminalExcept(ctx, testRunID, hardFailExclusions(normalized), ActiveTerminalUpdate{
 		State:          StateTerminalFail,
 		TerminalReason: normalized,
+		OverallGrade:   &grade,
 	})
 	if errors.Is(err, ErrStateTransitionMiss) {
 		return c.diagnoseHardFailMiss(ctx, testRunID, normalized)
