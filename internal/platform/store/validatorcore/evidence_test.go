@@ -486,6 +486,98 @@ func TestApplyEvidenceFact_RejectsReverseInviteArea(t *testing.T) {
 	}
 }
 
+func TestApplyEvidenceFact_KeepsFirstSeverity(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-first-wins-severity"
+
+	seedActiveRunInState(t, core, runID, StateForwardShareSent)
+
+	fail := jwksProbeFact(runID, GradeFail)
+	pass := jwksProbeFact(runID, GradePass)
+
+	if err := core.ApplyEvidenceFact(ctx, fail); err != nil {
+		t.Fatalf("first ApplyEvidenceFact: %v", err)
+	}
+
+	if err := core.ApplyEvidenceFact(ctx, pass); err != nil {
+		t.Fatalf("second ApplyEvidenceFact: %v", err)
+	}
+
+	got := mustLoadEvidence(t, core, runID)
+	if got.Severity != GradeFail {
+		t.Fatalf("severity = %q, want first-wins %q", got.Severity, GradeFail)
+	}
+
+	if n := countEvidenceForRun(t, core, runID); n != 1 {
+		t.Fatalf("evidence rows = %d, want 1", n)
+	}
+}
+
+func TestReplaceEvidenceFact_LastWinsSeverity(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-last-wins-severity"
+
+	seedActiveRunInState(t, core, runID, StateForwardShareSent)
+
+	if err := core.ApplyEvidenceFact(ctx, jwksProbeFact(runID, GradeFail)); err != nil {
+		t.Fatalf("ApplyEvidenceFact fail: %v", err)
+	}
+
+	pass := jwksProbeFact(runID, GradePass)
+	pass.PayloadRedacted = `{"grade":"pass"}`
+	pass.ReasonCode = "jwks_ok"
+
+	if err := core.ReplaceEvidenceFact(ctx, pass); err != nil {
+		t.Fatalf("ReplaceEvidenceFact: %v", err)
+	}
+
+	got := mustLoadEvidence(t, core, runID)
+	if got.Severity != GradePass {
+		t.Fatalf("severity = %q, want last-wins %q", got.Severity, GradePass)
+	}
+
+	if got.ReasonCode != "jwks_ok" {
+		t.Fatalf("reason_code = %q, want last-wins jwks_ok", got.ReasonCode)
+	}
+
+	if got.PayloadRedacted == nil || *got.PayloadRedacted != `{"grade":"pass"}` {
+		t.Fatalf("payload = %v, want last-wins pass payload", got.PayloadRedacted)
+	}
+
+	if n := countEvidenceForRun(t, core, runID); n != 1 {
+		t.Fatalf("evidence rows = %d, want 1 after last-wins replace", n)
+	}
+}
+
+func jwksProbeFact(runID, severity string) ApplyEvidenceFactInput {
+	return ApplyEvidenceFactInput{
+		TestRunID:    runID,
+		Area:         SpecificationAreaJWKS,
+		Step:         "fetch",
+		ReasonCode:   "jwks_probed",
+		Severity:     severity,
+		AffectsGrade: true,
+		Leg:          evidenceLegPassive,
+	}
+}
+
+func mustLoadEvidence(t *testing.T, core *Core, runID string) EvidenceRow {
+	t.Helper()
+
+	var row EvidenceRow
+	if err := core.DB().WithContext(t.Context()).Where("test_run_id = ?", runID).First(&row).Error; err != nil {
+		t.Fatalf("load evidence: %v", err)
+	}
+
+	return row
+}
+
 func TestApplyEvidenceFact_PerLegUnique(t *testing.T) {
 	t.Parallel()
 

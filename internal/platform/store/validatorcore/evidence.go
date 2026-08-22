@@ -23,6 +23,13 @@ const (
 	evidenceLegPassive          = "passive"
 	evidenceLegForward          = "forward"
 	evidenceLegReverse          = "reverse"
+
+	// EvidenceLegPassive is the known passive evidence leg.
+	EvidenceLegPassive = evidenceLegPassive
+	// EvidenceLegForward is the known forward evidence leg.
+	EvidenceLegForward = evidenceLegForward
+	// EvidenceLegReverse is the known reverse evidence leg.
+	EvidenceLegReverse = evidenceLegReverse
 )
 
 // ApplyEvidenceFactInput is one evidence observation for a validator session.
@@ -65,6 +72,35 @@ func (c *Core) ApplyEvidenceFact(ctx context.Context, in ApplyEvidenceFactInput)
 	})
 	if err != nil {
 		return fmt.Errorf("validatorcore: apply evidence fact: %w", err)
+	}
+
+	return nil
+}
+
+// ReplaceEvidenceFact upserts last-wins for the same (test_run_id, leg, area,
+// step) observation. A later severity, payload, or reason_code replaces the
+// earlier row so a retry can supersede a transient grade. Capability CAS is
+// not attempted.
+func (c *Core) ReplaceEvidenceFact(ctx context.Context, in ApplyEvidenceFactInput) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if err := validateEvidenceFact(in); err != nil {
+		return err
+	}
+
+	if isIgnoredReverseFileOpenedFact(in) {
+		return nil
+	}
+
+	now := time.Now().Unix()
+
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceEvidenceFactTx(tx, in, now)
+	})
+	if err != nil {
+		return fmt.Errorf("validatorcore: replace evidence fact: %w", err)
 	}
 
 	return nil
@@ -167,6 +203,21 @@ func applyEvidenceFactTx(tx *gorm.DB, in ApplyEvidenceFactInput, now int64) erro
 	}
 
 	return casCapabilityExerciseFromForwardShareSent(tx, in.TestRunID, now)
+}
+
+func replaceEvidenceFactTx(tx *gorm.DB, in ApplyEvidenceFactInput, now int64) error {
+	err := tx.Where(
+		"test_run_id = ? AND leg = ? AND area = ? AND step = ?",
+		in.TestRunID,
+		in.Leg,
+		in.Area,
+		in.Step,
+	).Delete(&EvidenceRow{}).Error
+	if err != nil {
+		return err
+	}
+
+	return tx.Create(evidenceRowFromInput(in, now)).Error
 }
 
 func evidenceRowFromInput(in ApplyEvidenceFactInput, now int64) *EvidenceRow {

@@ -24,6 +24,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
@@ -46,6 +48,8 @@ type Inputs struct {
 	Store               *validatorcore.Core
 	FedCore             *core.Core
 	DiscoveryClient     *discovery.Client
+	HTTPClient          *httpclient.ContextClient
+	Signer              *crypto.RFC9421Signer
 	Config              *config.Config
 	Ratelimit           ratelimit.Inputs
 	InterceptorProfiles map[string]map[string]any
@@ -102,7 +106,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			inputs.Store.SetStatsHostHasher(inputs.FedCore)
 		}
 
-		passiveHandler := passive.NewHandlerWithDiscovery(inputs.Store, inputs.DiscoveryClient, log)
+		passiveHandler := passive.NewHandlerWithDeps(passive.ProbeDeps{
+			Store:     inputs.Store,
+			Discovery: inputs.DiscoveryClient,
+			HTTP:      inputs.HTTPClient,
+			Signer:    inputs.Signer,
+			Log:       log,
+		})
 		if inputs.Config != nil {
 			passiveHandler.SetExternalBasePath(inputs.Config.ExternalBasePath)
 		}

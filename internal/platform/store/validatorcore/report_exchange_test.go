@@ -392,3 +392,99 @@ func TestInsertReportExchange_RejectsInvalidInput(t *testing.T) {
 		})
 	}
 }
+
+func TestLookupReportExchangeID_ReturnsExistingID(t *testing.T) {
+	t.Parallel()
+
+	core := openMigratedProductionCore(t)
+	ctx := t.Context()
+	runID := "run-lookup-existing"
+	createTestRun(t, core.DB(), runID)
+
+	reqID := "req-lookup"
+	row := newMinimalExchange(runID)
+	row.RequestID = &reqID
+
+	if err := core.InsertReportExchange(ctx, row); err != nil {
+		t.Fatalf("InsertReportExchange: %v", err)
+	}
+
+	got, err := core.LookupReportExchangeID(ctx, runID, row.Direction, reqID)
+	if err != nil {
+		t.Fatalf("LookupReportExchangeID: %v", err)
+	}
+
+	if got == 0 || got != row.ExchangeID {
+		t.Fatalf("lookup id = %d, want %d", got, row.ExchangeID)
+	}
+}
+
+func TestLookupReportExchangeID_RejectsIncompleteKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		core      func(*testing.T) *Core
+		testRunID string
+		direction string
+		requestID string
+		wantErr   string
+	}{
+		{
+			name:      "empty test_run_id",
+			core:      openMigratedProductionCore,
+			direction: "out",
+			requestID: "req",
+			wantErr:   "validatorcore: empty test_run_id",
+		},
+		{
+			name:      "empty direction",
+			core:      openMigratedProductionCore,
+			testRunID: "run",
+			requestID: "req",
+			wantErr:   "validatorcore: empty direction",
+		},
+		{
+			name:      "empty request_id",
+			core:      openMigratedProductionCore,
+			testRunID: "run",
+			direction: "out",
+			wantErr:   "validatorcore: empty request_id",
+		},
+		{
+			name:      "nil store",
+			core:      func(*testing.T) *Core { return nil },
+			testRunID: "run",
+			direction: "out",
+			requestID: "req",
+			wantErr:   "validatorcore: store is not configured",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := tt.core(t).LookupReportExchangeID(t.Context(), tt.testRunID, tt.direction, tt.requestID)
+			if err == nil || err.Error() != tt.wantErr {
+				t.Fatalf("error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestIsDuplicateReportExchange(t *testing.T) {
+	t.Parallel()
+
+	if IsDuplicateReportExchange(nil) {
+		t.Fatal("nil error is not a duplicate")
+	}
+
+	if !IsDuplicateReportExchange(gorm.ErrDuplicatedKey) {
+		t.Fatal("gorm duplicate must match")
+	}
+
+	if !IsDuplicateReportExchange(NewStoreError(OpInsertReportExchange, gorm.ErrDuplicatedKey)) {
+		t.Fatal("wrapped insert duplicate must match")
+	}
+}

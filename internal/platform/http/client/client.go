@@ -325,3 +325,12 @@ func (c *ContextClient) DoSigned(ctx context.Context, req *http.Request) (*http.
 
 	return c.client.DoSigned(req)
 }
+
+// MaxResponseBytes returns the configured outbound response size limit.
+func (c *ContextClient) MaxResponseBytes() int64 {
+	if c == nil || c.client == nil {
+		return 0
+	}
+
+	return c.client.MaxResponseBytes()
+}

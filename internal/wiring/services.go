@@ -384,6 +384,8 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 		Store:               d.ValidatorStore,
 		FedCore:             d.ValidatorCore,
 		DiscoveryClient:     d.DiscoveryClient,
+		HTTPClient:          d.HTTPClient,
+		Signer:              d.Signer,
 		Config:              cfg,
 		Ratelimit:           ratelimitInputs(d),
 		InterceptorProfiles: profiles,

@@ -46,7 +46,7 @@ type Handler struct {
 
 // NewHandler returns a passive validator HTTP handler.
 func NewHandler(store *validatorcore.Core, log *slog.Logger) *Handler {
-	return NewHandlerWithDiscovery(store, nil, log)
+	return NewHandlerWithDeps(ProbeDeps{Store: store, Log: log})
 }
 
 // NewHandlerWithDiscovery returns a passive handler with optional discovery fetch wiring.
@@ -55,11 +55,20 @@ func NewHandlerWithDiscovery(
 	discoveryClient DiscoveryFetcher,
 	log *slog.Logger,
 ) *Handler {
-	log = logutil.NoopIfNil(log)
+	return NewHandlerWithDeps(ProbeDeps{
+		Store:     store,
+		Discovery: discoveryClient,
+		Log:       log,
+	})
+}
+
+// NewHandlerWithDeps returns a passive handler with full probe wiring.
+func NewHandlerWithDeps(deps ProbeDeps) *Handler {
+	log := logutil.NoopIfNil(deps.Log)
 
 	return &Handler{
-		store: store,
-		probe: NewProbeRunnerWithDiscovery(store, discoveryClient, log),
+		store: deps.Store,
+		probe: NewProbeRunnerWithDeps(deps),
 		log:   log,
 	}
 }

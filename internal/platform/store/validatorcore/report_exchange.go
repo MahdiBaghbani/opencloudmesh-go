@@ -120,3 +120,58 @@ func nextReportExchangeSeq(tx *gorm.DB, testRunID string) (int, error) {
 
 	return maxSeq + 1, nil
 }
+
+// IsDuplicateReportExchange reports whether err is a unique-key rejection from
+// InsertReportExchange. Callers use this to treat a retried insert as success
+// and then recover the existing exchange id.
+func IsDuplicateReportExchange(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, gorm.ErrDuplicatedKey)
+}
+
+// LookupReportExchangeID returns the persisted exchange id for the natural
+// key (test_run_id, direction, request_id).
+func (c *Core) LookupReportExchangeID(
+	ctx context.Context,
+	testRunID, direction, requestID string,
+) (uint, error) {
+	if c == nil || c.db == nil {
+		return 0, errors.New("validatorcore: store is not configured")
+	}
+
+	if testRunID == "" {
+		return 0, errors.New("validatorcore: empty test_run_id")
+	}
+
+	if direction == "" {
+		return 0, errors.New("validatorcore: empty direction")
+	}
+
+	if requestID == "" {
+		return 0, errors.New("validatorcore: empty request_id")
+	}
+
+	var row ReportExchange
+
+	err := c.db.WithContext(ctx).
+		Select("exchange_id").
+		Where(
+			"test_run_id = ? AND direction = ? AND request_id = ?",
+			testRunID,
+			direction,
+			requestID,
+		).
+		Take(&row).Error
+	if err != nil {
+		return 0, fmt.Errorf("validatorcore: lookup report exchange: %w", err)
+	}
+
+	if row.ExchangeID == 0 {
+		return 0, errors.New("validatorcore: lookup report exchange: missing id")
+	}
+
+	return row.ExchangeID, nil
+}
