@@ -166,7 +166,7 @@ func TestHandleStart_UnknownContributeField(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.HandleStart(rec, req)
 
-	assertJSONError(t, rec, http.StatusBadRequest, "invalid_request")
+	assertJSONError(t, rec, "invalid_request")
 }
 
 func TestHandleStart_InvalidOptInValues(t *testing.T) {
@@ -197,7 +197,7 @@ func TestHandleStart_InvalidOptInValues(t *testing.T) {
 			rec := httptest.NewRecorder()
 			h.HandleStart(rec, req)
 
-			assertJSONError(t, rec, http.StatusBadRequest, "invalid_request")
+			assertJSONError(t, rec, "invalid_request")
 		})
 	}
 }
@@ -227,7 +227,7 @@ func TestHandleStart_ExtendRejectsOptIn(t *testing.T) {
 			rec := httptest.NewRecorder()
 			h.HandleStart(rec, req)
 
-			assertJSONError(t, rec, http.StatusBadRequest, codeOptInCreateOnly)
+			assertJSONError(t, rec, codeOptInCreateOnly)
 		})
 	}
 }
@@ -341,11 +341,11 @@ func assertConsentProvenance(
 	}
 }
 
-func assertJSONError(t *testing.T, rec *httptest.ResponseRecorder, status int, code string) {
+func assertJSONError(t *testing.T, rec *httptest.ResponseRecorder, code string) {
 	t.Helper()
 
-	if rec.Code != status {
-		t.Fatalf("status = %d, want %d body %s", rec.Code, status, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body %s", rec.Code, http.StatusBadRequest, rec.Body.String())
 	}
 
 	var payload map[string]string

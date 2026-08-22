@@ -14,7 +14,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -312,9 +311,9 @@ func (h *Handler) handleCreateSession(
 	target string,
 	opt sessionOptIn,
 ) {
-	origin, host, err := parseTarget(target)
+	parsed, err := parseTarget(target)
 	if err != nil {
-		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", err.Error())
+		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", targetClientMessage(err))
 
 		return
 	}
@@ -331,9 +330,10 @@ func (h *Handler) handleCreateSession(
 		TestRunID:    testRunID,
 		IsActive:     false,
 		State:        validatorcore.StateCreated,
-		TargetOrigin: origin,
-		TargetHost:   host,
-		DiscoveryURL: strings.TrimSuffix(origin, "/") + "/.well-known/ocm",
+		TargetOrigin: parsed.origin,
+		TargetHost:   parsed.targetHost,
+		StarterOCMID: parsed.starterOCMID,
+		DiscoveryURL: strings.TrimSuffix(parsed.origin, "/") + "/.well-known/ocm",
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -381,26 +381,6 @@ func (h *Handler) handleExtendSession(w http.ResponseWriter, r *http.Request, te
 		ID:    testRunID,
 		State: validatorcore.StateActiveRunning,
 	})
-}
-
-func parseTarget(raw string) (origin, host string, err error) {
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", "", errors.New("target must be an absolute URL with scheme and host")
-	}
-
-	if parsed.Scheme != "https" && parsed.Scheme != "http" {
-		return "", "", errors.New("target scheme must be http or https")
-	}
-
-	origin = parsed.Scheme + "://" + parsed.Host
-	host = strings.ToLower(parsed.Hostname())
-
-	if host == "" {
-		return "", "", errors.New("target must include a host")
-	}
-
-	return origin, host, nil
 }
 
 func readLimitedBody(w http.ResponseWriter, log *slog.Logger, r *http.Request, limit int64) ([]byte, error) {
