@@ -58,13 +58,17 @@ var testRunStates = []string{
 
 // NextInstructionForState maps a session state to the stable nextInstruction
 // key published by session polling. A key tells the operator what the flow
-// waits on next and carries no session secrets. Terminal, unknown, and
-// passive_complete states return an empty string so poll responses omit the
-// key. Ready opt-in lock waiters need NextInstructionForRun.
+// waits on next and carries no session secrets. Terminal and unknown states
+// return an empty string so poll responses omit the key. passive_complete
+// returns "stop" for the honest passive-only rest (opt_in_active=0). The
+// pairing with opt_in_active=1 is unreachable; NextInstructionForRun omits
+// it. Ready opt-in lock waiters need NextInstructionForRun.
 func NextInstructionForState(state string) string {
 	switch state {
 	case StateCreated, StatePassiveRunning:
 		return "wait_probe"
+	case StatePassiveComplete:
+		return "stop"
 	case StateActiveRunning:
 		return "wait_invite_mint"
 	case StateInviteMinted:
@@ -88,13 +92,19 @@ func NextInstructionForState(state string) string {
 
 // NextInstructionForRun maps a persisted session row to the poll
 // nextInstruction key. Ready opt-in lock waiters publish wait_active_slot
-// instead of wait_probe; every other row uses NextInstructionForState.
+// instead of wait_probe. A passive_complete row with opt_in_active set is
+// unreachable and publishes nothing; every other row uses
+// NextInstructionForState.
 func NextInstructionForRun(row *TestRun) string {
 	if IsReadyOptInWaiter(row) {
 		return "wait_active_slot"
 	}
 
 	if row == nil {
+		return ""
+	}
+
+	if row.State == StatePassiveComplete && row.OptInActive {
 		return ""
 	}
 

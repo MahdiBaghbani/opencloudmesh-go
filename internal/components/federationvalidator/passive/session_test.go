@@ -129,6 +129,7 @@ func TestHandleSession_NextInstructionPerState(t *testing.T) {
 	}{
 		{name: "created", state: validatorcore.StateCreated, want: "wait_probe"},
 		{name: "passive_running", state: validatorcore.StatePassiveRunning, want: "wait_probe"},
+		{name: "passive_complete", state: validatorcore.StatePassiveComplete, want: "stop"},
 		{name: "active_running", state: validatorcore.StateActiveRunning, isActive: true, want: "wait_invite_mint"},
 		{name: "invite_minted", state: validatorcore.StateInviteMinted, isActive: true, want: "paste_s1"},
 		{name: "invite_accepted", state: validatorcore.StateInviteAccepted, isActive: true, want: "wait_reverse_start"},
@@ -168,25 +169,49 @@ func TestHandleSession_NextInstructionPerState(t *testing.T) {
 	}
 }
 
-func TestHandleSession_PassiveCompleteOmitsNextInstruction(t *testing.T) {
+func TestHandleSession_PassiveCompletePublishesStop(t *testing.T) {
 	t.Parallel()
 
 	store := openHandlerTestStore(t)
 	h := NewHandler(store, nil)
 	now := time.Now().Unix()
-	runID := "run-complete-omit"
+	runID := "run-complete-stop"
 
 	seedSessionRow(t, store, &validatorcore.TestRun{
-		TestRunID:  runID,
-		State:      validatorcore.StatePassiveComplete,
-		TargetHost: "peer.example",
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		TestRunID:   runID,
+		State:       validatorcore.StatePassiveComplete,
+		TargetHost:  "peer.example",
+		OptInActive: false,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	})
 
 	payload := pollSession(t, h, runID)
 
-	assertExactKeys(t, payload, []string{"state", "ts"})
+	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+
+	if next := pollNextInstruction(t, payload); next != "stop" {
+		t.Fatalf("nextInstruction = %q, want %q", next, "stop")
+	}
+}
+
+func TestHandleSession_PassiveCompleteOptInActiveUnreachable(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	now := time.Now().Unix()
+
+	err := store.DB().WithContext(t.Context()).Create(&validatorcore.TestRun{
+		TestRunID:   "run-complete-opt-in",
+		State:       validatorcore.StatePassiveComplete,
+		TargetHost:  "peer.example",
+		OptInActive: true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}).Error
+	if err == nil {
+		t.Fatal("passive_complete with opt_in_active=1 must be rejected")
+	}
 }
 
 func TestHandleSession_ReadyWaiterPublishesActiveSlot(t *testing.T) {
