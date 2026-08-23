@@ -30,7 +30,20 @@ func mountValidatorRoutes(
 	if reverseInviteHandler != nil &&
 		passiveHandler != nil &&
 		passiveHandler.Caps().ReverseInviteAvailable() {
-		r.Method(http.MethodPost, RouteAPISessionReverseInvite, reverseInviteHandler)
+		// Paste shares the start/scan/claim limiter. Invite-guess traffic
+		// consumes that IP window and can starve those surfaces; start,
+		// scan, and claim can starve paste. That accept-starve tradeoff is
+		// explicit: one constructor, one budget. RouteSpec.Middleware is
+		// metadata only; this wrap is the mount trigger.
+		if startRatelimit != nil {
+			r.With(startRatelimit).Method(
+				http.MethodPost,
+				RouteAPISessionReverseInvite,
+				reverseInviteHandler,
+			)
+		} else {
+			r.Method(http.MethodPost, RouteAPISessionReverseInvite, reverseInviteHandler)
+		}
 	}
 }
 
@@ -48,6 +61,10 @@ func mountPlaneARoutes(
 	)
 }
 
+// buildStartRatelimit constructs the single IP-keyed public limiter for
+// create-session, scan, claim, and paste. GetProfileConfig(scan_public) is
+// only a presence check: that parent map is not a limiter bucket (naive
+// default 100/60). The nested start_public bucket is 10/60.
 func buildStartRatelimit(inputs Inputs, profileName string) (func(http.Handler) http.Handler, error) {
 	if profileName == "" {
 		return func(next http.Handler) http.Handler { return next }, nil
@@ -64,7 +81,7 @@ func buildStartRatelimit(inputs Inputs, profileName string) (func(http.Handler) 
 
 	mw, err := ratelimit.New(inputs.Ratelimit, bucket, inputs.Log)
 	if err != nil {
-		return nil, fmt.Errorf("validator: create start ratelimit: %w", err)
+		return nil, fmt.Errorf("validator: create shared public ratelimit: %w", err)
 	}
 
 	return mw, nil

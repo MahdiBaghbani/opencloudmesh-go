@@ -19,14 +19,19 @@ const (
 	StartPublicBucket = config.StartPublicRatelimitBucket
 )
 
-// CreateSessionRateLimitProfile returns the start_public bucket config used to
-// gate passive-core create-session (POST /start). The limit applies to every
-// create-session request, not only active-run branches (S-RL).
+// CreateSessionRateLimitProfile returns the nested start_public limiter bucket
+// shared by create-session, scan, claim, and paste. It does not return the
+// scan_public parent map: that parent has no top-level limiter fields, and
+// ratelimit.New would default it to 100 requests / 60 seconds. The nested
+// bucket is pinned to requests_per_window and window_seconds only.
 func CreateSessionRateLimitProfile(cfg *config.Config) (map[string]any, error) {
 	bucket, err := config.StartPublicRatelimitProfile(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("passive: start_public ratelimit profile: %w", err)
 	}
 
-	return bucket, nil
+	return map[string]any{
+		"requests_per_window": bucket["requests_per_window"],
+		"window_seconds":      bucket["window_seconds"],
+	}, nil
 }

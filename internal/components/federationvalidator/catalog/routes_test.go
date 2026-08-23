@@ -41,6 +41,23 @@ func TestRoutes_ScanUsesRateLimitWrap(t *testing.T) {
 	}
 }
 
+func TestRoutes_PasteUsesRateLimitMetadata(t *testing.T) {
+	t.Parallel()
+
+	def, ok := Lookup(service.RouteIDValidatorAPISessionReverseInvite)
+	if !ok {
+		t.Fatal("catalog missing paste route")
+	}
+
+	if def.HandlerAuth != service.HandlerAuthRateLimitOnly {
+		t.Fatalf("paste HandlerAuth = %q, want rate limit only", def.HandlerAuth)
+	}
+
+	if len(def.Middleware) != 1 || def.Middleware[0] != MiddlewareRateLimit {
+		t.Fatalf("paste Middleware = %v, want [%s]", def.Middleware, MiddlewareRateLimit)
+	}
+}
+
 func TestRoutes_MountWhenEmptyAndFull(t *testing.T) {
 	t.Parallel()
 

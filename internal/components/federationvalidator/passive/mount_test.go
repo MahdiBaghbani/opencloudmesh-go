@@ -88,6 +88,47 @@ func TestMountPlaneARoutes_ScanUsesSharedStartLimiter(t *testing.T) {
 	}
 }
 
+func TestMountPlaneARoutes_UnlimitedRoutesSkipSharedLimiter(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+
+	limiter := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits.Add(1)
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+
+	r := chi.NewRouter()
+	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.FullCaps())
+	MountPlaneARoutes(r, h, limiter)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/api/session/run-1"},
+		{method: http.MethodGet, path: RouteAPIManifest},
+		{method: http.MethodPost, path: "/api/session/run-1/abort"},
+		{method: http.MethodGet, path: RouteAPIStatistics},
+		{method: http.MethodPost, path: RouteStopSession},
+	} {
+		req := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("%s %s status = 429, want unlimited", tc.method, tc.path)
+		}
+	}
+
+	if got := hits.Load(); got != 0 {
+		t.Fatalf("unlimited route limiter hits = %d, want 0", got)
+	}
+}
+
 func TestMountPlaneARoutes_AbortWithoutReverseInvite(t *testing.T) {
 	t.Parallel()
 

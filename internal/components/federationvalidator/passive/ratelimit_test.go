@@ -58,3 +58,50 @@ func TestCreateSessionRateLimitProfile_UsesScanPublicPath(t *testing.T) {
 		t.Errorf("window_seconds = %v, want 60", profile["window_seconds"])
 	}
 }
+
+func TestCreateSessionRateLimitProfile_NestedBucketNotParentDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.ValidatorConfig()
+
+	rlCfg, ok := cfg.HTTP.Interceptors["ratelimit"]
+	if !ok {
+		t.Fatal("missing ratelimit interceptor")
+	}
+
+	profilesRaw, ok := rlCfg["profiles"]
+	if !ok {
+		t.Fatal("missing ratelimit profiles")
+	}
+
+	profiles, ok := profilesRaw.(map[string]any)
+	if !ok {
+		t.Fatal("ratelimit profiles must be a map")
+	}
+
+	parentMap, ok := profiles[config.ScanPublicRatelimitProfile].(map[string]any)
+	if !ok {
+		t.Fatal("scan_public parent must be a map")
+	}
+
+	if _, has := parentMap["requests_per_window"]; has {
+		t.Fatal("scan_public parent must not be a flat limiter bucket")
+	}
+
+	profile, err := CreateSessionRateLimitProfile(cfg)
+	if err != nil {
+		t.Fatalf("CreateSessionRateLimitProfile: %v", err)
+	}
+
+	if profile["requests_per_window"] != int64(10) {
+		t.Errorf("nested requests_per_window = %v, want 10 (not parent default 100)", profile["requests_per_window"])
+	}
+
+	if profile["window_seconds"] != 60 {
+		t.Errorf("nested window_seconds = %v, want 60", profile["window_seconds"])
+	}
+
+	if len(profile) != 2 {
+		t.Errorf("pinned bucket keys = %v, want only limiter fields", profile)
+	}
+}

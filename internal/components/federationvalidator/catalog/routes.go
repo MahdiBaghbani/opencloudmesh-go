@@ -93,7 +93,7 @@ func Routes() []RouteDef {
 			PatternAbort,
 			whenAbort,
 		),
-		plainAPI(
+		rateLimitedAPI(
 			service.RouteIDValidatorAPISessionReverseInvite,
 			http.MethodPost,
 			PatternPaste,
