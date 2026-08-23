@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -32,6 +33,7 @@ type Handler struct {
 	probe            *ProbeRunner
 	log              *slog.Logger
 	externalBasePath string
+	receiverMu       sync.Mutex
 	parties          identity.PartyRepo
 	receiverRealm    string
 	receiverEmail    string
@@ -66,11 +68,14 @@ func NewHandlerWithDiscovery(
 func NewHandlerWithDeps(deps ProbeDeps) *Handler {
 	log := logutil.NoopIfNil(deps.Log)
 
-	return &Handler{
+	h := &Handler{
 		store: deps.Store,
 		probe: NewProbeRunnerWithDeps(deps),
 		log:   log,
 	}
+	h.bindPromoteFollowUp()
+
+	return h
 }
 
 type startCreateResponse struct {
@@ -79,18 +84,13 @@ type startCreateResponse struct {
 	OptInPermanent bool   `json:"optInPermanent"`
 }
 
-type startExtendResponse struct {
-	ID    string `json:"id"`
-	State string `json:"state"`
-}
-
 type sessionPollResponse struct {
 	State           string `json:"state"`
 	Ts              int64  `json:"ts"`
 	NextInstruction string `json:"nextInstruction,omitempty"`
 }
 
-// HandleStart serves POST /start for passive-core create and active extension.
+// HandleStart serves POST /start for passive-core session creation.
 func (h *Handler) HandleStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -137,19 +137,18 @@ func (h *Handler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch {
-	case hasTarget:
-		h.handleCreateSession(
-			w,
-			r,
-			strings.TrimSpace(req.Target),
-			startConsent(req, validatorcore.OptInChannelStart),
-		)
-	case hasID:
-		h.handleExtendSession(w, r, strings.TrimSpace(req.ID))
-	default:
-		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "request body requires target or id")
+	if !hasTarget {
+		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "request body requires target")
+
+		return
 	}
+
+	h.handleCreateSession(
+		w,
+		r,
+		strings.TrimSpace(req.Target),
+		startConsent(req, validatorcore.OptInChannelStart),
+	)
 }
 
 // HandleScan serves GET /api/scan for passive-core session creation with optional
@@ -217,10 +216,12 @@ func (h *Handler) HandleSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	row = h.refreshReadyWaiter(r.Context(), row)
+
 	writeJSON(w, h.log, http.StatusOK, sessionPollResponse{
 		State:           row.State,
 		Ts:              row.UpdatedAt,
-		NextInstruction: validatorcore.NextInstructionForState(row.State),
+		NextInstruction: validatorcore.NextInstructionForRun(row),
 	})
 }
 
@@ -275,31 +276,40 @@ func (h *Handler) handleCreateSession(
 	})
 }
 
-func (h *Handler) handleExtendSession(w http.ResponseWriter, r *http.Request, testRunID string) {
-	ctx := r.Context()
-
-	if err := h.store.ExtendToActive(ctx, testRunID); err != nil {
-		writeStoreError(w, h.log, err)
-
-		return
+func (h *Handler) refreshReadyWaiter(ctx context.Context, row *validatorcore.TestRun) *validatorcore.TestRun {
+	if h == nil || row == nil || !validatorcore.IsReadyOptInWaiter(row) {
+		return row
 	}
 
-	if err := h.materializeReverseReceiver(ctx, testRunID); err != nil {
-		writeJSONError(
-			w,
-			h.log,
-			http.StatusInternalServerError,
-			"receiver_provision_failed",
-			"failed to materialize recipient party",
-		)
-
-		return
+	if err := h.promoteReadyWaiter(ctx, row.TestRunID); err != nil {
+		h.log.Warn("session poll promote failed", "test_run_id", row.TestRunID, "error", err)
 	}
 
-	writeJSON(w, h.log, http.StatusOK, startExtendResponse{
-		ID:    testRunID,
-		State: validatorcore.StateActiveRunning,
-	})
+	reloaded, err := h.store.GetTestRun(ctx, row.TestRunID)
+	if err != nil {
+		h.log.Warn("session poll reload failed", "test_run_id", row.TestRunID, "error", err)
+
+		return row
+	}
+
+	return reloaded
+}
+
+func (h *Handler) promoteReadyWaiter(ctx context.Context, testRunID string) error {
+	if h != nil && h.probe != nil {
+		return h.probe.promoteOrWait(ctx, testRunID)
+	}
+
+	if h == nil || h.store == nil {
+		return nil
+	}
+
+	err := h.store.ExtendToActive(ctx, testRunID)
+	if err == nil || validatorcore.IsActiveSlotBusy(err) {
+		return nil
+	}
+
+	return fmt.Errorf("passive: promote ready waiter: %w", err)
 }
 
 func readLimitedBody(w http.ResponseWriter, log *slog.Logger, r *http.Request, limit int64) ([]byte, error) {
@@ -328,14 +338,6 @@ func writeStoreError(w http.ResponseWriter, log *slog.Logger, err error) {
 		switch storeErr.Op {
 		case validatorcore.OpCreateSessionInsert:
 			writeJSONError(w, log, http.StatusInternalServerError, "session_create_failed", "failed to create session")
-		case validatorcore.OpExtendUpdate:
-			writeJSONError(
-				w,
-				log,
-				http.StatusConflict,
-				validatorcore.CodeInteractiveRunInProgress,
-				"interactive run in progress",
-			)
 		default:
 			writeJSONError(w, log, http.StatusInternalServerError, "store_error", "validator store error")
 		}
@@ -354,14 +356,6 @@ func writeStoreError(w http.ResponseWriter, log *slog.Logger, err error) {
 		)
 	case errors.Is(err, validatorcore.ErrSessionNotReady):
 		writeJSONError(w, log, http.StatusConflict, validatorcore.CodeSessionNotReady, "session is not ready")
-	case errors.Is(err, validatorcore.ErrInteractiveRunInProgress):
-		writeJSONError(
-			w,
-			log,
-			http.StatusConflict,
-			validatorcore.CodeInteractiveRunInProgress,
-			"interactive run in progress",
-		)
 	case errors.Is(err, validatorcore.ErrSessionNotFound):
 		writeJSONError(w, log, http.StatusConflict, validatorcore.CodeSessionNotFound, "session not found")
 	case errors.Is(err, validatorcore.ErrStopSessionMiss):

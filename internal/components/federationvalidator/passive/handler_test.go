@@ -276,152 +276,17 @@ func TestHandleStop_ActivePassiveCompleteReturnsSessionNotReady(t *testing.T) {
 	}
 }
 
-func TestHandleStart_ExtendTerminalStateReturnsSessionNotReady(t *testing.T) {
+func TestHandleStart_IDOnlyIsRejected(t *testing.T) {
 	t.Parallel()
 
-	store := openHandlerTestStore(t)
-	h := NewHandler(store, nil)
-	ctx := t.Context()
-	now := time.Now().Unix()
-
-	runID := "run-extend-terminal"
-	row := &validatorcore.TestRun{
-		TestRunID:  runID,
-		State:      validatorcore.StateTerminalPass,
-		TargetHost: "peer.example",
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
-
-	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	body := mustJSON(t, map[string]string{"id": runID})
+	h := NewHandler(openHandlerTestStore(t), nil)
+	body := mustJSON(t, map[string]string{"id": "run-old-extend"})
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/start", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
 	h.HandleStart(rec, req)
 
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("extend status = %d, want 409", rec.Code)
-	}
-
-	var payload map[string]string
-	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	if payload["error"] != validatorcore.CodeSessionNotReady {
-		t.Fatalf("error code = %q, want %q", payload["error"], validatorcore.CodeSessionNotReady)
-	}
-
-	if payload["error"] == validatorcore.CodeStopSessionMiss {
-		t.Fatalf("extend on terminal state must not return %q", validatorcore.CodeStopSessionMiss)
-	}
-}
-
-func TestHandleStart_ExtendInteractiveConflict(t *testing.T) {
-	t.Parallel()
-
-	store := openHandlerTestStore(t)
-	h := NewHandler(store, nil)
-	ctx := t.Context()
-	now := time.Now().Unix()
-
-	for _, id := range []string{"run-a", "run-b"} {
-		row := &validatorcore.TestRun{
-			TestRunID:  id,
-			State:      validatorcore.StatePassiveComplete,
-			TargetHost: "peer.example",
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-
-		if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
-			t.Fatalf("seed %s: %v", id, err)
-		}
-	}
-
-	firstBody := mustJSON(t, map[string]string{"id": "run-a"})
-
-	firstReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/start", bytes.NewReader(firstBody))
-	firstRec := httptest.NewRecorder()
-	h.HandleStart(firstRec, firstReq)
-
-	if firstRec.Code != http.StatusOK {
-		t.Fatalf("first extend status = %d, want 200", firstRec.Code)
-	}
-
-	secondBody := mustJSON(t, map[string]string{"id": "run-b"})
-
-	secondReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/start", bytes.NewReader(secondBody))
-	secondRec := httptest.NewRecorder()
-	h.HandleStart(secondRec, secondReq)
-
-	if secondRec.Code != http.StatusConflict {
-		t.Fatalf("second extend status = %d, want 409", secondRec.Code)
-	}
-
-	var payload map[string]string
-	if err := json.NewDecoder(secondRec.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	if payload["error"] != validatorcore.CodeInteractiveRunInProgress {
-		t.Fatalf("error code = %q, want %q", payload["error"], validatorcore.CodeInteractiveRunInProgress)
-	}
-}
-
-func TestHandleStart_RepeatedExtendReturnsInteractiveConflict(t *testing.T) {
-	t.Parallel()
-
-	store := openHandlerTestStore(t)
-	h := NewHandler(store, nil)
-	ctx := t.Context()
-	now := time.Now().Unix()
-	runID := "run-repeat"
-
-	row := &validatorcore.TestRun{
-		TestRunID:  runID,
-		State:      validatorcore.StatePassiveComplete,
-		TargetHost: "peer.example",
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
-
-	if err := store.DB().WithContext(ctx).Create(row).Error; err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	firstBody := mustJSON(t, map[string]string{"id": runID})
-
-	firstReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/start", bytes.NewReader(firstBody))
-	firstRec := httptest.NewRecorder()
-	h.HandleStart(firstRec, firstReq)
-
-	if firstRec.Code != http.StatusOK {
-		t.Fatalf("first extend status = %d, want 200", firstRec.Code)
-	}
-
-	secondBody := mustJSON(t, map[string]string{"id": runID})
-
-	secondReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/start", bytes.NewReader(secondBody))
-	secondRec := httptest.NewRecorder()
-	h.HandleStart(secondRec, secondReq)
-
-	if secondRec.Code != http.StatusConflict {
-		t.Fatalf("repeat extend status = %d, want 409", secondRec.Code)
-	}
-
-	var payload map[string]string
-	if err := json.NewDecoder(secondRec.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	if payload["error"] != validatorcore.CodeInteractiveRunInProgress {
-		t.Fatalf("error code = %q, want %q", payload["error"], validatorcore.CodeInteractiveRunInProgress)
-	}
+	assertJSONError(t, rec, "invalid_request")
 }
 
 func TestCreateSessionRouteSpec_IncludesStop(t *testing.T) {

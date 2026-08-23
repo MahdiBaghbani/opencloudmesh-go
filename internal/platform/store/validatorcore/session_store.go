@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -85,78 +84,6 @@ func (c *Core) CreatePassiveSession(ctx context.Context, row *TestRun) error {
 	})
 	if err != nil {
 		return fmt.Errorf("validatorcore: create passive session: %w", err)
-	}
-
-	return nil
-}
-
-// ExtendToActive promotes a passive_complete session to the one-active-run
-// lock. The CAS is is_active 0->1, state=passive_complete, and no persisted
-// discovery or TLS fail evidence. bob_user_id is minted in the same
-// transaction so the identity is never a later write.
-func (c *Core) ExtendToActive(ctx context.Context, testRunID string) error {
-	if c == nil || c.db == nil {
-		return errors.New("validatorcore: store is not configured")
-	}
-
-	now := time.Now().Unix()
-
-	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		bobID, mintErr := uuid.NewV7()
-		if mintErr != nil {
-			return fmt.Errorf("validatorcore: mint bob user id: %w", mintErr)
-		}
-
-		res := tx.Model(&TestRun{}).
-			Where(
-				"test_run_id = ? AND is_active = 0 AND state = ? AND "+
-					notPersistedFailPredicateSQL(),
-				testRunID,
-				StatePassiveComplete,
-				failGatedAreas(),
-				failSeverityAliases(),
-			).
-			Updates(map[string]any{
-				colIsActive:  true,
-				colState:     StateActiveRunning,
-				colBobUserID: bobID.String(),
-				colUpdatedAt: now,
-			})
-		if res.Error != nil {
-			if errors.Is(res.Error, gorm.ErrDuplicatedKey) {
-				return NewStoreError(OpExtendUpdate, res.Error)
-			}
-
-			return res.Error
-		}
-
-		if res.RowsAffected == 0 {
-			var row TestRun
-
-			loadErr := tx.First(&row, "test_run_id = ?", testRunID).Error
-			if errors.Is(loadErr, gorm.ErrRecordNotFound) {
-				return ErrSessionNotFound
-			}
-
-			if loadErr != nil {
-				return loadErr
-			}
-
-			if row.IsActive {
-				return ErrInteractiveRunInProgress
-			}
-
-			if row.State == StateCreated || row.State == StatePassiveRunning {
-				return ErrSessionNotReady
-			}
-
-			return ErrSessionNotReady
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("validatorcore: extend to active: %w", err)
 	}
 
 	return nil

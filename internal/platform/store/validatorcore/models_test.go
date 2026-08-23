@@ -54,6 +54,14 @@ func TestSessionStateReachableSet_PassiveNonTerminal(t *testing.T) {
 			t.Errorf("passive state %q must be in the schema state set", state)
 		}
 
+		if state == StatePassiveComplete {
+			if NextInstructionForState(state) != "" {
+				t.Errorf("passive state %q must not publish a nextInstruction key", state)
+			}
+
+			continue
+		}
+
 		if NextInstructionForState(state) == "" {
 			t.Errorf("passive state %q must publish a nextInstruction key", state)
 		}
@@ -155,7 +163,7 @@ func TestNextInstructionForState(t *testing.T) {
 	}{
 		{name: "created waits on probe", state: StateCreated, want: "wait_probe"},
 		{name: "passive running waits on probe", state: StatePassiveRunning, want: "wait_probe"},
-		{name: "passive complete offers extend or stop", state: StatePassiveComplete, want: "extend_or_stop"},
+		{name: "passive complete publishes nothing", state: StatePassiveComplete, want: ""},
 		{name: "active running waits on invite mint", state: StateActiveRunning, want: "wait_invite_mint"},
 		{name: "invite minted asks for paste", state: StateInviteMinted, want: "paste_s1"},
 		{name: "invite accepted waits on reverse start", state: StateInviteAccepted, want: "wait_reverse_start"},
@@ -183,5 +191,24 @@ func TestNextInstructionForState(t *testing.T) {
 				t.Errorf("NextInstructionForState(%q) = %q, want %q", tc.state, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestNextInstructionForRun_ReadyWaiterUsesActiveSlot(t *testing.T) {
+	t.Parallel()
+
+	readyAt := int64(10)
+	row := &TestRun{
+		OptInActive:    true,
+		State:          StatePassiveRunning,
+		PassiveReadyAt: &readyAt,
+	}
+
+	if got := NextInstructionForRun(row); got != "wait_active_slot" {
+		t.Fatalf("NextInstructionForRun ready waiter = %q, want wait_active_slot", got)
+	}
+
+	if got := NextInstructionForRun(&TestRun{State: StatePassiveRunning}); got != "wait_probe" {
+		t.Fatalf("NextInstructionForRun running = %q, want wait_probe", got)
 	}
 }

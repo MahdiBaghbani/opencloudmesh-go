@@ -14,7 +14,7 @@ import (
 )
 
 // SetReverseReceiver records the in-process party repo and probe identity
-// used to materialize Bob immediately after a successful extend.
+// used to materialize Bob immediately after a successful promotion.
 func (h *Handler) SetReverseReceiver(
 	parties identity.PartyRepo,
 	realm, email, displayName string,
@@ -23,14 +23,29 @@ func (h *Handler) SetReverseReceiver(
 		return
 	}
 
+	h.receiverMu.Lock()
 	h.parties = parties
 	h.receiverRealm = realm
 	h.receiverEmail = email
 	h.receiverName = displayName
+	h.receiverMu.Unlock()
+
+	h.flushPromoteFollowUp()
 }
 
 func (h *Handler) materializeReverseReceiver(ctx context.Context, testRunID string) error {
-	if h == nil || h.parties == nil {
+	if h == nil {
+		return nil
+	}
+
+	h.receiverMu.Lock()
+	parties := h.parties
+	realm := h.receiverRealm
+	email := h.receiverEmail
+	name := h.receiverName
+	h.receiverMu.Unlock()
+
+	if parties == nil {
 		return nil
 	}
 
@@ -43,11 +58,11 @@ func (h *Handler) materializeReverseReceiver(ctx context.Context, testRunID stri
 		return errors.New("passive: extended run has no bound recipient")
 	}
 
-	if _, err := identity.EnsureReverseReceiver(ctx, h.parties, identity.ReverseReceiverSpec{
+	if _, err := identity.EnsureReverseReceiver(ctx, parties, identity.ReverseReceiverSpec{
 		ID:          *run.BobUserID,
-		Email:       h.receiverEmail,
-		DisplayName: h.receiverName,
-		Realm:       h.receiverRealm,
+		Email:       email,
+		DisplayName: name,
+		Realm:       realm,
 	}); err != nil {
 		return fmt.Errorf("passive: ensure reverse receiver: %w", err)
 	}

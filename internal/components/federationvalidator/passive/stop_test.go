@@ -214,6 +214,52 @@ func TestHandleStop_SecondStopOnJustTerminalizedRun(t *testing.T) {
 	}
 }
 
+func TestHandleStop_AbandonsReadyWaiter(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-http-stop-waiter"
+	readyAt := now - 3
+
+	if err := store.DB().WithContext(ctx).Create(&validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StatePassiveRunning,
+		TargetHost:     "peer.example",
+		OptInActive:    true,
+		PassiveReadyAt: &readyAt,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}).Error; err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	rec := postStop(t, h, runID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body %s", rec.Code, rec.Body.String())
+	}
+
+	var payload stopResponse
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if payload.State != validatorcore.StateTerminalFail {
+		t.Fatalf("response state = %q, want %q", payload.State, validatorcore.StateTerminalFail)
+	}
+
+	got, err := store.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if got.TerminalReason == nil || *got.TerminalReason != validatorcore.ReasonOperatorAborted {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, validatorcore.ReasonOperatorAborted)
+	}
+}
+
 func postStop(t *testing.T, h *Handler, runID string) *httptest.ResponseRecorder {
 	t.Helper()
 

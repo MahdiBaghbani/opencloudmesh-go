@@ -32,10 +32,15 @@ func (c *Core) sweepPassiveInFlightTTL(ctx context.Context) error {
 
 		cutoff := now - int64(item.ttlSeconds)
 
+		query := c.db.WithContext(ctx).Model(&TestRun{}).
+			Where("is_active = 0 AND state = ? AND updated_at < ?", item.state, cutoff)
+
+		if item.state == StatePassiveRunning {
+			query = query.Where("NOT (opt_in_active = 1 AND passive_ready_at IS NOT NULL)")
+		}
+
 		var ids []string
-		if err := c.db.WithContext(ctx).Model(&TestRun{}).
-			Where("is_active = 0 AND state = ? AND updated_at < ?", item.state, cutoff).
-			Pluck("test_run_id", &ids).Error; err != nil {
+		if err := query.Pluck("test_run_id", &ids).Error; err != nil {
 			return fmt.Errorf("list expired %s sessions: %w", item.state, err)
 		}
 

@@ -100,7 +100,7 @@ func TestExtendToActive_TerminalStateReturnsSessionNotReady(t *testing.T) {
 	}
 }
 
-func TestExtendToActive_RepeatedExtensionReturnsInteractiveConflict(t *testing.T) {
+func TestExtendToActive_RepeatedExtensionIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -124,9 +124,74 @@ func TestExtendToActive_RepeatedExtensionReturnsInteractiveConflict(t *testing.T
 		t.Fatalf("first extend: %v", err)
 	}
 
+	if err := core.ExtendToActive(ctx, runID); err != nil {
+		t.Fatalf("repeat extend: %v", err)
+	}
+
+	got, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !got.IsActive || got.State != StateActiveRunning {
+		t.Fatalf("repeat extend is_active=%v state=%q", got.IsActive, got.State)
+	}
+}
+
+func TestExtendToActive_PromotesPassiveRunningOptIn(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-extend-running"
+
+	seedPassiveRunningOptIn(t, core, runID)
+
+	if err := core.ExtendToActive(ctx, runID); err != nil {
+		t.Fatalf("ExtendToActive: %v", err)
+	}
+
+	got, err := core.GetTestRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !got.IsActive || got.State != StateActiveRunning {
+		t.Fatalf("is_active=%v state=%q, want active_running", got.IsActive, got.State)
+	}
+
+	if got.BobUserID == nil || *got.BobUserID == "" {
+		t.Fatal("bob_user_id must be minted on running promotion")
+	}
+
+	if SessionKindOf(got) != SessionKindActiveFull {
+		t.Fatalf("session kind = %q, want %q", SessionKindOf(got), SessionKindActiveFull)
+	}
+}
+
+func TestExtendToActive_OptOutRunningStaysNotReady(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	now := time.Now().Unix()
+	runID := "run-extend-opt-out-running"
+
+	row := &TestRun{
+		TestRunID:  runID,
+		State:      StatePassiveRunning,
+		TargetHost: "running.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	if err := core.CreatePassiveSession(ctx, row); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
 	err := core.ExtendToActive(ctx, runID)
-	if !errors.Is(err, ErrInteractiveRunInProgress) {
-		t.Fatalf("repeat extend error = %v, want ErrInteractiveRunInProgress", err)
+	if !errors.Is(err, ErrSessionNotReady) {
+		t.Fatalf("ExtendToActive error = %v, want ErrSessionNotReady", err)
 	}
 }
 
@@ -269,5 +334,52 @@ func TestExtendToActive_ConflictLeavesBobUserIDUnset(t *testing.T) {
 
 	if lost.BobUserID != nil {
 		t.Fatalf("conflicted row bob_user_id = %v, want unset", lost.BobUserID)
+	}
+}
+
+func TestExtendToActive_RefusesPersistedDiscoveryFailFromRunning(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	runID := "run-extend-running-fail-gate"
+
+	seedPassiveRunningOptIn(t, core, runID)
+	seedGradedEvidence(t, core, runID, SpecificationAreaDiscovery, GradeFail)
+
+	err := core.ExtendToActive(ctx, runID)
+	if !errors.Is(err, ErrSessionNotReady) {
+		t.Fatalf("ExtendToActive error = %v, want ErrSessionNotReady", err)
+	}
+
+	got, getErr := core.GetTestRun(ctx, runID)
+	if getErr != nil {
+		t.Fatalf("GetTestRun: %v", getErr)
+	}
+
+	if got.IsActive {
+		t.Fatal("failed-probe run must not take the active lock")
+	}
+
+	if got.State != StatePassiveRunning {
+		t.Fatalf("state = %q, want %q", got.State, StatePassiveRunning)
+	}
+}
+
+func seedPassiveRunningOptIn(t *testing.T, core *Core, runID string) {
+	t.Helper()
+
+	now := time.Now().Unix()
+	row := &TestRun{
+		TestRunID:   runID,
+		State:       StatePassiveRunning,
+		TargetHost:  "running.example",
+		OptInActive: true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := core.DB().WithContext(t.Context()).Create(row).Error; err != nil {
+		t.Fatalf("seed running opt-in: %v", err)
 	}
 }

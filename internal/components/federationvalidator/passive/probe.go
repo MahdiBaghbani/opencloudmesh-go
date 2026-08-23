@@ -37,13 +37,22 @@ type DiscoveryFetcher interface {
 	FetchFresh(ctx context.Context, baseURL string) (*discovery.FetchResult, error)
 }
 
-// ProbeDeps wires store, discovery, HTTP, and signing into the passive runner.
+// ActiveKicker is the wake-only seam for a future active runner.
+// Kick is a buffered signal with no arguments. A nil kicker is a no-op
+// so an unbound runner never panics.
+type ActiveKicker interface {
+	Kick()
+}
+
+// ProbeDeps wires store, discovery, HTTP, signing, and the optional active
+// wake-up seam into the passive runner.
 type ProbeDeps struct {
-	Store     *validatorcore.Core
-	Discovery DiscoveryFetcher
-	HTTP      *httpclient.ContextClient
-	Signer    *crypto.RFC9421Signer
-	Log       *slog.Logger
+	Store      *validatorcore.Core
+	Discovery  DiscoveryFetcher
+	HTTP       *httpclient.ContextClient
+	Signer     *crypto.RFC9421Signer
+	Log        *slog.Logger
+	ActiveKick ActiveKicker
 }
 
 // ProbeRunner drives passive-core state transitions and records four-area
@@ -54,6 +63,7 @@ type ProbeRunner struct {
 	http      *httpclient.ContextClient
 	signer    *crypto.RFC9421Signer
 	log       *slog.Logger
+	kick      ActiveKicker
 }
 
 // NewProbeRunner returns a passive probe runner bound to the validator store.
@@ -82,6 +92,7 @@ func NewProbeRunnerWithDeps(deps ProbeDeps) *ProbeRunner {
 		http:      deps.HTTP,
 		signer:    deps.Signer,
 		log:       logutil.NoopIfNil(deps.Log),
+		kick:      deps.ActiveKick,
 	}
 }
 
@@ -247,8 +258,8 @@ func (p *ProbeRunner) completeOrWait(ctx context.Context, testRunID string) erro
 	}
 
 	if row.OptInActive {
-		if stampErr := p.store.StampPassiveReadyAt(ctx, testRunID); stampErr != nil {
-			return wrapRetryable(stampErr)
+		if promoErr := p.promoteOrWait(ctx, testRunID); promoErr != nil {
+			return wrapRetryable(promoErr)
 		}
 
 		return nil

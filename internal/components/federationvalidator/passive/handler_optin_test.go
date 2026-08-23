@@ -181,6 +181,8 @@ func TestHandleStart_InvalidOptInValues(t *testing.T) {
 		{name: "stats null", body: `{"target":"https://peer.example","optInStats":null}`},
 		{name: "permanent string", body: `{"target":"https://peer.example","optInPermanent":"1"}`},
 		{name: "permanent null", body: `{"target":"https://peer.example","optInPermanent":null}`},
+		{name: "active string", body: `{"target":"https://peer.example","optInActive":"true"}`},
+		{name: "active null", body: `{"target":"https://peer.example","optInActive":null}`},
 	}
 
 	for _, tc := range cases {
@@ -202,7 +204,7 @@ func TestHandleStart_InvalidOptInValues(t *testing.T) {
 	}
 }
 
-func TestHandleStart_ExtendRejectsOptIn(t *testing.T) {
+func TestHandleStart_OptInCreateOnly(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -211,6 +213,7 @@ func TestHandleStart_ExtendRejectsOptIn(t *testing.T) {
 	}{
 		{name: "stats true", body: map[string]any{"id": "run-extend", "optInStats": true}},
 		{name: "permanent false present", body: map[string]any{"id": "run-extend", "optInPermanent": false}},
+		{name: "active true", body: map[string]any{"id": "run-extend", "optInActive": true}},
 	}
 
 	for _, tc := range cases {
@@ -230,6 +233,77 @@ func TestHandleStart_ExtendRejectsOptIn(t *testing.T) {
 			assertJSONError(t, rec, codeOptInCreateOnly)
 		})
 	}
+}
+
+func TestHandleStart_OptInActivePersistsProvenance(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/start",
+		bytes.NewReader(mustJSON(t, map[string]any{
+			"target":      "https://peer.example",
+			"optInActive": true,
+		})),
+	)
+	rec := httptest.NewRecorder()
+	h.HandleStart(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 body %s", rec.Code, rec.Body.String())
+	}
+
+	created := decodeCreateEcho(t, rec)
+
+	row, err := store.GetTestRun(t.Context(), created.ID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !row.OptInActive {
+		t.Fatal("opt_in_active unset")
+	}
+
+	assertConsentProvenance(
+		t,
+		"active",
+		true,
+		validatorcore.OptInChannelStart,
+		row.OptInActiveChannel,
+		row.OptInActiveAt,
+	)
+}
+
+func TestHandleScan_IgnoresOptInActiveQuery(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/scan?target=https://peer.example&optInActive=1",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	h.HandleScan(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 body %s", rec.Code, rec.Body.String())
+	}
+
+	created := decodeCreateEcho(t, rec)
+	assertCreateConsentRow(
+		t,
+		store,
+		created.ID,
+		false,
+		false,
+		validatorcore.OptInChannelScan,
+	)
 }
 
 func TestHandleStart_CreateEchoIncludesFalseValues(t *testing.T) {
@@ -308,6 +382,10 @@ func assertCreateConsentRow(
 			wantStats,
 			wantPerm,
 		)
+	}
+
+	if row.OptInActive {
+		t.Fatal("opt-in active must stay off on this create path")
 	}
 
 	assertConsentProvenance(t, "stats", wantStats, wantChannel, row.OptInStatsChannel, row.OptInStatsAt)

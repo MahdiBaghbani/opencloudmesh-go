@@ -30,9 +30,10 @@ type stopResponse struct {
 }
 
 // HandleStop serves POST /stop for core-only terminalization from
-// passive_complete. Dest is re-read before StopPassive. The response state
-// is always reloaded from the store and is never hardcoded. An
-// already-terminal row returns HTTP 200 and the persisted state.
+// passive_complete or a ready opt-in lock waiter. Dest is re-read before
+// StopPassive. The response state is always reloaded from the store and is
+// never hardcoded. An already-terminal row returns HTTP 200 and the
+// persisted state.
 func (h *Handler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -140,5 +141,9 @@ func canStopPassive(row *validatorcore.TestRun) bool {
 		return false
 	}
 
-	return !row.IsActive && row.State == validatorcore.StatePassiveComplete
+	if row.IsActive {
+		return false
+	}
+
+	return row.State == validatorcore.StatePassiveComplete || validatorcore.IsReadyOptInWaiter(row)
 }

@@ -24,11 +24,13 @@ type startRequest struct {
 	ID             string `json:"id"`
 	OptInStats     *bool  `json:"optInStats"`
 	OptInPermanent *bool  `json:"optInPermanent"`
+	OptInActive    *bool  `json:"optInActive"`
 }
 
 type sessionOptIn struct {
 	Stats     bool
 	Permanent bool
+	Active    bool
 	Channel   string
 }
 
@@ -55,7 +57,7 @@ func rejectNullOptIn(body []byte) error {
 		return fmt.Errorf("inspect start request: %w", err)
 	}
 
-	for _, key := range []string{"optInStats", "optInPermanent"} {
+	for _, key := range []string{"optInStats", "optInPermanent", "optInActive"} {
 		val, ok := raw[key]
 		if !ok {
 			continue
@@ -70,7 +72,7 @@ func rejectNullOptIn(body []byte) error {
 }
 
 func optInKeysPresent(req startRequest) bool {
-	return req.OptInStats != nil || req.OptInPermanent != nil
+	return req.OptInStats != nil || req.OptInPermanent != nil || req.OptInActive != nil
 }
 
 func startConsent(req startRequest, channel string) sessionOptIn {
@@ -81,6 +83,10 @@ func startConsent(req startRequest, channel string) sessionOptIn {
 
 	if req.OptInPermanent != nil {
 		opt.Permanent = *req.OptInPermanent
+	}
+
+	if req.OptInActive != nil {
+		opt.Active = *req.OptInActive
 	}
 
 	return opt
@@ -105,5 +111,13 @@ func applyCreateConsent(row *validatorcore.TestRun, opt sessionOptIn, now int64)
 		row.OptInPermanent = true
 		row.OptInPermanentChannel = &permanentChannel
 		row.OptInPermanentAt = &permanentAt
+	}
+
+	if opt.Active {
+		activeChannel := opt.Channel
+		activeAt := now
+		row.OptInActive = true
+		row.OptInActiveChannel = &activeChannel
+		row.OptInActiveAt = &activeAt
 	}
 }

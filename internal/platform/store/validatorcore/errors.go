@@ -35,9 +35,6 @@ var (
 	// ErrSessionNotReady is returned when a session is not ready for the request.
 	ErrSessionNotReady = errors.New(CodeSessionNotReady)
 
-	// ErrInteractiveRunInProgress is returned when the one-active-run lock is held.
-	ErrInteractiveRunInProgress = errors.New(CodeInteractiveRunInProgress)
-
 	// ErrSessionNotFound is returned when the requested test run does not exist.
 	ErrSessionNotFound = errors.New(CodeSessionNotFound)
 
@@ -116,6 +113,13 @@ func (e *StoreError) Error() string {
 
 func (e *StoreError) Unwrap() error {
 	return e.Err
+}
+
+// IsActiveSlotBusy reports a one-active unique-index conflict on promote.
+func IsActiveSlotBusy(err error) bool {
+	var storeErr *StoreError
+
+	return errors.As(err, &storeErr) && storeErr.Op == OpExtendUpdate
 }
 
 const (

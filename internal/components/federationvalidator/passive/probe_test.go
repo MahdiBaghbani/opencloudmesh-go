@@ -16,8 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
@@ -50,14 +52,49 @@ func TestProbeRunner_ReachesPassiveComplete(t *testing.T) {
 	}
 }
 
+func TestProbeRunner_PromotesOptInWhenSlotFree(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	kicker := &recordKicker{}
+	h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
+	h.SetReverseReceiver(
+		identity.NewMemoryPartyRepo(),
+		"local.example",
+		config.DefaultValidatorProbeEmail,
+		config.DefaultValidatorProbeDisplayName,
+	)
+
+	ctx := t.Context()
+	runID := "run-promote-free"
+
+	createCreatedRun(t, store, runID, "https://probe.example", true, false)
+	h.probe.run(ctx, runID)
+
+	got := mustGetRun(t, store, runID)
+	if !got.IsActive || got.State != validatorcore.StateActiveRunning {
+		t.Fatalf("is_active=%v state=%q, want active_running", got.IsActive, got.State)
+	}
+
+	if got.BobUserID == nil || *got.BobUserID == "" {
+		t.Fatal("bob_user_id must be minted on promotion")
+	}
+
+	if kicker.calls != 1 {
+		t.Fatalf("kick calls = %d, want 1", kicker.calls)
+	}
+}
+
 func TestProbeRunner_LockWaitStampsReadyAt(t *testing.T) {
 	t.Parallel()
 
 	store := openHandlerTestStore(t)
-	runner := NewProbeRunner(store, nil)
+	kicker := &recordKicker{}
+	runner := NewProbeRunnerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
 	ctx := t.Context()
 	runID := "run-lock-wait"
 
+	seedActiveHolder(t, store, "run-lock-holder")
 	createCreatedRun(t, store, runID, "https://probe.example", true, false)
 	runner.run(ctx, runID)
 
@@ -72,6 +109,48 @@ func TestProbeRunner_LockWaitStampsReadyAt(t *testing.T) {
 
 	if got.IsActive {
 		t.Fatal("lock-wait must not take the active lock")
+	}
+
+	if kicker.calls != 0 {
+		t.Fatalf("kick calls = %d, want none on lock-wait", kicker.calls)
+	}
+}
+
+func TestProbeRunner_FailedDiscoveryNeverPromotesOptIn(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	fetchErr := errors.New("discovery returned status 500")
+	fetcher := &stubFetcher{
+		result: &discovery.FetchResult{
+			FetchErr: fetchErr,
+			TLS:      validTLSState(),
+			Headers:  http.Header{"Content-Type": []string{"text/plain"}},
+		},
+		err: fetchErr,
+	}
+	kicker := &recordKicker{}
+	runner := NewProbeRunnerWithDeps(ProbeDeps{
+		Store:      store,
+		Discovery:  fetcher,
+		ActiveKick: kicker,
+	})
+	runID := "run-opt-in-discovery-fail"
+
+	createCreatedRun(t, store, runID, "https://peer.example", true, false)
+	runner.run(t.Context(), runID)
+
+	got := mustGetRun(t, store, runID)
+	if got.State != validatorcore.StateTerminalFail {
+		t.Fatalf("state = %q, want %q", got.State, validatorcore.StateTerminalFail)
+	}
+
+	if got.IsActive {
+		t.Fatal("failed probe must not take the active lock")
+	}
+
+	if kicker.calls != 0 {
+		t.Fatalf("kick calls = %d, want none after failed probe", kicker.calls)
 	}
 }
 
@@ -246,6 +325,32 @@ func tlsStateForWindow(notBefore, notAfter time.Time) *tls.ConnectionState {
 		Version:          tls.VersionTLS13,
 		CipherSuite:      tls.TLS_AES_128_GCM_SHA256,
 		PeerCertificates: []*x509.Certificate{cert},
+	}
+}
+
+type recordKicker struct {
+	calls int
+}
+
+func (r *recordKicker) Kick() {
+	r.calls++
+}
+
+func seedActiveHolder(t *testing.T, store *validatorcore.Core, runID string) {
+	t.Helper()
+
+	now := time.Now().Unix()
+	row := &validatorcore.TestRun{
+		TestRunID:  runID,
+		IsActive:   true,
+		State:      validatorcore.StateActiveRunning,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	if err := store.DB().WithContext(t.Context()).Create(row).Error; err != nil {
+		t.Fatalf("seed holder: %v", err)
 	}
 }
 

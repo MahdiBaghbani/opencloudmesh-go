@@ -85,7 +85,7 @@ func TestHandleSession_ReturnsStateTsAndNextInstruction(t *testing.T) {
 
 	seedSessionRow(t, store, &validatorcore.TestRun{
 		TestRunID:  runID,
-		State:      validatorcore.StatePassiveComplete,
+		State:      validatorcore.StatePassiveRunning,
 		TargetHost: "peer.example",
 		CreatedAt:  now,
 		UpdatedAt:  now + 42,
@@ -100,8 +100,8 @@ func TestHandleSession_ReturnsStateTsAndNextInstruction(t *testing.T) {
 		t.Fatalf("state: %v", err)
 	}
 
-	if state != validatorcore.StatePassiveComplete {
-		t.Fatalf("state = %q, want %q", state, validatorcore.StatePassiveComplete)
+	if state != validatorcore.StatePassiveRunning {
+		t.Fatalf("state = %q, want %q", state, validatorcore.StatePassiveRunning)
 	}
 
 	var ts int64
@@ -113,8 +113,8 @@ func TestHandleSession_ReturnsStateTsAndNextInstruction(t *testing.T) {
 		t.Fatalf("ts = %d, want %d", ts, now+42)
 	}
 
-	if next := pollNextInstruction(t, payload); next != "extend_or_stop" {
-		t.Fatalf("nextInstruction = %q, want %q", next, "extend_or_stop")
+	if next := pollNextInstruction(t, payload); next != "wait_probe" {
+		t.Fatalf("nextInstruction = %q, want %q", next, "wait_probe")
 	}
 }
 
@@ -129,7 +129,6 @@ func TestHandleSession_NextInstructionPerState(t *testing.T) {
 	}{
 		{name: "created", state: validatorcore.StateCreated, want: "wait_probe"},
 		{name: "passive_running", state: validatorcore.StatePassiveRunning, want: "wait_probe"},
-		{name: "passive_complete", state: validatorcore.StatePassiveComplete, want: "extend_or_stop"},
 		{name: "active_running", state: validatorcore.StateActiveRunning, isActive: true, want: "wait_invite_mint"},
 		{name: "invite_minted", state: validatorcore.StateInviteMinted, isActive: true, want: "paste_s1"},
 		{name: "invite_accepted", state: validatorcore.StateInviteAccepted, isActive: true, want: "wait_reverse_start"},
@@ -166,6 +165,110 @@ func TestHandleSession_NextInstructionPerState(t *testing.T) {
 				t.Fatalf("nextInstruction = %q, want %q", next, tc.want)
 			}
 		})
+	}
+}
+
+func TestHandleSession_PassiveCompleteOmitsNextInstruction(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	now := time.Now().Unix()
+	runID := "run-complete-omit"
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:  runID,
+		State:      validatorcore.StatePassiveComplete,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+
+	payload := pollSession(t, h, runID)
+
+	assertExactKeys(t, payload, []string{"state", "ts"})
+}
+
+func TestHandleSession_ReadyWaiterPublishesActiveSlot(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	now := time.Now().Unix()
+	runID := "run-poll-waiter"
+	readyAt := now - 5
+
+	if err := store.DB().WithContext(t.Context()).Create(&validatorcore.TestRun{
+		TestRunID:  "run-poll-holder",
+		IsActive:   true,
+		State:      validatorcore.StateActiveRunning,
+		TargetHost: "peer.example",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}).Error; err != nil {
+		t.Fatalf("seed holder: %v", err)
+	}
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StatePassiveRunning,
+		TargetHost:     "peer.example",
+		OptInActive:    true,
+		PassiveReadyAt: &readyAt,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+
+	payload := pollSession(t, h, runID)
+
+	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+
+	if next := pollNextInstruction(t, payload); next != "wait_active_slot" {
+		t.Fatalf("nextInstruction = %q, want wait_active_slot", next)
+	}
+
+	got, err := store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if got.IsActive || got.State != validatorcore.StatePassiveRunning {
+		t.Fatalf("lock-held waiter is_active=%v state=%q", got.IsActive, got.State)
+	}
+}
+
+func TestHandleSession_ReadyWaiterPromotesWhenSlotFree(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	now := time.Now().Unix()
+	runID := "run-poll-promote"
+	readyAt := now - 5
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StatePassiveRunning,
+		TargetHost:     "peer.example",
+		OptInActive:    true,
+		PassiveReadyAt: &readyAt,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+
+	payload := pollSession(t, h, runID)
+
+	if next := pollNextInstruction(t, payload); next != "wait_invite_mint" {
+		t.Fatalf("nextInstruction = %q, want wait_invite_mint", next)
+	}
+
+	got, err := store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !got.IsActive || got.State != validatorcore.StateActiveRunning {
+		t.Fatalf("is_active=%v state=%q, want active_running", got.IsActive, got.State)
 	}
 }
 

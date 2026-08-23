@@ -62,12 +62,11 @@ func TestProbeRunner_RetryExhaustionSettles(t *testing.T) {
 			wantState: validatorcore.StatePassiveComplete,
 		},
 		{
-			name:        "jwks fail opt-in stamps ready at",
+			name:        "jwks fail opt-in promotes when slot free",
 			runID:       "run-exhaust-jwks-opt-in",
 			optInActive: true,
 			result:      advertisedFailingJWKSResult(),
-			wantState:   validatorcore.StatePassiveRunning,
-			wantReadyAt: true,
+			wantState:   validatorcore.StateActiveRunning,
 		},
 	}
 
@@ -103,6 +102,36 @@ func TestProbeRunner_RetryExhaustionSettles(t *testing.T) {
 				t.Fatal("passive_ready_at must stay unset outside opt-in lock-wait")
 			}
 		})
+	}
+}
+
+func TestProbeRunner_ExhaustedOptInWaitsWhenSlotHeld(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	fetcher := &stubFetcher{result: advertisedFailingJWKSResult()}
+	runner := NewProbeRunnerWithDeps(ProbeDeps{Store: store, Discovery: fetcher})
+	runID := "run-exhaust-jwks-lock-wait"
+
+	seedActiveHolder(t, store, "run-exhaust-holder")
+	createCreatedRun(t, store, runID, "https://peer.example", true, false)
+	runner.run(t.Context(), runID)
+
+	got := mustGetRun(t, store, runID)
+	if got.State != validatorcore.StatePassiveRunning {
+		t.Fatalf("state = %q, want %q", got.State, validatorcore.StatePassiveRunning)
+	}
+
+	if got.PassiveReadyAt == nil || *got.PassiveReadyAt <= 0 {
+		t.Fatal("passive_ready_at must be stamped on lock-wait exhaustion")
+	}
+
+	if got.IsActive {
+		t.Fatal("lock-wait must not take the active lock")
+	}
+
+	if fetcher.calls != probeMaxAttempts {
+		t.Fatalf("probe attempts = %d, want %d", fetcher.calls, probeMaxAttempts)
 	}
 }
 
@@ -345,12 +374,11 @@ func TestProbeRunner_CancelledRetryWaitStillSettles(t *testing.T) {
 			wantState: validatorcore.StatePassiveComplete,
 		},
 		{
-			name:        "cancelled wait still stamps lock-wait ready at",
+			name:        "cancelled wait still promotes opt-in when slot free",
 			runID:       "run-cancel-jwks-opt-in",
 			optInActive: true,
 			result:      advertisedFailingJWKSResult(),
-			wantState:   validatorcore.StatePassiveRunning,
-			wantReadyAt: true,
+			wantState:   validatorcore.StateActiveRunning,
 		},
 	}
 

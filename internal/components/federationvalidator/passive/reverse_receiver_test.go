@@ -6,19 +6,15 @@
 package passive
 
 import (
-	"bytes"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
-func TestHandleStart_ExtendMaterializesReverseReceiver(t *testing.T) {
+func TestProbeRunner_PromoteMaterializesReverseReceiver(t *testing.T) {
 	t.Parallel()
 
 	store := openHandlerTestStore(t)
@@ -32,39 +28,22 @@ func TestHandleStart_ExtendMaterializesReverseReceiver(t *testing.T) {
 	)
 
 	ctx := t.Context()
-	now := time.Now().Unix()
-	runID := "run-extend-bob"
+	runID := "run-promote-bob"
 
-	if err := store.DB().WithContext(ctx).Create(&validatorcore.TestRun{
-		TestRunID:  runID,
-		State:      validatorcore.StatePassiveComplete,
-		TargetHost: "peer.example",
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}).Error; err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
-	req := httptest.NewRequestWithContext(
-		t.Context(),
-		http.MethodPost,
-		"/start",
-		bytes.NewReader(mustJSON(t, map[string]string{"id": runID})),
-	)
-	rec := httptest.NewRecorder()
-	h.HandleStart(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("extend status = %d, want 200", rec.Code)
-	}
+	createCreatedRun(t, store, runID, "https://peer.example", true, false)
+	h.probe.run(ctx, runID)
 
 	run, err := store.GetTestRun(ctx, runID)
 	if err != nil {
 		t.Fatalf("GetTestRun: %v", err)
 	}
 
+	if !run.IsActive || run.State != validatorcore.StateActiveRunning {
+		t.Fatalf("is_active=%v state=%q, want active_running", run.IsActive, run.State)
+	}
+
 	if run.BobUserID == nil || *run.BobUserID == "" {
-		t.Fatal("bob_user_id is empty after extend")
+		t.Fatal("bob_user_id is empty after promotion")
 	}
 
 	bob, err := parties.Get(ctx, *run.BobUserID)
@@ -85,6 +64,6 @@ func TestHandleStart_ExtendMaterializesReverseReceiver(t *testing.T) {
 	}
 
 	if _, err := parties.Get(ctx, runID); !errors.Is(err, identity.ErrUserNotFound) {
-		t.Fatalf("alice must not be created at extend, err=%v", err)
+		t.Fatalf("alice must not be created at promote, err=%v", err)
 	}
 }

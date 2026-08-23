@@ -110,12 +110,26 @@ func (c *Core) writeTerminalGuarded(
 	return nil
 }
 
-// StopPassive terminalizes a core-only passive_complete session. A persisted
-// discovery or TLS fail routes to FailPassive; otherwise the run becomes
-// terminal_pass with a pass or warn grade folded from durable evidence.
-// An already-terminal row is a successful no-op so a raced second stop can
-// reload the stored state.
+// StopPassive terminalizes a core-only passive_complete session. A ready
+// opt-in lock waiter is abandoned as terminal_fail with operator_aborted.
+// A persisted discovery or TLS fail routes to FailPassive; otherwise a
+// complete run becomes terminal_pass with a pass or warn grade folded from
+// durable evidence. An already-terminal row is a successful no-op so a
+// raced second stop can reload the stored state.
 func (c *Core) StopPassive(ctx context.Context, testRunID string) error {
+	row, err := c.GetTestRun(ctx, testRunID)
+	if err != nil {
+		return err
+	}
+
+	if IsReadyOptInWaiter(row) {
+		return c.confirmTerminalAfterMiss(
+			ctx,
+			testRunID,
+			c.FailPassive(ctx, testRunID, StatePassiveRunning, ReasonOperatorAborted),
+		)
+	}
+
 	areas, err := c.loadPersistedAreaScores(ctx, testRunID)
 	if err != nil {
 		return err

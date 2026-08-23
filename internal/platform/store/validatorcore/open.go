@@ -71,15 +71,22 @@ func (c *Core) startupMaintenance(ctx context.Context) error {
 var startupFirstMaintenanceOnce sync.Once
 
 // firstStartupMaintenance runs the full startup maintenance chain for the
-// first Attach in this process: leftover active-row recovery, the passive TTL
-// sweeps, the stall sweep, the retention sweep, and the terminal prune, in
-// that order. Error propagation matches the per-step conventions: recovery is
-// best-effort, every later step fails the pass.
+// first Attach in this process: leftover active-row recovery, ready-waiter
+// promotion, the passive TTL sweeps, the stall sweep, the retention sweep,
+// and the terminal prune, in that order. Error propagation matches the
+// per-step conventions: recovery is best-effort, every later step fails
+// the pass.
 func (c *Core) firstStartupMaintenance(ctx context.Context) error {
 	// Terminalize leftover is_active=1 rows before retention so a just-sealed
 	// interrupted permanent report gets a future expires_at and is not swept
 	// immediately.
 	c.startupTerminalizeUnrecoverableActive(ctx)
+
+	if err := c.PromoteOldestReadyWaiter(ctx); err != nil {
+		return fmt.Errorf("promote ready waiter: %w", err)
+	}
+
+	c.flushPromoteFollowUp(ctx)
 
 	if err := c.sweepPassiveSessionTTL(ctx); err != nil {
 		return err
@@ -93,10 +100,16 @@ func (c *Core) firstStartupMaintenance(ctx context.Context) error {
 }
 
 // repeatStartupMaintenance runs the startup maintenance chain for every
-// Attach after the first in this process: the passive TTL sweeps, the
-// retention sweep, and the terminal prune. The one-shot recovery and stall
-// passes already ran and must not rerun.
+// Attach after the first in this process: ready-waiter promotion, the
+// passive TTL sweeps, the retention sweep, and the terminal prune. The
+// one-shot recovery and stall passes already ran and must not rerun.
 func (c *Core) repeatStartupMaintenance(ctx context.Context) error {
+	if err := c.PromoteOldestReadyWaiter(ctx); err != nil {
+		return fmt.Errorf("promote ready waiter: %w", err)
+	}
+
+	c.flushPromoteFollowUp(ctx)
+
 	if err := c.sweepPassiveSessionTTL(ctx); err != nil {
 		return err
 	}

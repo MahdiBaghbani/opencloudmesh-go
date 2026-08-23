@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -27,6 +28,24 @@ type Core struct {
 	// leaves it nil. A non-nil error aborts the transaction so
 	// s1_claimed_at is not written.
 	claimPayloadLoadHook func() error
+	// promoteAfterSelectHook is a test seam invoked after a ready
+	// waiter is selected and before ExtendToActive CASes it.
+	// Production leaves it nil.
+	promoteAfterSelectHook func(testRunID string)
+	// promoteMu guards lastPromotedID and promoteFollowUp. Startup
+	// promotion, probe promotion, and a late reverse-receiver bind
+	// all touch that pending follow-up state.
+	promoteMu sync.Mutex
+	// promoteFollowUp is the shared after-ExtendToActive follow-up
+	// (Bob materialization + Kick). The passive handler binds it.
+	// It returns true when the follow-up was delivered so the pending
+	// id can be consumed. False defers until the next flush. Nil is a
+	// no-op so Attach can promote before the handler exists.
+	promoteFollowUp func(ctx context.Context, testRunID string) bool
+	// lastPromotedID is the test_run_id last promoted by a CAS
+	// winner that still needs follow-up. Cleared after a successful
+	// delivery. Empty means none is pending.
+	lastPromotedID string
 }
 
 // NewCore wraps an existing GORM DB handle for validator persistence.
