@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
+	"net/url"
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -32,6 +34,79 @@ type sessionOptIn struct {
 	Permanent bool
 	Active    bool
 	Channel   string
+}
+
+func decodeStartBody(contentType string, body []byte) (startRequest, error) {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil && mediaType == "application/x-www-form-urlencoded" {
+		return decodeStartForm(body)
+	}
+
+	return decodeStartRequest(body)
+}
+
+func decodeStartForm(body []byte) (startRequest, error) {
+	values, err := url.ParseQuery(string(body))
+	if err != nil {
+		return startRequest{}, fmt.Errorf("decode start form: %w", err)
+	}
+
+	allowed := map[string]struct{}{
+		"target":         {},
+		"id":             {},
+		"optInStats":     {},
+		"optInPermanent": {},
+		"optInActive":    {},
+	}
+	for key := range values {
+		if _, ok := allowed[key]; !ok {
+			return startRequest{}, fmt.Errorf("decode start form: unknown field %q", key)
+		}
+	}
+
+	req := startRequest{
+		Target: values.Get("target"),
+		ID:     values.Get("id"),
+	}
+	if err := assignFormOptIn(&req.OptInStats, values, "optInStats"); err != nil {
+		return startRequest{}, err
+	}
+
+	if err := assignFormOptIn(&req.OptInPermanent, values, "optInPermanent"); err != nil {
+		return startRequest{}, err
+	}
+
+	if err := assignFormOptIn(&req.OptInActive, values, "optInActive"); err != nil {
+		return startRequest{}, err
+	}
+
+	return req, nil
+}
+
+func assignFormOptIn(dest **bool, values url.Values, key string) error {
+	if !values.Has(key) {
+		return nil
+	}
+
+	parsed, err := parseFormBool(values.Get(key))
+	if err != nil {
+		return err
+	}
+
+	*dest = &parsed
+
+	return nil
+}
+
+func parseFormBool(raw string) (bool, error) {
+	switch raw {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, errors.New("decode start form: boolean field must be true or false")
+	}
 }
 
 func decodeStartRequest(body []byte) (startRequest, error) {

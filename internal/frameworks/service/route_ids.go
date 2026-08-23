@@ -30,6 +30,8 @@ const (
 	RouteIDValidatorAPIReport = "validator-api-report"
 	// RouteIDValidatorHTMLReport is the validator HTML report route identifier.
 	RouteIDValidatorHTMLReport = "validator-html-report"
+	// RouteIDValidatorHTMLStart is the validator HTML start-page route identifier.
+	RouteIDValidatorHTMLStart = "validator-html-start"
 	// RouteIDValidatorAPIReportRetention is the validator report retention PATCH identifier.
 	RouteIDValidatorAPIReportRetention = "validator-api-report-retention"
 	// RouteIDValidatorAPIReportLock is the validator report lock POST identifier.

@@ -123,11 +123,11 @@ func (h *Handler) buildReportPageData(
 	return data, nil
 }
 
-func (h *Handler) writeReportTemplate(
+func (h *Handler) writeHTMLTemplate(
 	w http.ResponseWriter,
 	name string,
 	status int,
-	data reportPageData,
+	data any,
 ) {
 	var buf bytes.Buffer
 	if err := reportTemplates.ExecuteTemplate(&buf, name, data); err != nil {
@@ -140,6 +140,15 @@ func (h *Handler) writeReportTemplate(
 	w.WriteHeader(status)
 
 	if _, err := w.Write(buf.Bytes()); err != nil {
-		logutil.NoopIfNil(h.log).Warn("failed to write HTML report", "error", err)
+		logutil.NoopIfNil(h.log).Warn("failed to write HTML page", "error", err)
 	}
+}
+
+func (h *Handler) writeReportTemplate(
+	w http.ResponseWriter,
+	name string,
+	status int,
+	data reportPageData,
+) {
+	h.writeHTMLTemplate(w, name, status, data)
 }

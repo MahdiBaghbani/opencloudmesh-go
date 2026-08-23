@@ -312,6 +312,7 @@ func TestRoutes_ValidatorAPIRoutesGatedByFeature(t *testing.T) {
 		"/validator/api/session/{id}",
 		"/validator/api/report/{id}",
 		"/validator/report/{id}",
+		"/validator/start",
 		"/validator/api/manifest",
 		"/validator/api/statistics",
 	}

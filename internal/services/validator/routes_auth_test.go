@@ -33,10 +33,10 @@ func TestRouteSpecs_StartStopSessionPolicy(t *testing.T) {
 			continue
 		}
 
-		switch spec.Pattern {
-		case RouteStartCreateSession:
+		switch {
+		case spec.Pattern == RouteStartCreateSession && spec.Method == http.MethodPost:
 			startSpec = &spec
-		case RouteStopSession:
+		case spec.Pattern == RouteStopSession:
 			stopSpec = &spec
 		}
 	}

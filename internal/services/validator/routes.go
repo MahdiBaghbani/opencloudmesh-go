@@ -27,6 +27,10 @@ const (
 	// RouteStartCreateSession is POST /validator/start for passive-core create
 	// and active extension.
 	RouteStartCreateSession = "/start"
+	// RouteHTMLStart is GET /validator/start for the start page.
+	// Duplicated in the passive package; keep the strings synchronized.
+	// Shares the path with POST session creation.
+	RouteHTMLStart = RouteStartCreateSession
 	// RouteStopSession is POST /validator/stop for core-only terminalization.
 	RouteStopSession = "/stop"
 	// RouteAPIScan is GET /validator/api/scan.
@@ -75,6 +79,17 @@ func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
 			HandlerAuth:      service.HandlerAuthRateLimitOnly,
 			Middleware:       []string{"ratelimit"},
 			SurfaceClass:     service.SurfaceAPI,
+			TrustClass:       service.TrustPeerNone,
+			FeatureCondition: service.FeatureValidatorEnabled,
+		},
+		{
+			ID:               service.RouteIDValidatorHTMLStart,
+			Service:          string(service.BuildValidator),
+			Method:           http.MethodGet,
+			Pattern:          RouteHTMLStart,
+			SessionPolicy:    service.SessionPublic,
+			HandlerAuth:      service.HandlerAuthNone,
+			SurfaceClass:     service.SurfaceUI,
 			TrustClass:       service.TrustPeerNone,
 			FeatureCondition: service.FeatureValidatorEnabled,
 		},

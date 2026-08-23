@@ -15,6 +15,10 @@ const (
 	// RouteStartCreateSession is POST /start for passive-core session creation.
 	RouteStartCreateSession = "/start"
 
+	// RouteHTMLStart is GET /start for the validator start page.
+	// It shares the path with POST session creation.
+	RouteHTMLStart = RouteStartCreateSession
+
 	// RouteStopSession is POST /stop for core-only terminalization.
 	RouteStopSession = "/stop"
 
@@ -58,6 +62,20 @@ const (
 	// ValidatorServiceName is the HTTP service key for federation validator routes.
 	ValidatorServiceName = "validator"
 )
+
+// StartPageRouteSpec returns the GET /start route spec for the start HTML page.
+func StartPageRouteSpec() service.RouteSpec {
+	return service.RouteSpec{
+		ID:            service.RouteIDValidatorHTMLStart,
+		Service:       ValidatorServiceName,
+		Method:        http.MethodGet,
+		Pattern:       RouteHTMLStart,
+		SessionPolicy: service.SessionPublic,
+		HandlerAuth:   service.HandlerAuthNone,
+		SurfaceClass:  service.SurfaceUI,
+		TrustClass:    service.TrustPeerNone,
+	}
+}
 
 // CreateSessionRouteSpec returns the POST /start route spec for passive-core
 // session creation. Ratelimit applies on every create-session request via the

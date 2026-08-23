@@ -109,9 +109,9 @@ func (h *Handler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, decodeErr := decodeStartRequest(body)
+	req, decodeErr := decodeStartBody(r.Header.Get("Content-Type"), body)
 	if decodeErr != nil {
-		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", "invalid request body")
 
 		return
 	}

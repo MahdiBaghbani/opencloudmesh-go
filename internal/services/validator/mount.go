@@ -24,6 +24,7 @@ func mountValidatorRoutes(
 	reverseWaitOpen passive.ReverseWaitOpener,
 ) {
 	mountPlaneARoutes(r, passiveHandler, startRatelimit, reverseWaitOpen)
+	passive.MountStartPage(r, passiveHandler)
 	r.Method(http.MethodGet, RouteHTMLReport, http.HandlerFunc(passiveHandler.HandleReportHTML))
 	// The paste route is validator-only and deliberately outside the plane-A
 	// set so it is never advertised in the anonymous manifest.

@@ -93,6 +93,12 @@ func EnumeratePlaneARoutes(r chi.Router) ([]MountedAPIRoute, error) {
 	return routes, nil
 }
 
+// MountStartPage registers GET /start for the validator start HTML page.
+func MountStartPage(r chi.Router, h *Handler) {
+	spec := StartPageRouteSpec()
+	r.Method(spec.Method, spec.Pattern, http.HandlerFunc(h.HandleStartPage))
+}
+
 func mountRateLimited(
 	r chi.Router,
 	startRatelimit func(http.Handler) http.Handler,

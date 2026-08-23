@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -200,6 +202,93 @@ func TestHandleStart_InvalidOptInValues(t *testing.T) {
 			h.HandleStart(rec, req)
 
 			assertJSONError(t, rec, "invalid_request")
+		})
+	}
+}
+
+func TestHandleStart_FormURLEncodedOptInActiveBooleans(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		optInActive string
+		wantStatus  int
+		wantError   string
+		wantActive  bool
+	}{
+		{
+			name:        "canonical true",
+			optInActive: "true",
+			wantStatus:  http.StatusCreated,
+			wantActive:  true,
+		},
+		{
+			name:        "canonical false",
+			optInActive: "false",
+			wantStatus:  http.StatusCreated,
+			wantActive:  false,
+		},
+		{
+			name:        "noncanonical 1",
+			optInActive: "1",
+			wantStatus:  http.StatusBadRequest,
+			wantError:   "invalid_request",
+		},
+		{
+			name:        "noncanonical yes",
+			optInActive: "yes",
+			wantStatus:  http.StatusBadRequest,
+			wantError:   "invalid_request",
+		},
+		{
+			name:        "noncanonical on",
+			optInActive: "on",
+			wantStatus:  http.StatusBadRequest,
+			wantError:   "invalid_request",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+			form := url.Values{}
+			form.Set("target", "https://peer.example")
+			form.Set("optInActive", tc.optInActive)
+
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/start",
+				strings.NewReader(form.Encode()),
+			)
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			rec := httptest.NewRecorder()
+			h.HandleStart(rec, req)
+
+			if tc.wantError != "" {
+				assertJSONError(t, rec, tc.wantError)
+
+				return
+			}
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d body %s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+
+			created := decodeCreateEcho(t, rec)
+
+			row, err := store.GetTestRun(t.Context(), created.ID)
+			if err != nil {
+				t.Fatalf("GetTestRun: %v", err)
+			}
+
+			if row.OptInActive != tc.wantActive {
+				t.Fatalf("optInActive = %v, want %v", row.OptInActive, tc.wantActive)
+			}
 		})
 	}
 }
