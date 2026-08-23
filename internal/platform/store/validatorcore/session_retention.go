@@ -109,15 +109,22 @@ func (c *Core) tombstoneExpiredPermanent(ctx context.Context, id string, now int
 	return nil
 }
 
-// StartRetentionSweep runs SweepExpiredPermanentReports on
-// RetentionSweepInterval until ctx is cancelled. Attach already ran one
-// pass; this loop only covers a long-lived process.
+// StartRetentionSweep runs sweepRetentionAndPrune on RetentionSweepInterval
+// until ctx is cancelled. Attach already ran one pass; this loop covers a
+// long-lived process so aged non-permanent terminal rows are pruned without
+// a restart.
 func (c *Core) StartRetentionSweep(ctx context.Context) {
+	c.startRetentionSweep(ctx, RetentionSweepInterval)
+}
+
+// startRetentionSweep is the interval-parameterized loop behind
+// StartRetentionSweep so tests can run the ticker on a short cadence.
+func (c *Core) startRetentionSweep(ctx context.Context, interval time.Duration) {
 	if c == nil || ctx == nil {
 		return
 	}
 
-	ticker := time.NewTicker(RetentionSweepInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -125,10 +132,10 @@ func (c *Core) StartRetentionSweep(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := c.SweepExpiredPermanentReports(ctx); err != nil {
+			if err := c.sweepRetentionAndPrune(ctx); err != nil {
 				slog.WarnContext(
 					ctx,
-					"validatorcore: expired permanent report sweep failed",
+					"validatorcore: retention sweep failed",
 					"err",
 					err,
 				)

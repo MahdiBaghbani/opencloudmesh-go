@@ -129,7 +129,17 @@ func (c *Core) sweepPassiveSessionTTL(ctx context.Context) error {
 	return nil
 }
 
+// sweepRetentionAndPrune heals missing terminal statistics first so a later
+// tombstone or prune cannot wipe the origin and evidence those writes still
+// need, then tombstones expired permanent reports, then hard-deletes aged
+// non-permanent pass and fail rows and prunes aged stats_raw. A non-positive
+// TerminalRetentionDays skips the terminal and stats prune only; the heal
+// and permanent expiry sweep still run.
 func (c *Core) sweepRetentionAndPrune(ctx context.Context) error {
+	if err := c.HealMissingTerminalStats(ctx); err != nil {
+		return fmt.Errorf("heal missing terminal stats: %w", err)
+	}
+
 	if err := c.SweepExpiredPermanentReports(ctx); err != nil {
 		return fmt.Errorf("sweep expired permanent reports: %w", err)
 	}
