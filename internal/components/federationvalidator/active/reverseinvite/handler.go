@@ -37,9 +37,9 @@ type reverseInviteResponse struct {
 
 // HandleReverseInvite serves POST /validator/api/session/{id}/reverse-invite.
 // It validates the pasted invite against the active run's target host,
-// solicits the reverse leg as needed, pastes first-token-wins into
-// reverse_invite_accepted, and continues into product acceptance in the
-// same request.
+// pastes first-token-wins into reverse_invite_accepted, and continues into
+// product acceptance in the same request. Reverse solicitation is owned by
+// the active runner; paste is accepted only in reverse_awaiting_invite.
 func (s *Service) HandleReverseInvite(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "id")
 	if runID == "" {
@@ -79,13 +79,13 @@ func (s *Service) HandleReverseInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-
-	if err := s.SolicitReverse(ctx, runID); err != nil {
-		s.writeStepError(w, "solicit reverse invite", err)
+	if !pasteImportReady(run.State) {
+		api.WriteConflict(w, "session state does not allow this step")
 
 		return
 	}
+
+	ctx := r.Context()
 
 	invite, err := s.createOrReuseIncoming(ctx, req.InviteString, token, sender, *run.BobUserID)
 	if err != nil {
@@ -166,6 +166,13 @@ func (s *Service) parsePasteInvite(inviteString, targetHost string) (token, send
 	}
 
 	return token, sender, nil
+}
+
+// pasteImportReady reports whether poll may honestly show paste_s2. Paste
+// imports and accepts only in reverse_awaiting_invite; earlier and later
+// states are rejected without writes.
+func pasteImportReady(state string) bool {
+	return state == validatorcore.StateReverseAwaitingInvite
 }
 
 // writeStepError maps orchestration failures onto honest HTTP statuses.

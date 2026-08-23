@@ -275,14 +275,19 @@ func (e *courierMatrixEnv) postInviteAcceptedRaw(t *testing.T, token string) *ht
 	return rec
 }
 
-// pasteReverseInvite mints the peer's reverse invite token, pastes it through
-// the matrix router, and proves the accepted world: final state, exact
-// correlation, accepted incoming invite for Bob, and exactly one
-// reverse-invite accept evidence row. Returns the pasted token.
+// pasteReverseInvite solicits the reverse leg, mints the peer's reverse
+// invite token, pastes it through the matrix router, and proves the
+// accepted world: final state, exact correlation, accepted incoming invite
+// for Bob, and exactly one reverse-invite accept evidence row. Returns the
+// pasted token.
 func (e *courierMatrixEnv) pasteReverseInvite(t *testing.T, runID string) string {
 	t.Helper()
 
 	ctx := t.Context()
+
+	if err := e.reverseInvite.SolicitReverse(ctx, runID); err != nil {
+		t.Fatalf("solicit reverse: %v", err)
+	}
 
 	token := matrixInviteToken(t)
 	inviteString := invites.BuildInviteString(token, e.targetHost)

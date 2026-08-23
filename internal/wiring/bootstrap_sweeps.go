@@ -7,9 +7,52 @@ package wiring
 
 import (
 	"context"
+	"sync"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
+
+func newLateSweepStops(store *validatorcore.Core) *lateSweepStops {
+	if store == nil {
+		return nil
+	}
+
+	return &lateSweepStops{}
+}
+
+// lateSweepStops is a bag of stop funcs started after the store sweeps.
+// StopRetentionSweep joins the bag so a late-started runner cannot outlive
+// the existing shutdown seat.
+type lateSweepStops struct {
+	mu    sync.Mutex
+	stops []func()
+}
+
+func (s *lateSweepStops) Add(stop func()) {
+	if s == nil || stop == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.stops = append(s.stops, stop)
+}
+
+// Stop joins every registered late stop. Safe on a nil bag.
+func (s *lateSweepStops) Stop() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	stops := append([]func(){}, s.stops...)
+	s.mu.Unlock()
+
+	for _, stop := range stops {
+		stop()
+	}
+}
 
 // startStallSweep starts the hourly stalled active-run sweep after a
 // successful Attach, alongside the retention expiry loop. The returned func

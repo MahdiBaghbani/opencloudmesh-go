@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/forwardshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/runner"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -37,6 +38,7 @@ type validatorLegs struct {
 	reverseInvite *reverseinvite.Service
 	forwardShare  *forwardshare.Service
 	reverseShare  *reverseshare.Service
+	runner        *runner.Runner
 }
 
 // coreServiceBuilder builds one core service from config, logger, deps, and
@@ -97,7 +99,7 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[st
 	var legs *validatorLegs
 
 	if d.ValidatorStore != nil {
-		built, err := buildValidatorLegs(d, logger)
+		built, err := buildValidatorLegs(cfg, d, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -129,6 +131,10 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[st
 		}
 
 		services[desc.Name] = svc
+	}
+
+	if err := bindAndStartActiveRunner(services, d, legs); err != nil {
+		return nil, err
 	}
 
 	return services, nil
@@ -203,8 +209,10 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 
 // buildValidatorLegs assembles the active-session validator legs on the
 // shared stores: the reverse-invite orchestration on the live outbound
-// poster, and the forward-share dispatch guard on the outgoing share repo.
-func buildValidatorLegs(d *Deps, log *slog.Logger) (*validatorLegs, error) {
+// poster, the forward-share dispatch guard on the outgoing share repo,
+// and the stopped active runner. BindOutgoing then Start happen after
+// the API service exists.
+func buildValidatorLegs(cfg *config.Config, d *Deps, log *slog.Logger) (*validatorLegs, error) {
 	poster := api.NewInviteAcceptedPoster(outbound.NewPoster(
 		d.HTTPClient,
 		d.DiscoveryClient,
@@ -244,10 +252,16 @@ func buildValidatorLegs(d *Deps, log *slog.Logger) (*validatorLegs, error) {
 		return nil, fmt.Errorf("wiring: build reverse share service: %w", err)
 	}
 
+	activeRunner, err := newActiveRunner(cfg, d, reverseSvc, log)
+	if err != nil {
+		return nil, err
+	}
+
 	return &validatorLegs{
 		reverseInvite: reverseSvc,
 		forwardShare:  forwardSvc,
 		reverseShare:  reverseShareSvc,
+		runner:        activeRunner,
 	}, nil
 }
 
@@ -381,6 +395,11 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 		reverseShareSvc = legs.reverseShare
 	}
 
+	var activeRunner *runner.Runner
+	if legs != nil {
+		activeRunner = legs.runner
+	}
+
 	svc, err := validator.New(validator.Inputs{
 		Store:               d.ValidatorStore,
 		FedCore:             d.ValidatorCore,
@@ -395,6 +414,7 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 		ReverseShare:        reverseShareSvc,
 		PartyRepo:           d.PartyRepo,
 		LocalProviderDomain: d.LocalIdentity.ProviderDomain,
+		ActiveRunner:        activeRunner,
 	}, svcCfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("wiring: wire validator service: %w", err)

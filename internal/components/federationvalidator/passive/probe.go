@@ -37,7 +37,7 @@ type DiscoveryFetcher interface {
 	FetchFresh(ctx context.Context, baseURL string) (*discovery.FetchResult, error)
 }
 
-// ActiveKicker is the wake-only seam for a future active runner.
+// ActiveKicker is the wake-only seam for the active runner.
 // Kick is a buffered signal with no arguments. A nil kicker is a no-op
 // so an unbound runner never panics.
 type ActiveKicker interface {

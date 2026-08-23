@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -239,9 +240,9 @@ func assertOutboundAcceptance(t *testing.T, env *courierMatrixEnv, token, bobID 
 	}
 }
 
-// assertInSessionIdentityReuse repeats the mint, solicitation, paste, and
-// acceptance callback inside one session and proves the bound identities are
-// reused rather than rotated.
+// assertInSessionIdentityReuse repeats the mint and solicitation inside one
+// session and proves the bound identities are reused rather than rotated.
+// Replay paste after acceptance is rejected without another accept call.
 func assertInSessionIdentityReuse(t *testing.T, env *courierMatrixEnv, runID, outToken, reverseToken string) {
 	t.Helper()
 
@@ -260,7 +261,21 @@ func assertInSessionIdentityReuse(t *testing.T, env *courierMatrixEnv, runID, ou
 
 	posterCalls := env.poster.calls
 
-	env.postReverseInvite(t, runID, invites.BuildInviteString(reverseToken, env.targetHost))
+	inviteString := invites.BuildInviteString(reverseToken, env.targetHost)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/api/session/"+runID+"/reverse-invite",
+		strings.NewReader(`{"inviteString":"`+inviteString+`"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	pasteRec := httptest.NewRecorder()
+	env.pasteRouter.ServeHTTP(pasteRec, req)
+
+	if pasteRec.Code != http.StatusConflict {
+		t.Fatalf("replay paste status = %d, want 409: %s", pasteRec.Code, pasteRec.Body.String())
+	}
 
 	if env.poster.calls != posterCalls {
 		t.Fatalf("poster calls = %d, want unchanged %d", env.poster.calls, posterCalls)

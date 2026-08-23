@@ -247,6 +247,16 @@ func (s *Service) Prefix() string {
 	return string(service.BuildAPI)
 }
 
+// OutgoingShareHandler returns the outgoing-share handler used by HTTP
+// create and by the active runner's programmatic CreateAsUser path.
+func (s *Service) OutgoingShareHandler() *outgoingshares.Handler {
+	if s == nil {
+		return nil
+	}
+
+	return s.outgoingHandler
+}
+
 // Close performs no cleanup for this service; implements service.Service.
 func (s *Service) Close() error {
 	return nil

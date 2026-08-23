@@ -15,6 +15,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/runner"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
@@ -71,6 +72,10 @@ type Inputs struct {
 
 	// LocalProviderDomain is the realm written on the reverse-receiver party.
 	LocalProviderDomain string
+
+	// ActiveRunner is the kick and heal loop. When set, it is the probe
+	// wake seam and Close stops and joins it.
+	ActiveRunner *runner.Runner
 }
 
 // Service is the federation validator HTTP service shell.
@@ -78,6 +83,7 @@ type Service struct {
 	router chi.Router
 	conf   *Config
 	log    *slog.Logger
+	runner *runner.Runner
 }
 
 // New creates the validator service from narrow injected inputs.
@@ -107,11 +113,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		}
 
 		passiveHandler := passive.NewHandlerWithDeps(passive.ProbeDeps{
-			Store:     inputs.Store,
-			Discovery: inputs.DiscoveryClient,
-			HTTP:      inputs.HTTPClient,
-			Signer:    inputs.Signer,
-			Log:       log,
+			Store:      inputs.Store,
+			Discovery:  inputs.DiscoveryClient,
+			HTTP:       inputs.HTTPClient,
+			Signer:     inputs.Signer,
+			Log:        log,
+			ActiveKick: inputs.ActiveRunner,
 		})
 		if inputs.Config != nil {
 			passiveHandler.SetExternalBasePath(inputs.Config.ExternalBasePath)
@@ -153,7 +160,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		}
 	}
 
-	return &Service{router: r, conf: &c, log: log}, nil
+	return &Service{router: r, conf: &c, log: log, runner: inputs.ActiveRunner}, nil
 }
 
 func validateInputs(in Inputs) error {
@@ -193,7 +200,20 @@ func (s *Service) Prefix() string {
 	return "validator"
 }
 
-// Close performs no cleanup for this service; implements service.Service.
+// ActiveRunner returns the bound kick and heal loop, if any.
+func (s *Service) ActiveRunner() *runner.Runner {
+	if s == nil {
+		return nil
+	}
+
+	return s.runner
+}
+
+// Close stops and joins the active runner when one is bound.
 func (s *Service) Close() error {
+	if s != nil && s.runner != nil {
+		s.runner.Stop()
+	}
+
 	return nil
 }

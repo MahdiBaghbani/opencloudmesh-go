@@ -76,4 +76,9 @@ type Deps struct {
 
 	// ValidatorStore holds federation validator session persistence in validator mode.
 	ValidatorStore *validatorcore.Core
+
+	// lateStops collects process-lifetime stop funcs started after the
+	// store sweeps, such as the active runner. StopRetentionSweep joins
+	// them with the store sweeps.
+	lateStops *lateSweepStops
 }

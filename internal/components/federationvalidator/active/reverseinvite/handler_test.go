@@ -101,7 +101,7 @@ func TestHandleReverseInvite_ImportAndAcceptInOneRequest(t *testing.T) {
 	env := newTestEnv(t)
 	runID := "run-paste-happy"
 
-	env.seedRun(t, runID, validatorcore.StateInviteAccepted)
+	env.seedRun(t, runID, validatorcore.StateReverseAwaitingInvite)
 	bobID := env.bindBob(t, runID)
 
 	inviteString := invites.BuildInviteString("reverse-token-1", testTargetHost)
@@ -165,7 +165,7 @@ func TestHandleReverseInvite_DifferentTokenAfterOccupancyRejected(t *testing.T) 
 	env := newTestEnv(t)
 	runID := "run-paste-second-token"
 
-	env.seedRun(t, runID, validatorcore.StateInviteAccepted)
+	env.seedRun(t, runID, validatorcore.StateReverseAwaitingInvite)
 	env.bindBob(t, runID)
 
 	first := invites.BuildInviteString("reverse-token-1", testTargetHost)
@@ -224,8 +224,8 @@ func TestHandleReverseInvite_RetryAfterImportNotch(t *testing.T) {
 	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
 	rec := pasteInvite(t, env.pasteRouter(), runID, inviteString)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 after import (body %s)", rec.Code, rec.Body.String())
 	}
 
 	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
@@ -242,6 +242,10 @@ func TestHandleReverseInvite_RetryAfterImportNotch(t *testing.T) {
 	if got := env.countEvidence(t, runID); got != 1 {
 		t.Fatalf("evidence rows = %d, want 1", got)
 	}
+
+	if env.poster.calls != 0 {
+		t.Fatalf("poster calls = %d, want 0", env.poster.calls)
+	}
 }
 
 func TestHandleReverseInvite_RemoteConflictHealsAsSuccess(t *testing.T) {
@@ -250,7 +254,7 @@ func TestHandleReverseInvite_RemoteConflictHealsAsSuccess(t *testing.T) {
 	env := newTestEnv(t)
 	runID := "run-paste-remote-409"
 
-	env.seedRun(t, runID, validatorcore.StateInviteAccepted)
+	env.seedRun(t, runID, validatorcore.StateReverseAwaitingInvite)
 	env.bindBob(t, runID)
 
 	// The sender already accepted this invite: 409 with a decodable identity
@@ -278,7 +282,7 @@ func TestHandleReverseInvite_RemoteFailureLeavesImportNotch(t *testing.T) {
 	env := newTestEnv(t)
 	runID := "run-paste-remote-500"
 
-	env.seedRun(t, runID, validatorcore.StateInviteAccepted)
+	env.seedRun(t, runID, validatorcore.StateReverseAwaitingInvite)
 	env.bindBob(t, runID)
 
 	env.poster.status = http.StatusInternalServerError
@@ -291,26 +295,109 @@ func TestHandleReverseInvite_RemoteFailureLeavesImportNotch(t *testing.T) {
 		t.Fatalf("status = %d, want 502", rec.Code)
 	}
 
-	// The paste is durable: state is already accepted with sharing evidence,
-	// and the invite stays pending so a retry can complete product accept.
+	// The paste is durable: state is already accepted with sharing evidence.
+	// Later-state retry paste is rejected and must not call the peer again.
 	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
 	if got := env.countEvidence(t, runID); got != 1 {
 		t.Fatalf("evidence rows = %d, want 1 from the paste", got)
 	}
 
-	env.poster.status = http.StatusOK
-	env.poster.body = `{"userID":"sender@peer.example","email":"s@example","name":"Sender"}`
+	posterCalls := env.poster.calls
 
 	rec = pasteInvite(t, env.pasteRouter(), runID, inviteString)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("retry status = %d, want 200 (body %s)", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("retry status = %d, want 409 (body %s)", rec.Code, rec.Body.String())
 	}
 
 	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
 
 	if got := env.countEvidence(t, runID); got != 1 {
 		t.Fatalf("evidence rows after retry = %d, want 1", got)
+	}
+
+	if env.poster.calls != posterCalls {
+		t.Fatalf("poster calls after retry = %d, want %d", env.poster.calls, posterCalls)
+	}
+}
+
+func TestHandleReverseInvite_EarlyPasteBeforeSolicitRejected(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t)
+	ctx := t.Context()
+	runID := "run-paste-too-early"
+
+	env.seedRun(t, runID, validatorcore.StateInviteAccepted)
+	bobID := env.bindBob(t, runID)
+
+	inviteString := invites.BuildInviteString("reverse-token-early", testTargetHost)
+
+	rec := pasteInvite(t, env.pasteRouter(), runID, inviteString)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 (body %s)", rec.Code, rec.Body.String())
+	}
+
+	env.requireState(t, runID, validatorcore.StateInviteAccepted)
+
+	if _, err := env.store.GetShareCorrelation(ctx, runID, validatorcore.RoleIncomingInvite, validatorcore.LocalIdentityB); err == nil {
+		t.Fatal("correlation row exists after early paste")
+	}
+
+	if _, err := env.incoming.GetByTokenForRecipientUserID(ctx, "reverse-token-early", bobID); err == nil {
+		t.Fatal("incoming invite stored after early paste")
+	}
+
+	if env.poster.calls != 0 {
+		t.Fatalf("poster calls = %d, want 0", env.poster.calls)
+	}
+}
+
+func TestHandleReverseInvite_LaterStatePasteRejected(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		state string
+	}{
+		{name: "reverse_invite_accepted", state: validatorcore.StateReverseInviteAccepted},
+		{name: "forward_share_sent", state: validatorcore.StateForwardShareSent},
+		{name: "capability_exercise", state: validatorcore.StateCapabilityExercise},
+		{name: "reverse_awaiting_share", state: validatorcore.StateReverseAwaitingShare},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := newTestEnv(t)
+			ctx := t.Context()
+			runID := "run-paste-later-" + tc.name
+
+			env.seedRun(t, runID, tc.state)
+			bobID := env.bindBob(t, runID)
+
+			inviteString := invites.BuildInviteString("reverse-token-later", testTargetHost)
+
+			rec := pasteInvite(t, env.pasteRouter(), runID, inviteString)
+			if rec.Code != http.StatusConflict {
+				t.Fatalf("status = %d, want 409 (body %s)", rec.Code, rec.Body.String())
+			}
+
+			env.requireState(t, runID, tc.state)
+
+			if _, err := env.store.GetShareCorrelation(ctx, runID, validatorcore.RoleIncomingInvite, validatorcore.LocalIdentityB); err == nil {
+				t.Fatal("correlation row exists after later-state paste")
+			}
+
+			if _, err := env.incoming.GetByTokenForRecipientUserID(ctx, "reverse-token-later", bobID); err == nil {
+				t.Fatal("incoming invite stored after later-state paste")
+			}
+
+			if env.poster.calls != 0 {
+				t.Fatalf("poster calls = %d, want 0", env.poster.calls)
+			}
+		})
 	}
 }
 

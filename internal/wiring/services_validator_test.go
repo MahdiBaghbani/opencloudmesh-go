@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	apisvc "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/api"
+	validatorsvc "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/validator"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
@@ -58,6 +59,28 @@ func TestBuildCoreServices_ValidatorModeInstallsOutgoingDispatchHook(t *testing.
 
 	if got := hook.Elem().Type().String(); got != "*forwardshare.Service" {
 		t.Fatalf("dispatch hook type = %s, want *forwardshare.Service", got)
+	}
+
+	validatorSvc, ok := services["validator"].(*validatorsvc.Service)
+	if !ok {
+		t.Fatalf("validator service is %T, not *validator.Service", services["validator"])
+	}
+
+	if validatorSvc.ActiveRunner() == nil {
+		t.Fatal("validator mode must start the active runner")
+	}
+
+	apiSvc, ok := services["api"].(*apisvc.Service)
+	if !ok {
+		t.Fatalf("api service is %T, not *api.Service", services["api"])
+	}
+
+	if apiSvc.OutgoingShareHandler() == nil {
+		t.Fatal("validator mode must expose the outgoing share handler")
+	}
+
+	if closeErr := validatorSvc.Close(); closeErr != nil {
+		t.Fatalf("validator.Close: %v", closeErr)
 	}
 }
 

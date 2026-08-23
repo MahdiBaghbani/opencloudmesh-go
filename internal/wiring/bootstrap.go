@@ -80,7 +80,8 @@ type BuildResult struct {
 
 	// StopRetentionSweep cancels the store-level maintenance tickers started
 	// after a successful Attach (the permanent-report expiry loop and the
-	// stalled active-run sweep) and waits for both goroutines to return.
+	// stalled active-run sweep) plus any late-started seats such as the
+	// active runner, and waits for those goroutines to return.
 	// Nil when the validator store is not wired.
 	// Call on process shutdown before Persistence.Close.
 	StopRetentionSweep context.CancelFunc
@@ -194,6 +195,8 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, err
 	}
 
+	lateStops := newLateSweepStops(validatorStore)
+
 	built := &Deps{
 		PartyRepo:           partyRepo,
 		SessionRepo:         sessionRepo,
@@ -218,13 +221,14 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		RealIP:              realIPExtractor,
 		ValidatorCore:       validatorCore,
 		ValidatorStore:      validatorStore,
+		lateStops:           lateStops,
 	}
 
 	return BuildResult{
 		Deps:               built,
 		RootCAPool:         rootCAPool,
 		Persistence:        persistence,
-		StopRetentionSweep: joinStoreSweepStops(startRetentionSweep(validatorStore), startStallSweep(validatorStore)),
+		StopRetentionSweep: joinStoreSweepStops(startRetentionSweep(validatorStore), startStallSweep(validatorStore), lateStops.Stop),
 	}, nil
 }
 
