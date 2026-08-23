@@ -218,3 +218,47 @@ func TestRunner_NewRequiresDeps(t *testing.T) {
 		t.Fatal("expected error for empty deps")
 	}
 }
+
+func TestRunner_ReverseShareWaitTimesOutAndFlipsLate(t *testing.T) {
+	t.Parallel()
+
+	env := newStubEnv(t, nil, nil)
+	runID := "run-reverse-wait-timeout"
+
+	cfg := validatorcore.DefaultSessionConfig()
+	cfg.ReverseShareTimeoutSeconds = 1
+	cfg.StallTimeoutSeconds = 5
+	env.store.SetSessionConfig(cfg)
+
+	env.seedActive(t, runID, validatorcore.StateReverseAwaitingShare)
+
+	stale := time.Now().Unix() - 2
+	env.ageUpdatedAt(t, runID, stale)
+
+	fast := env.startFastRunner(t, 20*time.Millisecond)
+	t.Cleanup(fast.Stop)
+
+	time.Sleep(100 * time.Millisecond)
+	env.requireUpdatedAt(t, runID, stale)
+
+	if sweepErr := env.store.SweepStalledActiveSessions(t.Context()); sweepErr != nil {
+		t.Fatalf("SweepStalledActiveSessions: %v", sweepErr)
+	}
+
+	env.requireInactive(t, runID)
+	env.requireState(t, runID, validatorcore.StateInterrupted)
+	env.requireReason(t, runID, validatorcore.ReasonReverseShareTimeout)
+
+	flipped, flipErr := env.store.FlipLateReverseShareToPass(t.Context(), runID)
+	if flipErr != nil {
+		t.Fatalf("FlipLateReverseShareToPass: %v", flipErr)
+	}
+
+	if !flipped {
+		t.Fatal("late reverse share did not flip the timed-out run")
+	}
+
+	env.requireInactive(t, runID)
+	env.requireState(t, runID, validatorcore.StateTerminalPass)
+	env.requireReason(t, runID, validatorcore.ReasonLateReverseShare)
+}

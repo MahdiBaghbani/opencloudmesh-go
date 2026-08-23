@@ -370,6 +370,72 @@ func (e *testEnv) requireReason(t *testing.T, runID, want string) {
 	}
 }
 
+func (e *testEnv) ageUpdatedAt(t *testing.T, runID string, at int64) {
+	t.Helper()
+
+	if err := e.store.DB().WithContext(t.Context()).Model(&validatorcore.TestRun{}).
+		Where("test_run_id = ?", runID).
+		Update("updated_at", at).Error; err != nil {
+		t.Fatalf("age updated_at: %v", err)
+	}
+}
+
+func (e *testEnv) requireUpdatedAt(t *testing.T, runID string, want int64) {
+	t.Helper()
+
+	run, err := e.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.UpdatedAt != want {
+		t.Fatalf("updated_at = %d, want %d", run.UpdatedAt, want)
+	}
+}
+
+func (e *testEnv) requireInactive(t *testing.T, runID string) {
+	t.Helper()
+
+	run, err := e.store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if run.IsActive {
+		t.Fatalf("%s is_active = 1, want 0", runID)
+	}
+}
+
+func (e *testEnv) startFastRunner(t *testing.T, poll time.Duration) *runner.Runner {
+	t.Helper()
+
+	var invites runner.InviteDriver
+	if e.invites != nil {
+		invites = e.invites
+	} else {
+		invites = e.svc
+	}
+
+	fast, err := runner.New(runner.Deps{
+		Store:         e.store,
+		Invites:       invites,
+		Parties:       e.parties,
+		LocalIdentity: testLocalIdentity(),
+		ProbeEmail:    testProbeEmail,
+		ProbeName:     testProbeName,
+		ProbeFilePath: createProbeFile(t),
+		PollInterval:  poll,
+	})
+	if err != nil {
+		t.Fatalf("runner.New: %v", err)
+	}
+
+	fast.BindOutgoing(e.out)
+	fast.Start()
+
+	return fast
+}
+
 func seedReadyWaiter(t *testing.T, store *validatorcore.Core, runID string, readyAt int64) {
 	t.Helper()
 

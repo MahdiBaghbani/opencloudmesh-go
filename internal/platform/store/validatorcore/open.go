@@ -19,8 +19,17 @@ import (
 
 // Attach wraps an existing GORM handle (for example from sqlitecore), applies
 // the explicit validator schema on that handle, then runs startup maintenance.
-// Callers outside validator mode must not invoke Attach.
+// Callers outside validator mode must not invoke Attach. When startup
+// maintenance must heal missing terminal statistics, use
+// AttachWithStatsHasher so the hasher is installed before that pass.
 func Attach(db *gorm.DB, cfg SessionConfig) (*Core, error) {
+	return AttachWithStatsHasher(db, cfg, nil)
+}
+
+// AttachWithStatsHasher is Attach plus a stats hasher installed before
+// startup maintenance, so missing terminal statistics can be written
+// before a later tombstone or prune wipes the origin those writes need.
+func AttachWithStatsHasher(db *gorm.DB, cfg SessionConfig, hasher StatsHostHasher) (*Core, error) {
 	if db == nil {
 		return nil, errors.New("validatorcore: nil db")
 	}
@@ -31,6 +40,10 @@ func Attach(db *gorm.DB, cfg SessionConfig) (*Core, error) {
 
 	core := NewCore(db)
 	core.sessionCfg = cfg
+
+	if hasher != nil {
+		core.SetStatsHostHasher(hasher)
+	}
 
 	if err := core.startupMaintenance(context.Background()); err != nil {
 		return nil, fmt.Errorf("validatorcore: startup maintenance: %w", err)

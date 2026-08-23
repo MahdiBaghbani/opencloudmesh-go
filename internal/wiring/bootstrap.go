@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
@@ -183,14 +185,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, err
 	}
 
-	// Resolve the validator store before building validator core so JSON (or
-	// other non-SQLite) persistence fails before redaction salt I/O runs.
-	validatorStore, err := buildValidatorStore(cfg, persistence)
-	if err != nil {
-		return BuildResult{}, err
-	}
-
-	validatorCore, err := buildValidatorCore(cfg)
+	validatorCore, validatorStore, err := buildValidatorPersistence(cfg, persistence)
 	if err != nil {
 		return BuildResult{}, err
 	}
@@ -434,7 +429,33 @@ func buildValidatorCore(cfg *config.Config) (*core.Core, error) {
 	return validatorCore, nil
 }
 
-func buildValidatorStore(cfg *config.Config, persistence *repos.Repos) (*validatorcore.Core, error) {
+// buildValidatorPersistence resolves the shared SQLite handle first so JSON
+// (or other non-SQLite) persistence fails before redaction salt I/O, then
+// builds the hasher and attaches the store so startup maintenance can heal
+// missing terminal statistics before tombstone or prune.
+func buildValidatorPersistence(
+	cfg *config.Config,
+	persistence *repos.Repos,
+) (*core.Core, *validatorcore.Core, error) {
+	validatorDB, err := resolveValidatorSharedDB(cfg, persistence)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	validatorCore, err := buildValidatorCore(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	validatorStore, err := buildValidatorStore(cfg, validatorDB, validatorCore)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return validatorCore, validatorStore, nil
+}
+
+func resolveValidatorSharedDB(cfg *config.Config, persistence *repos.Repos) (*gorm.DB, error) {
 	if !config.IsValidatorMode(cfg) {
 		return nil, nil //nolint:nilnil // validator store is absent outside validator mode
 	}
@@ -448,9 +469,25 @@ func buildValidatorStore(cfg *config.Config, persistence *repos.Repos) (*validat
 		return nil, fmt.Errorf("resolve shared SQLite handle for validator store: %w", err)
 	}
 
+	return db, nil
+}
+
+func buildValidatorStore(
+	cfg *config.Config,
+	db *gorm.DB,
+	hasher validatorcore.StatsHostHasher,
+) (*validatorcore.Core, error) {
+	if !config.IsValidatorMode(cfg) {
+		return nil, nil //nolint:nilnil // validator store is absent outside validator mode
+	}
+
+	if db == nil {
+		return nil, errors.New("validator store requires initialized persistence repos")
+	}
+
 	sessionCfg := config.SessionConfigFromValidator(cfg)
 
-	store, err := validatorcore.Attach(db, sessionCfg)
+	store, err := validatorcore.AttachWithStatsHasher(db, sessionCfg, hasher)
 	if err != nil {
 		return nil, fmt.Errorf("attach validator store: %w", err)
 	}

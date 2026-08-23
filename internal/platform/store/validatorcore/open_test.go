@@ -46,6 +46,106 @@ func TestAttach_CreatesValidatorSchemaOnSharedHandle(t *testing.T) {
 	}
 }
 
+func TestAttachWithStatsHasher_ReopenHealsStatsBeforeTombstone(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	id := "run-reopen-heal-before-wipe"
+	seedClosedOptedInExpiredPermanent(t, dir, id)
+
+	second, openErr := sqlitecore.Open(dir)
+	if openErr != nil {
+		t.Fatalf("sqlitecore.Open second: %v", openErr)
+	}
+
+	t.Cleanup(func() {
+		if closeErr := second.Close(); closeErr != nil {
+			t.Errorf("sqlitecore.Close second: %v", closeErr)
+		}
+	})
+
+	hasher := testStatsHostHasher(t)
+
+	core, attachErr := AttachWithStatsHasher(second.DB(), retentionSweepSessionConfig(30), hasher)
+	if attachErr != nil {
+		t.Fatalf("AttachWithStatsHasher: %v", attachErr)
+	}
+
+	requireHealedThenTombstoned(t, core, id)
+}
+
+func seedClosedOptedInExpiredPermanent(t *testing.T, dir, id string) {
+	t.Helper()
+
+	ctx := t.Context()
+	now := time.Now().Unix()
+	finished := now - 3600
+	expires := now - 60
+
+	first, openErr := sqlitecore.Open(dir)
+	if openErr != nil {
+		t.Fatalf("sqlitecore.Open first: %v", openErr)
+	}
+
+	if schemaErr := ApplyValidatorSchema(first.DB()); schemaErr != nil {
+		t.Fatalf("ApplyValidatorSchema: %v", schemaErr)
+	}
+
+	seeder := NewCore(first.DB())
+	seedExpiredPermanentRun(t, seeder.DB(), ctx, id, finished, expires)
+	mustExec(t, seeder.DB(), "UPDATE test_run SET opt_in_stats = 1 WHERE test_run_id = '"+id+"'")
+	seedEvidenceRow(
+		t,
+		seeder,
+		id,
+		evidenceLegPassive,
+		SpecificationAreaDiscovery,
+		"request",
+		"probed",
+		GradePass,
+		true,
+	)
+
+	if closeErr := first.Close(); closeErr != nil {
+		t.Fatalf("sqlitecore.Close first: %v", closeErr)
+	}
+}
+
+func requireHealedThenTombstoned(t *testing.T, core *Core, id string) {
+	t.Helper()
+
+	requireStatsWrittenAt(t, core, id, true)
+
+	if count := countStatsRaw(t, core); count != 1 {
+		t.Fatalf("stats_raw count = %d, want 1 (heal must land before PII wipe)", count)
+	}
+
+	var raw StatsRaw
+	if loadErr := core.DB().WithContext(t.Context()).First(&raw).Error; loadErr != nil {
+		t.Fatalf("load healed stats_raw: %v", loadErr)
+	}
+
+	if raw.HostHash == "" {
+		t.Fatal("healed host_hash is empty, want a hash from the pre-wipe origin")
+	}
+
+	if raw.GradeDiscovery == nil || *raw.GradeDiscovery != GradePass {
+		t.Fatalf(
+			"healed grade_discovery = %v, want %q from evidence read before tombstone",
+			raw.GradeDiscovery,
+			GradePass,
+		)
+	}
+
+	got, getErr := core.GetTestRun(t.Context(), id)
+	if getErr != nil {
+		t.Fatalf("GetTestRun: %v (parent must survive as a tombstone)", getErr)
+	}
+
+	assertHardExpiryTombstone(t, got)
+	assertChildRowCount(t, core.DB(), "evidence_row", id, 0)
+}
+
 func TestPruneTerminalRetention_PrunesStatsRaw(t *testing.T) {
 	t.Parallel()
 

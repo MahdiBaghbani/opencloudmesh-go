@@ -56,6 +56,11 @@ func (r *Runner) driveActive(ctx context.Context, run *validatorcore.TestRun) {
 		r.driveSolicit(ctx, run)
 	case validatorcore.StateReverseInviteAccepted:
 		r.driveDispatch(ctx, run)
+	case validatorcore.StateCapabilityExercise, validatorcore.StateReverseAwaitingShare:
+		// Peer waits are clocked by the stall sweep from updated_at age.
+		// Refreshing the stamp would hide a stuck remote and hold the
+		// active lock forever.
+		return
 	default:
 		r.touchWait(ctx, run)
 	}

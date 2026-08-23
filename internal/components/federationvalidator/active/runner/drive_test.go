@@ -86,26 +86,50 @@ func TestDriveOnce_InviteAcceptedAutoSolicits(t *testing.T) {
 	env.requireState(t, runID, validatorcore.StateReverseAwaitingInvite)
 }
 
-func TestDriveOnce_NoopStatesTouchUpdatedAt(t *testing.T) {
+func TestDriveOnce_NoopStatesTouchPolicy(t *testing.T) {
 	t.Parallel()
 
-	states := []string{
-		validatorcore.StateInviteMinted,
-		validatorcore.StateReverseAwaitingInvite,
-		validatorcore.StateForwardShareSent,
-		validatorcore.StateCapabilityExercise,
-		validatorcore.StateReverseAwaitingShare,
+	tests := []struct {
+		name      string
+		state     string
+		wantTouch bool
+	}{
+		{
+			name:      "invite minted",
+			state:     validatorcore.StateInviteMinted,
+			wantTouch: true,
+		},
+		{
+			name:      "reverse awaiting invite",
+			state:     validatorcore.StateReverseAwaitingInvite,
+			wantTouch: true,
+		},
+		{
+			name:      "forward share sent",
+			state:     validatorcore.StateForwardShareSent,
+			wantTouch: true,
+		},
+		{
+			name:      "capability exercise",
+			state:     validatorcore.StateCapabilityExercise,
+			wantTouch: false,
+		},
+		{
+			name:      "reverse awaiting share",
+			state:     validatorcore.StateReverseAwaitingShare,
+			wantTouch: false,
+		},
 	}
 
-	for _, state := range states {
-		t.Run(state, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			env := newStubEnv(t, nil, nil)
-			runID := "run-noop-" + state
+			runID := "run-noop-" + tt.state
 			stale := time.Now().Unix() - 3600
 
-			env.seedActive(t, runID, state)
+			env.seedActive(t, runID, tt.state)
 
 			if err := env.store.DB().WithContext(t.Context()).Model(&validatorcore.TestRun{}).
 				Where("test_run_id = ?", runID).
@@ -114,15 +138,19 @@ func TestDriveOnce_NoopStatesTouchUpdatedAt(t *testing.T) {
 			}
 
 			env.runner.DriveOnce(t.Context())
-			env.requireState(t, runID, state)
+			env.requireState(t, runID, tt.state)
 
 			run, err := env.store.GetTestRun(t.Context(), runID)
 			if err != nil {
 				t.Fatalf("GetTestRun: %v", err)
 			}
 
-			if run.UpdatedAt <= stale {
-				t.Fatalf("updated_at = %d, want fresher than %d", run.UpdatedAt, stale)
+			if tt.wantTouch {
+				if run.UpdatedAt <= stale {
+					t.Fatalf("updated_at = %d, want fresher than %d", run.UpdatedAt, stale)
+				}
+			} else if run.UpdatedAt != stale {
+				t.Fatalf("updated_at = %d, want unchanged %d", run.UpdatedAt, stale)
 			}
 
 			if env.invites.mints != 0 || env.invites.solicits != 0 || env.out.calls != 0 {
