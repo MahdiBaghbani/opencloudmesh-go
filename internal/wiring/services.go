@@ -388,10 +388,13 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 
 	var reverseSvc *reverseinvite.Service
 
+	var forwardSvc *forwardshare.Service
+
 	var reverseShareSvc *reverseshare.Service
 
 	if legs != nil {
 		reverseSvc = legs.reverseInvite
+		forwardSvc = legs.forwardShare
 		reverseShareSvc = legs.reverseShare
 	}
 
@@ -411,6 +414,7 @@ func buildValidatorService(cfg *config.Config, svcCfg map[string]any, log *slog.
 		InterceptorProfiles: profiles,
 		Log:                 log,
 		ReverseInvite:       reverseSvc,
+		ForwardShare:        forwardSvc,
 		ReverseShare:        reverseShareSvc,
 		PartyRepo:           d.PartyRepo,
 		LocalProviderDomain: d.LocalIdentity.ProviderDomain,

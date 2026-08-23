@@ -13,9 +13,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/forwardshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/runner"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
@@ -57,9 +59,11 @@ type Inputs struct {
 	Log                 *slog.Logger
 
 	// ReverseInvite is the prebuilt reverse-invite orchestration service. The
-	// paste route mounts only when it is present; wiring builds it once and
-	// shares the instance with the ocm invite-accepted decorator.
+	// paste route mounts only when ReverseInviteAvailable is true.
 	ReverseInvite *reverseinvite.Service
+
+	// ForwardShare is the prebuilt forward-share leg. Presence feeds Caps.
+	ForwardShare *forwardshare.Service
 
 	// ReverseShare is the prebuilt reverse-share leg. When present, its wait
 	// opener wraps the session poll route so a session still in the
@@ -112,6 +116,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			inputs.Store.SetStatsHostHasher(inputs.FedCore)
 		}
 
+		caps := capsFromInputs(inputs)
 		passiveHandler := passive.NewHandlerWithDeps(passive.ProbeDeps{
 			Store:      inputs.Store,
 			Discovery:  inputs.DiscoveryClient,
@@ -120,6 +125,8 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 			Log:        log,
 			ActiveKick: inputs.ActiveRunner,
 		})
+		passiveHandler.SetCaps(caps)
+
 		if inputs.Config != nil {
 			passiveHandler.SetExternalBasePath(inputs.Config.ExternalBasePath)
 		}
@@ -145,19 +152,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		}
 
 		var reverseHandler http.HandlerFunc
-		if inputs.ReverseInvite != nil {
+		if caps.ReverseInviteAvailable() && inputs.ReverseInvite != nil {
 			reverseHandler = inputs.ReverseInvite.HandleReverseInvite
-		} else {
-			// The paste route stays unmounted and unadvertised; make the gap
-			// observable instead of silently dropping the route.
+		} else if inputs.ReverseInvite == nil {
 			log.Warn("validator: reverse-invite service not wired, paste route disabled")
 		}
 
 		mountValidatorRoutes(r, passiveHandler, startRatelimit, reverseHandler, reverseWaitOpen)
-
-		if reverseHandler != nil {
-			markReverseInviteRouteMounted()
-		}
 	}
 
 	return &Service{router: r, conf: &c, log: log, runner: inputs.ActiveRunner}, nil
@@ -188,6 +189,16 @@ func reverseReceiverProbe(cfg *config.Config) (email, displayName string) {
 	}
 
 	return email, displayName
+}
+
+func capsFromInputs(in Inputs) catalog.Caps {
+	return catalog.Caps{
+		Runner:        in.ActiveRunner != nil,
+		ReverseInvite: in.ReverseInvite != nil,
+		ForwardShare:  in.ForwardShare != nil,
+		ReverseShare:  in.ReverseShare != nil,
+		Abort:         in.ActiveRunner != nil,
+	}
 }
 
 // Handler returns the service HTTP handler; implements service.Service.

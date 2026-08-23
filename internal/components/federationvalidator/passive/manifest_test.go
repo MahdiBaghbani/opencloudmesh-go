@@ -13,6 +13,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
@@ -20,6 +23,7 @@ func TestHandleManifest_ReturnsManifestV1Schema(t *testing.T) {
 	t.Parallel()
 
 	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.FullCaps())
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/manifest", nil)
 	rec := httptest.NewRecorder()
@@ -51,6 +55,8 @@ func TestHandleManifest_SchemaVersionsIncludeLiveSchemas(t *testing.T) {
 	wantSchemas := []string{
 		manifestSchema,
 		scanSchema,
+		startSchema,
+		sessionSchema,
 		statisticsSchema,
 		reportSchema,
 	}
@@ -64,9 +70,69 @@ func TestHandleManifest_AdvertisedRoutesMatchMountedAPIRoutes(t *testing.T) {
 	t.Parallel()
 
 	mounted := mountedRouteSet(t, newPlaneATestRouter(t))
-	advertised := advertisedRouteSet(BuildManifest().Routes)
+	advertised := advertisedRouteSet(planeAAdvertised(BuildManifest().Routes))
 
 	assertSymmetricRouteSets(t, mounted, advertised)
+}
+
+func TestHandleManifest_EmptyCapsMatchMountedRoutes(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(openHandlerTestStore(t), nil)
+	r := chi.NewRouter()
+	MountPlaneARoutes(r, h, nil)
+
+	assertSymmetricRouteSets(
+		t,
+		mountedRouteSet(t, r),
+		advertisedRouteSet(planeAAdvertised(buildManifestFor("", catalog.Caps{}).Routes)),
+	)
+}
+
+func TestHandleManifest_EmptyCapsOmitsUnfinished(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(openHandlerTestStore(t), nil)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/manifest", nil)
+	rec := httptest.NewRecorder()
+	h.HandleManifest(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, key := range []string{"scan", "abort", "identityBinding"} {
+		if _, ok := raw[key]; ok {
+			t.Fatalf("empty caps advertised %s", key)
+		}
+	}
+
+	optIn := mustRawObject(t, raw["optIn"], "optIn")
+	assertExactKeys(t, mustRawObject(t, optIn["start"], "optIn start"), []string{"optInPermanent", "optInStats"})
+
+	var sessionKind manifestSessionKindMeta
+	if err := json.Unmarshal(raw["sessionKind"], &sessionKind); err != nil {
+		t.Fatalf("sessionKind: %v", err)
+	}
+
+	if slices.Contains(sessionKind.Supported, validatorcore.SessionKindActiveFull) {
+		t.Fatal("empty caps advertised active_full")
+	}
+
+	var reverseInvite manifestAvailabilityMeta
+	if err := json.Unmarshal(raw["reverseInvite"], &reverseInvite); err != nil {
+		t.Fatalf("reverseInvite: %v", err)
+	}
+
+	if reverseInvite.Available {
+		t.Fatal("empty caps advertised reverseInvite.available true")
+	}
 }
 
 func TestHandleManifest_AdvertisesSessionAndReport(t *testing.T) {
@@ -156,6 +222,11 @@ func TestHandleManifest_ScanSchemaMatchesLiveHandler(t *testing.T) {
 	}
 
 	assertRequiredScanQuery(t, scan.Request.Query, "target")
+
+	if scan.Request.Query["target"].Description != "URL or OCM id" {
+		t.Fatalf("scan target description = %q, want URL or OCM id", scan.Request.Query["target"].Description)
+	}
+
 	assertOptionalScanOptInQuery(t, scan.Request.Query, optInQueryContribute)
 	assertOptionalScanOptInQuery(t, scan.Request.Query, optInQueryPermanent)
 
@@ -240,7 +311,9 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/manifest", nil)
 	rec := httptest.NewRecorder()
-	NewHandler(openHandlerTestStore(t), nil).HandleManifest(rec, req)
+	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.FullCaps())
+	h.HandleManifest(rec, req)
 
 	var raw map[string]json.RawMessage
 	if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
@@ -248,8 +321,11 @@ func TestHandleManifest_AdditiveFieldDiscipline(t *testing.T) {
 	}
 
 	wantTopLevel := []string{
+		"abort",
 		"apiVersion",
 		"contribute",
+		"identityBinding",
+		"nextInstruction",
 		"optIn",
 		"permanent",
 		"platform",
@@ -439,6 +515,7 @@ func TestHandleManifest_ServesReverseInviteAvailable(t *testing.T) {
 	t.Parallel()
 
 	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.FullCaps())
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/manifest", nil)
 	rec := httptest.NewRecorder()

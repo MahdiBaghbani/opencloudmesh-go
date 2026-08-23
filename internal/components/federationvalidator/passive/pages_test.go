@@ -15,10 +15,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/net/html"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 )
 
 func newStartPageTestRouter(t *testing.T, h *Handler) chi.Router {
 	t.Helper()
+
+	h.SetCaps(catalog.FullCaps())
 
 	r := chi.NewRouter()
 	MountStartPage(r, h)
@@ -189,6 +193,7 @@ func TestHandleStart_FormURLEncodedOptInActive(t *testing.T) {
 
 	store := openHandlerTestStore(t)
 	h := NewHandler(store, nil)
+	allowActiveExtend(h)
 
 	form := url.Values{}
 	form.Set("target", "https://peer.example")

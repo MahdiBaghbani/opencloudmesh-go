@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
@@ -126,8 +127,10 @@ func TestMountPlaneARoutes_ManifestRoutesMatchAdvertised(t *testing.T) {
 		mountedSet[route] = struct{}{}
 	}
 
-	advertisedSet := make(map[passive.MountedAPIRoute]struct{}, len(passive.MountedAPIRoutes()))
-	for _, route := range passive.MountedAPIRoutes() {
+	advertised := passive.MountedAPIRoutesFor(passiveHandler.Caps())
+	advertisedSet := make(map[passive.MountedAPIRoute]struct{}, len(advertised))
+
+	for _, route := range advertised {
 		advertisedSet[route] = struct{}{}
 	}
 
@@ -141,6 +144,66 @@ func TestMountPlaneARoutes_ManifestRoutesMatchAdvertised(t *testing.T) {
 		if _, ok := mountedSet[route]; !ok {
 			t.Errorf("advertised route not mounted: method=%s full_path=%s", route.Method, route.FullPath)
 		}
+	}
+}
+
+func TestMountValidatorRoutes_AdvertisedMatchesCompleteWalk(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		caps  catalog.Caps
+		paste http.HandlerFunc
+	}{
+		{name: "empty", caps: catalog.Caps{}},
+		{
+			name: "full",
+			caps: catalog.FullCaps(),
+			paste: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := passive.NewHandler(openMountTestStore(t), nil)
+			h.SetCaps(tc.caps)
+
+			r := chi.NewRouter()
+			mountValidatorRoutes(r, h, nil, tc.paste, nil)
+
+			mounted, err := passive.EnumeratePlaneARoutes(r)
+			if err != nil {
+				t.Fatalf("EnumeratePlaneARoutes: %v", err)
+			}
+
+			mountedSet := make(map[passive.MountedAPIRoute]struct{}, len(mounted))
+			for _, route := range mounted {
+				mountedSet[route] = struct{}{}
+			}
+
+			advertised := passive.MountedAPIRoutesFor(tc.caps)
+			advertisedSet := make(map[passive.MountedAPIRoute]struct{}, len(advertised))
+
+			for _, route := range advertised {
+				advertisedSet[route] = struct{}{}
+			}
+
+			for route := range mountedSet {
+				if _, ok := advertisedSet[route]; !ok {
+					t.Errorf("mounted route not advertised: method=%s full_path=%s", route.Method, route.FullPath)
+				}
+			}
+
+			for route := range advertisedSet {
+				if _, ok := mountedSet[route]; !ok {
+					t.Errorf("advertised route not mounted: method=%s full_path=%s", route.Method, route.FullPath)
+				}
+			}
+		})
 	}
 }
 

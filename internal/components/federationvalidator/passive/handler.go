@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -32,6 +33,7 @@ type Handler struct {
 	store            *validatorcore.Core
 	probe            *ProbeRunner
 	log              *slog.Logger
+	caps             catalog.Caps
 	externalBasePath string
 	receiverMu       sync.Mutex
 	parties          identity.PartyRepo
@@ -76,6 +78,28 @@ func NewHandlerWithDeps(deps ProbeDeps) *Handler {
 	h.bindPromoteFollowUp()
 
 	return h
+}
+
+// SetCaps records the capability set used for mount, advertisement, and
+// fail-closed active extension.
+func (h *Handler) SetCaps(caps catalog.Caps) {
+	if h == nil {
+		return
+	}
+
+	h.caps = caps
+	if h.probe != nil {
+		h.probe.canExtend = func() bool { return h.caps.ReverseInviteAvailable() }
+	}
+}
+
+// Caps returns the capability set bound to this handler.
+func (h *Handler) Caps() catalog.Caps {
+	if h == nil {
+		return catalog.Caps{}
+	}
+
+	return h.caps
 }
 
 type startCreateResponse struct {
@@ -231,6 +255,12 @@ func (h *Handler) handleCreateSession(
 	target string,
 	opt sessionOptIn,
 ) {
+	if opt.Active && !h.caps.ReverseInviteAvailable() {
+		writeJSONError(w, h.log, http.StatusBadRequest, codeOptInActiveUnavailable, msgOptInActiveUnavailable)
+
+		return
+	}
+
 	parsed, err := parseTarget(target)
 	if err != nil {
 		writeJSONError(w, h.log, http.StatusBadRequest, "invalid_request", targetClientMessage(err))
@@ -300,7 +330,7 @@ func (h *Handler) promoteReadyWaiter(ctx context.Context, testRunID string) erro
 		return h.probe.promoteOrWait(ctx, testRunID)
 	}
 
-	if h == nil || h.store == nil {
+	if h == nil || h.store == nil || !h.caps.ReverseInviteAvailable() {
 		return nil
 	}
 

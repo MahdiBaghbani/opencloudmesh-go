@@ -8,29 +8,22 @@ package passive
 import (
 	"fmt"
 	"net/http"
-	"strings"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
-// PlaneAAPIRoutePatterns holds service-relative GET /api/* patterns for plane-A.
-type PlaneAAPIRoutePatterns struct {
-	Scan       string
-	Session    string
-	Manifest   string
-	Statistics string
-	Report     string
-}
-
-// MountPlaneARoutes registers plane-A validator routes on r. startRatelimit may
-// be nil to skip the shared wrapper on POST /start and the invite claim.
+// MountPlaneARoutes registers catalog plane-A routes on r. startRatelimit may
+// be nil to skip the shared wrapper on rate-limited catalog rows.
 func MountPlaneARoutes(
 	r chi.Router,
 	h *Handler,
 	startRatelimit func(http.Handler) http.Handler,
-	api PlaneAAPIRoutePatterns,
 ) {
-	MountPlaneARoutesWithHeal(r, h, startRatelimit, api, nil)
+	MountPlaneARoutesWithHeal(r, h, startRatelimit, nil)
 }
 
 // MountPlaneARoutesWithHeal is MountPlaneARoutes plus an optional reverse-share
@@ -40,42 +33,43 @@ func MountPlaneARoutesWithHeal(
 	r chi.Router,
 	h *Handler,
 	startRatelimit func(http.Handler) http.Handler,
-	api PlaneAAPIRoutePatterns,
 	reverseWaitOpen ReverseWaitOpener,
 ) {
-	start := CreateSessionRouteSpec()
-	stop := StopSessionRouteSpec()
-
-	mountRateLimited(r, startRatelimit, start.Method, start.Pattern, http.HandlerFunc(h.HandleStart))
-
-	sessionHandler := http.HandlerFunc(h.HandleSession)
-	if reverseWaitOpen != nil {
-		sessionHandler = healReverseWaitOnPoll(h.store, h.log, reverseWaitOpen, sessionHandler)
+	caps := catalog.Caps{}
+	if h != nil {
+		caps = h.Caps()
 	}
 
-	r.Method(stop.Method, stop.Pattern, http.HandlerFunc(h.HandleStop))
+	handlers := planeAHandlers(h, reverseWaitOpen)
 
-	claim := ClaimInviteRouteSpec()
-	mountRateLimited(r, startRatelimit, claim.Method, claim.Pattern, http.HandlerFunc(h.HandleClaimInvite))
+	for _, def := range catalog.Routes() {
+		if !shouldMountPlaneA(def, caps) {
+			continue
+		}
 
-	abort := AbortSessionRouteSpec()
-	r.Method(abort.Method, abort.Pattern, http.HandlerFunc(h.HandleAbort))
-	r.Method(http.MethodGet, api.Scan, http.HandlerFunc(h.HandleScan))
-	r.Method(http.MethodGet, api.Session, sessionHandler)
-	r.Method(http.MethodGet, api.Manifest, http.HandlerFunc(h.HandleManifest))
-	r.Method(http.MethodGet, api.Statistics, http.HandlerFunc(h.HandleStatistics))
-	r.Method(http.MethodGet, api.Report, http.HandlerFunc(h.HandleReportJSON))
-	r.Method(http.MethodPatch, RouteAPIReportRetention, http.HandlerFunc(h.HandleReportRetention))
-	r.Method(http.MethodPost, RouteAPIReportLock, http.HandlerFunc(h.HandleReportLock))
+		handler := handlers[def.ID]
+		if handler == nil {
+			continue
+		}
+
+		if usesRateLimit(def) {
+			mountRateLimited(r, startRatelimit, def.Method, def.Pattern, handler)
+
+			continue
+		}
+
+		r.Method(def.Method, def.Pattern, handler)
+	}
 }
 
 // EnumeratePlaneARoutes walks a chi router mounted via MountPlaneARoutes and
-// returns full /validator/... route inventory for manifest drift checks.
+// returns advertised /validator/... routes for manifest drift checks.
 func EnumeratePlaneARoutes(r chi.Router) ([]MountedAPIRoute, error) {
 	routes := make([]MountedAPIRoute, 0, 16)
+	advertised := advertisedPatternSet()
 
 	err := chi.Walk(r, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		if !isPlaneAEnumeratedPattern(pattern) {
+		if _, ok := advertised[method+" "+pattern]; !ok {
 			return nil
 		}
 
@@ -93,10 +87,65 @@ func EnumeratePlaneARoutes(r chi.Router) ([]MountedAPIRoute, error) {
 	return routes, nil
 }
 
-// MountStartPage registers GET /start for the validator start HTML page.
+// MountStartPage registers GET /start when the start page is in capability.
 func MountStartPage(r chi.Router, h *Handler) {
+	if h == nil || !h.Caps().ReverseInviteAvailable() {
+		return
+	}
+
 	spec := StartPageRouteSpec()
 	r.Method(spec.Method, spec.Pattern, http.HandlerFunc(h.HandleStartPage))
+}
+
+func shouldMountPlaneA(def catalog.RouteDef, caps catalog.Caps) bool {
+	if def.ID == service.RouteIDValidatorHTMLStart ||
+		def.ID == service.RouteIDValidatorHTMLReport ||
+		def.ID == service.RouteIDValidatorAPISessionReverseInvite {
+		return false
+	}
+
+	return def.ShouldMount(caps)
+}
+
+func usesRateLimit(def catalog.RouteDef) bool {
+	return slices.Contains(def.Middleware, catalog.MiddlewareRateLimit)
+}
+
+func advertisedPatternSet() map[string]struct{} {
+	set := make(map[string]struct{}, len(catalog.Routes()))
+
+	for _, def := range catalog.Routes() {
+		if def.Advertise {
+			set[def.Method+" "+def.Pattern] = struct{}{}
+		}
+	}
+
+	return set
+}
+
+func planeAHandlers(h *Handler, reverseWaitOpen ReverseWaitOpener) map[string]http.Handler {
+	if h == nil {
+		return map[string]http.Handler{}
+	}
+
+	sessionHandler := http.Handler(http.HandlerFunc(h.HandleSession))
+	if reverseWaitOpen != nil {
+		sessionHandler = healReverseWaitOnPoll(h.store, h.log, reverseWaitOpen, h.HandleSession)
+	}
+
+	return map[string]http.Handler{
+		service.RouteIDValidatorStartCreateSession: http.HandlerFunc(h.HandleStart),
+		service.RouteIDValidatorStopSession:        http.HandlerFunc(h.HandleStop),
+		service.RouteIDValidatorAPIScan:            http.HandlerFunc(h.HandleScan),
+		service.RouteIDValidatorAPISession:         sessionHandler,
+		service.RouteIDValidatorAPISessionInvite:   http.HandlerFunc(h.HandleClaimInvite),
+		service.RouteIDValidatorAPISessionAbort:    http.HandlerFunc(h.HandleAbort),
+		service.RouteIDValidatorAPIManifest:        http.HandlerFunc(h.HandleManifest),
+		service.RouteIDValidatorAPIStatistics:      http.HandlerFunc(h.HandleStatistics),
+		service.RouteIDValidatorAPIReport:          http.HandlerFunc(h.HandleReportJSON),
+		service.RouteIDValidatorAPIReportRetention: http.HandlerFunc(h.HandleReportRetention),
+		service.RouteIDValidatorAPIReportLock:      http.HandlerFunc(h.HandleReportLock),
+	}
 }
 
 func mountRateLimited(
@@ -115,14 +164,5 @@ func mountRateLimited(
 }
 
 func serviceRelativeToFullPath(pattern string) string {
-	return joinReportPath("", manifestServicePrefix, pattern)
-}
-
-func isPlaneAEnumeratedPattern(pattern string) bool {
-	trimmed := strings.Trim(pattern, "/")
-	if trimmed == "start" || trimmed == "stop" {
-		return true
-	}
-
-	return strings.HasPrefix(trimmed, "api/")
+	return catalog.JoinFullPath("", catalog.ServicePrefix, pattern)
 }

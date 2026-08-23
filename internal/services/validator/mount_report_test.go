@@ -17,7 +17,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/forwardshare"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/runner"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -167,7 +170,10 @@ func TestValidatorService_ReverseInviteMountedAndAdvertised(t *testing.T) {
 
 	svc, err := New(Inputs{
 		Store:         store,
+		ActiveRunner:  &runner.Runner{},
 		ReverseInvite: newReverseInviteService(t, store),
+		ForwardShare:  &forwardshare.Service{},
+		ReverseShare:  &reverseshare.Service{},
 		Ratelimit: ratelimit.Inputs{
 			KeyFunc: func(*http.Request) string { return "k" },
 		},
@@ -236,5 +242,34 @@ func TestValidatorService_ReverseInviteAbsentWithoutService(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 when the reverse-invite service is not wired", rec.Code)
+	}
+}
+
+func TestValidatorService_ReverseInviteAbsentWhenLegsIncomplete(t *testing.T) {
+	t.Parallel()
+
+	store := openMountTestStore(t)
+
+	svc, err := New(Inputs{
+		Store:         store,
+		ReverseInvite: newReverseInviteService(t, store),
+		Ratelimit: ratelimit.Inputs{
+			KeyFunc: func(*http.Request) string { return "k" },
+		},
+		Log: slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError})),
+	}, map[string]any{}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/api/session/run-1/reverse-invite",
+		strings.NewReader(`{"inviteString":"x"}`),
+	)
+	rec := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 when reverse-invite legs are incomplete", rec.Code)
 	}
 }

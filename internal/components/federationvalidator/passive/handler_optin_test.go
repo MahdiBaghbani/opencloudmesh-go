@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
@@ -254,6 +255,8 @@ func TestHandleStart_FormURLEncodedOptInActiveBooleans(t *testing.T) {
 
 			store := openHandlerTestStore(t)
 			h := NewHandler(store, nil)
+			allowActiveExtend(h)
+
 			form := url.Values{}
 			form.Set("target", "https://peer.example")
 			form.Set("optInActive", tc.optInActive)
@@ -329,6 +332,8 @@ func TestHandleStart_OptInActivePersistsProvenance(t *testing.T) {
 
 	store := openHandlerTestStore(t)
 	h := NewHandler(store, nil)
+	allowActiveExtend(h)
+
 	req := httptest.NewRequestWithContext(
 		t.Context(),
 		http.MethodPost,
@@ -364,6 +369,55 @@ func TestHandleStart_OptInActivePersistsProvenance(t *testing.T) {
 		row.OptInActiveChannel,
 		row.OptInActiveAt,
 	)
+}
+
+func TestHandleStart_OptInActiveRejectedWithoutCaps(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		caps catalog.Caps
+	}{
+		{name: "empty caps"},
+		{name: "abort only", caps: catalog.Caps{Abort: true}},
+		{
+			name: "incomplete reverse invite",
+			caps: catalog.Caps{Runner: true, ReverseInvite: true, ForwardShare: true},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+			h.SetCaps(tc.caps)
+
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/start",
+				bytes.NewReader(mustJSON(t, map[string]any{
+					"target":      "https://peer.example",
+					"optInActive": true,
+				})),
+			)
+			rec := httptest.NewRecorder()
+			h.HandleStart(rec, req)
+
+			assertJSONError(t, rec, codeOptInActiveUnavailable)
+
+			count, err := store.CountInFlightPassive(t.Context())
+			if err != nil {
+				t.Fatalf("CountInFlightPassive: %v", err)
+			}
+
+			if count != 0 {
+				t.Fatalf("in-flight sessions = %d, want 0 after rejected opt-in", count)
+			}
+		})
+	}
 }
 
 func TestHandleScan_IgnoresOptInActiveQuery(t *testing.T) {

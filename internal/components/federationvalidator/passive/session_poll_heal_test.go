@@ -38,7 +38,12 @@ func newPollHealRouter(t *testing.T, store *validatorcore.Core, opener ReverseWa
 	t.Helper()
 
 	r := chi.NewRouter()
-	MountPlaneARoutesWithHeal(r, NewHandler(store, nil), nil, defaultPlaneAAPIRoutePatterns(), opener)
+	MountPlaneARoutesWithHeal(
+		r,
+		NewHandler(store, nil),
+		nil,
+		opener,
+	)
 
 	return r
 }
@@ -205,7 +210,7 @@ func TestHandleSession_NoOpenerKeepsPlainPoll(t *testing.T) {
 	seedActiveRun(t, store, "run-heal-none", validatorcore.StateCapabilityExercise, true)
 
 	r := chi.NewRouter()
-	MountPlaneARoutes(r, NewHandler(store, nil), nil, defaultPlaneAAPIRoutePatterns())
+	MountPlaneARoutes(r, NewHandler(store, nil), nil)
 
 	state, code := pollStateViaRouter(t, r, "run-heal-none")
 	if code != http.StatusOK {

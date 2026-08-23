@@ -6,62 +6,40 @@
 package validator
 
 import (
-	"net/http"
-	"sync/atomic"
-
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
-
-// reverseInviteMounted reports whether this process mounted the reverse-invite
-// paste handler. The route is advertised in the aggregate only when it is
-// actually mounted, so discovery and policy never point at a 404. The flag is
-// monotonic: once any validator service mounts the handler, the advertisement
-// stays for the process lifetime.
-var reverseInviteMounted atomic.Bool
-
-func markReverseInviteRouteMounted() {
-	reverseInviteMounted.Store(true)
-}
 
 const (
 	// RouteStartCreateSession is POST /validator/start for passive-core create
 	// and active extension.
-	RouteStartCreateSession = "/start"
+	RouteStartCreateSession = catalog.PatternStart
 	// RouteHTMLStart is GET /validator/start for the start page.
-	// Duplicated in the passive package; keep the strings synchronized.
-	// Shares the path with POST session creation.
-	RouteHTMLStart = RouteStartCreateSession
+	RouteHTMLStart = catalog.PatternStart
 	// RouteStopSession is POST /validator/stop for core-only terminalization.
-	RouteStopSession = "/stop"
+	RouteStopSession = catalog.PatternStop
 	// RouteAPIScan is GET /validator/api/scan.
-	RouteAPIScan = "/api/scan"
+	RouteAPIScan = catalog.PatternScan
 	// RouteAPISession is GET /validator/api/session/{id}.
-	RouteAPISession = "/api/session/{id}"
+	RouteAPISession = catalog.PatternSession
 	// RouteAPISessionInvite is POST /validator/api/session/{id}/invite.
-	// Duplicated in the passive package; keep the strings synchronized.
-	RouteAPISessionInvite = "/api/session/{id}/invite"
+	RouteAPISessionInvite = catalog.PatternClaim
 	// RouteAPISessionAbort is POST /validator/api/session/{id}/abort.
-	// Duplicated in the passive package; keep the strings synchronized.
-	RouteAPISessionAbort = "/api/session/{id}/abort"
+	RouteAPISessionAbort = catalog.PatternAbort
 	// RouteAPISessionReverseInvite is POST /validator/api/session/{id}/reverse-invite.
-	RouteAPISessionReverseInvite = "/api/session/{id}/reverse-invite"
+	RouteAPISessionReverseInvite = catalog.PatternPaste
 	// RouteAPIReport is GET /validator/api/report/{id}.
-	// Duplicated in the passive package because that package cannot import
-	// services/validator; keep the strings synchronized.
-	RouteAPIReport = "/api/report/{id}"
+	RouteAPIReport = catalog.PatternReportJSON
 	// RouteAPIReportRetention is PATCH /validator/api/report/{id}/retention.
-	// Duplicated in the passive package; keep the strings synchronized.
-	RouteAPIReportRetention = "/api/report/{id}/retention"
+	RouteAPIReportRetention = catalog.PatternReportRetain
 	// RouteAPIReportLock is POST /validator/api/report/{id}/lock.
-	// Duplicated in the passive package; keep the strings synchronized.
-	RouteAPIReportLock = "/api/report/{id}/lock"
+	RouteAPIReportLock = catalog.PatternReportLock
 	// RouteHTMLReport is GET /validator/report/{id}.
-	// Duplicated in the passive package; keep the strings synchronized.
-	RouteHTMLReport = "/report/{id}"
+	RouteHTMLReport = catalog.PatternHTMLReport
 	// RouteAPIManifest is GET /validator/api/manifest.
-	RouteAPIManifest = "/api/manifest"
+	RouteAPIManifest = catalog.PatternManifest
 	// RouteAPIStatistics is GET /validator/api/statistics.
-	RouteAPIStatistics = "/api/statistics"
+	RouteAPIStatistics = catalog.PatternStatistics
 )
 
 func init() {
@@ -69,179 +47,5 @@ func init() {
 }
 
 func registeredRouteSpecs(_ service.RouteOpts) []service.RouteSpec {
-	specs := []service.RouteSpec{
-		{
-			ID:               "validator-start-create-session",
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodPost,
-			Pattern:          RouteStartCreateSession,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthRateLimitOnly,
-			Middleware:       []string{"ratelimit"},
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorHTMLStart,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodGet,
-			Pattern:          RouteHTMLStart,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceUI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               "validator-stop-session",
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodPost,
-			Pattern:          RouteStopSession,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               "validator-api-scan",
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodGet,
-			Pattern:          RouteAPIScan,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPISession,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodGet,
-			Pattern:          RouteAPISession,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPISessionInvite,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodPost,
-			Pattern:          RouteAPISessionInvite,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthRateLimitOnly,
-			Middleware:       []string{"ratelimit"},
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPISessionAbort,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodPost,
-			Pattern:          RouteAPISessionAbort,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPISessionReverseInvite,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodPost,
-			Pattern:          RouteAPISessionReverseInvite,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPIReport,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodGet,
-			Pattern:          RouteAPIReport,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPIReportRetention,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodPatch,
-			Pattern:          RouteAPIReportRetention,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPIReportLock,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodPost,
-			Pattern:          RouteAPIReportLock,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorHTMLReport,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodGet,
-			Pattern:          RouteHTMLReport,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceUI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               "validator-api-manifest",
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodGet,
-			Pattern:          RouteAPIManifest,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-		{
-			ID:               service.RouteIDValidatorAPIStatistics,
-			Service:          string(service.BuildValidator),
-			Method:           http.MethodGet,
-			Pattern:          RouteAPIStatistics,
-			SessionPolicy:    service.SessionPublic,
-			HandlerAuth:      service.HandlerAuthNone,
-			SurfaceClass:     service.SurfaceAPI,
-			TrustClass:       service.TrustPeerNone,
-			FeatureCondition: service.FeatureValidatorEnabled,
-		},
-	}
-
-	if reverseInviteMounted.Load() {
-		return specs
-	}
-
-	// The paste route is advertised only when its handler is mounted.
-	out := make([]service.RouteSpec, 0, len(specs)-1)
-
-	for _, spec := range specs {
-		if spec.ID == service.RouteIDValidatorAPISessionReverseInvite {
-			continue
-		}
-
-		out = append(out, spec)
-	}
-
-	return out
+	return catalog.RouteSpecs()
 }

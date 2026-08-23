@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -38,6 +39,7 @@ func TestStartupPromote_SameFollowUpAsProbe(t *testing.T) {
 		kicker := &recordKicker{}
 		parties := identity.NewMemoryPartyRepo()
 		h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
+		allowActiveExtend(h)
 		h.SetReverseReceiver(
 			parties,
 			"local.example",
@@ -62,6 +64,7 @@ func TestStartupPromote_SameFollowUpAsProbe(t *testing.T) {
 		kicker := &recordKicker{}
 		parties := identity.NewMemoryPartyRepo()
 		h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
+		allowActiveExtend(h)
 		h.SetReverseReceiver(
 			parties,
 			"local.example",
@@ -111,6 +114,7 @@ func TestStartupPromote_SameFollowUpAsProbe(t *testing.T) {
 		kicker := &recordKicker{}
 		parties := identity.NewMemoryPartyRepo()
 		h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
+		allowActiveExtend(h)
 		h.SetReverseReceiver(
 			parties,
 			"local.example",
@@ -155,6 +159,7 @@ func TestStartupPromote_LateBindDeliversOnce(t *testing.T) {
 		log:       follow,
 	}
 	h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: follow})
+	allowActiveExtend(h)
 
 	assertNoFollowUpYet(t, follow, parties)
 
@@ -213,6 +218,7 @@ func TestPromoteFollowUp_MaterializeErrorDefersKick(t *testing.T) {
 	follow := &orderedFollowUp{}
 	parties := newFailThenCreateRepo(identity.NewMemoryPartyRepo(), follow, 1)
 	h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: follow})
+	allowActiveExtend(h)
 
 	h.SetReverseReceiver(
 		parties,
@@ -250,6 +256,7 @@ func TestPromoteFollowUp_ConcurrentIdempotentExactlyOnce(t *testing.T) {
 		log:       follow,
 	}
 	h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: follow})
+	allowActiveExtend(h)
 	h.SetReverseReceiver(
 		parties,
 		"local.example",
@@ -299,6 +306,7 @@ func TestPromoteFollowUp_ConcurrentStartupProbeLateBind(t *testing.T) {
 		log:       follow,
 	}
 	h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: follow})
+	allowActiveExtend(h)
 
 	seedReadyWaiter(t, store, runID, time.Now().Unix())
 
@@ -341,6 +349,56 @@ func TestPromoteFollowUp_ConcurrentStartupProbeLateBind(t *testing.T) {
 	assertPromotedFollowUp(t, store, parties, follow, runID, 1)
 	assertFollowUpOrder(t, follow, "bob", "kick")
 	assertLastPromotedID(t, store, "")
+}
+
+func TestPromoteOrWait_NilCanExtendDoesNotPromote(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	runID := "run-nil-extend"
+	readyAt := time.Now().Unix()
+
+	seedReadyWaiter(t, store, runID, readyAt)
+
+	if err := h.probe.promoteOrWait(t.Context(), runID); err != nil {
+		t.Fatalf("promoteOrWait: %v", err)
+	}
+
+	got, err := store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if got.IsActive || got.State != validatorcore.StatePassiveRunning {
+		t.Fatalf("nil canExtend promoted session: is_active=%v state=%q", got.IsActive, got.State)
+	}
+}
+
+func TestPromoteOrWait_FalseCanExtendDoesNotPromote(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	h.SetCaps(catalog.Caps{})
+
+	runID := "run-false-extend"
+	readyAt := time.Now().Unix()
+
+	seedReadyWaiter(t, store, runID, readyAt)
+
+	if err := h.probe.promoteOrWait(t.Context(), runID); err != nil {
+		t.Fatalf("promoteOrWait: %v", err)
+	}
+
+	got, err := store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if got.IsActive || got.State != validatorcore.StatePassiveRunning {
+		t.Fatalf("false canExtend promoted session: is_active=%v state=%q", got.IsActive, got.State)
+	}
 }
 
 func seedReadyWaiter(t *testing.T, store *validatorcore.Core, runID string, readyAt int64) {

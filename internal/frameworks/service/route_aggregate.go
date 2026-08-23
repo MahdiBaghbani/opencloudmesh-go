@@ -52,20 +52,11 @@ func Routes(opts RouteOpts) []RouteRow {
 }
 
 func validatorMatchExact(id string) bool {
-	switch id {
-	case RouteIDValidatorAPIStatistics,
-		RouteIDValidatorAPISession,
-		RouteIDValidatorAPISessionInvite,
-		RouteIDValidatorAPISessionAbort,
-		RouteIDValidatorAPISessionReverseInvite,
-		RouteIDValidatorAPIReport,
-		RouteIDValidatorHTMLReport,
-		RouteIDValidatorAPIReportRetention,
-		RouteIDValidatorAPIReportLock:
-		return true
-	default:
+	if id == "" || !strings.HasPrefix(id, string(BuildValidator)+"-") {
 		return false
 	}
+
+	return !strings.HasSuffix(id, subtreeDefaultIDSuffix)
 }
 
 func fullPathForSpec(desc Descriptor, basePath, pattern string) string {

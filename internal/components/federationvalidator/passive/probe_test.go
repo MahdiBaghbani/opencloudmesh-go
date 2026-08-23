@@ -58,6 +58,7 @@ func TestProbeRunner_PromotesOptInWhenSlotFree(t *testing.T) {
 	store := openHandlerTestStore(t)
 	kicker := &recordKicker{}
 	h := NewHandlerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
+	allowActiveExtend(h)
 	h.SetReverseReceiver(
 		identity.NewMemoryPartyRepo(),
 		"local.example",
@@ -85,12 +86,43 @@ func TestProbeRunner_PromotesOptInWhenSlotFree(t *testing.T) {
 	}
 }
 
+func TestProbeRunner_OptInWithoutCapsFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	kicker := &recordKicker{}
+	runner := NewProbeRunnerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
+	runID := "run-opt-in-no-caps"
+
+	createCreatedRun(t, store, runID, "https://probe.example", true, false)
+	runner.run(t.Context(), runID)
+
+	got := mustGetRun(t, store, runID)
+	if got.State != validatorcore.StateTerminalFail {
+		t.Fatalf("state = %q, want %q", got.State, validatorcore.StateTerminalFail)
+	}
+
+	if got.TerminalReason == nil || *got.TerminalReason != failReasonActiveUnavailable {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, failReasonActiveUnavailable)
+	}
+
+	if got.IsActive {
+		t.Fatal("unavailable active opt-in must not take the active lock")
+	}
+
+	if kicker.calls != 0 {
+		t.Fatalf("kick calls = %d, want none", kicker.calls)
+	}
+}
+
 func TestProbeRunner_LockWaitStampsReadyAt(t *testing.T) {
 	t.Parallel()
 
 	store := openHandlerTestStore(t)
 	kicker := &recordKicker{}
 	runner := NewProbeRunnerWithDeps(ProbeDeps{Store: store, ActiveKick: kicker})
+	allowProbeExtend(runner)
+
 	ctx := t.Context()
 	runID := "run-lock-wait"
 

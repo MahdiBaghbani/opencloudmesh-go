@@ -9,12 +9,19 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
+)
+
+const (
+	identityBindingWarnReason  = "accepter_user_unenforceable"
+	identityBindingWarnMessage = "Identity binding could not be enforced for this session."
 )
 
 //go:embed templates/*.html
@@ -27,19 +34,19 @@ func init() {
 }
 
 type reportPageData struct {
-	ID             string
-	State          string
-	SessionKind    string
-	Grade          string
-	OptInStats     bool
-	OptInPermanent bool
-	ReportURL      string
-	SessionAPIPath string
-	ReportAPIPath  string
-	Score          validatorcore.SpecificationScore
-	EvidenceCount  int
-	Evidence       []validatorcore.SpecificationEvidence
-	ShowEvidence   bool
+	State                  string
+	SessionKind            string
+	Grade                  string
+	OptInStats             bool
+	OptInPermanent         bool
+	Score                  validatorcore.SpecificationScore
+	EvidenceCount          int
+	Evidence               []validatorcore.SpecificationEvidence
+	ShowEvidence           bool
+	IdentityBindingWarning bool
+	IdentityBindingMessage string
+	NextInstructionLabel   string
+	NextInstructionLabels  template.JS
 }
 
 // HandleReportHTML serves GET /report/{id}.
@@ -94,15 +101,13 @@ func (h *Handler) buildReportPageData(
 	}
 
 	data := reportPageData{
-		ID:             row.TestRunID,
-		State:          row.State,
-		SessionKind:    validatorcore.SessionKindOf(row),
-		OptInStats:     row.OptInStats,
-		OptInPermanent: row.OptInPermanent,
-		ReportURL:      joinReportPath(h.externalBasePath, "validator", "report", row.TestRunID),
-		SessionAPIPath: joinReportPath(h.externalBasePath, "validator", "api", "session", row.TestRunID),
-		ReportAPIPath:  joinReportPath(h.externalBasePath, "validator", "api", "report", row.TestRunID),
-		ShowEvidence:   visibility == ReportVisibilityPermanent,
+		State:                 row.State,
+		SessionKind:           validatorcore.SessionKindOf(row),
+		OptInStats:            row.OptInStats,
+		OptInPermanent:        row.OptInPermanent,
+		ShowEvidence:          visibility == ReportVisibilityPermanent,
+		NextInstructionLabel:  validatorcore.NextInstructionLabel(validatorcore.NextInstructionForRun(row)),
+		NextInstructionLabels: nextInstructionLabelsJS(),
 	}
 	if row.OverallGrade != nil {
 		data.Grade = *row.OverallGrade
@@ -116,11 +121,35 @@ func (h *Handler) buildReportPageData(
 	data.Score = score
 	data.EvidenceCount = len(evidence)
 
+	data.IdentityBindingWarning = hasIdentityBindingWarning(evidence)
+	if data.IdentityBindingWarning {
+		data.IdentityBindingMessage = identityBindingWarnMessage
+	}
+
 	if data.ShowEvidence {
 		data.Evidence = evidence
 	}
 
 	return data, nil
+}
+
+func nextInstructionLabelsJS() template.JS {
+	raw, err := json.Marshal(catalog.InstructionLabels()) //nolint:errchkjson // static string map
+	if err != nil {
+		return template.JS("{}")
+	}
+
+	return template.JS(raw) //nolint:gosec // labels are static catalog strings
+}
+
+func hasIdentityBindingWarning(evidence []validatorcore.SpecificationEvidence) bool {
+	for _, row := range evidence {
+		if row.ReasonCode == identityBindingWarnReason && row.Severity == validatorcore.GradeWarn {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h *Handler) writeHTMLTemplate(

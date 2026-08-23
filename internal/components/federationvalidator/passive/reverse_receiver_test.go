@@ -20,6 +20,7 @@ func TestProbeRunner_PromoteMaterializesReverseReceiver(t *testing.T) {
 	store := openHandlerTestStore(t)
 	parties := identity.NewMemoryPartyRepo()
 	h := NewHandler(store, nil)
+	allowActiveExtend(h)
 	h.SetReverseReceiver(
 		parties,
 		"local.example",

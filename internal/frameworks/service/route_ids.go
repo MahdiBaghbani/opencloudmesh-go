@@ -16,6 +16,14 @@ const (
 	RouteIDUIWAYF = "ui-wayf"
 	// RouteIDAPIHealthz is the API health check route identifier.
 	RouteIDAPIHealthz = "api-healthz"
+	// RouteIDValidatorStartCreateSession is the validator POST /start identifier.
+	RouteIDValidatorStartCreateSession = "validator-start-create-session"
+	// RouteIDValidatorStopSession is the validator POST /stop identifier.
+	RouteIDValidatorStopSession = "validator-stop-session"
+	// RouteIDValidatorAPIScan is the validator scan route identifier.
+	RouteIDValidatorAPIScan = "validator-api-scan"
+	// RouteIDValidatorAPIManifest is the validator manifest route identifier.
+	RouteIDValidatorAPIManifest = "validator-api-manifest"
 	// RouteIDValidatorAPIStatistics is the validator statistics route identifier.
 	RouteIDValidatorAPIStatistics = "validator-api-statistics"
 	// RouteIDValidatorAPISession is the validator session polling route identifier.

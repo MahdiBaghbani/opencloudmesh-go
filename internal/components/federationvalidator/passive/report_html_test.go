@@ -57,7 +57,8 @@ func TestHandleReportHTML_VisibilityStatusAndCache(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantCache:  "no-store",
 			cacheSet:   true,
-			wantBody:   "run-html-session",
+			wantBody:   "Federation report",
+			forbid:     []string{"run-html-session"},
 		},
 		{
 			name:       "permanent",
@@ -65,7 +66,8 @@ func TestHandleReportHTML_VisibilityStatusAndCache(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantCache:  "no-store",
 			cacheSet:   true,
-			wantBody:   "run-html-permanent",
+			wantBody:   "Federation report",
+			forbid:     []string{"run-html-permanent"},
 		},
 		{
 			name:       "expired",
@@ -157,16 +159,13 @@ func TestHandleReportHTML_RendersLockedFields(t *testing.T) {
 	body := rec.Body.String()
 
 	want := []string{
-		runID,
 		validatorcore.StatePassiveRunning,
 		validatorcore.SessionKindPassiveOnly,
 		grade,
 		"true",
-		"/validator/report/" + runID,
-		"/validator/api/session/" + runID,
-		"/validator/api/report/" + runID,
 		`id="next-instruction"`,
 		"textContent",
+		`path.replace(/\/report\/([^/]+)$/, "/api/session/$1")`,
 	}
 	for _, fragment := range want {
 		if !strings.Contains(body, fragment) {
@@ -174,8 +173,18 @@ func TestHandleReportHTML_RendersLockedFields(t *testing.T) {
 		}
 	}
 
+	assertReportHTMLOmitsIdentifiers(t, body, runID)
+
 	if strings.Contains(body, "innerHTML") {
 		t.Fatal("report page must not use innerHTML")
+	}
+
+	if !strings.Contains(body, validatorcore.NextInstructionLabel(validatorcore.InstructionWaitProbe)) {
+		t.Fatal("report page must embed nextInstruction labels")
+	}
+
+	if strings.Contains(body, "sink.textContent = data.state") {
+		t.Fatal("report page must not write the raw session state as next instruction")
 	}
 }
 
@@ -269,6 +278,8 @@ func TestHandleReportHTML_SessionHidesEvidenceDetails(t *testing.T) {
 	if strings.Contains(body, reportLeakSecret) || strings.Contains(body, "redacted-capability-note") {
 		t.Fatal("session page leaked evidence details")
 	}
+
+	assertReportHTMLOmitsIdentifiers(t, body, runID)
 }
 
 func TestHandleReportHTML_PermanentRendersRedactedEvidence(t *testing.T) {
@@ -312,6 +323,87 @@ func TestHandleReportHTML_PermanentRendersRedactedEvidence(t *testing.T) {
 	for _, secret := range banned {
 		if strings.Contains(body, secret) {
 			t.Fatalf("permanent page leaked %q", secret)
+		}
+	}
+
+	assertReportHTMLOmitsIdentifiers(t, body, runID)
+}
+
+func TestHandleReportHTML_IdentityBindingWarning(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	runID := "run-html-identity-warn"
+	seedReportRun(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StatePassiveRunning,
+		OptInPermanent: true,
+	})
+
+	row := &validatorcore.EvidenceRow{
+		TestRunID:    runID,
+		Area:         validatorcore.SpecificationAreaSharing,
+		Step:         "invite_accepted",
+		ReasonCode:   identityBindingWarnReason,
+		Severity:     validatorcore.GradeWarn,
+		AffectsGrade: true,
+		CreatedAt:    time.Now().Unix(),
+	}
+	if err := store.DB().WithContext(t.Context()).Create(row).Error; err != nil {
+		t.Fatalf("seed identity evidence: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/report/"+runID, nil)
+	rec := httptest.NewRecorder()
+	newReportTestRouter(t, h).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="identity-binding-warning"`) {
+		t.Fatal("report page missing identity-binding warning")
+	}
+
+	if !strings.Contains(body, identityBindingWarnMessage) {
+		t.Fatal("report page missing identity-binding warning text")
+	}
+
+	banned := []string{
+		"Authorization",
+		"inviteString",
+		"Bearer ",
+		reportLeakSecret,
+	}
+	for _, secret := range banned {
+		if strings.Contains(body, secret) {
+			t.Fatalf("identity warning page leaked %q", secret)
+		}
+	}
+
+	assertReportHTMLOmitsIdentifiers(t, body, runID)
+}
+
+func assertReportHTMLOmitsIdentifiers(t *testing.T, body, runID string) {
+	t.Helper()
+
+	banned := []string{
+		runID,
+		"/validator/report/" + runID,
+		"/validator/api/session/" + runID,
+		"/validator/api/report/" + runID,
+		"data-poll-path",
+		"data-report-api-path",
+		`id="report-id"`,
+		`id="report-url"`,
+		`id="report-session-api"`,
+		`id="report-api"`,
+	}
+	for _, fragment := range banned {
+		if strings.Contains(body, fragment) {
+			t.Fatalf("report page exposed %q", fragment)
 		}
 	}
 }

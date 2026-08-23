@@ -17,7 +17,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
-const codeOptInCreateOnly = "opt_in_create_only"
+const (
+	codeOptInCreateOnly        = "opt_in_create_only"
+	codeOptInActiveUnavailable = "opt_in_active_unavailable"
+	msgOptInActiveUnavailable  = "active opt-in is unavailable in this deployment"
+)
 
 var errNullOptIn = errors.New("opt-in field must be a JSON boolean")
 

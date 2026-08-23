@@ -239,19 +239,14 @@ func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 	t.Parallel()
 
 	opts := validatorEnabledRouteOpts()
-	// RouteIDValidatorAPISessionReverseInvite is absent here on purpose: the
-	// paste route is advertised only after a validator service mounts its
-	// handler, which never happens in this test binary.
-	wantExact := map[string]struct{}{
-		service.RouteIDValidatorAPIStatistics:      {},
-		service.RouteIDValidatorAPISession:         {},
-		service.RouteIDValidatorAPISessionInvite:   {},
-		service.RouteIDValidatorAPISessionAbort:    {},
-		service.RouteIDValidatorAPIReport:          {},
-		service.RouteIDValidatorHTMLReport:         {},
-		service.RouteIDValidatorAPIReportRetention: {},
-		service.RouteIDValidatorAPIReportLock:      {},
+	wantExact := map[string]struct{}{}
+
+	for _, spec := range service.RegisteredRouteSpecs(opts) {
+		if spec.Service == string(service.BuildValidator) {
+			wantExact[spec.ID] = struct{}{}
+		}
 	}
+
 	matchExactCount := 0
 
 	for _, row := range service.Routes(opts) {
@@ -271,15 +266,23 @@ func TestRoutes_MatchExactRowsLimitedToValidatorAPIPollRoutes(t *testing.T) {
 	}
 }
 
-func TestRoutes_ReverseInviteNotAdvertisedWithoutMountedHandler(t *testing.T) {
+func TestRoutes_ReverseInviteDeclaredInCatalog(t *testing.T) {
 	t.Parallel()
 
-	// No validator service is constructed in this test binary, so the
-	// reverse-invite paste route must not be advertised.
+	found := false
+
 	for _, row := range service.Routes(validatorEnabledRouteOpts()) {
 		if row.ID == service.RouteIDValidatorAPISessionReverseInvite {
-			t.Fatal("reverse-invite route advertised without a mounted handler")
+			found = true
+
+			if !row.MatchExact {
+				t.Fatal("reverse-invite row MatchExact = false, want true")
+			}
 		}
+	}
+
+	if !found {
+		t.Fatal("reverse-invite route missing from catalog projection")
 	}
 }
 

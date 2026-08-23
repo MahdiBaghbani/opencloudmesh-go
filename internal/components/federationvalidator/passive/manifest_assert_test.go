@@ -38,7 +38,7 @@ func assertOptInWireKeys(t *testing.T, raw map[string]json.RawMessage) {
 
 	optIn := mustRawObject(t, raw["optIn"], "optIn")
 	assertExactKeys(t, optIn, []string{"default", "scan", "start"})
-	assertExactKeys(t, mustRawObject(t, optIn["start"], "optIn start"), []string{"optInPermanent", "optInStats"})
+	assertExactKeys(t, mustRawObject(t, optIn["start"], "optIn start"), []string{"optInActive", "optInPermanent", "optInStats"})
 	assertExactKeys(t, mustRawObject(t, optIn["scan"], "optIn scan"), []string{"optInValue", "permanentQuery", "statsQuery"})
 }
 

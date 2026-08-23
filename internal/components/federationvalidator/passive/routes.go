@@ -6,136 +6,86 @@
 package passive
 
 import (
-	"net/http"
-
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
 const (
 	// RouteStartCreateSession is POST /start for passive-core session creation.
-	RouteStartCreateSession = "/start"
+	RouteStartCreateSession = catalog.PatternStart
 
 	// RouteHTMLStart is GET /start for the validator start page.
-	// It shares the path with POST session creation.
-	RouteHTMLStart = RouteStartCreateSession
+	RouteHTMLStart = catalog.PatternStart
 
 	// RouteStopSession is POST /stop for core-only terminalization.
-	RouteStopSession = "/stop"
+	RouteStopSession = catalog.PatternStop
 
 	// RouteAPIScan is GET /api/scan on the validator service router.
-	RouteAPIScan = "/api/scan"
+	RouteAPIScan = catalog.PatternScan
 
 	// RouteAPIManifest is GET /api/manifest on the validator service router.
-	RouteAPIManifest = "/api/manifest"
+	RouteAPIManifest = catalog.PatternManifest
 
 	// RouteAPIStatistics is GET /api/statistics on the validator service router.
-	RouteAPIStatistics = "/api/statistics"
+	RouteAPIStatistics = catalog.PatternStatistics
 
 	// RouteAPISession is GET /api/session/{id} on the validator service router.
-	RouteAPISession = "/api/session/{id}"
+	RouteAPISession = catalog.PatternSession
 
 	// RouteAPISessionInvite is POST /api/session/{id}/invite.
-	// Duplicated in services/validator; keep the strings synchronized.
-	RouteAPISessionInvite = "/api/session/{id}/invite"
+	RouteAPISessionInvite = catalog.PatternClaim
 
 	// RouteAPISessionAbort is POST /api/session/{id}/abort.
-	// Duplicated in services/validator; keep the strings synchronized.
-	RouteAPISessionAbort = "/api/session/{id}/abort"
+	RouteAPISessionAbort = catalog.PatternAbort
 
 	// RouteAPIReport is GET /api/report/{id} on the validator service router.
-	// Duplicated in services/validator because this package cannot import that
-	// service package; keep the strings synchronized.
-	RouteAPIReport = "/api/report/{id}"
+	RouteAPIReport = catalog.PatternReportJSON
 
 	// RouteAPIReportRetention is PATCH /api/report/{id}/retention.
-	// Duplicated in services/validator; keep the strings synchronized.
-	RouteAPIReportRetention = "/api/report/{id}/retention"
+	RouteAPIReportRetention = catalog.PatternReportRetain
 
 	// RouteAPIReportLock is POST /api/report/{id}/lock.
-	// Duplicated in services/validator; keep the strings synchronized.
-	RouteAPIReportLock = "/api/report/{id}/lock"
+	RouteAPIReportLock = catalog.PatternReportLock
 
 	// RouteHTMLReport is GET /report/{id} beside the plane-A API routes.
-	// Duplicated in services/validator; keep the strings synchronized.
-	RouteHTMLReport = "/report/{id}"
+	RouteHTMLReport = catalog.PatternHTMLReport
 
 	// ValidatorServiceName is the HTTP service key for federation validator routes.
-	ValidatorServiceName = "validator"
+	ValidatorServiceName = catalog.ServicePrefix
 )
 
 // StartPageRouteSpec returns the GET /start route spec for the start HTML page.
 func StartPageRouteSpec() service.RouteSpec {
-	return service.RouteSpec{
-		ID:            service.RouteIDValidatorHTMLStart,
-		Service:       ValidatorServiceName,
-		Method:        http.MethodGet,
-		Pattern:       RouteHTMLStart,
-		SessionPolicy: service.SessionPublic,
-		HandlerAuth:   service.HandlerAuthNone,
-		SurfaceClass:  service.SurfaceUI,
-		TrustClass:    service.TrustPeerNone,
-	}
+	return catalogSpec(service.RouteIDValidatorHTMLStart)
 }
 
 // CreateSessionRouteSpec returns the POST /start route spec for passive-core
-// session creation. Ratelimit applies on every create-session request via the
-// scan_public.start_public profile, not only on active-run branches.
+// session creation.
 func CreateSessionRouteSpec() service.RouteSpec {
-	return service.RouteSpec{
-		ID:            "validator-start-create-session",
-		Service:       ValidatorServiceName,
-		Method:        http.MethodPost,
-		Pattern:       RouteStartCreateSession,
-		SessionPolicy: service.SessionPublic,
-		HandlerAuth:   service.HandlerAuthRateLimitOnly,
-		Middleware:    []string{"ratelimit"},
-		SurfaceClass:  service.SurfaceAPI,
-		TrustClass:    service.TrustPeerNone,
-	}
+	return catalogSpec(service.RouteIDValidatorStartCreateSession)
 }
 
 // ClaimInviteRouteSpec returns POST /api/session/{id}/invite for the
-// one-time session invite claim. Ratelimit uses the same start_public
-// profile as create-session.
+// one-time session invite claim.
 func ClaimInviteRouteSpec() service.RouteSpec {
-	return service.RouteSpec{
-		ID:            service.RouteIDValidatorAPISessionInvite,
-		Service:       ValidatorServiceName,
-		Method:        http.MethodPost,
-		Pattern:       RouteAPISessionInvite,
-		SessionPolicy: service.SessionPublic,
-		HandlerAuth:   service.HandlerAuthRateLimitOnly,
-		Middleware:    []string{"ratelimit"},
-		SurfaceClass:  service.SurfaceAPI,
-		TrustClass:    service.TrustPeerNone,
-	}
+	return catalogSpec(service.RouteIDValidatorAPISessionInvite)
 }
 
 // StopSessionRouteSpec returns POST /stop for passive_complete terminalization.
 func StopSessionRouteSpec() service.RouteSpec {
-	return service.RouteSpec{
-		ID:            "validator-stop-session",
-		Service:       ValidatorServiceName,
-		Method:        http.MethodPost,
-		Pattern:       RouteStopSession,
-		SessionPolicy: service.SessionPublic,
-		HandlerAuth:   service.HandlerAuthNone,
-		SurfaceClass:  service.SurfaceAPI,
-		TrustClass:    service.TrustPeerNone,
-	}
+	return catalogSpec(service.RouteIDValidatorStopSession)
 }
 
-// AbortSessionRouteSpec returns POST /api/session/{id}/abort for an
-// operator-initiated hard-fail of an active run.
+// AbortSessionRouteSpec returns POST /api/session/{id}/abort.
 func AbortSessionRouteSpec() service.RouteSpec {
-	return service.RouteSpec{
-		ID:            service.RouteIDValidatorAPISessionAbort,
-		Service:       ValidatorServiceName,
-		Method:        http.MethodPost,
-		Pattern:       RouteAPISessionAbort,
-		SessionPolicy: service.SessionPublic,
-		HandlerAuth:   service.HandlerAuthNone,
-		SurfaceClass:  service.SurfaceAPI,
-		TrustClass:    service.TrustPeerNone,
+	return catalogSpec(service.RouteIDValidatorAPISessionAbort)
+}
+
+func catalogSpec(id string) service.RouteSpec {
+	def, ok := catalog.Lookup(id)
+	if !ok {
+		return service.RouteSpec{}
 	}
+
+	return def.ToRouteSpec()
 }

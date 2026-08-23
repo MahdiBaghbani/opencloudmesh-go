@@ -257,6 +257,37 @@ func TestRouteSpecs_SessionInviteClaimPublicAnonymous(t *testing.T) {
 	}
 }
 
+func TestRouteSpecs_ScanRateLimitOnly(t *testing.T) {
+	t.Parallel()
+
+	enabled := service.RouteOpts{
+		ValidatorEnabled:  true,
+		TokenExchangePath: "token",
+	}
+
+	var scanSpec *service.RouteSpec
+
+	for _, spec := range service.RegisteredRouteSpecs(enabled) {
+		if spec.Pattern == RouteAPIScan {
+			scanSpec = &spec
+
+			break
+		}
+	}
+
+	if scanSpec == nil {
+		t.Fatal("expected scan route spec")
+	}
+
+	if scanSpec.HandlerAuth != service.HandlerAuthRateLimitOnly {
+		t.Fatalf("scan HandlerAuth = %q, want rate limit only", scanSpec.HandlerAuth)
+	}
+
+	if len(scanSpec.Middleware) != 1 || scanSpec.Middleware[0] != "ratelimit" {
+		t.Fatalf("scan Middleware = %v, want [ratelimit]", scanSpec.Middleware)
+	}
+}
+
 func TestRouteSpecs_SessionInviteGatedByValidatorFeature(t *testing.T) {
 	t.Parallel()
 

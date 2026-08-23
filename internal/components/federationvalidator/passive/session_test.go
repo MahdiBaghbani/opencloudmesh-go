@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
@@ -262,11 +263,87 @@ func TestHandleSession_ReadyWaiterPublishesActiveSlot(t *testing.T) {
 	}
 }
 
+func TestHandleSession_EmptyCapsDoesNotPromoteReadyWaiter(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	h.SetCaps(catalog.Caps{})
+
+	now := time.Now().Unix()
+	runID := "run-poll-no-extend"
+	readyAt := now - 5
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StatePassiveRunning,
+		TargetHost:     "peer.example",
+		OptInActive:    true,
+		PassiveReadyAt: &readyAt,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+
+	payload := pollSession(t, h, runID)
+
+	if next := pollNextInstruction(t, payload); next != "wait_active_slot" {
+		t.Fatalf("nextInstruction = %q, want wait_active_slot", next)
+	}
+
+	got, err := store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if got.IsActive || got.State != validatorcore.StatePassiveRunning {
+		t.Fatalf("empty caps promoted session: is_active=%v state=%q", got.IsActive, got.State)
+	}
+}
+
+func TestHandleSession_FullCapsPromotesReadyWaiter(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	h.SetCaps(catalog.FullCaps())
+
+	now := time.Now().Unix()
+	runID := "run-poll-full-extend"
+	readyAt := now - 5
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StatePassiveRunning,
+		TargetHost:     "peer.example",
+		OptInActive:    true,
+		PassiveReadyAt: &readyAt,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+
+	payload := pollSession(t, h, runID)
+
+	if next := pollNextInstruction(t, payload); next != "wait_invite_mint" {
+		t.Fatalf("nextInstruction = %q, want wait_invite_mint", next)
+	}
+
+	got, err := store.GetTestRun(t.Context(), runID)
+	if err != nil {
+		t.Fatalf("GetTestRun: %v", err)
+	}
+
+	if !got.IsActive || got.State != validatorcore.StateActiveRunning {
+		t.Fatalf("is_active=%v state=%q, want active_running", got.IsActive, got.State)
+	}
+}
+
 func TestHandleSession_ReadyWaiterPromotesWhenSlotFree(t *testing.T) {
 	t.Parallel()
 
 	store := openHandlerTestStore(t)
 	h := NewHandler(store, nil)
+	allowActiveExtend(h)
+
 	now := time.Now().Unix()
 	runID := "run-poll-promote"
 	readyAt := now - 5

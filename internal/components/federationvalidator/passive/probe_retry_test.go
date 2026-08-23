@@ -76,7 +76,11 @@ func TestProbeRunner_RetryExhaustionSettles(t *testing.T) {
 
 			store := openHandlerTestStore(t)
 			fetcher := &stubFetcher{result: tt.result, err: tt.err}
+
 			runner := NewProbeRunnerWithDeps(ProbeDeps{Store: store, Discovery: fetcher})
+			if tt.optInActive {
+				allowProbeExtend(runner)
+			}
 
 			createCreatedRun(t, store, tt.runID, "https://peer.example", tt.optInActive, false)
 			runner.run(t.Context(), tt.runID)
@@ -111,6 +115,8 @@ func TestProbeRunner_ExhaustedOptInWaitsWhenSlotHeld(t *testing.T) {
 	store := openHandlerTestStore(t)
 	fetcher := &stubFetcher{result: advertisedFailingJWKSResult()}
 	runner := NewProbeRunnerWithDeps(ProbeDeps{Store: store, Discovery: fetcher})
+	allowProbeExtend(runner)
+
 	runID := "run-exhaust-jwks-lock-wait"
 
 	seedActiveHolder(t, store, "run-exhaust-holder")
@@ -395,7 +401,11 @@ func TestProbeRunner_CancelledRetryWaitStillSettles(t *testing.T) {
 				err:    tt.err,
 				cancel: cancel,
 			}
+
 			runner := NewProbeRunnerWithDeps(ProbeDeps{Store: store, Discovery: fetcher})
+			if tt.optInActive {
+				allowProbeExtend(runner)
+			}
 
 			createCreatedRun(t, store, tt.runID, "https://peer.example", tt.optInActive, false)
 			runner.run(ctx, tt.runID)

@@ -8,27 +8,22 @@ package passive
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-)
 
-func defaultPlaneAAPIRoutePatterns() PlaneAAPIRoutePatterns {
-	return PlaneAAPIRoutePatterns{
-		Scan:       RouteAPIScan,
-		Session:    RouteAPISession,
-		Manifest:   RouteAPIManifest,
-		Statistics: RouteAPIStatistics,
-		Report:     RouteAPIReport,
-	}
-}
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
+)
 
 func newPlaneATestRouter(t *testing.T) chi.Router {
 	t.Helper()
 
 	r := chi.NewRouter()
-	MountPlaneARoutes(r, NewHandler(openHandlerTestStore(t), nil), nil, defaultPlaneAAPIRoutePatterns())
+	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.FullCaps())
+	MountPlaneARoutes(r, h, nil)
 
 	return r
 }
@@ -47,7 +42,9 @@ func TestMountPlaneARoutes_ClaimUsesSharedStartLimiter(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	MountPlaneARoutes(r, NewHandler(openHandlerTestStore(t), nil), limiter, defaultPlaneAAPIRoutePatterns())
+	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.FullCaps())
+	MountPlaneARoutes(r, h, limiter)
 
 	startReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, RouteStartCreateSession, nil)
 	r.ServeHTTP(httptest.NewRecorder(), startReq)
@@ -57,6 +54,67 @@ func TestMountPlaneARoutes_ClaimUsesSharedStartLimiter(t *testing.T) {
 
 	if got := hits.Load(); got != 2 {
 		t.Fatalf("shared limiter hits = %d, want 2", got)
+	}
+}
+
+func TestMountPlaneARoutes_ScanUsesSharedStartLimiter(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+
+	limiter := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hits.Add(1)
+
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	r := chi.NewRouter()
+	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.FullCaps())
+	MountPlaneARoutes(r, h, limiter)
+
+	scanReq := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/scan?target=https://peer.example",
+		nil,
+	)
+	r.ServeHTTP(httptest.NewRecorder(), scanReq)
+
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("scan limiter hits = %d, want 1", got)
+	}
+}
+
+func TestMountPlaneARoutes_AbortWithoutReverseInvite(t *testing.T) {
+	t.Parallel()
+
+	r := chi.NewRouter()
+	h := NewHandler(openHandlerTestStore(t), nil)
+	h.SetCaps(catalog.Caps{Abort: true})
+	MountPlaneARoutes(r, h, nil)
+
+	mounted := mountedRouteSet(t, r)
+	hasAbort := false
+
+	for route := range mounted {
+		if route.Method == http.MethodPost && strings.HasSuffix(route.FullPath, "/abort") {
+			hasAbort = true
+		}
+	}
+
+	if !hasAbort {
+		t.Fatal("abort must mount from Abort alone")
+	}
+
+	scanReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/scan?target=https://peer.example", nil)
+	scanRec := httptest.NewRecorder()
+	r.ServeHTTP(scanRec, scanReq)
+
+	if scanRec.Code != http.StatusNotFound {
+		t.Fatalf("scan status = %d, want 404 when reverse invite is unavailable", scanRec.Code)
 	}
 }
 
@@ -73,6 +131,20 @@ func mountedRouteSet(t *testing.T, r chi.Router) map[MountedAPIRoute]struct{} {
 
 func advertisedRouteSet(routes []MountedAPIRoute) map[MountedAPIRoute]struct{} {
 	return routeListToSet(routes)
+}
+
+func planeAAdvertised(routes []MountedAPIRoute) []MountedAPIRoute {
+	out := make([]MountedAPIRoute, 0, len(routes))
+
+	for _, route := range routes {
+		if strings.HasSuffix(route.FullPath, "/reverse-invite") {
+			continue
+		}
+
+		out = append(out, route)
+	}
+
+	return out
 }
 
 func routeListToSet(routes []MountedAPIRoute) map[MountedAPIRoute]struct{} {

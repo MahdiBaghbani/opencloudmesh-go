@@ -14,13 +14,7 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
   </head>
   <body>
     <h1>Federation report</h1>
-    <dl
-      id="report-page"
-      data-poll-path="{{.SessionAPIPath}}"
-      data-report-api-path="{{.ReportAPIPath}}"
-    >
-      <dt>id</dt>
-      <dd id="report-id">{{.ID}}</dd>
+    <dl id="report-page">
       <dt>state</dt>
       <dd id="report-state">{{.State}}</dd>
       <dt>sessionKind</dt>
@@ -33,12 +27,6 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
       <dd id="report-opt-in-stats">{{.OptInStats}}</dd>
       <dt>optInPermanent</dt>
       <dd id="report-opt-in-permanent">{{.OptInPermanent}}</dd>
-      <dt>reportUrl</dt>
-      <dd id="report-url">{{.ReportURL}}</dd>
-      <dt>sessionApiPath</dt>
-      <dd id="report-session-api">{{.SessionAPIPath}}</dd>
-      <dt>reportApiPath</dt>
-      <dd id="report-api">{{.ReportAPIPath}}</dd>
       <dt>score</dt>
       <dd id="report-score-grade">{{if .Score.Grade}}{{.Score.Grade}}{{else}}unassessed{{end}}</dd>
       <dt>coverage</dt>
@@ -70,16 +58,20 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
       {{end}}
     </ul>
     {{end}}
-    <p id="next-instruction"></p>
+    {{if .IdentityBindingWarning}}
+    <p id="identity-binding-warning">{{.IdentityBindingMessage}}</p>
+    {{end}}
+    <p id="next-instruction">{{.NextInstructionLabel}}</p>
     <script>
       (function () {
-        var page = document.getElementById("report-page");
         var sink = document.getElementById("next-instruction");
-        if (!page || !sink) {
+        var labels = {{.NextInstructionLabels}};
+        if (!sink || !labels) {
           return;
         }
-        var pollPath = page.getAttribute("data-poll-path");
-        if (!pollPath) {
+        var path = window.location.pathname || "";
+        var pollPath = path.replace(/\/report\/([^/]+)$/, "/api/session/$1");
+        if (!pollPath || pollPath === path) {
           return;
         }
         fetch(pollPath, { credentials: "same-origin" })
@@ -87,10 +79,13 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
             return res.ok ? res.json() : null;
           })
           .then(function (data) {
-            if (!data || data.state == null) {
+            if (!data || !data.nextInstruction || !labels) {
               return;
             }
-            sink.textContent = data.state;
+            var label = labels[data.nextInstruction];
+            if (typeof label === "string" && label) {
+              sink.textContent = label;
+            }
           })
           .catch(function () {});
       })();

@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	probeMaxAttempts      = 3
-	probeRetryWait        = 50 * time.Millisecond
-	failReasonStartFailed = "probe_start_failed"
-	failReasonProbeFailed = "passive_probe_failed"
+	probeMaxAttempts            = 3
+	probeRetryWait              = 50 * time.Millisecond
+	failReasonStartFailed       = "probe_start_failed"
+	failReasonProbeFailed       = "passive_probe_failed"
+	failReasonActiveUnavailable = "active_unavailable"
 )
 
 var (
@@ -64,6 +65,7 @@ type ProbeRunner struct {
 	signer    *crypto.RFC9421Signer
 	log       *slog.Logger
 	kick      ActiveKicker
+	canExtend func() bool
 }
 
 // NewProbeRunner returns a passive probe runner bound to the validator store.
@@ -251,6 +253,19 @@ func (p *ProbeRunner) failPassiveProbe(ctx context.Context, testRunID string) er
 	return nil
 }
 
+func (p *ProbeRunner) failActiveUnavailable(ctx context.Context, testRunID string) error {
+	if err := p.store.FailPassive(
+		ctx,
+		testRunID,
+		validatorcore.StatePassiveRunning,
+		failReasonActiveUnavailable,
+	); err != nil {
+		return wrapRetryable(err)
+	}
+
+	return nil
+}
+
 func (p *ProbeRunner) completeOrWait(ctx context.Context, testRunID string) error {
 	row, err := p.store.GetTestRun(ctx, testRunID)
 	if err != nil {
@@ -258,6 +273,16 @@ func (p *ProbeRunner) completeOrWait(ctx context.Context, testRunID string) erro
 	}
 
 	if row.OptInActive {
+		if !p.mayExtend() {
+			p.log.Warn(
+				"active opt-in unavailable without reverse-invite capabilities",
+				"test_run_id",
+				testRunID,
+			)
+
+			return p.failActiveUnavailable(ctx, testRunID)
+		}
+
 		if promoErr := p.promoteOrWait(ctx, testRunID); promoErr != nil {
 			return wrapRetryable(promoErr)
 		}

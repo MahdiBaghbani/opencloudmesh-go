@@ -13,8 +13,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
+func (p *ProbeRunner) mayExtend() bool {
+	return p != nil && p.canExtend != nil && p.canExtend()
+}
+
 func (p *ProbeRunner) promoteOrWait(ctx context.Context, testRunID string) error {
 	if p == nil || p.store == nil {
+		return nil
+	}
+
+	if !p.mayExtend() {
 		return nil
 	}
 

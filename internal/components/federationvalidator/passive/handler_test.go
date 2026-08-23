@@ -22,6 +22,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
 	fedcore "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/statistics"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -59,6 +60,22 @@ func openHandlerTestStore(t *testing.T) *validatorcore.Core {
 	core.SetStatsHostHasher(testFedCore(t))
 
 	return core
+}
+
+func allowActiveExtend(h *Handler) {
+	if h == nil {
+		return
+	}
+
+	h.SetCaps(catalog.FullCaps())
+}
+
+func allowProbeExtend(p *ProbeRunner) {
+	if p == nil {
+		return
+	}
+
+	p.canExtend = func() bool { return true }
 }
 
 func testFedCore(t *testing.T) *fedcore.Core {
