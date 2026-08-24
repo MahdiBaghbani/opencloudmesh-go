@@ -112,6 +112,7 @@ type sessionPollResponse struct {
 	State           string `json:"state"`
 	Ts              int64  `json:"ts"`
 	NextInstruction string `json:"nextInstruction,omitempty"`
+	FailModeLabel   string `json:"failModeLabel,omitempty"`
 }
 
 // HandleStart serves POST /start for passive-core session creation.
@@ -246,7 +247,16 @@ func (h *Handler) HandleSession(w http.ResponseWriter, r *http.Request) {
 		State:           row.State,
 		Ts:              row.UpdatedAt,
 		NextInstruction: validatorcore.NextInstructionForRun(row),
+		FailModeLabel:   validatorcore.TerminalReasonLabel(row.State, terminalReasonOf(row)),
 	})
+}
+
+func terminalReasonOf(row *validatorcore.TestRun) string {
+	if row == nil || row.TerminalReason == nil {
+		return ""
+	}
+
+	return *row.TerminalReason
 }
 
 func (h *Handler) handleCreateSession(

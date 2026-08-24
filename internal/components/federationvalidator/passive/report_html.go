@@ -47,6 +47,7 @@ type reportPageData struct {
 	IdentityBindingMessage string
 	NextInstructionLabel   string
 	NextInstructionLabels  template.JS
+	FailModeLabel          string
 }
 
 // HandleReportHTML serves GET /report/{id}.
@@ -108,6 +109,7 @@ func (h *Handler) buildReportPageData(
 		ShowEvidence:          visibility == ReportVisibilityPermanent,
 		NextInstructionLabel:  validatorcore.NextInstructionLabel(validatorcore.NextInstructionForRun(row)),
 		NextInstructionLabels: nextInstructionLabelsJS(),
+		FailModeLabel:         validatorcore.TerminalReasonLabel(row.State, terminalReasonOf(row)),
 	}
 	if row.OverallGrade != nil {
 		data.Grade = *row.OverallGrade

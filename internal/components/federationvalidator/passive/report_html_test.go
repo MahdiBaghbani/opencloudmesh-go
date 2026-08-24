@@ -188,6 +188,96 @@ func TestHandleReportHTML_RendersLockedFields(t *testing.T) {
 	}
 }
 
+func TestHandleReportHTML_RendersFailMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		runID        string
+		state        string
+		reason       string
+		permanent    bool
+		wantLabel    string
+		wantElement  bool
+		forbidTokens []string
+	}{
+		{
+			name:         "terminal fail publishes canonical label",
+			runID:        "run-html-fail-mode",
+			state:        validatorcore.StateTerminalFail,
+			reason:       validatorcore.ReasonPassiveProbeFailed,
+			permanent:    true,
+			wantLabel:    "Passive probe failed",
+			wantElement:  true,
+			forbidTokens: []string{validatorcore.ReasonPassiveProbeFailed},
+		},
+		{
+			name:        "terminal pass without reason omits fail mode",
+			runID:       "run-html-pass-no-fail-mode",
+			state:       validatorcore.StateTerminalPass,
+			permanent:   true,
+			wantElement: false,
+		},
+		{
+			name:        "non-terminal omits fail mode",
+			runID:       "run-html-running-no-fail-mode",
+			state:       validatorcore.StatePassiveRunning,
+			wantElement: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+			now := time.Now().Unix()
+
+			row := &validatorcore.TestRun{
+				TestRunID:      tt.runID,
+				State:          tt.state,
+				OptInPermanent: tt.permanent,
+			}
+			if tt.reason != "" {
+				reason := tt.reason
+				row.TerminalReason = &reason
+				row.FinishedAt = &now
+			}
+
+			seedReportRun(t, store, row)
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/report/"+tt.runID, nil)
+			rec := httptest.NewRecorder()
+			newReportTestRouter(t, h).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rec.Code)
+			}
+
+			body := rec.Body.String()
+			marker := `<p id="fail-mode">`
+
+			if tt.wantElement {
+				want := marker + tt.wantLabel + "</p>"
+				if !strings.Contains(body, want) {
+					t.Fatalf("report page missing %q", want)
+				}
+			} else if strings.Contains(body, marker) {
+				t.Fatal("report page unexpectedly rendered fail-mode")
+			}
+
+			for _, token := range tt.forbidTokens {
+				if strings.Contains(body, token) {
+					t.Fatalf("report page echoed raw terminal reason token %q", token)
+				}
+			}
+
+			assertReportHTMLOmitsIdentifiers(t, body, tt.runID)
+		})
+	}
+}
+
 func TestHandleReportHTML_RendersSpecificationScore(t *testing.T) {
 	t.Parallel()
 

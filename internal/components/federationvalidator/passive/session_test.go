@@ -407,6 +407,50 @@ func TestHandleSession_TerminalStatesOmitNextInstruction(t *testing.T) {
 	}
 }
 
+func TestHandleSession_TerminalFailPublishesFailModeLabel(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+	now := time.Now().Unix()
+	finishedAt := now + 1
+	runID := "run-fail-mode"
+	reason := validatorcore.ReasonPassiveProbeFailed
+
+	seedSessionRow(t, store, &validatorcore.TestRun{
+		TestRunID:      runID,
+		State:          validatorcore.StateTerminalFail,
+		TargetHost:     "peer.example",
+		TerminalReason: &reason,
+		FinishedAt:     &finishedAt,
+		CreatedAt:      now,
+		UpdatedAt:      finishedAt,
+	})
+
+	rec := doPoll(t, h, runID)
+	body := rec.Body.String()
+
+	if strings.Contains(body, validatorcore.ReasonPassiveProbeFailed) {
+		t.Fatalf("poll echoed raw terminal reason token: %s", body)
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.NewDecoder(strings.NewReader(body)).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	assertExactKeys(t, payload, []string{"state", "ts", "failModeLabel"})
+
+	var label string
+	if err := json.Unmarshal(payload["failModeLabel"], &label); err != nil {
+		t.Fatalf("failModeLabel: %v", err)
+	}
+
+	if label != "Passive probe failed" {
+		t.Fatalf("failModeLabel = %q, want %q", label, "Passive probe failed")
+	}
+}
+
 func TestHandleSession_PollDoesNotMutateSession(t *testing.T) {
 	t.Parallel()
 

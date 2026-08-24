@@ -62,11 +62,15 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
     <p id="identity-binding-warning">{{.IdentityBindingMessage}}</p>
     {{end}}
     <p id="next-instruction">{{.NextInstructionLabel}}</p>
+    {{if .FailModeLabel}}
+    <p id="fail-mode">{{.FailModeLabel}}</p>
+    {{end}}
     <script>
       (function () {
-        var sink = document.getElementById("next-instruction");
+        var instructionSink = document.getElementById("next-instruction");
+        var failModeSink = document.getElementById("fail-mode");
         var labels = {{.NextInstructionLabels}};
-        if (!sink || !labels) {
+        if (!instructionSink && !failModeSink) {
           return;
         }
         var path = window.location.pathname || "";
@@ -79,12 +83,17 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
             return res.ok ? res.json() : null;
           })
           .then(function (data) {
-            if (!data || !data.nextInstruction || !labels) {
+            if (!data) {
               return;
             }
-            var label = labels[data.nextInstruction];
-            if (typeof label === "string" && label) {
-              sink.textContent = label;
+            if (instructionSink && data.nextInstruction && labels) {
+              var label = labels[data.nextInstruction];
+              if (typeof label === "string" && label) {
+                instructionSink.textContent = label;
+              }
+            }
+            if (failModeSink && typeof data.failModeLabel === "string" && data.failModeLabel) {
+              failModeSink.textContent = data.failModeLabel;
             }
           })
           .catch(function () {});
