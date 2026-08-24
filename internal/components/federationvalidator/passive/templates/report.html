@@ -11,6 +11,9 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
   <head>
     <meta charset="UTF-8" />
     <title>Federation report</title>
+    <style>
+      #fail-mode:empty { display: none; }
+    </style>
   </head>
   <body>
     <h1>Federation report</h1>
@@ -62,9 +65,7 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
     <p id="identity-binding-warning">{{.IdentityBindingMessage}}</p>
     {{end}}
     <p id="next-instruction">{{.NextInstructionLabel}}</p>
-    {{if .FailModeLabel}}
     <p id="fail-mode">{{.FailModeLabel}}</p>
-    {{end}}
     <script>
       (function () {
         var instructionSink = document.getElementById("next-instruction");

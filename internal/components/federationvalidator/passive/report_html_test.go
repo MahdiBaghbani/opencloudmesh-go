@@ -198,7 +198,6 @@ func TestHandleReportHTML_RendersFailMode(t *testing.T) {
 		reason       string
 		permanent    bool
 		wantLabel    string
-		wantElement  bool
 		forbidTokens []string
 	}{
 		{
@@ -208,21 +207,18 @@ func TestHandleReportHTML_RendersFailMode(t *testing.T) {
 			reason:       validatorcore.ReasonPassiveProbeFailed,
 			permanent:    true,
 			wantLabel:    "Passive probe failed",
-			wantElement:  true,
 			forbidTokens: []string{validatorcore.ReasonPassiveProbeFailed},
 		},
 		{
-			name:        "terminal pass without reason omits fail mode",
-			runID:       "run-html-pass-no-fail-mode",
-			state:       validatorcore.StateTerminalPass,
-			permanent:   true,
-			wantElement: false,
+			name:      "terminal pass keeps empty fail-mode sink",
+			runID:     "run-html-pass-no-fail-mode",
+			state:     validatorcore.StateTerminalPass,
+			permanent: true,
 		},
 		{
-			name:        "non-terminal omits fail mode",
-			runID:       "run-html-running-no-fail-mode",
-			state:       validatorcore.StatePassiveRunning,
-			wantElement: false,
+			name:  "non-terminal keeps empty fail-mode sink",
+			runID: "run-html-running-no-fail-mode",
+			state: validatorcore.StatePassiveRunning,
 		},
 	}
 
@@ -256,15 +252,14 @@ func TestHandleReportHTML_RendersFailMode(t *testing.T) {
 			}
 
 			body := rec.Body.String()
-			marker := `<p id="fail-mode">`
 
-			if tt.wantElement {
-				want := marker + tt.wantLabel + "</p>"
-				if !strings.Contains(body, want) {
-					t.Fatalf("report page missing %q", want)
-				}
-			} else if strings.Contains(body, marker) {
-				t.Fatal("report page unexpectedly rendered fail-mode")
+			want := `<p id="fail-mode">` + tt.wantLabel + "</p>"
+			if !strings.Contains(body, want) {
+				t.Fatalf("report page missing %q", want)
+			}
+
+			if !strings.Contains(body, "#fail-mode:empty") {
+				t.Fatal("report page missing empty fail-mode hide rule")
 			}
 
 			for _, token := range tt.forbidTokens {

@@ -166,8 +166,9 @@ func validateTerminalReason(state, reason string) error {
 // finished_at, terminal_reason, overall_grade, and updated_at. Permanent
 // expiry is sealed in the same transaction. Statistics persist best-effort
 // after the state write commits. expectedStates must be a non-empty
-// non-terminal set; update.State must be terminal. FlipLateReverseShareToPass
-// and hybrid lock repair do not use this writer.
+// non-terminal set; update.State must be terminal. The guarded seam
+// validates the closed terminal-reason set before the UPDATE.
+// FlipLateReverseShareToPass and hybrid lock repair do not use this writer.
 func (c *Core) WriteTerminal(
 	ctx context.Context,
 	testRunID string,
@@ -197,6 +198,12 @@ func (c *Core) writeTerminalExcept(
 	return c.writeTerminalGuarded(ctx, testRunID, true, terminalStateOpNotIn, excluded, update)
 }
 
+// writeTerminalGuarded validates the closed terminal-reason set via
+// validateTerminalReason(update.State, update.TerminalReason) before the
+// UPDATE, after the store-config guard and the wrapper dest-state
+// validators. Out-of-set, empty, or whitespace reasons return
+// ErrTerminalReasonInvalid (wrapped); a non-terminal dest returns bare
+// ErrTerminalStateInvalid.
 func (c *Core) writeTerminalGuarded(
 	ctx context.Context,
 	testRunID string,
@@ -298,7 +305,8 @@ func (c *Core) StopPassive(ctx context.Context, testRunID string) error {
 }
 
 // FailPassive terminalizes a passive session from created, passive_running,
-// or passive_complete as terminal_fail with GradeFail.
+// or passive_complete as terminal_fail with GradeFail. An empty reason is
+// rejected and returns ErrTerminalReasonInvalid via the writer seam.
 func (c *Core) FailPassive(ctx context.Context, testRunID, expectedState, reason string) error {
 	if !isPassiveFailExpectedState(expectedState) {
 		return fmt.Errorf("validatorcore: unsupported fail-passive state %q", expectedState)
