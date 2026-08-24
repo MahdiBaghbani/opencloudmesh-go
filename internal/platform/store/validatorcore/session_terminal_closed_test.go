@@ -8,6 +8,7 @@ package validatorcore
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -165,43 +166,95 @@ func TestClosedTerminalReasonRejected(t *testing.T) {
 	}
 }
 
+func TestWriteTerminalGuarded_StoreConfigPrecedesReasonValidation(t *testing.T) {
+	t.Parallel()
+
+	// A nil store must fail as unconfigured before an out-of-set reason is checked.
+	c := &Core{}
+
+	err := c.writeTerminalGuarded(
+		t.Context(),
+		"run-store-config-precedes-reason",
+		false,
+		terminalStateOpIn,
+		[]string{StatePassiveRunning},
+		ActiveTerminalUpdate{
+			State:          StateTerminalFail,
+			TerminalReason: "definitely_not_in_set",
+		},
+	)
+	if err == nil {
+		t.Fatal("error = nil, want store-config error")
+	}
+
+	if errors.Is(err, ErrTerminalReasonInvalid) {
+		t.Fatalf("error = %v, must not be ErrTerminalReasonInvalid", err)
+	}
+
+	if !strings.Contains(err.Error(), "store is not configured") {
+		t.Fatalf("error = %q, want store is not configured", err)
+	}
+}
+
 func TestFailPassive_EmptyReasonRejected(t *testing.T) {
 	t.Parallel()
 
-	core := openTestCore(t)
-	ctx := t.Context()
-	runID := "run-fail-passive-empty"
-
-	seedInactivePassiveRunning(t, core, runID)
-
-	before, err := core.GetTestRun(ctx, runID)
-	if err != nil {
-		t.Fatalf("GetTestRun before: %v", err)
+	tests := []struct {
+		name  string
+		runID string
+		state string
+	}{
+		{
+			name:  "passive_running stays non-terminal",
+			runID: "run-fail-passive-empty",
+			state: StatePassiveRunning,
+		},
+		{
+			name:  "created stays non-terminal",
+			runID: "run-fail-passive-empty-created",
+			state: StateCreated,
+		},
 	}
 
-	gotErr := core.FailPassive(ctx, runID, StatePassiveRunning, "")
-	if !errors.Is(gotErr, ErrTerminalReasonInvalid) {
-		t.Fatalf("FailPassive empty reason = %v, want ErrTerminalReasonInvalid", gotErr)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	if errors.Is(gotErr, ErrTerminalReasonInvalid) && errors.Unwrap(gotErr) == nil {
-		t.Fatalf("error = %v, want wrapped %v", gotErr, ErrTerminalReasonInvalid)
-	}
+			core := openTestCore(t)
+			ctx := t.Context()
 
-	after, err := core.GetTestRun(ctx, runID)
-	if err != nil {
-		t.Fatalf("GetTestRun after: %v", err)
-	}
+			seedInactiveRow(t, core, tt.runID, tt.state)
 
-	if after.State != StatePassiveRunning {
-		t.Fatalf("state = %q, want %q", after.State, StatePassiveRunning)
-	}
+			before, err := core.GetTestRun(ctx, tt.runID)
+			if err != nil {
+				t.Fatalf("GetTestRun before: %v", err)
+			}
 
-	if isTerminalState(after.State) {
-		t.Fatalf("state = %q, want a non-terminal passive_running row", after.State)
-	}
+			gotErr := core.FailPassive(ctx, tt.runID, tt.state, "")
+			if !errors.Is(gotErr, ErrTerminalReasonInvalid) {
+				t.Fatalf("FailPassive empty reason = %v, want ErrTerminalReasonInvalid", gotErr)
+			}
 
-	assertTerminalRowUnchanged(t, before, after)
+			if errors.Is(gotErr, ErrTerminalReasonInvalid) && errors.Unwrap(gotErr) == nil {
+				t.Fatalf("error = %v, want wrapped %v", gotErr, ErrTerminalReasonInvalid)
+			}
+
+			after, err := core.GetTestRun(ctx, tt.runID)
+			if err != nil {
+				t.Fatalf("GetTestRun after: %v", err)
+			}
+
+			if after.State != tt.state {
+				t.Fatalf("state = %q, want %q", after.State, tt.state)
+			}
+
+			if isTerminalState(after.State) {
+				t.Fatalf("state = %q, want a non-terminal %s row", after.State, tt.state)
+			}
+
+			assertTerminalRowUnchanged(t, before, after)
+		})
+	}
 }
 
 func TestClosedTerminalReasonAccepted(t *testing.T) {
@@ -296,17 +349,23 @@ func seedClosedRejectRow(t *testing.T, core *Core, runID, wrapper string) {
 func seedInactivePassiveRunning(t *testing.T, core *Core, runID string) {
 	t.Helper()
 
+	seedInactiveRow(t, core, runID, StatePassiveRunning)
+}
+
+func seedInactiveRow(t *testing.T, core *Core, runID, state string) {
+	t.Helper()
+
 	now := time.Now().Unix()
 
 	if err := core.DB().WithContext(t.Context()).Create(&TestRun{
 		TestRunID:  runID,
 		IsActive:   false,
-		State:      StatePassiveRunning,
+		State:      state,
 		TargetHost: "closed.example",
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}).Error; err != nil {
-		t.Fatalf("seed passive running %s: %v", runID, err)
+		t.Fatalf("seed %s %s: %v", state, runID, err)
 	}
 }
 
