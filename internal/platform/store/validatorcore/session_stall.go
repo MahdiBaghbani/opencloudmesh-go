@@ -173,9 +173,9 @@ func stallTerminalReason(state string) string {
 	case StateReverseAwaitingShare:
 		return ReasonReverseShareTimeout
 	case StateReverseAwaitingInvite:
-		return "reverse_invite_timeout"
+		return ReasonReverseInviteTimeout
 	default:
-		return "stall_inactivity_expired"
+		return ReasonStallInactivityExpired
 	}
 }
 

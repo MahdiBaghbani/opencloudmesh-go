@@ -20,11 +20,8 @@ import (
 )
 
 const (
-	probeMaxAttempts            = 3
-	probeRetryWait              = 50 * time.Millisecond
-	failReasonStartFailed       = "probe_start_failed"
-	failReasonProbeFailed       = "passive_probe_failed"
-	failReasonActiveUnavailable = "active_unavailable"
+	probeMaxAttempts = 3
+	probeRetryWait   = 50 * time.Millisecond
 )
 
 var (
@@ -240,13 +237,13 @@ func (p *ProbeRunner) ensureProbeStarted(ctx context.Context, testRunID string) 
 }
 
 func (p *ProbeRunner) failCreated(ctx context.Context, testRunID string) {
-	if failErr := p.store.FailRunTerminal(ctx, testRunID, failReasonStartFailed); failErr != nil {
+	if failErr := p.store.FailRunTerminal(ctx, testRunID, validatorcore.ReasonProbeStartFailed); failErr != nil {
 		p.log.Warn("passive probe failed to terminalize after start miss", "test_run_id", testRunID, "error", failErr)
 	}
 }
 
 func (p *ProbeRunner) failPassiveProbe(ctx context.Context, testRunID string) error {
-	if err := p.store.FailPassive(ctx, testRunID, validatorcore.StatePassiveRunning, failReasonProbeFailed); err != nil {
+	if err := p.store.FailPassive(ctx, testRunID, validatorcore.StatePassiveRunning, validatorcore.ReasonPassiveProbeFailed); err != nil {
 		return wrapRetryable(err)
 	}
 
@@ -258,7 +255,7 @@ func (p *ProbeRunner) failActiveUnavailable(ctx context.Context, testRunID strin
 		ctx,
 		testRunID,
 		validatorcore.StatePassiveRunning,
-		failReasonActiveUnavailable,
+		validatorcore.ReasonActiveUnavailable,
 	); err != nil {
 		return wrapRetryable(err)
 	}
@@ -291,7 +288,7 @@ func (p *ProbeRunner) completeOrWait(ctx context.Context, testRunID string) erro
 	}
 
 	if err := p.store.CompletePassiveProbe(ctx, testRunID); err != nil {
-		if failErr := p.store.FailPassiveRunningTerminal(ctx, testRunID, "probe_complete_failed"); failErr != nil {
+		if failErr := p.store.FailPassiveRunningTerminal(ctx, testRunID, validatorcore.ReasonProbeCompleteFailed); failErr != nil {
 			p.log.Warn("passive probe failed to terminalize after complete miss", "test_run_id", testRunID, "error", failErr)
 		}
 

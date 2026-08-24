@@ -102,8 +102,8 @@ func TestProbeRunner_OptInWithoutCapsFailsClosed(t *testing.T) {
 		t.Fatalf("state = %q, want %q", got.State, validatorcore.StateTerminalFail)
 	}
 
-	if got.TerminalReason == nil || *got.TerminalReason != failReasonActiveUnavailable {
-		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, failReasonActiveUnavailable)
+	if got.TerminalReason == nil || *got.TerminalReason != validatorcore.ReasonActiveUnavailable {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, validatorcore.ReasonActiveUnavailable)
 	}
 
 	if got.IsActive {
@@ -210,8 +210,8 @@ func TestProbeRunner_DiscoveryFailGatesWithoutComplete(t *testing.T) {
 		t.Fatalf("state = %q, want %q", got.State, validatorcore.StateTerminalFail)
 	}
 
-	if got.TerminalReason == nil || *got.TerminalReason != failReasonProbeFailed {
-		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, failReasonProbeFailed)
+	if got.TerminalReason == nil || *got.TerminalReason != validatorcore.ReasonPassiveProbeFailed {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, validatorcore.ReasonPassiveProbeFailed)
 	}
 
 	assertOneEvidenceArea(t, store, runID, validatorcore.SpecificationAreaDiscovery)

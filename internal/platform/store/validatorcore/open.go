@@ -166,11 +166,6 @@ func (c *Core) sweepRetentionAndPrune(ctx context.Context) error {
 	return nil
 }
 
-// startupRecoveryReason is the terminal_reason stamped on leftover active
-// runs interrupted by startup recovery. The reason is unflippable: the run
-// belongs to a dead process, so no later transition may rewrite it.
-const startupRecoveryReason = "startup_unrecoverable_active"
-
 // startupTerminalizeUnrecoverableActive runs startup recovery for leftover
 // is_active=1 rows. The pass is best-effort: a failure is logged and left to
 // the stall sweep rather than blocking startup.
@@ -206,7 +201,7 @@ func (c *Core) terminalizeUnrecoverableActiveRuns(ctx context.Context) error {
 	for _, row := range rows {
 		err := c.ReleaseActiveTerminalExcept(ctx, row.TestRunID, nil, ActiveTerminalUpdate{
 			State:          StateInterrupted,
-			TerminalReason: startupRecoveryReason,
+			TerminalReason: ReasonStartupUnrecoverableActive,
 		})
 		if err == nil || errors.Is(err, ErrStateTransitionMiss) {
 			continue

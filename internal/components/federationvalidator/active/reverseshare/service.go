@@ -55,8 +55,6 @@ func New(deps Deps) (*Service, error) {
 	return &Service{deps: deps, log: logutil.NoopIfNil(deps.Logger)}, nil
 }
 
-const reasonReverseShareObserved = "reverse_share_observed"
-
 // recordShareReceived persists the inbound share transcript and the
 // reverse-share evidence fact so terminal statistics carry the sharing grade.
 // The fact is first-wins and must land before terminal_pass; a failure
@@ -109,7 +107,7 @@ func (s *Service) driveReverseShareSuccess(ctx context.Context, testRunID, provi
 			ctx,
 			testRunID,
 			validatorcore.ActivePassExpectedStates(),
-			reasonReverseShareObserved,
+			validatorcore.ReasonReverseShareObserved,
 		)
 
 		switch {

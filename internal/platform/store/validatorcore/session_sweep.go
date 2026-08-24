@@ -21,8 +21,8 @@ func (c *Core) sweepPassiveInFlightTTL(ctx context.Context) error {
 		ttlSeconds int
 		reason     string
 	}{
-		{StateCreated, cfg.CreatedTTLSeconds, "created_ttl_expired"},
-		{StatePassiveRunning, cfg.PassiveRunningTTLSeconds, "passive_running_ttl_expired"},
+		{StateCreated, cfg.CreatedTTLSeconds, ReasonCreatedTTLExpired},
+		{StatePassiveRunning, cfg.PassiveRunningTTLSeconds, ReasonPassiveRunningTTLExpired},
 	}
 
 	for _, item := range states {
@@ -71,7 +71,7 @@ func (c *Core) sweepPassiveCompleteTTL(ctx context.Context) error {
 	}
 
 	for _, id := range ids {
-		if err := c.failPassiveTTL(ctx, id, StatePassiveComplete, "passive_complete_ttl_expired"); err != nil {
+		if err := c.failPassiveTTL(ctx, id, StatePassiveComplete, ReasonPassiveCompleteTTLExpired); err != nil {
 			return err
 		}
 	}

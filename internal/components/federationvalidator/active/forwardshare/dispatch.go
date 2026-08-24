@@ -269,7 +269,7 @@ func (s *Service) classifyCommitMiss(ctx context.Context, testRunID string) erro
 	// never as a hard fail.
 	interruptErr := s.deps.Store.ReleaseActiveTerminalFrom(ctx, testRunID, []string{current.State}, validatorcore.ActiveTerminalUpdate{
 		State:          validatorcore.StateInterrupted,
-		TerminalReason: "forward_share_commit_stall",
+		TerminalReason: validatorcore.ReasonForwardShareCommitStall,
 	})
 	if interruptErr != nil && !errors.Is(interruptErr, validatorcore.ErrStateTransitionMiss) {
 		return fmt.Errorf("forwardshare: interrupt after commit miss: %w", interruptErr)

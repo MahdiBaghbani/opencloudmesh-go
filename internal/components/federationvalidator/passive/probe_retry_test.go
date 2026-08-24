@@ -46,14 +46,14 @@ func TestProbeRunner_RetryExhaustionSettles(t *testing.T) {
 			},
 			err:        fetchErr,
 			wantState:  validatorcore.StateTerminalFail,
-			wantReason: failReasonProbeFailed,
+			wantReason: validatorcore.ReasonPassiveProbeFailed,
 		},
 		{
 			name:       "tls fail reaches terminal fail",
 			runID:      "run-exhaust-tls-fail",
 			result:     passingDiscoveryResult(expiredTLSState()),
 			wantState:  validatorcore.StateTerminalFail,
-			wantReason: failReasonProbeFailed,
+			wantReason: validatorcore.ReasonPassiveProbeFailed,
 		},
 		{
 			name:      "jwks fail opt-out reaches passive complete",
@@ -275,8 +275,8 @@ func TestProbeRunner_RetryLastWinsAreaGrade(t *testing.T) {
 			t.Fatalf("state = %q, want %q", got.State, validatorcore.StateTerminalFail)
 		}
 
-		if got.TerminalReason == nil || *got.TerminalReason != failReasonProbeFailed {
-			t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, failReasonProbeFailed)
+		if got.TerminalReason == nil || *got.TerminalReason != validatorcore.ReasonPassiveProbeFailed {
+			t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, validatorcore.ReasonPassiveProbeFailed)
 		}
 
 		if fetcher.calls != probeMaxAttempts {
@@ -371,7 +371,7 @@ func TestProbeRunner_CancelledRetryWaitStillSettles(t *testing.T) {
 			},
 			err:        fetchErr,
 			wantState:  validatorcore.StateTerminalFail,
-			wantReason: failReasonProbeFailed,
+			wantReason: validatorcore.ReasonPassiveProbeFailed,
 		},
 		{
 			name:      "cancelled wait still completes on jwks fail",

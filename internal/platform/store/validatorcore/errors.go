@@ -79,6 +79,10 @@ var (
 	// rejected before any UPDATE runs.
 	ErrActiveHardFailReasonInvalid = errors.New("invalid active hard-fail reason")
 
+	// ErrTerminalReasonInvalid is returned when a terminal reason is not in
+	// the closed set for the requested destination state.
+	ErrTerminalReasonInvalid = errors.New("invalid terminal reason")
+
 	// ErrInvalidLocalIdentity is returned when a finder local_identity is empty
 	// or not a recognized occupancy slot.
 	ErrInvalidLocalIdentity = errors.New("invalid local identity")

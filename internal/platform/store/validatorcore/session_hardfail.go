@@ -17,37 +17,7 @@ import (
 // empty reason normalizes to ReasonActiveHardFail. Every reason in the set
 // is unflippable: none of them is a timeout reason a later flip transition
 // may rewrite.
-const (
-	// ReasonActiveHardFail is the default hard-fail terminal reason, stamped
-	// when the caller carries no finer distinction.
-	ReasonActiveHardFail = "active_hard_fail"
-
-	// ReasonActiveHardFailIdentity is the hard-fail terminal reason recorded
-	// when the identity plane fails the active run. It is the only hard-fail
-	// reason allowed to interrupt the graded exercise states: an identity
-	// failure voids the run no matter how far the graded flow has
-	// progressed.
-	ReasonActiveHardFailIdentity = "active_hard_fail_identity"
-
-	// ReasonActiveHardFailDispatch is recorded when the designated forward
-	// dispatch fails locally in a way that cannot be retried.
-	ReasonActiveHardFailDispatch = "active_hard_fail_dispatch"
-
-	// ReasonActiveHardFailCorrelation is recorded when the designated
-	// correlation or probe-file binding is gone and cannot be rebuilt.
-	ReasonActiveHardFailCorrelation = "active_hard_fail_correlation"
-
-	// ReasonOperatorAborted is recorded when the operator aborts the active
-	// run through the validator-only abort seat.
-	ReasonOperatorAborted = "operator_aborted"
-
-	// ReasonWrongAccepter is recorded when the accepting peer's host or
-	// enforceable local user does not match the session. It is first-advance
-	// only: like every non-identity reason, it is refused in the graded
-	// exercise states so a late observation cannot rewrite a pass-capable run.
-	ReasonWrongAccepter = "wrong_accepter"
-)
-
+//
 // hardFailReasons is the closed set of hard-fail terminal reasons.
 var hardFailReasons = []string{
 	ReasonActiveHardFail,

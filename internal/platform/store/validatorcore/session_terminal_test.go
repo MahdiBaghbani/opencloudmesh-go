@@ -29,7 +29,7 @@ func TestStopPassive_PassWarnAndFailEvidence(t *testing.T) {
 			runID:      "run-stop-pass",
 			wantState:  StateTerminalPass,
 			wantGrade:  GradePass,
-			wantReason: reasonStopped,
+			wantReason: ReasonStopped,
 		},
 		{
 			name:       "discovery warn stays pass",
@@ -38,7 +38,7 @@ func TestStopPassive_PassWarnAndFailEvidence(t *testing.T) {
 			severity:   GradeWarn,
 			wantState:  StateTerminalPass,
 			wantGrade:  GradeWarn,
-			wantReason: reasonStopped,
+			wantReason: ReasonStopped,
 		},
 		{
 			name:       "tls warn stays pass",
@@ -47,7 +47,7 @@ func TestStopPassive_PassWarnAndFailEvidence(t *testing.T) {
 			severity:   GradeWarn,
 			wantState:  StateTerminalPass,
 			wantGrade:  GradeWarn,
-			wantReason: reasonStopped,
+			wantReason: ReasonStopped,
 		},
 		{
 			name:       "discovery fail is fail",
@@ -56,7 +56,7 @@ func TestStopPassive_PassWarnAndFailEvidence(t *testing.T) {
 			severity:   GradeFail,
 			wantState:  StateTerminalFail,
 			wantGrade:  GradeFail,
-			wantReason: reasonProbeFailed,
+			wantReason: ReasonPassiveProbeFailed,
 		},
 		{
 			name:       "tls fail is fail",
@@ -65,7 +65,7 @@ func TestStopPassive_PassWarnAndFailEvidence(t *testing.T) {
 			severity:   GradeFail,
 			wantState:  StateTerminalFail,
 			wantGrade:  GradeFail,
-			wantReason: reasonProbeFailed,
+			wantReason: ReasonPassiveProbeFailed,
 		},
 		{
 			name:       "jwks fail does not block pass",
@@ -74,7 +74,7 @@ func TestStopPassive_PassWarnAndFailEvidence(t *testing.T) {
 			severity:   GradeFail,
 			wantState:  StateTerminalPass,
 			wantGrade:  GradePass,
-			wantReason: reasonStopped,
+			wantReason: ReasonStopped,
 		},
 	}
 
@@ -209,7 +209,7 @@ func TestWriteTerminal_RejectsTerminalExpectedState(t *testing.T) {
 		[]string{StateInterrupted},
 		ActiveTerminalUpdate{
 			State:          StateTerminalPass,
-			TerminalReason: reasonStopped,
+			TerminalReason: ReasonStopped,
 			OverallGrade:   &grade,
 		},
 	)
@@ -340,7 +340,7 @@ func TestPassActiveFrom_WritesTerminalPass(t *testing.T) {
 
 	seedActiveRunInState(t, core, runID, StateCapabilityExercise)
 
-	if err := core.PassActiveFrom(ctx, runID, ActivePassExpectedStates(), "reverse_share_observed"); err != nil {
+	if err := core.PassActiveFrom(ctx, runID, ActivePassExpectedStates(), ReasonReverseShareObserved); err != nil {
 		t.Fatalf("PassActiveFrom: %v", err)
 	}
 

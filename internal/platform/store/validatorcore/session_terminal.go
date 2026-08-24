@@ -15,13 +15,150 @@ import (
 	"gorm.io/gorm"
 )
 
+// Closed terminal-reason tokens, grouped by destination state.
 const (
-	reasonStopped     = "stopped"
-	reasonProbeFailed = "passive_probe_failed"
+	// Destination terminal_fail.
 
+	// ReasonProbeStartFailed is recorded when the passive probe cannot start.
+	ReasonProbeStartFailed = "probe_start_failed"
+
+	// ReasonProbeCompleteFailed is recorded when completing the passive probe fails.
+	ReasonProbeCompleteFailed = "probe_complete_failed"
+
+	// ReasonPassiveProbeFailed is recorded when the passive probe itself fails.
+	ReasonPassiveProbeFailed = "passive_probe_failed"
+
+	// ReasonCreatedTTLExpired is recorded when a created session outlives its TTL.
+	ReasonCreatedTTLExpired = "created_ttl_expired"
+
+	// ReasonPassiveRunningTTLExpired is recorded when a passive_running session
+	// outlives its TTL.
+	ReasonPassiveRunningTTLExpired = "passive_running_ttl_expired"
+
+	// ReasonPassiveCompleteTTLExpired is recorded when a passive_complete
+	// session outlives its TTL.
+	ReasonPassiveCompleteTTLExpired = "passive_complete_ttl_expired"
+
+	// ReasonActiveHardFail is the default hard-fail terminal reason.
+	ReasonActiveHardFail = "active_hard_fail"
+
+	// ReasonActiveHardFailIdentity is recorded when the identity plane fails
+	// the active run.
+	ReasonActiveHardFailIdentity = "active_hard_fail_identity"
+
+	// ReasonActiveHardFailDispatch is recorded when designated forward
+	// dispatch fails and cannot be retried.
+	ReasonActiveHardFailDispatch = "active_hard_fail_dispatch"
+
+	// ReasonActiveHardFailCorrelation is recorded when designated correlation
+	// or probe-file binding is gone.
+	ReasonActiveHardFailCorrelation = "active_hard_fail_correlation"
+
+	// ReasonOperatorAborted is recorded when the operator aborts the run.
+	ReasonOperatorAborted = "operator_aborted"
+
+	// ReasonWrongAccepter is recorded when the accepting peer does not match
+	// the session.
+	ReasonWrongAccepter = "wrong_accepter"
+
+	// ReasonActiveUnavailable is recorded when active opt-in cannot proceed.
+	ReasonActiveUnavailable = "active_unavailable"
+
+	// Destination interrupted.
+
+	// ReasonReverseShareTimeout is recorded when the reverse-share wait
+	// outlives its inactivity window.
+	ReasonReverseShareTimeout = "reverse_share_timeout"
+
+	// ReasonReverseInviteTimeout is recorded when the reverse-invite wait
+	// outlives its inactivity window.
+	ReasonReverseInviteTimeout = "reverse_invite_timeout"
+
+	// ReasonStallInactivityExpired is recorded when a stalled non-wait state
+	// outlives the inactivity window.
+	ReasonStallInactivityExpired = "stall_inactivity_expired"
+
+	// ReasonStartupUnrecoverableActive is recorded when startup recovery
+	// interrupts a leftover active run.
+	ReasonStartupUnrecoverableActive = "startup_unrecoverable_active"
+
+	// ReasonForwardShareCommitStall is recorded when a recorded forward-share
+	// send cannot commit the run forward.
+	ReasonForwardShareCommitStall = "forward_share_commit_stall"
+
+	// Destination terminal_pass.
+
+	// ReasonStopped is recorded when the operator stops a complete passive run.
+	ReasonStopped = "stopped"
+
+	// ReasonReverseShareObserved is recorded when a timely reverse share
+	// passes the active run.
+	ReasonReverseShareObserved = "reverse_share_observed"
+
+	// ReasonLateReverseShare is recorded when a reverse share arrives after
+	// the wait already timed out.
+	ReasonLateReverseShare = "late_reverse_share"
+)
+
+const (
 	terminalStateOpIn    = "IN"
 	terminalStateOpNotIn = "NOT IN"
 )
+
+func legalTerminalReasons(state string) []string {
+	switch state {
+	case StateTerminalFail:
+		return slices.Clone([]string{
+			ReasonProbeStartFailed,
+			ReasonProbeCompleteFailed,
+			ReasonPassiveProbeFailed,
+			ReasonCreatedTTLExpired,
+			ReasonPassiveRunningTTLExpired,
+			ReasonPassiveCompleteTTLExpired,
+			ReasonActiveHardFail,
+			ReasonActiveHardFailIdentity,
+			ReasonActiveHardFailDispatch,
+			ReasonActiveHardFailCorrelation,
+			ReasonOperatorAborted,
+			ReasonWrongAccepter,
+			ReasonActiveUnavailable,
+		})
+	case StateInterrupted:
+		return slices.Clone([]string{
+			ReasonReverseShareTimeout,
+			ReasonReverseInviteTimeout,
+			ReasonStallInactivityExpired,
+			ReasonStartupUnrecoverableActive,
+			ReasonForwardShareCommitStall,
+		})
+	case StateTerminalPass:
+		return slices.Clone([]string{
+			ReasonStopped,
+			ReasonReverseShareObserved,
+			ReasonLateReverseShare,
+		})
+	default:
+		return nil
+	}
+}
+
+func validateTerminalReason(state, reason string) error {
+	legal := legalTerminalReasons(state)
+	if legal == nil {
+		return ErrTerminalStateInvalid
+	}
+
+	if !slices.Contains(legal, reason) {
+		return fmt.Errorf(
+			"validatorcore: terminal reason %q for state %q: %w",
+			reason,
+			state,
+			ErrTerminalReasonInvalid,
+		)
+	}
+
+	return nil
+}
 
 // WriteTerminal is the single first-write terminal writer. One guarded
 // UPDATE matches test_run_id, the required active-lock bit, and state IN
@@ -111,7 +248,7 @@ func (c *Core) writeTerminalGuarded(
 }
 
 // StopPassive terminalizes a core-only passive_complete session. A ready
-// opt-in lock waiter is abandoned as terminal_fail with operator_aborted.
+// opt-in lock waiter is abandoned as terminal_fail with ReasonOperatorAborted.
 // A persisted discovery or TLS fail routes to FailPassive; otherwise a
 // complete run becomes terminal_pass with a pass or warn grade folded from
 // durable evidence. An already-terminal row is a successful no-op so a
@@ -139,7 +276,7 @@ func (c *Core) StopPassive(ctx context.Context, testRunID string) error {
 		return c.confirmTerminalAfterMiss(
 			ctx,
 			testRunID,
-			c.FailPassive(ctx, testRunID, StatePassiveComplete, reasonProbeFailed),
+			c.FailPassive(ctx, testRunID, StatePassiveComplete, ReasonPassiveProbeFailed),
 		)
 	}
 
@@ -150,7 +287,7 @@ func (c *Core) StopPassive(ctx context.Context, testRunID string) error {
 		testRunID,
 		c.WriteTerminal(ctx, testRunID, false, []string{StatePassiveComplete}, ActiveTerminalUpdate{
 			State:          StateTerminalPass,
-			TerminalReason: reasonStopped,
+			TerminalReason: ReasonStopped,
 			OverallGrade:   &grade,
 		}),
 	)
@@ -164,7 +301,7 @@ func (c *Core) FailPassive(ctx context.Context, testRunID, expectedState, reason
 	}
 
 	if reason == "" {
-		reason = reasonProbeFailed
+		reason = ReasonPassiveProbeFailed
 	}
 
 	grade := GradeFail

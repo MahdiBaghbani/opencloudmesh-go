@@ -21,17 +21,6 @@ const (
 	colStatsWrittenAt         = "stats_written_at"
 )
 
-const (
-	// ReasonReverseShareTimeout is the terminal reason the stall sweep stamps
-	// when the reverse-share wait outlives the inactivity window. It is the
-	// only interrupted reason the late flip may recover.
-	ReasonReverseShareTimeout = "reverse_share_timeout"
-
-	// ReasonLateReverseShare is the terminal reason stamped by the late flip
-	// when a reverse share arrives after the wait already timed out.
-	ReasonLateReverseShare = "late_reverse_share"
-)
-
 // OpenReverseAwaitingShare moves the active run from capability_exercise to
 // reverse_awaiting_share, opening the event-driven wait for the peer's
 // reverse share. The guarded UPDATE is the single CAS; a zero-row result
