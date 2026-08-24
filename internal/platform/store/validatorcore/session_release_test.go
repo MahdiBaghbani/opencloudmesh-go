@@ -55,7 +55,7 @@ func TestReleaseActiveTerminal_WritesTerminalFieldsAtomically(t *testing.T) {
 
 	if err := core.ReleaseActiveTerminal(ctx, runID, StateCapabilityExercise, ActiveTerminalUpdate{
 		State:          StateTerminalPass,
-		TerminalReason: "completed",
+		TerminalReason: ReasonReverseShareObserved,
 		OverallGrade:   &grade,
 	}); err != nil {
 		t.Fatalf("ReleaseActiveTerminal: %v", err)
@@ -82,8 +82,8 @@ func TestReleaseActiveTerminal_WritesTerminalFieldsAtomically(t *testing.T) {
 		t.Fatalf("updated_at = %d, want the finished_at stamp %d", got.UpdatedAt, *got.FinishedAt)
 	}
 
-	if got.TerminalReason == nil || *got.TerminalReason != "completed" {
-		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, "completed")
+	if got.TerminalReason == nil || *got.TerminalReason != ReasonReverseShareObserved {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, ReasonReverseShareObserved)
 	}
 
 	if got.OverallGrade == nil || *got.OverallGrade != GradePass {
@@ -112,7 +112,7 @@ func TestReleaseActiveTerminal_PreservesExistingFinishedAt(t *testing.T) {
 
 	if err := core.ReleaseActiveTerminal(ctx, runID, StateCapabilityExercise, ActiveTerminalUpdate{
 		State:          StateTerminalFail,
-		TerminalReason: "stall_timeout",
+		TerminalReason: ReasonOperatorAborted,
 	}); err != nil {
 		t.Fatalf("ReleaseActiveTerminal: %v", err)
 	}
@@ -138,8 +138,8 @@ func TestReleaseActiveTerminal_PreservesExistingFinishedAt(t *testing.T) {
 		t.Fatalf("updated_at = %d, want a fresh stamp >= %d", got.UpdatedAt, before)
 	}
 
-	if got.TerminalReason == nil || *got.TerminalReason != "stall_timeout" {
-		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, "stall_timeout")
+	if got.TerminalReason == nil || *got.TerminalReason != ReasonOperatorAborted {
+		t.Fatalf("terminal_reason = %v, want %q", got.TerminalReason, ReasonOperatorAborted)
 	}
 }
 
@@ -154,7 +154,7 @@ func TestReleaseActiveTerminal_InterruptedCarriesNoGrade(t *testing.T) {
 
 	if err := core.ReleaseActiveTerminal(ctx, runID, StateActiveRunning, ActiveTerminalUpdate{
 		State:          StateInterrupted,
-		TerminalReason: "operator_stop",
+		TerminalReason: ReasonStartupUnrecoverableActive,
 	}); err != nil {
 		t.Fatalf("ReleaseActiveTerminal: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestReleaseActiveTerminal_SecondTerminalizationMisses(t *testing.T) {
 	grade := GradePass
 	if err := core.ReleaseActiveTerminal(ctx, runID, StateCapabilityExercise, ActiveTerminalUpdate{
 		State:          StateTerminalPass,
-		TerminalReason: "completed",
+		TerminalReason: ReasonReverseShareObserved,
 		OverallGrade:   &grade,
 	}); err != nil {
 		t.Fatalf("first release: %v", err)
@@ -304,7 +304,7 @@ func TestReleaseActiveTerminal_SecondTerminalizationMisses(t *testing.T) {
 
 	err = core.ReleaseActiveTerminal(ctx, runID, StateCapabilityExercise, ActiveTerminalUpdate{
 		State:          StateTerminalFail,
-		TerminalReason: "second",
+		TerminalReason: ReasonOperatorAborted,
 	})
 	if !errors.Is(err, ErrStateTransitionMiss) {
 		t.Fatalf("second release error = %v, want ErrStateTransitionMiss", err)
@@ -323,8 +323,8 @@ func TestReleaseActiveTerminal_SecondTerminalizationMisses(t *testing.T) {
 		t.Fatalf("finished_at = %v, want unchanged %d", got.FinishedAt, *first.FinishedAt)
 	}
 
-	if got.TerminalReason == nil || *got.TerminalReason != "completed" {
-		t.Fatalf("terminal_reason = %v, want unchanged %q", got.TerminalReason, "completed")
+	if got.TerminalReason == nil || *got.TerminalReason != ReasonReverseShareObserved {
+		t.Fatalf("terminal_reason = %v, want unchanged %q", got.TerminalReason, ReasonReverseShareObserved)
 	}
 
 	if got.OverallGrade == nil || *got.OverallGrade != GradePass {

@@ -244,7 +244,7 @@ func TestWriteTerminal_MissesActiveHybrid(t *testing.T) {
 
 	err := core.WriteTerminal(ctx, runID, true, []string{StateCapabilityExercise}, ActiveTerminalUpdate{
 		State:          StateTerminalFail,
-		TerminalReason: "should-not-land",
+		TerminalReason: ReasonOperatorAborted,
 		OverallGrade:   &grade,
 	})
 	if !errors.Is(err, ErrStateTransitionMiss) {

@@ -220,7 +220,7 @@ func TestReleaseActiveTerminalFrom_StaleExpectedSetMissesAfterConcurrentCAS(t *t
 	// instead of rewriting the row the CAS already advanced.
 	stallErr := core.ReleaseActiveTerminalFrom(ctx, runID, []string{StateCapabilityExercise}, ActiveTerminalUpdate{
 		State:          StateTerminalFail,
-		TerminalReason: "stall_timeout",
+		TerminalReason: ReasonOperatorAborted,
 	})
 	if !errors.Is(stallErr, ErrStateTransitionMiss) {
 		t.Fatalf("stall release error = %v, want ErrStateTransitionMiss", stallErr)

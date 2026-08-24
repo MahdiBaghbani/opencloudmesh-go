@@ -209,6 +209,10 @@ func (c *Core) writeTerminalGuarded(
 		return errors.New("validatorcore: store is not configured")
 	}
 
+	if err := validateTerminalReason(update.State, update.TerminalReason); err != nil {
+		return err
+	}
+
 	now := time.Now().Unix()
 	isActive := boolToInt(requireActive)
 
@@ -298,10 +302,6 @@ func (c *Core) StopPassive(ctx context.Context, testRunID string) error {
 func (c *Core) FailPassive(ctx context.Context, testRunID, expectedState, reason string) error {
 	if !isPassiveFailExpectedState(expectedState) {
 		return fmt.Errorf("validatorcore: unsupported fail-passive state %q", expectedState)
-	}
-
-	if reason == "" {
-		reason = ReasonPassiveProbeFailed
 	}
 
 	grade := GradeFail

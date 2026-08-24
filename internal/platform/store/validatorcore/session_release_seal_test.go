@@ -15,7 +15,7 @@ func terminalPassUpdate() ActiveTerminalUpdate {
 
 	return ActiveTerminalUpdate{
 		State:          StateTerminalPass,
-		TerminalReason: "completed",
+		TerminalReason: ReasonReverseShareObserved,
 		OverallGrade:   &grade,
 	}
 }

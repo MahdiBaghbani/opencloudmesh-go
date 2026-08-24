@@ -65,6 +65,10 @@ func (c *Core) FlipLateReverseShareToPass(ctx context.Context, testRunID string)
 		return false, errors.New("validatorcore: store is not configured")
 	}
 
+	if err := validateTerminalReason(StateTerminalPass, ReasonLateReverseShare); err != nil {
+		return false, err
+	}
+
 	res := c.db.WithContext(ctx).Model(&TestRun{}).
 		Where("test_run_id = ? AND is_active = 0 AND state = ? AND terminal_reason = ?",
 			testRunID, StateInterrupted, ReasonReverseShareTimeout).
