@@ -73,7 +73,7 @@ func Routes() []RouteDef {
 			service.RouteIDValidatorAPIScan,
 			http.MethodGet,
 			PatternScan,
-			whenReverseInvite,
+			alwaysMounted,
 		),
 		plainAPI(
 			service.RouteIDValidatorAPISession,

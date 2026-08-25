@@ -26,8 +26,8 @@ func TestBuildManifest_EmptyOmitsUnfinished(t *testing.T) {
 		t.Fatal("empty caps must not advertise reverse invite")
 	}
 
-	if payload.Scan != nil {
-		t.Fatal("empty caps must omit scan")
+	if payload.Scan == nil {
+		t.Fatal("empty caps must include scan")
 	}
 
 	if payload.Abort != nil {
@@ -46,8 +46,8 @@ func TestBuildManifest_EmptyOmitsUnfinished(t *testing.T) {
 		t.Fatal("empty caps must not advertise active_full")
 	}
 
-	if slices.Contains(payload.Schemas, ScanSchema) {
-		t.Fatal("empty caps must not list the scan schema")
+	if !slices.Contains(payload.Schemas, ScanSchema) {
+		t.Fatal("empty caps must list the scan schema")
 	}
 
 	assertNoUnfinishedRoutes(t, payload.Routes)
@@ -96,8 +96,6 @@ func assertNoUnfinishedRoutes(t *testing.T, routes []AdvertisedRoute) {
 
 	for _, route := range routes {
 		switch {
-		case route.FullPath == "/validator/api/scan":
-			t.Fatal("empty caps advertised scan")
 		case route.FullPath == "/validator/api/session/{id}/abort":
 			t.Fatal("empty caps advertised abort")
 		case route.FullPath == "/validator/api/session/{id}/invite":

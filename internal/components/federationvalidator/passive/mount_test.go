@@ -154,8 +154,8 @@ func TestMountPlaneARoutes_AbortWithoutReverseInvite(t *testing.T) {
 	scanRec := httptest.NewRecorder()
 	r.ServeHTTP(scanRec, scanReq)
 
-	if scanRec.Code != http.StatusNotFound {
-		t.Fatalf("scan status = %d, want 404 when reverse invite is unavailable", scanRec.Code)
+	if scanRec.Code != http.StatusCreated {
+		t.Fatalf("scan status = %d, want 201 when reverse invite is unavailable", scanRec.Code)
 	}
 }
 

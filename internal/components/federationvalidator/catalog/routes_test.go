@@ -63,31 +63,56 @@ func TestRoutes_MountWhenEmptyAndFull(t *testing.T) {
 
 	empty := Caps{}
 	full := FullCaps()
-
-	var emptyMounted, fullMounted int
-
-	for _, def := range Routes() {
-		if def.ShouldMount(empty) {
-			emptyMounted++
-		}
-
-		if def.ShouldMount(full) {
-			fullMounted++
-		}
-	}
+	emptyMounted := mountedCount(empty)
+	fullMounted := mountedCount(full)
 
 	if emptyMounted >= fullMounted {
 		t.Fatalf("empty mounted %d, full mounted %d; full must mount more", emptyMounted, fullMounted)
 	}
 
-	scan, _ := Lookup(service.RouteIDValidatorAPIScan)
-	if scan.ShouldMount(empty) {
-		t.Fatal("scan must not mount when capabilities are empty")
+	if emptyMounted != 10 {
+		t.Fatalf("empty mounted %d, want 10", emptyMounted)
+	}
+
+	if fullMounted != 14 {
+		t.Fatalf("full mounted %d, want 14", fullMounted)
+	}
+
+	assertScanAlwaysMounted(t, empty, full)
+	assertConditionedRouteMounts(t, empty, full)
+}
+
+func mountedCount(caps Caps) int {
+	var n int
+
+	for _, def := range Routes() {
+		if def.ShouldMount(caps) {
+			n++
+		}
+	}
+
+	return n
+}
+
+func assertScanAlwaysMounted(t *testing.T, empty, full Caps) {
+	t.Helper()
+
+	scan, ok := Lookup(service.RouteIDValidatorAPIScan)
+	if !ok {
+		t.Fatal("catalog missing scan route")
+	}
+
+	if !scan.ShouldMount(empty) {
+		t.Fatal("scan must mount when capabilities are empty")
 	}
 
 	if !scan.ShouldMount(full) {
 		t.Fatal("scan must mount when capabilities are full")
 	}
+}
+
+func assertConditionedRouteMounts(t *testing.T, empty, full Caps) {
+	t.Helper()
 
 	abort, _ := Lookup(service.RouteIDValidatorAPISessionAbort)
 	if abort.ShouldMount(empty) {

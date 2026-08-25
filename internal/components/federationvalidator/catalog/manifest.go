@@ -185,16 +185,17 @@ type ScanFieldSchema struct {
 
 // BuildManifest returns the capability-conditioned federation tester manifest.
 func BuildManifest(externalBasePath string, caps Caps) Manifest {
+	scanReady := true
 	reverseReady := caps.ReverseInviteAvailable()
 
 	return Manifest{
 		Schema:          ManifestSchema,
 		APIVersion:      APIVersion,
 		ServicePrefix:   ServicePrefix,
-		Schemas:         schemaNames(reverseReady),
+		Schemas:         schemaNames(scanReady),
 		Routes:          AdvertisedRoutes(externalBasePath, caps),
 		Statistics:      statisticsMeta(),
-		Scan:            optionalScanSchema(reverseReady),
+		Scan:            optionalScanSchema(scanReady),
 		SessionKind:     sessionKindMeta(reverseReady),
 		Contribute:      contributeMeta(optInQueryContribute),
 		Permanent:       contributeMeta(optInQueryPermanent),

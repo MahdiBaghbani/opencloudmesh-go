@@ -107,10 +107,14 @@ func TestHandleManifest_EmptyCapsOmitsUnfinished(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	for _, key := range []string{"scan", "abort", "identityBinding"} {
+	for _, key := range []string{"abort", "identityBinding"} {
 		if _, ok := raw[key]; ok {
 			t.Fatalf("empty caps advertised %s", key)
 		}
+	}
+
+	if _, ok := raw["scan"]; !ok {
+		t.Fatal("empty caps omitted scan")
 	}
 
 	optIn := mustRawObject(t, raw["optIn"], "optIn")
