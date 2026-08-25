@@ -124,6 +124,15 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			wantError:  true,
 			wantSubstr: "mode=strict requires tls.mode!=off",
 		},
+		{
+			name: "validator config with ssrf off rejected",
+			mutate: func(cfg *config.Config) {
+				cfg.Mode = string(config.ModeValidator)
+				cfg.OutboundHTTP.SSRF.Mode = "off"
+			},
+			wantError:  true,
+			wantSubstr: "mode=validator requires outbound_http.ssrf.mode=strict",
+		},
 	}
 
 	for _, tc := range cases {

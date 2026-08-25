@@ -84,6 +84,56 @@ func TestBuildCoreServices_ValidatorModeInstallsOutgoingDispatchHook(t *testing.
 	}
 }
 
+func TestBuildCoreServices_ValidatorModeSkipsActiveLegsWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.ValidatorConfig()
+	cfg.Persistence.DataDir = t.TempDir()
+	enabled := false
+	cfg.Validator.Active.Enabled = &enabled
+
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if result.StopRetentionSweep != nil {
+			result.StopRetentionSweep()
+		}
+
+		if closeErr := result.Persistence.Close(); closeErr != nil {
+			t.Errorf("Persistence.Close: %v", closeErr)
+		}
+	})
+
+	if result.Deps.ValidatorStore == nil {
+		t.Fatal("expected validator store in validator mode")
+	}
+
+	services, err := wiring.BuildCoreServices(cfg, tslog.DiscardLogger(), result.Deps)
+	if err != nil {
+		t.Fatalf("BuildCoreServices: %v", err)
+	}
+
+	if hook := outgoingDispatchHook(t, services); !hook.IsNil() {
+		t.Fatal("disabled active legs must leave the dispatch hook seat empty")
+	}
+
+	validatorSvc, ok := services["validator"].(*validatorsvc.Service)
+	if !ok {
+		t.Fatalf("validator service is %T, not *validator.Service", services["validator"])
+	}
+
+	if validatorSvc.ActiveRunner() != nil {
+		t.Fatal("disabled active legs must leave the active runner unbound")
+	}
+
+	if closeErr := validatorSvc.Close(); closeErr != nil {
+		t.Fatalf("validator.Close: %v", closeErr)
+	}
+}
+
 func TestBuildCoreServices_GenericModeLeavesDispatchHookEmpty(t *testing.T) {
 	t.Parallel()
 

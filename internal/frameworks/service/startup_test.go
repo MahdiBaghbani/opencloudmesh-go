@@ -67,6 +67,22 @@ func TestValidatePreBootstrap_ValidatorMode(t *testing.T) {
 	}
 }
 
+func TestValidatePreBootstrap_ValidatorModeRejectsSSRFOff(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.ValidatorConfig()
+	cfg.OutboundHTTP.SSRF.Mode = "off"
+
+	err := ValidatePreBootstrap(cfg)
+	if err == nil {
+		t.Fatal("ValidatePreBootstrap() = nil, want error for validator mode with ssrf off")
+	}
+
+	if !strings.Contains(err.Error(), "mode=validator requires outbound_http.ssrf.mode=strict") {
+		t.Fatalf("ValidatePreBootstrap() = %v, want validator SSRF guard", err)
+	}
+}
+
 func TestValidateBuiltServices_HappyPath(t *testing.T) {
 	t.Parallel()
 

@@ -25,6 +25,21 @@ func StartValidatorServer(t *testing.T) *TestServer {
 	})
 }
 
+// StartPassiveOnlyValidatorServer starts an in-process validator server with
+// [validator.active] enabled=false so active-session legs stay unbuilt.
+func StartPassiveOnlyValidatorServer(t *testing.T) *TestServer {
+	t.Helper()
+
+	dataDir := t.TempDir()
+
+	return StartTestServerWithConfig(t, func(cfg *config.Config) {
+		applyValidatorHarnessConfig(cfg, dataDir)
+
+		enabled := false
+		cfg.Validator.Active.Enabled = &enabled
+	})
+}
+
 func applyValidatorHarnessConfig(cfg *config.Config, dataDir string) {
 	preset := config.ValidatorConfig()
 
@@ -37,4 +52,7 @@ func applyValidatorHarnessConfig(cfg *config.Config, dataDir string) {
 	cfg.HTTP.Services = preset.HTTP.Services
 	cfg.Validator = preset.Validator
 	cfg.Server.TrustedProxies = append([]string(nil), preset.Server.TrustedProxies...)
+	// Validator mode requires outbound_http.ssrf.mode=strict at boot. The
+	// harness outbound override remains a test-only client shortcut.
+	cfg.OutboundHTTP.SSRF.Mode = preset.OutboundHTTP.SSRF.Mode
 }

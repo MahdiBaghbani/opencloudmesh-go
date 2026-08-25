@@ -92,13 +92,13 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[st
 		return nil, server.ErrMissingRealIP
 	}
 
-	// In validator mode the active-session legs are built once up front and
-	// shared by the ocm decorator, the validator paste route, and the api
-	// outgoing-share dispatch hook. A construction failure is a boot error,
-	// never a silently missing route.
+	// In validator mode the active-session legs are built once up front when
+	// ActiveEnabled is true, and shared by the ocm decorator, the validator
+	// paste route, and the api outgoing-share dispatch hook. A construction
+	// failure is a boot error, never a silently missing route.
 	var legs *validatorLegs
 
-	if d.ValidatorStore != nil {
+	if d.ValidatorStore != nil && cfg.Validator.ActiveEnabled() {
 		built, err := buildValidatorLegs(cfg, d, logger)
 		if err != nil {
 			return nil, err

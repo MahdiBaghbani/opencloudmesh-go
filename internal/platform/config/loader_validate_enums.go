@@ -268,6 +268,7 @@ func validateEnums(cfg *Config) error {
 		validateDiscoveryPolicies,
 		validateSSRFRoutePolicyGuardrails,
 		validateStrictModeGuardrails,
+		validateValidatorModeGuardrails,
 		validateRatelimitConfig,
 		validateValidatorTrustedProxies,
 		validateValidatorStatistics,
@@ -291,6 +292,27 @@ func validateEnums(cfg *Config) error {
 // rejects. Load reaches this logic via validateEnums.
 func ValidateStrictModeStartupGuardrails(cfg *Config) error {
 	return validateStrictModeGuardrails(cfg)
+}
+
+// ValidateValidatorModeStartupGuardrails applies the same validator-mode
+// startup guardrails that Load enforces. It is exported so in-memory config
+// callers that build a Config without going through Load (for example the
+// in-process test harness) reject the same impossible startup states the
+// real binary rejects. Load reaches this logic via validateEnums.
+func ValidateValidatorModeStartupGuardrails(cfg *Config) error {
+	return validateValidatorModeGuardrails(cfg)
+}
+
+func validateValidatorModeGuardrails(cfg *Config) error {
+	if cfg == nil || cfg.Mode != string(ModeValidator) {
+		return nil
+	}
+
+	if cfg.OutboundHTTP.SSRF.Mode != ssrfModeStrict {
+		return errors.New("mode=validator requires outbound_http.ssrf.mode=strict")
+	}
+
+	return nil
 }
 
 func validateStrictModeGuardrails(cfg *Config) error {

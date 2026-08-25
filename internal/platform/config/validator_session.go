@@ -67,16 +67,40 @@ type ValidatorProbeConfig struct {
 	DisplayName string `toml:"display_name"`
 }
 
+// ValidatorActiveConfig holds the optional [validator.active] knobs.
+type ValidatorActiveConfig struct {
+	// Enabled turns on active-session legs. Nil means enabled (the default);
+	// explicit false is the passive-only opt-out.
+	Enabled *bool `toml:"enabled"`
+}
+
 // ValidatorSection holds federation-validator-specific config knobs.
 type ValidatorSection struct {
 	Session ValidatorSessionConfig `toml:"session"`
 	Probe   ValidatorProbeConfig   `toml:"probe"`
+	Active  ValidatorActiveConfig  `toml:"active"`
+}
+
+// ActiveEnabled reports whether active-session legs should be built.
+// Unset configuration evaluates to enabled.
+func (s ValidatorSection) ActiveEnabled() bool {
+	if s.Active.Enabled == nil {
+		return true
+	}
+
+	return *s.Active.Enabled
+}
+
+// validatorActiveFileConfig decodes the optional [validator.active] table.
+type validatorActiveFileConfig struct {
+	Enabled *bool `toml:"enabled"`
 }
 
 // validatorFileConfig decodes the optional [validator] TOML table.
 type validatorFileConfig struct {
-	Session *ValidatorSessionConfig `toml:"session"`
-	Probe   *ValidatorProbeConfig   `toml:"probe"`
+	Session *ValidatorSessionConfig    `toml:"session"`
+	Probe   *ValidatorProbeConfig      `toml:"probe"`
+	Active  *validatorActiveFileConfig `toml:"active"`
 }
 
 func overlayValidatorConfig(cfg *Config, fc *validatorFileConfig) {
@@ -97,6 +121,16 @@ func overlayValidatorConfig(cfg *Config, fc *validatorFileConfig) {
 			cfg.Validator.Probe.DisplayName = fc.Probe.DisplayName
 		}
 	}
+
+	overlayValidatorActiveConfig(cfg, fc.Active)
+}
+
+func overlayValidatorActiveConfig(cfg *Config, active *validatorActiveFileConfig) {
+	if active == nil || active.Enabled == nil {
+		return
+	}
+
+	cfg.Validator.Active.Enabled = active.Enabled
 }
 
 func overlayValidatorSessionConfig(cfg *Config, session *ValidatorSessionConfig) {
