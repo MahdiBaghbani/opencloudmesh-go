@@ -43,9 +43,16 @@ const (
 
 	instrWaitActiveSlot = "wait_active_slot"
 
+	// Budget for GET /validator/api/session/{id} under make
+	// test-integration (-race -coverpkg -shuffle). Isolation is
+	// fast; 2s per-GET flakes when SQLite busy_timeout (5s) or a
+	// cold first poll exceeds it. Per-GET uses the full
+	// sessionPollTimeout so one slow poll does not abort while the
+	// outer deadline still has budget. Matches waitForStateDeadline
+	// in passive/handler_test.go.
 	sessionPollTimeout        = 10 * time.Second
 	sessionPollEvery          = 25 * time.Millisecond
-	sessionPollRequestTimeout = 2 * time.Second
+	sessionPollRequestTimeout = sessionPollTimeout
 )
 
 type startCreateBody struct {

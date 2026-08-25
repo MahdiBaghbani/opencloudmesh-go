@@ -94,12 +94,21 @@ func testFedCore(t *testing.T) *fedcore.Core {
 	return c
 }
 
+const (
+	// Budget for StartAsync completion under make test-go
+	// (-race -coverpkg -shuffle). Isolation is ~1.4s; 2s flakes
+	// when the full tree contends. Matches session_stall_sweep_test
+	// and sessionPollTimeout budgets.
+	waitForStateDeadline = 10 * time.Second
+	waitForStatePoll     = 20 * time.Millisecond
+)
+
 func waitForState(t *testing.T, store *validatorcore.Core, ctx context.Context, runID string) {
 	t.Helper()
 
 	const wantState = validatorcore.StatePassiveComplete
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(waitForStateDeadline)
 
 	for time.Now().Before(deadline) {
 		got, err := store.GetTestRun(ctx, runID)
@@ -107,7 +116,7 @@ func waitForState(t *testing.T, store *validatorcore.Core, ctx context.Context, 
 			return
 		}
 
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(waitForStatePoll)
 	}
 
 	got, err := store.GetTestRun(ctx, runID)
