@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/validatorpeer"
 )
 
 func TestApplyValidatorHarnessConfig_SetsStrictSSRF(t *testing.T) {
@@ -53,5 +54,18 @@ func TestPassiveOnlyOverlay_DisablesActiveLegs(t *testing.T) {
 
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Fatalf("OutboundHTTP.SSRF.Mode = %q, want strict", cfg.OutboundHTTP.SSRF.Mode)
+	}
+}
+
+func TestIntegrationBuildOpts_IncludesValidatorPeerDialHosts(t *testing.T) {
+	t.Parallel()
+
+	opts := IntegrationBuildOpts()
+	if opts.OutboundDialHosts[validatorpeer.HostName] != "127.0.0.1" {
+		t.Fatalf(
+			"OutboundDialHosts[%q] = %q, want 127.0.0.1",
+			validatorpeer.HostName,
+			opts.OutboundDialHosts[validatorpeer.HostName],
+		)
 	}
 }

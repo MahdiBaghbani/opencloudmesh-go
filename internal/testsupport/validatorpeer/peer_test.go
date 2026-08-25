@@ -8,7 +8,11 @@ package validatorpeer
 import (
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -39,6 +43,8 @@ func TestStart_ServesDiscoveryAndJWKS(t *testing.T) {
 		t.Fatalf("apiVersion = %q, want %q", disc.APIVersion, spec.APIVersionPin)
 	}
 
+	assertAdvertisedHostname(t, peer, disc)
+
 	jwksStatus, _ := getBytes(t, client, peer.URL+jwksPath)
 	if jwksStatus != http.StatusOK {
 		t.Fatalf("jwks status = %d, want 200", jwksStatus)
@@ -68,6 +74,123 @@ func TestStart_FailDiscoveryReturns500(t *testing.T) {
 	otherStatus, _ := getBytes(t, client, peer.URL+"/not-discovery")
 	if otherStatus != http.StatusNotFound {
 		t.Fatalf("other status = %d, want 404", otherStatus)
+	}
+}
+
+func TestDialHosts_MapsAdvertisedNameToLoopback(t *testing.T) {
+	t.Parallel()
+
+	got := DialHosts()
+	if got[HostName] != loopbackIP {
+		t.Fatalf("DialHosts()[%q] = %q, want %q", HostName, got[HostName], loopbackIP)
+	}
+}
+
+func TestWriteDiscovery_RewritesLoopbackListenerOrigins(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		origin string
+	}{
+		{name: "ipv4 loopback", origin: "https://127.0.0.1:8443"},
+		{name: "ipv6 loopback", origin: "https://[::1]:8443"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := httptest.NewRecorder()
+			writeDiscovery(rec, tc.origin)
+
+			var disc spec.Discovery
+			if err := json.Unmarshal(rec.Body.Bytes(), &disc); err != nil {
+				t.Fatalf("decode discovery: %v", err)
+			}
+
+			assertDiscoveryAdvertisesHostName(t, disc, "8443")
+		})
+	}
+}
+
+func TestAdvertisedPeer_RewritesIPv6LoopbackListener(t *testing.T) {
+	t.Parallel()
+
+	host, origin, err := advertisedPeer("https://[::1]:8443")
+	if err != nil {
+		t.Fatalf("advertisedPeer: %v", err)
+	}
+
+	wantHost := net.JoinHostPort(HostName, "8443")
+	if host != wantHost {
+		t.Fatalf("host = %q, want %q", host, wantHost)
+	}
+
+	if strings.Contains(origin, "127.0.0.1") || strings.Contains(origin, "::1") {
+		t.Fatalf("origin %q must not advertise the listener IP", origin)
+	}
+
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		t.Fatalf("parse origin: %v", err)
+	}
+
+	if parsed.Hostname() != HostName {
+		t.Fatalf("origin hostname = %q, want %q", parsed.Hostname(), HostName)
+	}
+}
+
+func assertAdvertisedHostname(t *testing.T, peer *Peer, disc spec.Discovery) {
+	t.Helper()
+
+	parsed, err := url.Parse(peer.URL)
+	if err != nil {
+		t.Fatalf("parse advertised URL: %v", err)
+	}
+
+	if parsed.Hostname() != HostName {
+		t.Fatalf("Peer.URL hostname = %q, want %q", parsed.Hostname(), HostName)
+	}
+
+	if strings.Contains(peer.URL, "127.0.0.1") || strings.Contains(peer.URL, "::1") {
+		t.Fatalf("Peer.URL %q must not advertise the httptest listener IP", peer.URL)
+	}
+
+	wantHost := net.JoinHostPort(HostName, parsed.Port())
+	if peer.Host != wantHost {
+		t.Fatalf("Peer.Host = %q, want %q", peer.Host, wantHost)
+	}
+
+	assertDiscoveryAdvertisesHostName(t, disc, parsed.Port())
+}
+
+func assertDiscoveryAdvertisesHostName(t *testing.T, disc spec.Discovery, port string) {
+	t.Helper()
+
+	if !strings.Contains(disc.EndPoint, HostName) {
+		t.Fatalf("discovery endpoint %q must contain %q", disc.EndPoint, HostName)
+	}
+
+	if strings.Contains(disc.EndPoint, "127.0.0.1") || strings.Contains(disc.EndPoint, "::1") {
+		t.Fatalf("discovery endpoint %q must not advertise a loopback listener IP", disc.EndPoint)
+	}
+
+	if strings.Contains(disc.JwksUri, "127.0.0.1") || strings.Contains(disc.JwksUri, "::1") {
+		t.Fatalf("discovery jwks %q must not advertise a loopback listener IP", disc.JwksUri)
+	}
+
+	jwks, err := url.Parse(disc.JwksUri)
+	if err != nil {
+		t.Fatalf("parse jwks URI: %v", err)
+	}
+
+	if jwks.Hostname() != HostName {
+		t.Fatalf("JwksUri hostname = %q, want %q", jwks.Hostname(), HostName)
+	}
+
+	if port != "" && jwks.Port() != port {
+		t.Fatalf("JwksUri port = %q, want %q", jwks.Port(), port)
 	}
 }
 

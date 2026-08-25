@@ -62,6 +62,10 @@ type BuildOpts struct {
 	// OutboundOverride replaces cfg.OutboundHTTP when non-nil.
 	OutboundOverride *config.OutboundHTTPConfig
 
+	// OutboundDialHosts remaps advertised hostnames to dial IPs on the
+	// shared outbound client. Test-only; production leaves this nil.
+	OutboundDialHosts map[string]string
+
 	// SkipDiscoveryCache wires a no-op cache for the discovery client instead
 	// of the shared in-memory cache.
 	SkipDiscoveryCache bool
@@ -139,6 +143,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	rawHTTPClient := httpclient.New(outboundCfg, rootCAPool)
+	rawHTTPClient.SetDialHosts(opts.OutboundDialHosts)
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
 	cacheInstance, err := buildCacheInstance(cfg)

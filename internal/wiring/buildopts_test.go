@@ -20,6 +20,7 @@ func toBuildOpts(f tswiring.FixtureBuildOpts) wiring.BuildOpts {
 		SkipCrypto:         f.SkipCrypto,
 		SkipPeerTrust:      f.SkipPeerTrust,
 		OutboundOverride:   f.OutboundOverride,
+		OutboundDialHosts:  f.OutboundDialHosts,
 		SkipDiscoveryCache: f.SkipDiscoveryCache,
 	}
 }

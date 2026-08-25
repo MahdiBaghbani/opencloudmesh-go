@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -58,6 +59,7 @@ type Client struct {
 	httpClient        *http.Client
 	resolver          Resolver // for context-aware DNS in SSRF checks; nil uses net.DefaultResolver
 	trustedProxyHosts map[string]struct{}
+	dialHosts         map[string]string // test-only hostname -> dial IP; production leaves this nil
 }
 
 // New creates a new safe HTTP client.
@@ -99,6 +101,26 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 // SetResolver sets a custom DNS resolver (for testing).
 func (c *Client) SetResolver(r Resolver) {
 	c.resolver = r
+}
+
+// SetDialHosts installs a test-only hostname-to-IP dial map.
+// Production clients leave this unset. Mapped hostnames are dialed at the
+// mapped IP. SSRF evaluates the advertised hostname, not the mapped
+// address, so this is not a private-target allow list and is not a DNS
+// resolver hook.
+func (c *Client) SetDialHosts(hosts map[string]string) {
+	if len(hosts) == 0 {
+		c.dialHosts = nil
+
+		return
+	}
+
+	copied := make(map[string]string, len(hosts))
+	for host, ip := range hosts {
+		copied[strings.ToLower(host)] = ip
+	}
+
+	c.dialHosts = copied
 }
 
 // Get performs a GET request with safety protections.

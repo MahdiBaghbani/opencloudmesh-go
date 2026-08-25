@@ -79,11 +79,8 @@ func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error
 	}
 
 	lowerHost := strings.ToLower(host)
-	if lowerHost == "localhost" || lowerHost == "localhost.localdomain" {
-		policy := c.activeRoutePolicy()
-		if policy == nil || !hostMatchesSuffix(lowerHost, policy) {
-			return fmt.Errorf("%w: localhost is blocked", ErrSSRFBlocked)
-		}
+	if err := c.checkLocalhostHost(lowerHost); err != nil {
+		return err
 	}
 
 	policy := c.activeRoutePolicy()
@@ -91,6 +88,12 @@ func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error
 	// IP literal: check allow_ip_literals then CIDR and port rules.
 	if ip := net.ParseIP(host); ip != nil {
 		return c.checkIPWithPolicy(ip, port, policy)
+	}
+
+	// Test-only dial map: evaluate the advertised hostname, not the mapped
+	// dial IP. A resolver hook that returns a private IP is still blocked.
+	if _, mapped := c.lookupDialHost(lowerHost); mapped {
+		return nil
 	}
 
 	// Hostname: resolve all A and AAAA records (all-records semantics).
@@ -129,6 +132,21 @@ func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error
 			return fmt.Errorf("%w: destination port %s is not in allowed ports",
 				ErrSSRFBlocked, port)
 		}
+	}
+
+	return nil
+}
+
+// checkLocalhostHost blocks localhost hostnames unless an active route policy
+// allows the suffix. Other hostnames are left for later checks.
+func (c *Client) checkLocalhostHost(lowerHost string) error {
+	if lowerHost != "localhost" && lowerHost != "localhost.localdomain" {
+		return nil
+	}
+
+	policy := c.activeRoutePolicy()
+	if policy == nil || !hostMatchesSuffix(lowerHost, policy) {
+		return fmt.Errorf("%w: localhost is blocked", ErrSSRFBlocked)
 	}
 
 	return nil

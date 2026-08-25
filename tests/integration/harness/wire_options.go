@@ -20,6 +20,7 @@ func IntegrationBuildOpts() wiring.BuildOpts {
 		SkipCrypto:         false,
 		SkipPeerTrust:      true,
 		OutboundOverride:   config.TestHarnessOutboundHTTP(),
+		OutboundDialHosts:  map[string]string{"validator-peer.test": "127.0.0.1"},
 		SkipDiscoveryCache: true,
 	}
 }
