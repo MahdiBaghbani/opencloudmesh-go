@@ -1,7 +1,0 @@
-kind: changed
-body: >-
-  Federation validator GET /validator/api/scan is now public, anonymous,
-  and rate-limited (10 requests / 60 seconds) on mode=validator, including
-  passive-only deployments where [validator.active] enabled is false.
-  Loopback and non-public targets are rejected.
-time: 2026-08-28T11:17:03.376579419Z

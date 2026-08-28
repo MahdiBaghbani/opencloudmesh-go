@@ -12,6 +12,11 @@ All notable changes to this project are documented using changie.
 See `.changie.yaml` for the configuration and the changie workflow for how
 fragments are authored and released.
 
+## v1.3.0
+
+### Changed
+
+* Federation validator GET /validator/api/scan is now public, anonymous, and rate-limited (10 requests / 60 seconds) on mode=validator, including passive-only deployments where [validator.active] enabled is false. Loopback and non-public targets are rejected.
 ## v1.2.2
 
 ### Fixed
