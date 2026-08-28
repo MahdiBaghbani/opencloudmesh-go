@@ -102,6 +102,65 @@ func releaseInterruptedOnTimeout(t *testing.T, env *courierMatrixEnv, runID stri
 	}
 }
 
+// deliverReverseShare persists the peer's reverse share addressed to Bob and
+// observes it, then proves the terminal-pass world: state and reason, the
+// reverse provider id stamp, the reverse-share evidence row, and statistics
+// landed before the observe call reported success. Returns the provider id.
+func (e *courierMatrixEnv) deliverReverseShare(t *testing.T, runID, wantReason string) string {
+	t.Helper()
+
+	ctx := t.Context()
+
+	run := e.requireRun(t, runID)
+	bobID := *run.BobUserID
+
+	providerID, err := identity.UUIDv7()
+	if err != nil {
+		t.Fatalf("mint reverse provider id: %v", err)
+	}
+
+	share := &sharesincoming.IncomingShare{
+		ShareID:         matrixShareID(t),
+		ProviderID:      providerID,
+		SenderHost:      e.targetHost,
+		RecipientUserID: bobID,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+	if err := e.repos.IncomingShares.Create(ctx, share); err != nil {
+		t.Fatalf("create incoming share: %v", err)
+	}
+
+	if err := e.reverseShare.ObserveCreatedShare(ctx, share); err != nil {
+		t.Fatalf("observe created share: %v", err)
+	}
+
+	run = e.requireRun(t, runID)
+
+	if run.State != validatorcore.StateTerminalPass {
+		t.Fatalf("state = %q, want %q", run.State, validatorcore.StateTerminalPass)
+	}
+
+	if run.TerminalReason == nil || *run.TerminalReason != wantReason {
+		t.Fatalf("terminal_reason = %v, want %q", run.TerminalReason, wantReason)
+	}
+
+	if run.ReverseShareProviderID == nil || *run.ReverseShareProviderID != providerID {
+		t.Fatalf("reverse_share_provider_id = %v, want %q", run.ReverseShareProviderID, providerID)
+	}
+
+	rows := e.evidenceRows(t, runID, "sharing", "reverse_share", "reverse_share_received")
+	if len(rows) != 1 {
+		t.Fatalf("reverse-share evidence rows = %d, want 1", len(rows))
+	}
+
+	if run.StatsWrittenAt == nil {
+		t.Fatal("stats_written_at is null after the observed pass")
+	}
+
+	return providerID
+}
+
 // observeDuplicateShare re-delivers an already-observed reverse share.
 func observeDuplicateShare(t *testing.T, env *courierMatrixEnv, run *validatorcore.TestRun, providerID string) {
 	t.Helper()

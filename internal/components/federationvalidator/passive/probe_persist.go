@@ -3,20 +3,14 @@
 //
 // OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
-// ocmgo:file-length-ignore: passive probe persist helpers for four-area exchanges and evidence
-
 package passive
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/httpsigprobe"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -37,12 +31,6 @@ const (
 	requestIDJWKS            = "passive-jwks"
 	requestIDHTTPSig         = "passive-httpsig-probe"
 	requestIDHTTPSigTampered = "passive-httpsig-tampered"
-	redactedBodyMarker       = "[redacted]"
-	exchangeDirectionOut     = "out"
-	exchangeActorValidator   = "validator"
-	headerAuthorization      = "Authorization"
-	headerCookie             = "Cookie"
-	headerSetCookie          = "Set-Cookie"
 )
 
 func (p *ProbeRunner) persistProbeBundle(ctx context.Context, testRunID string, bundle probeBundle) error {
@@ -201,48 +189,6 @@ func (p *ProbeRunner) persistAreaFact(
 	return nil
 }
 
-func (p *ProbeRunner) insertExchange(ctx context.Context, row *validatorcore.ReportExchange) (uint, error) {
-	if err := p.store.InsertReportExchange(ctx, row); err != nil {
-		if validatorcore.IsDuplicateReportExchange(err) {
-			return p.recoverExchangeID(ctx, row)
-		}
-
-		return 0, fmt.Errorf("passive probe persist %s exchange: %w", row.EndpointID, err)
-	}
-
-	return row.ExchangeID, nil
-}
-
-func (p *ProbeRunner) recoverExchangeID(ctx context.Context, row *validatorcore.ReportExchange) (uint, error) {
-	id, err := p.store.LookupReportExchangeID(
-		ctx,
-		row.TestRunID,
-		row.Direction,
-		requestIDOf(row),
-	)
-	if err != nil {
-		return 0, fmt.Errorf("passive probe recover %s exchange: %w", row.EndpointID, err)
-	}
-
-	return id, nil
-}
-
-func requestIDOf(row *validatorcore.ReportExchange) string {
-	if row == nil || row.RequestID == nil {
-		return ""
-	}
-
-	return *row.RequestID
-}
-
-func optionalExchangeID(id uint) *uint {
-	if id == 0 {
-		return nil
-	}
-
-	return &id
-}
-
 func discoveryFact(bundle probeBundle, exchangeID *uint) validatorcore.ApplyEvidenceFactInput {
 	return validatorcore.ApplyEvidenceFactInput{
 		Area:            validatorcore.SpecificationAreaDiscovery,
@@ -287,151 +233,6 @@ func httpsigFact(bundle probeBundle, exchangeID *uint) validatorcore.ApplyEviden
 	}
 }
 
-func baseExchange(testRunID, endpointID, requestID string) *validatorcore.ReportExchange {
-	now := time.Now().Unix()
-	actor := exchangeActorValidator
-	leg := validatorcore.EvidenceLegPassive
-	reqID := requestID
-
-	return &validatorcore.ReportExchange{
-		TestRunID:  testRunID,
-		CapturedAt: now,
-		Direction:  exchangeDirectionOut,
-		Actor:      &actor,
-		Leg:        &leg,
-		EndpointID: endpointID,
-		Method:     http.MethodGet,
-		URL:        "",
-		RequestID:  &reqID,
-		CreatedAt:  now,
-	}
-}
-
-func applyFetchTranscript(row *validatorcore.ReportExchange, bundle probeBundle) {
-	var respHeaders http.Header
-
-	var body []byte
-
-	if bundle.fetch != nil {
-		respHeaders = bundle.fetch.Headers
-		body = bundle.fetch.Raw
-	}
-
-	if bundle.fetch != nil && bundle.fetch.Discovery != nil {
-		status := http.StatusOK
-		row.StatusCode = &status
-	}
-
-	applyBodyAndHeaders(row, nil, respHeaders, nil, body, bundle.fetchErr)
-}
-
-func applyBodyAndHeaders(
-	row *validatorcore.ReportExchange,
-	reqHeaders, respHeaders http.Header,
-	reqBody, respBody []byte,
-	fetchErr error,
-) {
-	if reqJSON := headersJSON(reqHeaders); reqJSON != "" {
-		row.ReqHeadersJSON = &reqJSON
-	}
-
-	if respJSON := headersJSON(respHeaders); respJSON != "" {
-		row.RespHeadersJSON = &respJSON
-	}
-
-	if redacted := redactBody(reqBody); redacted != "" {
-		row.ReqBodyRedacted = &redacted
-	}
-
-	if redacted := redactBody(respBody); redacted != "" {
-		row.RespBodyRedacted = &redacted
-	}
-
-	if hash := bodyHash(reqBody); hash != "" {
-		row.ReqBodySHA256 = &hash
-		n := int64(len(reqBody))
-		row.ReqBodyBytes = &n
-	}
-
-	if hash := bodyHash(respBody); hash != "" {
-		row.RespBodySHA256 = &hash
-		n := int64(len(respBody))
-		row.RespBodyBytes = &n
-	}
-
-	if fetchErr != nil {
-		text := fetchErr.Error()
-		row.ErrorText = &text
-	}
-}
-
-func applyStatus(row *validatorcore.ReportExchange, status int) {
-	if status == 0 {
-		return
-	}
-
-	row.StatusCode = &status
-}
-
-func applySignature(row *validatorcore.ReportExchange, sigRaw string) {
-	if sigRaw == "" {
-		return
-	}
-
-	row.SigRaw = &sigRaw
-	scheme := "httpsig"
-	row.SigScheme = &scheme
-}
-
-func headersJSON(headers http.Header) string {
-	if len(headers) == 0 {
-		return ""
-	}
-
-	safe := http.Header{}
-
-	for key, values := range headers {
-		if isSecretHeader(key) {
-			continue
-		}
-
-		safe[key] = append([]string{}, values...)
-	}
-
-	if len(safe) == 0 {
-		return ""
-	}
-
-	return encodeHeaderJSON(safe)
-}
-
-func isSecretHeader(key string) bool {
-	switch http.CanonicalHeaderKey(key) {
-	case headerAuthorization, headerCookie, headerSetCookie:
-		return true
-	default:
-		return false
-	}
-}
-
-func redactBody(body []byte) string {
-	if len(body) == 0 {
-		return ""
-	}
-
-	return redactedBodyMarker
-}
-
-func bodyHash(body []byte) string {
-	if len(body) == 0 {
-		return ""
-	}
-
-	sum := sha256.Sum256(body)
-
-	return hex.EncodeToString(sum[:])
-}
-
 func compactPayload(grade *string, err error) string {
 	var b strings.Builder
 
@@ -468,63 +269,6 @@ func httpsigPayload(result httpsigprobe.Result) string {
 	writeByte(&b, '}')
 
 	return b.String()
-}
-
-func encodeHeaderJSON(headers http.Header) string {
-	keys := make([]string, 0, len(headers))
-	for key := range headers {
-		keys = append(keys, key)
-	}
-
-	slices.Sort(keys)
-
-	var b strings.Builder
-
-	writeByte(&b, '{')
-
-	for i, key := range keys {
-		if i > 0 {
-			writeByte(&b, ',')
-		}
-
-		writeString(&b, strconv.Quote(key))
-		writeByte(&b, ':')
-		writeString(&b, encodeStringSliceJSON(headers[key]))
-	}
-
-	writeByte(&b, '}')
-
-	return b.String()
-}
-
-func encodeStringSliceJSON(values []string) string {
-	var b strings.Builder
-
-	writeByte(&b, '[')
-
-	for i, value := range values {
-		if i > 0 {
-			writeByte(&b, ',')
-		}
-
-		writeString(&b, strconv.Quote(value))
-	}
-
-	writeByte(&b, ']')
-
-	return b.String()
-}
-
-func writeString(b *strings.Builder, s string) {
-	if _, err := b.WriteString(s); err != nil {
-		return
-	}
-}
-
-func writeByte(b *strings.Builder, c byte) {
-	if err := b.WriteByte(c); err != nil {
-		return
-	}
 }
 
 func gradeOrFail(grade *string) string {

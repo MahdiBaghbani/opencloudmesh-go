@@ -61,3 +61,111 @@ func TestHashStatsK_RejectsWrongSizeSalt(t *testing.T) {
 		t.Fatal("expected error for wrong-size salt")
 	}
 }
+
+func TestHashStatsHost_RejectsEmptySalt(t *testing.T) {
+	t.Parallel()
+
+	if _, err := HashStatsHost(nil, "example.com"); err == nil {
+		t.Fatal("expected error for empty salt")
+	}
+}
+
+func TestHashStatsHost_RejectsWrongSizeSalt(t *testing.T) {
+	t.Parallel()
+
+	if _, err := HashStatsHost([]byte("short"), "example.com"); err == nil {
+		t.Fatal("expected error for wrong-size salt")
+	}
+}
+
+func TestHashRedactSig_RejectsEmptySalt(t *testing.T) {
+	t.Parallel()
+
+	if _, err := HashRedactSig(nil, []byte("token")); err == nil {
+		t.Fatal("expected error for empty salt")
+	}
+}
+
+func TestHashRedactSig_RejectsWrongSizeSalt(t *testing.T) {
+	t.Parallel()
+
+	if _, err := HashRedactSig([]byte("short"), []byte("token")); err == nil {
+		t.Fatal("expected error for wrong-size salt")
+	}
+}
+
+func TestHashStatsHostAndRedactSig(t *testing.T) {
+	t.Parallel()
+
+	salt := make([]byte, RedactionSaltSize)
+	for i := range salt {
+		salt[i] = byte(i)
+	}
+
+	hostHash, err := HashStatsHost(salt, "Example.COM")
+	if err != nil {
+		t.Fatalf("HashStatsHost: %v", err)
+	}
+
+	hostHash2, err := HashStatsHost(salt, "example.com")
+	if err != nil {
+		t.Fatalf("HashStatsHost lowercase: %v", err)
+	}
+
+	if hostHash != hostHash2 {
+		t.Fatalf("host hash mismatch: %q vs %q", hostHash, hostHash2)
+	}
+
+	sigHash, err := HashRedactSig(salt, []byte("token-value"))
+	if err != nil {
+		t.Fatalf("HashRedactSig: %v", err)
+	}
+
+	if len(sigHash) != RedactionSaltSize {
+		t.Fatalf("sig hash len = %d, want %d", len(sigHash), RedactionSaltSize)
+	}
+}
+
+func TestHashContextsDoNotCollideForSameInput(t *testing.T) {
+	t.Parallel()
+
+	salt := make([]byte, RedactionSaltSize)
+	for i := range salt {
+		salt[i] = byte(i + 3)
+	}
+
+	input := []byte("shared-logical-input")
+
+	hostHash, err := HashStatsHost(salt, string(input))
+	if err != nil {
+		t.Fatalf("HashStatsHost: %v", err)
+	}
+
+	hostHashAgain, err := HashStatsHost(salt, string(input))
+	if err != nil {
+		t.Fatalf("HashStatsHost repeat: %v", err)
+	}
+
+	if hostHash != hostHashAgain {
+		t.Fatal("stats-host hash must be stable for the same input")
+	}
+
+	sigHash, err := HashRedactSig(salt, input)
+	if err != nil {
+		t.Fatalf("HashRedactSig: %v", err)
+	}
+
+	sigHashAgain, err := HashRedactSig(salt, input)
+	if err != nil {
+		t.Fatalf("HashRedactSig repeat: %v", err)
+	}
+
+	if string(sigHash) != string(sigHashAgain) {
+		t.Fatal("redact-sig hash must be stable for the same input")
+	}
+
+	sigHashHex := hex.EncodeToString(sigHash)
+	if hostHash == sigHashHex {
+		t.Fatal("stats-host and redact-sig hashes must not collide for the same input")
+	}
+}
