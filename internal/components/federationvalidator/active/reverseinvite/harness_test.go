@@ -136,8 +136,8 @@ func (e *testEnv) seedRun(t *testing.T, runID, state string) {
 }
 
 // seedRunAt creates the singleton active run at host, optionally with a
-// starter OCM address.
-func (e *testEnv) seedRunAt(t *testing.T, runID, state, host string, starter *string) {
+// remote OCM address.
+func (e *testEnv) seedRunAt(t *testing.T, runID, state, host string, remote *string) {
 	t.Helper()
 
 	now := time.Now().Unix()
@@ -148,7 +148,7 @@ func (e *testEnv) seedRunAt(t *testing.T, runID, state, host string, starter *st
 		State:        state,
 		TargetOrigin: "https://" + host,
 		TargetHost:   host,
-		StarterOCMID: starter,
+		RemoteOCMID:  remote,
 		DiscoveryURL: "https://" + host + "/.well-known/ocm",
 		CreatedAt:    now,
 		UpdatedAt:    now,

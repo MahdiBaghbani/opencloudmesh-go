@@ -27,12 +27,12 @@ var (
 	errTargetHost     = errors.New("target must include a host")
 )
 
-// parsedTarget is the pure rewrite of operator input. starterOCMID is set
+// parsedTarget is the pure rewrite of operator input. remoteOCMID is set
 // only for OCM-address input; URL input leaves it nil.
 type parsedTarget struct {
-	origin       string
-	targetHost   string
-	starterOCMID *string
+	origin      string
+	targetHost  string
+	remoteOCMID *string
 }
 
 // parseTarget rewrites operator input into a normalized origin and TargetHost.
@@ -97,12 +97,12 @@ func parseOCMTarget(raw string) (parsedTarget, error) {
 		return parsedTarget{}, errInvalidTarget
 	}
 
-	starter := raw
+	remote := raw
 
 	return parsedTarget{
-		origin:       targetSchemeHTTPS + "://" + provider,
-		targetHost:   provider,
-		starterOCMID: &starter,
+		origin:      targetSchemeHTTPS + "://" + provider,
+		targetHost:  provider,
+		remoteOCMID: &remote,
 	}, nil
 }
 

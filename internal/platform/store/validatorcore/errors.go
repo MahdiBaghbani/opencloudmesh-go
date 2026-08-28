@@ -139,7 +139,7 @@ const (
 	colIsActive         = "is_active"
 	colBobUserID        = "bob_user_id"
 	colOutgoingInviteID = "outgoing_invite_id"
-	colStarterOCMID     = "starter_ocm_id"
+	colRemoteOCMID      = "remote_ocm_id"
 	colS1ClaimedAt      = "s1_claimed_at"
 	colOptInActive      = "opt_in_active"
 	colOptInPermanent   = "opt_in_permanent"

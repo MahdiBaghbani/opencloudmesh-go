@@ -352,12 +352,12 @@ func TestHandleStart_PersistsTypedOCMID(t *testing.T) {
 		t.Fatalf("TargetHost = %q, want ponder.org", row.TargetHost)
 	}
 
-	if row.StarterOCMID == nil || *row.StarterOCMID != "mahdi@ponder.org" {
-		t.Fatalf("StarterOCMID = %v, want mahdi@ponder.org", row.StarterOCMID)
+	if row.RemoteOCMID == nil || *row.RemoteOCMID != "mahdi@ponder.org" {
+		t.Fatalf("RemoteOCMID = %v, want mahdi@ponder.org", row.RemoteOCMID)
 	}
 }
 
-func TestHandleStart_URLLeavesStarterOCMIDNull(t *testing.T) {
+func TestHandleStart_URLLeavesRemoteOCMIDNull(t *testing.T) {
 	t.Parallel()
 
 	store := openHandlerTestStore(t)
@@ -385,8 +385,8 @@ func TestHandleStart_URLLeavesStarterOCMIDNull(t *testing.T) {
 		t.Fatalf("TargetHost = %q, want peer.example:8443", row.TargetHost)
 	}
 
-	if row.StarterOCMID != nil {
-		t.Fatalf("StarterOCMID = %v, want nil", row.StarterOCMID)
+	if row.RemoteOCMID != nil {
+		t.Fatalf("RemoteOCMID = %v, want nil", row.RemoteOCMID)
 	}
 }
 

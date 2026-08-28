@@ -64,7 +64,7 @@ func testRunDDLWithStateColumn(stateColumn string) string {
 		%s,
 		target_origin TEXT NOT NULL,
 		target_host TEXT NOT NULL,
-		starter_ocm_id TEXT,
+		remote_ocm_id TEXT,
 		discovery_url TEXT NOT NULL,
 		jwks_uri TEXT,
 		platform TEXT,

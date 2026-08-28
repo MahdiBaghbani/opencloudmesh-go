@@ -83,7 +83,7 @@ func (c *Core) tombstoneExpiredPermanent(ctx context.Context, id string, now int
 				"jwks_uri":                   "",
 				"manifest_json":              nil,
 				colOverallGrade:              nil,
-				colStarterOCMID:              nil,
+				colRemoteOCMID:               nil,
 				colS1ClaimedAt:               nil,
 				colBobUserID:                 nil,
 				colOutgoingInviteID:          nil,

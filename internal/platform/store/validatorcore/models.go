@@ -175,7 +175,7 @@ type TestRun struct {
 	State          string  `gorm:"column:state;not null;index:idx_test_run_state"`
 	TargetOrigin   string  `gorm:"column:target_origin;not null"`
 	TargetHost     string  `gorm:"column:target_host;not null"` // target authority from target discovery, not an operator alias
-	StarterOCMID   *string `gorm:"column:starter_ocm_id"`
+	RemoteOCMID    *string `gorm:"column:remote_ocm_id"`
 	DiscoveryURL   string  `gorm:"column:discovery_url;not null"`
 	JwksURI        string  `gorm:"column:jwks_uri"`
 	Platform       *string `gorm:"column:platform"`

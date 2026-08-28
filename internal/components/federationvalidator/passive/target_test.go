@@ -17,61 +17,61 @@ func TestParseTarget(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		raw          string
-		wantOrigin   string
-		wantHost     string
-		wantStarter  string
-		wantStarterP bool
-		wantErr      error
+		name        string
+		raw         string
+		wantOrigin  string
+		wantHost    string
+		wantRemote  string
+		wantRemoteP bool
+		wantErr     error
 	}{
 		{
-			name:         "ocm id mahdi at ponder",
-			raw:          "mahdi@ponder.org",
-			wantOrigin:   "https://ponder.org",
-			wantHost:     "ponder.org",
-			wantStarter:  "mahdi@ponder.org",
-			wantStarterP: true,
+			name:        "ocm id mahdi at ponder",
+			raw:         "mahdi@ponder.org",
+			wantOrigin:  "https://ponder.org",
+			wantHost:    "ponder.org",
+			wantRemote:  "mahdi@ponder.org",
+			wantRemoteP: true,
 		},
 		{
-			name:         "ocm id trims typed input",
-			raw:          "  mahdi@ponder.org  ",
-			wantOrigin:   "https://ponder.org",
-			wantHost:     "ponder.org",
-			wantStarter:  "mahdi@ponder.org",
-			wantStarterP: true,
+			name:        "ocm id trims typed input",
+			raw:         "  mahdi@ponder.org  ",
+			wantOrigin:  "https://ponder.org",
+			wantHost:    "ponder.org",
+			wantRemote:  "mahdi@ponder.org",
+			wantRemoteP: true,
 		},
 		{
-			name:         "ocm id keeps non-default port",
-			raw:          "alice@peer.example:8443",
-			wantOrigin:   "https://peer.example:8443",
-			wantHost:     "peer.example:8443",
-			wantStarter:  "alice@peer.example:8443",
-			wantStarterP: true,
+			name:        "ocm id keeps non-default port",
+			raw:         "alice@peer.example:8443",
+			wantOrigin:  "https://peer.example:8443",
+			wantHost:    "peer.example:8443",
+			wantRemote:  "alice@peer.example:8443",
+			wantRemoteP: true,
 		},
 		{
-			name:         "ocm id elides default https port",
-			raw:          "alice@peer.example:443",
-			wantOrigin:   "https://peer.example",
-			wantHost:     "peer.example",
-			wantStarter:  "alice@peer.example:443",
-			wantStarterP: true,
+			name:        "ocm id elides default https port",
+			raw:         "alice@peer.example:443",
+			wantOrigin:  "https://peer.example",
+			wantHost:    "peer.example",
+			wantRemote:  "alice@peer.example:443",
+			wantRemoteP: true,
 		},
 		{
-			name:         "ocm id keeps ipv6 brackets and port",
-			raw:          "alice@[::1]:9200",
-			wantOrigin:   "https://[::1]:9200",
-			wantHost:     "[::1]:9200",
-			wantStarter:  "alice@[::1]:9200",
-			wantStarterP: true,
+			name:        "ocm id keeps ipv6 brackets and port",
+			raw:         "alice@[::1]:9200",
+			wantOrigin:  "https://[::1]:9200",
+			wantHost:    "[::1]:9200",
+			wantRemote:  "alice@[::1]:9200",
+			wantRemoteP: true,
 		},
 		{
-			name:         "ocm id forces https",
-			raw:          "bob@Peer.Example",
-			wantOrigin:   "https://peer.example",
-			wantHost:     "peer.example",
-			wantStarter:  "bob@Peer.Example",
-			wantStarterP: true,
+			name:        "ocm id forces https",
+			raw:         "bob@Peer.Example",
+			wantOrigin:  "https://peer.example",
+			wantHost:    "peer.example",
+			wantRemote:  "bob@Peer.Example",
+			wantRemoteP: true,
 		},
 		{
 			name:       "https url success",
@@ -200,7 +200,7 @@ func TestParseTarget(t *testing.T) {
 				t.Fatalf("targetHost = %q, want %q", got.targetHost, tt.wantHost)
 			}
 
-			assertStarterOCMID(t, got.starterOCMID, tt.wantStarterP, tt.wantStarter)
+			assertRemoteOCMID(t, got.remoteOCMID, tt.wantRemoteP, tt.wantRemote)
 		})
 	}
 }
@@ -269,8 +269,8 @@ func TestParseTarget_MalformedURLUserinfoDoesNotEchoSecrets(t *testing.T) {
 		t.Fatalf("https URL = %+v, want origin and host peer.example:8443", gotURL)
 	}
 
-	if gotURL.starterOCMID != nil {
-		t.Fatalf("https URL starterOCMID = %v, want nil", gotURL.starterOCMID)
+	if gotURL.remoteOCMID != nil {
+		t.Fatalf("https URL remoteOCMID = %v, want nil", gotURL.remoteOCMID)
 	}
 
 	gotOCM, err := parseTarget("mahdi@ponder.org")
@@ -282,8 +282,8 @@ func TestParseTarget_MalformedURLUserinfoDoesNotEchoSecrets(t *testing.T) {
 		t.Fatalf("OCM id = %+v, want ponder.org", gotOCM)
 	}
 
-	if gotOCM.starterOCMID == nil || *gotOCM.starterOCMID != "mahdi@ponder.org" {
-		t.Fatalf("OCM id starterOCMID = %v, want mahdi@ponder.org", gotOCM.starterOCMID)
+	if gotOCM.remoteOCMID == nil || *gotOCM.remoteOCMID != "mahdi@ponder.org" {
+		t.Fatalf("OCM id remoteOCMID = %v, want mahdi@ponder.org", gotOCM.remoteOCMID)
 	}
 }
 
@@ -343,8 +343,8 @@ func TestParseTarget_DoesNotDiscover(t *testing.T) {
 		t.Fatalf("targetHost = %q", got.targetHost)
 	}
 
-	if got.starterOCMID != nil {
-		t.Fatalf("starterOCMID = %v, want nil", got.starterOCMID)
+	if got.remoteOCMID != nil {
+		t.Fatalf("remoteOCMID = %v, want nil", got.remoteOCMID)
 	}
 }
 
@@ -361,19 +361,19 @@ func TestParseTarget_OCMNeverHTTP(t *testing.T) {
 	}
 }
 
-func assertStarterOCMID(t *testing.T, got *string, wantSet bool, want string) {
+func assertRemoteOCMID(t *testing.T, got *string, wantSet bool, want string) {
 	t.Helper()
 
 	if !wantSet {
 		if got != nil {
-			t.Fatalf("starterOCMID = %v, want nil", got)
+			t.Fatalf("remoteOCMID = %v, want nil", got)
 		}
 
 		return
 	}
 
 	if got == nil || *got != want {
-		t.Fatalf("starterOCMID = %v, want %q", got, want)
+		t.Fatalf("remoteOCMID = %v, want %q", got, want)
 	}
 }
 

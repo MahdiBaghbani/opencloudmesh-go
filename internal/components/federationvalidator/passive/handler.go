@@ -292,7 +292,7 @@ func (h *Handler) handleCreateSession(
 		State:        validatorcore.StateCreated,
 		TargetOrigin: parsed.origin,
 		TargetHost:   parsed.targetHost,
-		StarterOCMID: parsed.starterOCMID,
+		RemoteOCMID:  parsed.remoteOCMID,
 		DiscoveryURL: strings.TrimSuffix(parsed.origin, "/") + "/.well-known/ocm",
 		CreatedAt:    now,
 		UpdatedAt:    now,

@@ -356,8 +356,8 @@ func assertWipedPermanentIdentityPII(t *testing.T, got *TestRun) {
 		t.Fatalf("designated_share_with = %v, want nil", got.DesignatedShareWith)
 	}
 
-	if got.StarterOCMID != nil {
-		t.Fatalf("starter_ocm_id = %v, want nil", got.StarterOCMID)
+	if got.RemoteOCMID != nil {
+		t.Fatalf("remote_ocm_id = %v, want nil", got.RemoteOCMID)
 	}
 
 	if got.S1ClaimedAt != nil {
@@ -432,7 +432,7 @@ func seedExpiredPermanentRun(
 	token := "invite-token"
 	shareWith := "alice@pii.example"
 	provider := "prov-pii"
-	starter := "ocm-starter-pii"
+	remote := "alice@remote.example"
 	outgoingInvite := seedOutgoingInviteID(id)
 	tier := RetentionTier7
 	reportID := id
@@ -442,7 +442,7 @@ func seedExpiredPermanentRun(
 		State:                   StateTerminalPass,
 		TargetOrigin:            "https://pii.example",
 		TargetHost:              "pii.example",
-		StarterOCMID:            &starter,
+		RemoteOCMID:             &remote,
 		OutgoingInviteID:        &outgoingInvite,
 		DiscoveryURL:            "https://pii.example/.well-known/ocm",
 		JwksURI:                 "https://pii.example/jwks.json",

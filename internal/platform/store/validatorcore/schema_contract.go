@@ -46,7 +46,7 @@ var validatorTableContract = map[string][]columnContract{
 		{name: colState, colType: colTypeText, notNull: true},
 		{name: "target_origin", colType: colTypeText, notNull: true},
 		{name: "target_host", colType: colTypeText, notNull: true},
-		{name: colStarterOCMID, colType: colTypeText},
+		{name: colRemoteOCMID, colType: colTypeText},
 		{name: "discovery_url", colType: colTypeText, notNull: true},
 		{name: "jwks_uri", colType: colTypeText},
 		{name: colPlatform, colType: colTypeText},

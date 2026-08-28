@@ -200,7 +200,7 @@ func (s *Service) correlateAcceptedInvite(ctx context.Context, token string) (ac
 }
 
 // bindAcceptedIdentity compares the composed incoming accepter identity to
-// the session starter. Wrong host or a plain local-user mismatch hard-fails
+// the remote OCM address. Wrong host or a plain local-user mismatch hard-fails
 // the run without pinning. Opaque or UUID users warn and continue. A bare
 // URL start enforces host only.
 func (s *Service) bindAcceptedIdentity(ctx context.Context, match acceptedInviteMatch) (bool, error) {
@@ -217,18 +217,18 @@ func (s *Service) bindAcceptedIdentity(ctx context.Context, match acceptedInvite
 		return false, s.haltWrongAccepter(ctx, match.run.TestRunID)
 	}
 
-	if match.run.StarterOCMID == nil || *match.run.StarterOCMID == "" {
+	if match.run.RemoteOCMID == nil || *match.run.RemoteOCMID == "" {
 		return true, nil
 	}
 
-	starter, err := identitybind.Canonicalize(*match.run.StarterOCMID, scheme)
+	remote, err := identitybind.Canonicalize(*match.run.RemoteOCMID, scheme)
 	if err != nil {
-		s.log.Warn("reverseinvite: canonicalize starter identity", "error", err)
+		s.log.Warn("reverseinvite: canonicalize remote identity", "error", err)
 
 		return false, nil
 	}
 
-	decision := identitybind.Compare(starter, incoming)
+	decision := identitybind.Compare(remote, incoming)
 	if !decision.HostsEqual {
 		return false, s.haltWrongAccepter(ctx, match.run.TestRunID)
 	}

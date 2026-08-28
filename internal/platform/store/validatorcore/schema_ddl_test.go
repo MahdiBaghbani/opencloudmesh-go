@@ -85,7 +85,7 @@ func TestTestRun_FinalColumns(t *testing.T) {
 
 	expected := []string{
 		"test_run_id", "is_active", "state", "target_origin", "target_host",
-		"starter_ocm_id", "discovery_url", "jwks_uri", "platform", "api_version",
+		"remote_ocm_id", "discovery_url", "jwks_uri", "platform", "api_version",
 		"terminal_reason", "finished_at", "overall_grade", "manifest_schema",
 		"manifest_json", "bob_user_id", "outgoing_invite_id", "s1_claimed_at",
 		"reverse_invite_token", "reverse_invite_imported_at",
@@ -132,8 +132,8 @@ func TestTestRun_FinalColumns(t *testing.T) {
 		t.Fatal("jwks_uri must be nullable")
 	}
 
-	if info["starter_ocm_id"].NotNull || info["outgoing_invite_id"].NotNull {
-		t.Fatal("starter_ocm_id and outgoing_invite_id must be nullable")
+	if info["remote_ocm_id"].NotNull || info["outgoing_invite_id"].NotNull {
+		t.Fatal("remote_ocm_id and outgoing_invite_id must be nullable")
 	}
 }
 
