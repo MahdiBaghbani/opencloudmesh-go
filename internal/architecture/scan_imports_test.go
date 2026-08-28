@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,34 @@ func findProductionImportSuffix(
 	root string,
 	relRoots []string,
 	importSuffix string,
+) []string {
+	t.Helper()
+
+	return findProductionImports(t, root, relRoots, func(importPath string) bool {
+		return strings.HasSuffix(importPath, importSuffix)
+	})
+}
+
+func findProductionImportSegment(
+	t *testing.T,
+	root string,
+	relRoots []string,
+	segment string,
+) []string {
+	t.Helper()
+
+	segment = strings.Trim(segment, "/")
+
+	return findProductionImports(t, root, relRoots, func(importPath string) bool {
+		return importPathHasSegment(importPath, segment)
+	})
+}
+
+func findProductionImports(
+	t *testing.T,
+	root string,
+	relRoots []string,
+	match func(importPath string) bool,
 ) []string {
 	t.Helper()
 
@@ -67,7 +96,7 @@ func findProductionImportSuffix(
 
 			for _, imp := range node.Imports {
 				importPath := strings.Trim(imp.Path.Value, `"`)
-				if strings.HasSuffix(importPath, importSuffix) {
+				if match(importPath) {
 					pos := fset.Position(imp.Pos())
 					violations = append(violations, rel+":"+strconv.Itoa(pos.Line))
 				}
@@ -81,4 +110,8 @@ func findProductionImportSuffix(
 	}
 
 	return violations
+}
+
+func importPathHasSegment(importPath, segment string) bool {
+	return slices.Contains(strings.Split(importPath, "/"), segment)
 }

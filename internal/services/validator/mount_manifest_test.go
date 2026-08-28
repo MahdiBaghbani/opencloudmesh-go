@@ -83,6 +83,40 @@ func TestRouteSpecs_ManifestPublicAnonymous(t *testing.T) {
 	}
 }
 
+func TestValidatorService_StoreOnlyMountsScan(t *testing.T) {
+	t.Parallel()
+
+	store := openMountTestStore(t)
+
+	svc, err := New(Inputs{
+		Store: store,
+		Ratelimit: ratelimit.Inputs{
+			KeyFunc: func(*http.Request) string { return "k" },
+		},
+		Log: slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError})),
+	}, map[string]any{}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		RouteAPIScan+"?target=https://peer.example",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusNotFound || rec.Code == http.StatusMethodNotAllowed {
+		t.Fatalf("store-only validator service must mount GET /api/scan, status = %d", rec.Code)
+	}
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("scan status = %d, want 201 body %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestValidatorService_MountsManifestRoute(t *testing.T) {
 	t.Parallel()
 

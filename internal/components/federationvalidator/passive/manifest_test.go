@@ -89,6 +89,36 @@ func TestHandleManifest_EmptyCapsMatchMountedRoutes(t *testing.T) {
 	)
 }
 
+func TestBuildManifest_EmptyCapsAdvertisesScan(t *testing.T) {
+	t.Parallel()
+
+	payload := buildManifestFor("", catalog.Caps{})
+
+	if payload.Scan == nil {
+		t.Fatal("empty caps must advertise a non-nil scan object")
+	}
+
+	if payload.Scan.Schema != scanSchema {
+		t.Fatalf("scan.schema = %q, want %q", payload.Scan.Schema, scanSchema)
+	}
+
+	if !slices.Contains(payload.Schemas, scanSchema) {
+		t.Fatalf("schemas = %v, want %q", payload.Schemas, scanSchema)
+	}
+
+	var hasScan bool
+
+	for _, route := range payload.Routes {
+		if route.Method == http.MethodGet && route.FullPath == "/validator/api/scan" {
+			hasScan = true
+		}
+	}
+
+	if !hasScan {
+		t.Fatalf("advertised routes missing GET /validator/api/scan: %+v", payload.Routes)
+	}
+}
+
 func TestHandleManifest_EmptyCapsOmitsUnfinished(t *testing.T) {
 	t.Parallel()
 
@@ -227,8 +257,11 @@ func TestHandleManifest_ScanSchemaMatchesLiveHandler(t *testing.T) {
 
 	assertRequiredScanQuery(t, scan.Request.Query, "target")
 
-	if scan.Request.Query["target"].Description != "URL or OCM id" {
-		t.Fatalf("scan target description = %q, want URL or OCM id", scan.Request.Query["target"].Description)
+	if scan.Request.Query["target"].Description != "OCM address or absolute http(s) URL" {
+		t.Fatalf(
+			"scan target description = %q, want OCM address or absolute http(s) URL",
+			scan.Request.Query["target"].Description,
+		)
 	}
 
 	assertOptionalScanOptInQuery(t, scan.Request.Query, optInQueryContribute)

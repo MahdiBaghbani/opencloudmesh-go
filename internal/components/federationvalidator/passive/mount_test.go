@@ -129,6 +129,39 @@ func TestMountPlaneARoutes_UnlimitedRoutesSkipSharedLimiter(t *testing.T) {
 	}
 }
 
+func TestMountPlaneARoutes_ScanMountedWithoutReverseInvite(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		caps catalog.Caps
+	}{
+		{name: "empty caps", caps: catalog.Caps{}},
+		{name: "abort only", caps: catalog.Caps{Abort: true}},
+	}
+
+	want := MountedAPIRoute{
+		Method:   http.MethodGet,
+		FullPath: "/validator/api/scan",
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := chi.NewRouter()
+			h := NewHandler(openHandlerTestStore(t), nil)
+			h.SetCaps(tc.caps)
+			MountPlaneARoutes(r, h, nil)
+
+			mounted := mountedRouteSet(t, r)
+			if _, ok := mounted[want]; !ok {
+				t.Fatal("GET /validator/api/scan must be mounted without reverse-invite")
+			}
+		})
+	}
+}
+
 func TestMountPlaneARoutes_AbortWithoutReverseInvite(t *testing.T) {
 	t.Parallel()
 

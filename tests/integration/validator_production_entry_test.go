@@ -73,6 +73,20 @@ type claimInviteBody struct {
 	InviteString string `json:"inviteString"`
 }
 
+func TestValidatorProductionEntry_StoreOnlyScanPassiveComplete(t *testing.T) {
+	t.Parallel()
+
+	ts := harness.StartPassiveOnlyValidatorServer(t)
+	peer := validatorpeer.Start(t, validatorpeer.Options{})
+
+	id := getScan(t, ts.BaseURL, peer.URL)
+	waitSessionState(t, ts.BaseURL, id, statePassiveComplete)
+
+	assertOptInActiveUnavailable(t, ts.BaseURL, peer.URL)
+	assertPassiveOnlyManifestHasScan(t, ts.BaseURL)
+	assertScanRejectsLoopback(t, ts.BaseURL)
+}
+
 func TestValidatorProductionEntry_URLTargetTerminalPass(t *testing.T) {
 	t.Parallel()
 
@@ -178,6 +192,97 @@ func TestValidatorProductionEntry_LockWaitPromote(t *testing.T) {
 	}
 
 	waitSessionState(t, ts.BaseURL, waiter, stateActiveRunning, stateInviteMinted)
+}
+
+func assertOptInActiveUnavailable(t *testing.T, baseURL, target string) {
+	t.Helper()
+
+	status, raw := doJSON(t, http.MethodPost, baseURL+validatorStartPath, map[string]any{
+		"target":      target,
+		"optInActive": true,
+	})
+	if status != http.StatusBadRequest {
+		t.Fatalf("POST start optInActive status = %d body=%s, want 400", status, raw)
+	}
+
+	var startErr map[string]string
+	if err := json.Unmarshal(raw, &startErr); err != nil {
+		t.Fatalf("decode start error: %v body=%s", err, raw)
+	}
+
+	if startErr["error"] != "opt_in_active_unavailable" {
+		t.Fatalf("start error = %q, want opt_in_active_unavailable", startErr["error"])
+	}
+
+	if startErr["message"] != "active opt-in is unavailable in this deployment" {
+		t.Fatalf("start message = %q, want active opt-in is unavailable in this deployment", startErr["message"])
+	}
+}
+
+func assertPassiveOnlyManifestHasScan(t *testing.T, baseURL string) {
+	t.Helper()
+
+	manifestStatus, manifestRaw := doJSON(t, http.MethodGet, baseURL+"/validator/api/manifest", nil)
+	if manifestStatus != http.StatusOK {
+		t.Fatalf("GET manifest status = %d body=%s, want 200", manifestStatus, manifestRaw)
+	}
+
+	var manifest map[string]json.RawMessage
+	if err := json.Unmarshal(manifestRaw, &manifest); err != nil {
+		t.Fatalf("decode manifest: %v body=%s", err, manifestRaw)
+	}
+
+	if _, ok := manifest["scan"]; !ok {
+		t.Fatal("passive-only manifest must advertise scan")
+	}
+
+	var routes []struct {
+		Method   string `json:"method"`
+		FullPath string `json:"fullPath"`
+	}
+	if err := json.Unmarshal(manifest["routes"], &routes); err != nil {
+		t.Fatalf("decode manifest routes: %v", err)
+	}
+
+	hasScanRoute := false
+
+	for _, route := range routes {
+		if route.Method == http.MethodGet && route.FullPath == validatorScanPath {
+			hasScanRoute = true
+		}
+	}
+
+	if !hasScanRoute {
+		t.Fatalf("passive-only manifest routes missing GET scan: %+v", routes)
+	}
+}
+
+func assertScanRejectsLoopback(t *testing.T, baseURL string) {
+	t.Helper()
+
+	loopbackURL := baseURL + validatorScanPath + "?target=" + url.QueryEscape("https://127.0.0.1")
+
+	loopbackStatus, loopbackRaw := doJSON(t, http.MethodGet, loopbackURL, nil)
+	if loopbackStatus != http.StatusBadRequest {
+		t.Fatalf("GET scan loopback status = %d body=%s, want 400", loopbackStatus, loopbackRaw)
+	}
+
+	if bytes.Contains(loopbackRaw, []byte("127.0.0.1")) {
+		t.Fatalf("loopback scan error echoed input: %s", loopbackRaw)
+	}
+
+	var loopbackErr map[string]string
+	if err := json.Unmarshal(loopbackRaw, &loopbackErr); err != nil {
+		t.Fatalf("decode loopback error: %v body=%s", err, loopbackRaw)
+	}
+
+	if loopbackErr["error"] != "target_not_public" {
+		t.Fatalf("loopback error = %q, want target_not_public", loopbackErr["error"])
+	}
+
+	if loopbackErr["message"] != "target must be a public address" {
+		t.Fatalf("loopback message = %q, want target must be a public address", loopbackErr["message"])
+	}
 }
 
 func postStart(t *testing.T, baseURL, target string, optInActive bool) string {

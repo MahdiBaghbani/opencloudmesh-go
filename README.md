@@ -144,7 +144,9 @@ If you are getting oriented, start here:
 Useful sample configs:
 
 - `configs/validator.toml` for the federation-validator preset (statistics,
-  trusted proxies, and public scan rate limiting where appropriate)
+  trusted proxies). On `mode=validator`, including passive-only,
+  `GET /validator/api/scan` is public, anonymous, rate-limited 10/60, and
+  SSRF-guarded. See [docs/configuration.md](docs/configuration.md).
 - `docker/configs/config.toml` for a minimal container-oriented dev setup
 - `docker/configs/config-tls.toml` for a strict setup with static TLS
 - `tests/ca_pool/configs/valid.toml` and `invalid.toml` for outbound root CA

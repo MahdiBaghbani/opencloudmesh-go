@@ -500,6 +500,72 @@ func loadCreatedRun(
 	return row
 }
 
+func TestHandleScan_PersistsTypedOCMID(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+
+	createReq := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/scan?target=mahdi@ponder.org",
+		nil,
+	)
+	createRec := httptest.NewRecorder()
+	h.HandleScan(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("scan status = %d, want 201 body %s", createRec.Code, createRec.Body.String())
+	}
+
+	row := loadCreatedRun(t, store, createRec)
+	if row.TargetOrigin != "https://ponder.org" {
+		t.Fatalf("TargetOrigin = %q, want https://ponder.org", row.TargetOrigin)
+	}
+
+	if row.TargetHost != "ponder.org" {
+		t.Fatalf("TargetHost = %q, want ponder.org", row.TargetHost)
+	}
+
+	if row.RemoteOCMID == nil || *row.RemoteOCMID != "mahdi@ponder.org" {
+		t.Fatalf("RemoteOCMID = %v, want mahdi@ponder.org", row.RemoteOCMID)
+	}
+}
+
+func TestHandleScan_URLLeavesRemoteOCMIDNull(t *testing.T) {
+	t.Parallel()
+
+	store := openHandlerTestStore(t)
+	h := NewHandler(store, nil)
+
+	createReq := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/scan?target=https://peer.example:8443",
+		nil,
+	)
+	createRec := httptest.NewRecorder()
+	h.HandleScan(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("scan status = %d, want 201 body %s", createRec.Code, createRec.Body.String())
+	}
+
+	row := loadCreatedRun(t, store, createRec)
+	if row.TargetOrigin != "https://peer.example:8443" {
+		t.Fatalf("TargetOrigin = %q, want https://peer.example:8443", row.TargetOrigin)
+	}
+
+	if row.TargetHost != "peer.example:8443" {
+		t.Fatalf("TargetHost = %q, want peer.example:8443", row.TargetHost)
+	}
+
+	if row.RemoteOCMID != nil {
+		t.Fatalf("RemoteOCMID = %v, want nil", row.RemoteOCMID)
+	}
+}
+
 func TestHandleScan_ContributeOptInPersistsOnStop(t *testing.T) {
 	t.Parallel()
 

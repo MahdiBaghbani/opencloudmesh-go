@@ -48,7 +48,7 @@ trust axes.
 | ---- | ------ |
 | `strict` | Production-safe defaults |
 | `dev` | Local development; more permissive transport and logging |
-| `validator` | Federation validator; statistics, trusted proxies, public scan rate limits |
+| `validator` | Federation validator; statistics, trusted proxies; public anonymous scan (10/60, SSRF-guarded), including passive-only |
 
 ## Major config sections
 
@@ -60,6 +60,7 @@ TOML sections map to `internal/platform/config.Config`:
 | `public_origin`, `listen_addr`, `external_base_path` | Identity and binding (see [identity-and-public-origin.md](identity-and-public-origin.md)) |
 | `[server]` | Trusted proxies |
 | `[statistics]` | Federation statistics (`enabled`; required in validator mode) |
+| `[validator]` | Federation validator session, probe, and `[validator.active] enabled` |
 | `[tls]` | TLS mode (selfsigned, static, acme, ...) |
 | `[outbound_http]` | Outbound client, SSRF, proxy, TLS roots (see [outbound-http-ssrf.md](outbound-http-ssrf.md)) |
 | `[http.services.ui.wayf]` | WAYF UI and `invite-wayf` discovery (see [invite-wayf-and-accept.md](invite-wayf-and-accept.md)) |
@@ -74,6 +75,23 @@ TOML sections map to `internal/platform/config.Config`:
 
 The strict preset defaults `[persistence]` to sqlite with data stored under
 `.ocm/data` (relative to the process working directory).
+
+## Federation validator
+
+`mode = "validator"` (sample: `configs/validator.toml`) mounts
+`GET /validator/api/scan` as a public, anonymous endpoint. The shared
+`scan_public` / `start_public` budget is 10 requests / 60 seconds.
+Scan targets are SSRF-guarded: non-public literals and localhost are
+rejected. There is no production `allow_private_targets` knob. The same
+public, rate-limited, SSRF-guarded scan applies when
+`[validator.active] enabled = false` (passive-only).
+
+`[validator.active] enabled` turns on active-session legs. Unset means
+enabled (the default). When false, active legs stay unbuilt; scan still
+mounts and stays public and rate-limited.
+
+Validator mode requires `outbound_http.ssrf.mode=strict`. Startup rejects
+any other value. See [outbound-http-ssrf.md](outbound-http-ssrf.md).
 
 ## Example configs
 

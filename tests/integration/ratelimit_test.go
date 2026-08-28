@@ -8,12 +8,55 @@ package integration
 import (
 	"bytes"
 	"net/http"
+	"net/url"
 	"strconv"
 	"testing"
 
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
+
+func TestRateLimitValidatorScan(t *testing.T) {
+	t.Parallel()
+
+	ts := harness.StartPassiveOnlyValidatorServer(t)
+	scanURL := ts.BaseURL + validatorScanPath + "?target=" + url.QueryEscape("https://127.0.0.1")
+
+	for i := range 10 {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, scanURL, nil)
+		if err != nil {
+			t.Fatalf("build scan request %d: %v", i+1, err)
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // closed by tshttp.MustClose
+		if err != nil {
+			t.Fatalf("GET scan %d: %v", i+1, err)
+		}
+
+		tshttp.MustClose(t, resp.Body)
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("GET scan %d status = %d, want 400", i+1, resp.StatusCode)
+		}
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, scanURL, nil)
+	if err != nil {
+		t.Fatalf("build scan request 11: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // closed by tshttp.MustClose
+	if err != nil {
+		t.Fatalf("GET scan 11: %v", err)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("GET scan 11 status = %d, want 429", resp.StatusCode)
+	}
+
+	requireRetryAfterPositive(t, resp)
+}
 
 func TestRateLimitOcmauxDiscover(t *testing.T) {
 	t.Parallel()

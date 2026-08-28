@@ -33,7 +33,7 @@ const (
 	identityOpaque           = "opaque"
 	identityUUID             = "uuid"
 	identitySeverityWarn     = "warn"
-	scanTargetDescription    = "URL or OCM id"
+	scanTargetDescription    = "OCM address or absolute http(s) URL"
 	statisticsDefaultDays    = 14
 	statisticsKAnonymity     = 5
 )

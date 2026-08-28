@@ -2,8 +2,15 @@
 # SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
 #
 # OpenCloudMesh Go - federation validator preset (mode=validator).
+# GET /validator/api/scan is public, anonymous, and rate-limited.
+# Validator mode requires outbound_http.ssrf.mode=strict (mandatory).
 
 mode = "validator"
+
+# Mandatory in validator mode. Startup rejects any other value.
+# See docs/outbound-http-ssrf.md.
+[outbound_http.ssrf]
+mode = "strict"
 
 [persistence]
 backend = "sqlite"
@@ -21,12 +28,19 @@ trusted_proxies = [
   "192.168.0.0/16",
 ]
 
+# Public anonymous scan/start budget: 10 requests / 60 seconds.
 [http.interceptors.ratelimit.profiles.scan_public.start_public]
 requests_per_window = 10
 window_seconds = 60
 
 [http.services.validator.ratelimit]
 profile = "scan_public"
+
+# Unset or true builds active-session legs. Explicit false is the
+# passive-only opt-out: active legs stay unbuilt, but scan still mounts
+# and stays public and rate-limited.
+[validator.active]
+enabled = true
 
 [validator.probe]
 email = "probe@localhost"
