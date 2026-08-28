@@ -25,6 +25,10 @@ const (
 // preset uses for its durable sqlite backend.
 const DefaultPersistenceDataDir = ".ocm/data"
 
+// DefaultValidatorPersistenceDataDir is the CWD-relative data directory the
+// validator preset uses for its durable sqlite backend.
+const DefaultValidatorPersistenceDataDir = ".ocm/validator-data"
+
 // DefaultContentDir is the CWD-relative managed content root, sibling of the
 // default data directory under .ocm/.
 const DefaultContentDir = ".ocm/files"

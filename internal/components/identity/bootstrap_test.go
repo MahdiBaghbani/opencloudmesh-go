@@ -69,48 +69,6 @@ func TestBootstrap_Run(t *testing.T) {
 	}
 }
 
-func TestBootstrap_CreateProbeUser(t *testing.T) {
-	t.Parallel()
-
-	repo := identity.NewMemoryPartyRepo()
-	auth := identity.NewUserAuthFast()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	bootstrap := identity.NewBootstrap(repo, auth, logger)
-	ctx := context.Background()
-
-	// Create probe user
-	user, err := bootstrap.CreateProbeUser(ctx, "probe1", "probepass", "test-realm", "/data/probe1")
-	if err != nil {
-		t.Fatalf("CreateProbeUser failed: %v", err)
-	}
-
-	if !user.IsProbe() {
-		t.Error("user should be a probe")
-	}
-
-	if user.Realm != "test-realm" {
-		t.Errorf("expected realm 'test-realm', got %q", user.Realm)
-	}
-
-	if user.StorageRoot != "/data/probe1" {
-		t.Errorf("expected storage root '/data/probe1', got %q", user.StorageRoot)
-	}
-
-	if user.ExpiresAt == nil {
-		t.Error("probe user should have expiration")
-	}
-
-	// Creating same probe user in same realm should return existing
-	user2, err := bootstrap.CreateProbeUser(ctx, "probe1", "probepass", "test-realm", "/data/probe1")
-	if err != nil {
-		t.Fatalf("CreateProbeUser (second) failed: %v", err)
-	}
-
-	if user2.ID != user.ID {
-		t.Error("should return existing user")
-	}
-}
-
 func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 	t.Parallel()
 

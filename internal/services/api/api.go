@@ -124,6 +124,10 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	)
 	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
 
+	if inputs.OutgoingDispatchHook != nil {
+		outgoingHandler.SetDispatchHook(inputs.OutgoingDispatchHook)
+	}
+
 	allowedPaths, err := resolveOutgoingAllowedPaths(inputs.ContentDir, c.AllowedPaths)
 	if err != nil {
 		return nil, fmt.Errorf("api: resolve allowed paths: %w", err)
@@ -241,6 +245,16 @@ func (s *Service) Handler() http.Handler {
 // Prefix returns the service URL prefix; implements service.Service.
 func (s *Service) Prefix() string {
 	return string(service.BuildAPI)
+}
+
+// OutgoingShareHandler returns the outgoing-share handler used by HTTP
+// create and by the active runner's programmatic CreateAsUser path.
+func (s *Service) OutgoingShareHandler() *outgoingshares.Handler {
+	if s == nil {
+		return nil
+	}
+
+	return s.outgoingHandler
 }
 
 // Close performs no cleanup for this service; implements service.Service.

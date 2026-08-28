@@ -192,6 +192,26 @@ func normalizeLoadedConfig(cfg *Config, md toml.MetaData, fc fileConfig) error {
 		return err
 	}
 
+	if err := validateTerminatedTLSExplicitTrustedProxies(cfg, md, fc); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateTerminatedTLSExplicitTrustedProxies(cfg *Config, md toml.MetaData, fc fileConfig) error {
+	if cfg.TLS.Mode != tlsModeTerminated {
+		return nil
+	}
+
+	if !md.IsDefined("server", "trusted_proxies") {
+		return errors.New("tls.mode=terminated requires an explicit server.trusted_proxies list in config")
+	}
+
+	if fc.Server == nil || len(fc.Server.TrustedProxies) == 0 {
+		return errors.New("tls.mode=terminated requires at least one server.trusted_proxies entry")
+	}
+
 	return nil
 }
 

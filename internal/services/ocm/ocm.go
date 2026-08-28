@@ -87,6 +87,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalIdentity.Scheme,
 		inputs.PeerMappingResolver,
 	)
+	sharesHandler.SetCreateObserver(inputs.IncomingShareObserver)
 	invitesHandler := accepted.NewHandler(
 		inputs.OutgoingInviteRepo,
 		inputs.PartyRepo,
@@ -101,15 +102,22 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.CodeFlow,
 		inputs.LocalIdentity.Origin,
 	)
+	tokenHandler.SetExchangeObserver(inputs.TokenExchangeObserver)
 	notificationsHandler := notificationsincoming.NewHandler(
 		inputs.OutgoingShareRepo,
 		inputs.IncomingShareRepo,
 		inputs.LocalIdentity.Scheme,
 		log,
 	)
+	notificationsHandler.SetObserver(inputs.NotificationObserver)
 
 	peerResolver := peer.NewResolver()
 	r := chi.NewRouter()
+
+	inviteAcceptedHandler := invitesHandler.HandleInviteAccepted
+	if inputs.InviteAcceptedDecorator != nil {
+		inviteAcceptedHandler = inputs.InviteAcceptedDecorator(inviteAcceptedHandler)
+	}
 
 	routeOpts := service.RouteOpts{
 		ExternalBasePath:  inputs.LocalIdentity.ExternalBasePath,
@@ -117,7 +125,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 	if err := mountProtocolRoutes(r, routeOpts, inputs, routeHandlers{
 		shares:         sharesHandler.CreateShare,
-		inviteAccepted: invitesHandler.HandleInviteAccepted,
+		inviteAccepted: inviteAcceptedHandler,
 		token:          tokenHandler.HandleToken,
 		notifications:  notificationsHandler.HandleNotification,
 	}, peerResolver); err != nil {

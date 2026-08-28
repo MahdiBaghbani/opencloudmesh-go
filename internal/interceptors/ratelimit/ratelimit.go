@@ -84,6 +84,23 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 	return limiter.Wrap, nil
 }
 
+// NewFromNamedProfile resolves a flat or nested ratelimit profile from global
+// interceptor config and constructs the middleware from the resulting bucket.
+func NewFromNamedProfile(
+	inputs Inputs,
+	interceptorsCfg map[string]map[string]any,
+	profileName,
+	bucketName string,
+	log *slog.Logger,
+) (interceptors.Middleware, error) {
+	conf, err := interceptors.GetRatelimitBucketConfig(interceptorsCfg, profileName, bucketName)
+	if err != nil {
+		return nil, fmt.Errorf("ratelimit: resolve profile: %w", err)
+	}
+
+	return New(inputs, conf, log)
+}
+
 // Wrap is the middleware function that applies rate limiting.
 func (l *Limiter) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

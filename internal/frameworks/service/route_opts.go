@@ -47,6 +47,7 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 
 	tokenPath := resolveTokenExchangePath(cfg)
 	opts.TokenExchangePath = tokenPath
+	opts.ValidatorEnabled = config.IsValidatorMode(cfg)
 
 	return opts
 }
@@ -75,6 +76,8 @@ func featureActive(cond FeatureCondition, opts RouteOpts) bool {
 		return opts.WayfEnabled
 	case FeatureInviteAcceptEnabled:
 		return opts.InviteAcceptEnabled
+	case FeatureValidatorEnabled:
+		return opts.ValidatorEnabled
 	default:
 		return true
 	}

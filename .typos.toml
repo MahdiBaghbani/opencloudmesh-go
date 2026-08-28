@@ -20,6 +20,8 @@ intoto = "intoto"
 well-known = "well-known"
 # Intentional American-adjacent identifier used across config/discovery APIs.
 unparseable = "unparseable"
+# Opt-in consent token (idiomatic Go filename, no underscore); not the word "option".
+optin = "optin"
 
 [default.extend-identifiers]
 Unparseable = "Unparseable"

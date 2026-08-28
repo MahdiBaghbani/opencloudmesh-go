@@ -19,7 +19,12 @@ import (
 func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 	t.Parallel()
 
-	forbidden := []string{"X-Forwarded-For", "X-Real-IP"}
+	forbidden := []string{
+		"X-Forwarded-For",
+		"X-Forwarded-Proto",
+		"X-Forwarded-Host",
+		"X-Real-IP",
+	}
 
 	allowedSubstrings := []string{
 		"/platform/http/realip/",
@@ -80,7 +85,9 @@ func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 	}
 
 	if len(violations) > 0 {
-		t.Fatalf("Found X-Forwarded-For/X-Real-IP references outside realip (see allowlist rules in this test):\n%s",
-			strings.Join(violations, "\n"))
+		t.Fatalf(
+			"Found forwarded-header references outside realip (see allowlist rules in this test):\n%s",
+			strings.Join(violations, "\n"),
+		)
 	}
 }

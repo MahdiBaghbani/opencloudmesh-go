@@ -20,7 +20,7 @@ import (
 func TestTLSManager_Off(t *testing.T) {
 	t.Parallel()
 
-	cfg := &config.TLSConfig{Mode: "off"}
+	cfg := &config.TLSConfig{Mode: config.TLSModeOff}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	mgr := tlspkg.NewTLSManager(cfg, logger)
 

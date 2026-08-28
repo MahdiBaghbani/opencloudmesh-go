@@ -104,6 +104,41 @@ func TestServicesDoNotImportWiringPackage(t *testing.T) {
 	}
 }
 
+func TestPassiveProductionDoesNotImportActive(t *testing.T) {
+	t.Parallel()
+
+	root := modroot.ModuleRoot(t)
+	relRoot := "internal/components/federationvalidator/passive"
+
+	violations := findProductionImportSegment(t, root, []string{relRoot}, "active")
+	if len(violations) > 0 {
+		t.Fatalf(
+			"passive production must not import the active tree; violations: %s",
+			strings.Join(violations, ", "),
+		)
+	}
+}
+
+func TestCatalogDoesNotImportPassiveOrActive(t *testing.T) {
+	t.Parallel()
+
+	root := modroot.ModuleRoot(t)
+	relRoot := "internal/components/federationvalidator/catalog"
+
+	passiveHits := findProductionImportSegment(t, root, []string{relRoot}, "passive")
+	activeHits := findProductionImportSegment(t, root, []string{relRoot}, "active")
+
+	violations := append([]string{}, passiveHits...)
+	violations = append(violations, activeHits...)
+
+	if len(violations) > 0 {
+		t.Fatalf(
+			"catalog production must not import passive or active; violations: %s",
+			strings.Join(violations, ", "),
+		)
+	}
+}
+
 func TestInterceptorsDoNotImportWiringPackage(t *testing.T) {
 	t.Parallel()
 	root := modroot.ModuleRoot(t)

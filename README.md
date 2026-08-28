@@ -103,6 +103,9 @@ Useful local variants:
 # Dev preset
 ./bin/opencloudmesh-go -mode dev
 
+# Validator preset
+./bin/opencloudmesh-go -mode validator
+
 # Strict preset with a TOML file
 ./bin/opencloudmesh-go -config docker/configs/config-tls.toml
 
@@ -128,9 +131,9 @@ between them.
 
 The server resolves config in this order: preset bundle, TOML file, CLI flags.
 
-The shipped preset bundles are `strict` and `dev`. They are good starting
-points; effective behavior also depends on signature, transport, and trust
-settings.
+The shipped preset bundles are `strict`, `dev`, and `validator`. They are good
+starting points; effective behavior also depends on signature, transport, and
+trust settings.
 
 If you are getting oriented, start here:
 
@@ -140,6 +143,10 @@ If you are getting oriented, start here:
 
 Useful sample configs:
 
+- `configs/validator.toml` for the federation-validator preset (statistics,
+  trusted proxies). On `mode=validator`, including passive-only,
+  `GET /validator/api/scan` is public, anonymous, rate-limited 10/60, and
+  SSRF-guarded. See [docs/configuration.md](docs/configuration.md).
 - `docker/configs/config.toml` for a minimal container-oriented dev setup
 - `docker/configs/config-tls.toml` for a strict setup with static TLS
 - `tests/ca_pool/configs/valid.toml` and `invalid.toml` for outbound root CA

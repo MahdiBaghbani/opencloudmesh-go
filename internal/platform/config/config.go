@@ -14,7 +14,7 @@ import (
 
 // Config holds the server configuration.
 type Config struct {
-	// Mode selects a preset bundle: strict or dev.
+	// Mode selects a preset bundle: strict, dev, or validator.
 	Mode string `toml:"mode"`
 
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.
@@ -64,6 +64,12 @@ type Config struct {
 
 	// OCM holds OCM-specific settings.
 	OCM OCMConfig `toml:"ocm"`
+
+	// Statistics holds federation validator statistics settings.
+	Statistics StatisticsConfig `toml:"statistics"`
+
+	// Validator holds federation validator session, probe, and active settings.
+	Validator ValidatorSection `toml:"validator"`
 }
 
 // OCMConfig holds OCM-specific settings.

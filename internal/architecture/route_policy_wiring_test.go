@@ -12,6 +12,62 @@ import (
 	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 )
 
+func TestValidatorScanInventoryFollowsValidatorMode(t *testing.T) {
+	t.Parallel()
+
+	enabled := service.RouteOpts{
+		ValidatorEnabled:  true,
+		TokenExchangePath: "token",
+	}
+	disabled := service.RouteOpts{
+		ValidatorEnabled:  false,
+		TokenExchangePath: "token",
+	}
+
+	var scan *service.RouteRow
+
+	for _, row := range service.DerivedRouteInventory(enabled) {
+		if row.ID != service.RouteIDValidatorAPIScan {
+			continue
+		}
+
+		cp := row
+		scan = &cp
+
+		break
+	}
+
+	if scan == nil {
+		t.Fatal("expected validator-api-scan when ValidatorEnabled=true")
+	}
+
+	if scan.FeatureCondition != service.FeatureValidatorEnabled {
+		t.Fatalf("FeatureCondition = %q, want %q", scan.FeatureCondition, service.FeatureValidatorEnabled)
+	}
+
+	if scan.SurfaceClass != service.SurfaceAPI {
+		t.Fatalf("SurfaceClass = %q, want %q", scan.SurfaceClass, service.SurfaceAPI)
+	}
+
+	if scan.HandlerAuth != service.HandlerAuthRateLimitOnly {
+		t.Fatalf("HandlerAuth = %q, want %q", scan.HandlerAuth, service.HandlerAuthRateLimitOnly)
+	}
+
+	if scan.SessionPolicy != service.SessionPublic {
+		t.Fatalf("SessionPolicy = %q, want %q", scan.SessionPolicy, service.SessionPublic)
+	}
+
+	if scan.TrustClass != service.TrustPeerNone {
+		t.Fatalf("TrustClass = %q, want %q", scan.TrustClass, service.TrustPeerNone)
+	}
+
+	for _, row := range service.DerivedRouteInventory(disabled) {
+		if row.ID == service.RouteIDValidatorAPIScan {
+			t.Fatal("validator-api-scan must be absent when ValidatorEnabled=false")
+		}
+	}
+}
+
 func TestRoutePolicyProjections_DerivedFromRoutes(t *testing.T) {
 	t.Parallel()
 

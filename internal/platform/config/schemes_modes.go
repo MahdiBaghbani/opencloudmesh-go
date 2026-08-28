@@ -10,7 +10,13 @@ const (
 	schemeHTTPS = "https"
 	schemeHTTP  = "http"
 
-	tlsModeOff = "off"
+	// TLSModeOff disables in-process TLS; the HTTP server listens in plain HTTP.
+	TLSModeOff = "off"
+	// TLSModeTerminated terminates TLS upstream; forwarded headers from trusted proxies carry scheme.
+	TLSModeTerminated = "terminated"
+
+	tlsModeOff        = TLSModeOff
+	tlsModeTerminated = TLSModeTerminated
 
 	ssrfModeStrict = "strict"
 	ssrfModeOff    = "off"

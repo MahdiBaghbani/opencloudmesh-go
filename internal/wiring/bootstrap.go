@@ -6,29 +6,21 @@
 package wiring
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
-	"os"
-	"path/filepath"
-	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
@@ -56,6 +48,10 @@ type BuildOpts struct {
 	// OutboundOverride replaces cfg.OutboundHTTP when non-nil.
 	OutboundOverride *config.OutboundHTTPConfig
 
+	// OutboundDialHosts remaps advertised hostnames to dial IPs on the
+	// shared outbound client. Test-only; production leaves this nil.
+	OutboundDialHosts map[string]string
+
 	// SkipDiscoveryCache wires a no-op cache for the discovery client instead
 	// of the shared in-memory cache.
 	SkipDiscoveryCache bool
@@ -70,8 +66,17 @@ type BuildResult struct {
 	RootCAPool *x509.CertPool
 
 	// Persistence holds the wired persistence repos. Callers must call
-	// Persistence.Close() on shutdown; Close is a no-op for the memory backend.
+	// Persistence.Close() on shutdown after StopRetentionSweep when that
+	// stop func is non-nil. Close is a no-op for the memory backend.
 	Persistence *repos.Repos
+
+	// StopRetentionSweep cancels the store-level maintenance tickers started
+	// after a successful Attach (the permanent-report expiry loop and the
+	// stalled active-run sweep) plus any late-started seats such as the
+	// active runner, and waits for those goroutines to return.
+	// Nil when the validator store is not wired.
+	// Call on process shutdown before Persistence.Close.
+	StopRetentionSweep context.CancelFunc
 }
 
 // wireSharedDeps builds shared infrastructure from config and persistence repos.
@@ -82,7 +87,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, errors.New("wire shared deps: persistence repos must be non-nil")
 	}
 
-	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
+	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == config.TLSModeOff)
 	codeFlow := &policy.CodeFlow{
 		IncludesTokenExchangeRequirement: cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement,
 		RequiresTokenExchangeRequirement: cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement,
@@ -124,6 +129,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	rawHTTPClient := httpclient.New(outboundCfg, rootCAPool)
+	rawHTTPClient.SetDialHosts(opts.OutboundDialHosts)
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
 	cacheInstance, err := buildCacheInstance(cfg)
@@ -164,7 +170,18 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	signatureMiddleware.SetLocalHTTPSigPolicy(facts.RequiresHTTPRequestSignatures, keyManager != nil)
 
 	tokenStore := token.NewMemoryTokenStore()
-	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
+
+	realIPExtractor, err := buildRealIPExtractor(cfg)
+	if err != nil {
+		return BuildResult{}, err
+	}
+
+	validatorCore, validatorStore, err := buildValidatorPersistence(cfg, persistence)
+	if err != nil {
+		return BuildResult{}, err
+	}
+
+	lateStops := newLateSweepStops(validatorStore)
 
 	built := &Deps{
 		PartyRepo:           partyRepo,
@@ -188,167 +205,15 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		Config:              cfg,
 		Cache:               ratelimitCacheInstance,
 		RealIP:              realIPExtractor,
+		ValidatorCore:       validatorCore,
+		ValidatorStore:      validatorStore,
+		lateStops:           lateStops,
 	}
 
 	return BuildResult{
-		Deps:        built,
-		RootCAPool:  rootCAPool,
-		Persistence: persistence,
+		Deps:               built,
+		RootCAPool:         rootCAPool,
+		Persistence:        persistence,
+		StopRetentionSweep: joinStoreSweepStops(startRetentionSweep(validatorStore), startStallSweep(validatorStore), lateStops.Stop),
 	}, nil
-}
-
-func buildUserAuth(opts BuildOpts) *identity.UserAuth {
-	if opts.FastAuth {
-		return identity.NewUserAuthFast()
-	}
-
-	return identity.NewUserAuth()
-}
-
-func buildKeyManager(
-	cfg *config.Config,
-	localIdentity localidentity.Identity,
-	opts BuildOpts,
-	logger *slog.Logger,
-) (*crypto.KeyManager, error) {
-	if opts.SkipCrypto {
-		return nil, nil //nolint:nilnil // intentional: (nil, nil) denotes crypto skipped; caller checks for a nil KeyManager
-	}
-
-	keyDir := filepath.Dir(cfg.Signature.KeyPath)
-	if keyDir != "" && keyDir != "." {
-		if err := os.MkdirAll(keyDir, 0700); err != nil {
-			return nil, fmt.Errorf("create key directory %q: %w", keyDir, err)
-		}
-	}
-
-	keyManager := crypto.NewKeyManagerWithFragment(
-		cfg.Signature.KeyPath,
-		localIdentity.Origin,
-		cfg.Signature.KidFragment,
-	)
-	if err := keyManager.LoadOrGenerate(); err != nil {
-		return nil, fmt.Errorf("initialize signing key: %w", err)
-	}
-
-	logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
-
-	return keyManager, nil
-}
-
-func resolveOutboundConfig(cfg *config.Config, opts BuildOpts) *config.OutboundHTTPConfig {
-	if opts.OutboundOverride != nil {
-		return opts.OutboundOverride
-	}
-
-	return &cfg.OutboundHTTP
-}
-
-// buildCacheInstance builds the discovery cache. The memory driver is
-// LRU-capped at the locked cardinality default; the redis driver is bounded
-// server-side by operator maxmemory policy.
-func buildCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
-	cacheDriver := cfg.Cache.Driver
-	if cacheDriver == "" {
-		cacheDriver = config.BackendMemory
-	}
-
-	driversConfig := cfg.Cache.Drivers
-	if cacheDriver == config.BackendMemory {
-		driversConfig = withMemoryMaxEntries(driversConfig)
-	}
-
-	cacheInstance, err := cache.NewFromConfig(cacheDriver, driversConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create cache: %w", err)
-	}
-
-	return cacheInstance, nil
-}
-
-// buildRatelimitCacheInstance builds the rate-limit cache as a TTL-only
-// instance with no LRU bound: an LRU eviction would drop a live rate-limit
-// window and let requests bypass the limit.
-func buildRatelimitCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
-	cacheDriver := cfg.Cache.Driver
-	if cacheDriver == "" {
-		cacheDriver = config.BackendMemory
-	}
-
-	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
-	if err != nil {
-		return nil, fmt.Errorf("create ratelimit cache: %w", err)
-	}
-
-	return cacheInstance, nil
-}
-
-// withMemoryMaxEntries returns a copy of the drivers config with the memory
-// driver bounded to the locked discovery cardinality cap.
-func withMemoryMaxEntries(driversConfig map[string]any) map[string]any {
-	out := make(map[string]any, len(driversConfig)+1)
-	maps.Copy(out, driversConfig)
-
-	memoryCfg := map[string]any{}
-
-	if raw, ok := driversConfig["memory"]; ok {
-		if m, ok := raw.(map[string]any); ok {
-			maps.Copy(memoryCfg, m)
-		}
-	}
-
-	memoryCfg["max_entries"] = memory.DefaultMaxEntries
-	out["memory"] = memoryCfg
-
-	return out
-}
-
-func buildPeerTrust(
-	cfg *config.Config,
-	localIdentity localidentity.Identity,
-	rawHTTPClient *httpclient.Client,
-	logger *slog.Logger,
-	opts BuildOpts,
-) (*peertrust.TrustGroupManager, *peertrust.PolicyEngine, error) { //nolint:unparam // error result kept for builder symmetry; trust-group load failures are logged and skipped by design, so it is always nil today
-	if opts.SkipPeerTrust || !cfg.PeerTrust.Enabled {
-		return nil, nil, nil
-	}
-
-	outboundCfg := resolveOutboundConfig(cfg, opts)
-	refreshTimeout := time.Duration(outboundCfg.TimeoutMS) * time.Millisecond
-	cacheConfig := peertrust.CacheConfig{
-		TTL:      time.Duration(cfg.PeerTrust.MembershipCache.TTLSeconds) * time.Second,
-		MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
-	}
-
-	dirServiceClient := directoryservice.NewClient(rawHTTPClient, "required", logger)
-	trustGroupMgr := peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, localIdentity.Scheme, logger, refreshTimeout)
-
-	for _, cfgPath := range cfg.PeerTrust.ConfigPaths {
-		tgCfg, err := peertrust.LoadTrustGroupConfig(cfgPath)
-		if err != nil {
-			logger.Warn("failed to load trust group config", "path", cfgPath, "error", err)
-
-			continue
-		}
-
-		trustGroupMgr.AddTrustGroup(tgCfg)
-		logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
-	}
-
-	policyCfg := peertrustPolicyFromConfig(&cfg.PeerTrust.Policy)
-	policyEngine := peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
-	logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths))
-
-	return trustGroupMgr, policyEngine, nil
-}
-
-func buildSigner(cfg *config.Config, keyManager *crypto.KeyManager) *crypto.RFC9421Signer {
-	if keyManager == nil {
-		return nil
-	}
-
-	signerOpts := crypto.RFC9421OptionsFromConfig(cfg.Signature)
-
-	return crypto.NewRFC9421SignerWithOptions(keyManager, signerOpts)
 }

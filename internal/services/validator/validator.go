@@ -1,0 +1,230 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+package validator
+
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/forwardshare"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseinvite"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/reverseshare"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/runner"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/catalog"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/passive"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
+)
+
+// Config holds validator service configuration (service-local knobs only).
+type Config struct {
+	Ratelimit RatelimitConfig `mapstructure:"ratelimit"`
+}
+
+// RatelimitConfig holds the per-service rate limiting opt-in.
+type RatelimitConfig struct {
+	Profile string `mapstructure:"profile"`
+}
+
+// ApplyDefaults implements cfg.Setter.
+func (c *Config) ApplyDefaults() {}
+
+// Inputs holds dependencies for the validator service constructor.
+type Inputs struct {
+	Store               *validatorcore.Core
+	FedCore             *core.Core
+	DiscoveryClient     *discovery.Client
+	HTTPClient          *httpclient.ContextClient
+	Signer              *crypto.RFC9421Signer
+	Config              *config.Config
+	Ratelimit           ratelimit.Inputs
+	InterceptorProfiles map[string]map[string]any
+	Log                 *slog.Logger
+
+	// ReverseInvite is the prebuilt reverse-invite orchestration service. The
+	// paste route mounts only when ReverseInviteAvailable is true.
+	ReverseInvite *reverseinvite.Service
+
+	// ForwardShare is the prebuilt forward-share leg. Presence feeds Caps.
+	ForwardShare *forwardshare.Service
+
+	// ReverseShare is the prebuilt reverse-share leg. When present, its wait
+	// opener wraps the session poll route so a session still in the
+	// capability exercise re-enters the event-driven wait on a poll.
+	ReverseShare *reverseshare.Service
+
+	// PartyRepo is the shared in-process party store. When set, extend
+	// materializes Bob before the session can become paste-ready.
+	PartyRepo identity.PartyRepo
+
+	// LocalProviderDomain is the realm written on the reverse-receiver party.
+	LocalProviderDomain string
+
+	// ActiveRunner is the kick and heal loop. When set, it is the probe
+	// wake seam and Close stops and joins it.
+	ActiveRunner *runner.Runner
+}
+
+// Service is the federation validator HTTP service shell.
+type Service struct {
+	router chi.Router
+	conf   *Config
+	log    *slog.Logger
+	runner *runner.Runner
+}
+
+// New creates the validator service from narrow injected inputs.
+func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
+	log = logutil.NoopIfNil(log)
+
+	if err := validateInputs(inputs); err != nil {
+		return nil, err
+	}
+
+	var c Config
+
+	unused, err := svccfg.DecodeWithUnused(m, &c)
+	if err != nil {
+		return nil, fmt.Errorf("services: decode validator config: %w", err)
+	}
+
+	if len(unused) > 0 {
+		log.Warn("unused config keys", "service", "validator", "unused_keys", unused)
+	}
+
+	r := chi.NewRouter()
+
+	if inputs.Store != nil {
+		if inputs.FedCore != nil {
+			inputs.Store.SetStatsHostHasher(inputs.FedCore)
+		}
+
+		caps := capsFromInputs(inputs)
+		passiveHandler := passive.NewHandlerWithDeps(passive.ProbeDeps{
+			Store:      inputs.Store,
+			Discovery:  inputs.DiscoveryClient,
+			HTTP:       inputs.HTTPClient,
+			Signer:     inputs.Signer,
+			Log:        log,
+			ActiveKick: inputs.ActiveRunner,
+		})
+		passiveHandler.SetCaps(caps)
+
+		if inputs.Config != nil {
+			passiveHandler.SetExternalBasePath(inputs.Config.ExternalBasePath)
+		}
+
+		if inputs.PartyRepo != nil {
+			email, displayName := reverseReceiverProbe(inputs.Config)
+			passiveHandler.SetReverseReceiver(
+				inputs.PartyRepo,
+				inputs.LocalProviderDomain,
+				email,
+				displayName,
+			)
+		}
+
+		var reverseWaitOpen passive.ReverseWaitOpener
+		if inputs.ReverseShare != nil {
+			reverseWaitOpen = inputs.ReverseShare.OpenReverseShareWait
+		}
+
+		startRatelimit, ratelimitErr := buildStartRatelimit(inputs, c.Ratelimit.Profile)
+		if ratelimitErr != nil {
+			return nil, ratelimitErr
+		}
+
+		var reverseHandler http.HandlerFunc
+		if caps.ReverseInviteAvailable() && inputs.ReverseInvite != nil {
+			reverseHandler = inputs.ReverseInvite.HandleReverseInvite
+		} else if inputs.ReverseInvite == nil {
+			log.Warn("validator: reverse-invite service not wired, paste route disabled")
+		}
+
+		mountValidatorRoutes(r, passiveHandler, startRatelimit, reverseHandler, reverseWaitOpen)
+	}
+
+	return &Service{router: r, conf: &c, log: log, runner: inputs.ActiveRunner}, nil
+}
+
+func validateInputs(in Inputs) error {
+	if in.Ratelimit.KeyFunc == nil {
+		return errors.New("validator: Ratelimit.KeyFunc is required")
+	}
+
+	return nil
+}
+
+func reverseReceiverProbe(cfg *config.Config) (email, displayName string) {
+	email = config.DefaultValidatorProbeEmail
+	displayName = config.DefaultValidatorProbeDisplayName
+
+	if cfg == nil {
+		return email, displayName
+	}
+
+	if cfg.Validator.Probe.Email != "" {
+		email = cfg.Validator.Probe.Email
+	}
+
+	if cfg.Validator.Probe.DisplayName != "" {
+		displayName = cfg.Validator.Probe.DisplayName
+	}
+
+	return email, displayName
+}
+
+func capsFromInputs(in Inputs) catalog.Caps {
+	return catalog.Caps{
+		Runner:        in.ActiveRunner != nil,
+		ReverseInvite: in.ReverseInvite != nil,
+		ForwardShare:  in.ForwardShare != nil,
+		ReverseShare:  in.ReverseShare != nil,
+		Abort:         in.ActiveRunner != nil,
+	}
+}
+
+// Handler returns the service HTTP handler; implements service.Service.
+func (s *Service) Handler() http.Handler {
+	return httpwrap.ClearRawPath(s.router)
+}
+
+// Prefix returns the service URL prefix; implements service.Service.
+func (s *Service) Prefix() string {
+	return "validator"
+}
+
+// ActiveRunner returns the bound kick and heal loop, if any.
+func (s *Service) ActiveRunner() *runner.Runner {
+	if s == nil {
+		return nil
+	}
+
+	return s.runner
+}
+
+// Close stops and joins the active runner when one is bound.
+func (s *Service) Close() error {
+	if s != nil && s.runner != nil {
+		s.runner.Stop()
+	}
+
+	return nil
+}

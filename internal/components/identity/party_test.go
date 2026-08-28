@@ -114,6 +114,36 @@ func TestMemoryPartyRepo_DuplicateUsername(t *testing.T) {
 	}
 }
 
+func TestMemoryPartyRepo_DuplicateID(t *testing.T) {
+	t.Parallel()
+
+	repo := identity.NewMemoryPartyRepo()
+	ctx := context.Background()
+
+	const sharedID = "01900000-0000-7000-8000-000000000001"
+
+	user1 := &identity.User{ID: sharedID, Username: "alice", Role: "user"}
+	user2 := &identity.User{ID: sharedID, Username: "bob", Role: "user"}
+
+	if err := repo.Create(ctx, user1); err != nil {
+		t.Fatalf("Create user1 failed: %v", err)
+	}
+
+	err := repo.Create(ctx, user2)
+	if !errors.Is(err, identity.ErrUserIDExists) {
+		t.Errorf("expected ErrUserIDExists, got %v", err)
+	}
+
+	got, err := repo.Get(ctx, sharedID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	if got.Username != "alice" {
+		t.Errorf("duplicate ID overwrote existing user; username = %q", got.Username)
+	}
+}
+
 func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
 	t.Parallel()
 

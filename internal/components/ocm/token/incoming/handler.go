@@ -6,6 +6,7 @@
 package incoming
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"mime"
@@ -21,6 +22,13 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
+// ExchangeObserver runs after a successful token exchange for a verified
+// outgoing share, once the access token is durably stored and before the
+// success response is encoded. A non-nil error suppresses the success
+// response in favor of a retryable server error, so the client's retry
+// re-enters the observer. A nil observer keeps the plain product path.
+type ExchangeObserver func(ctx context.Context, share *outgoing.OutgoingShare) error
+
 // Handler serves POST /ocm/token (token exchange).
 type Handler struct {
 	outgoingRepo          outgoing.OutgoingShareRepo
@@ -30,6 +38,7 @@ type Handler struct {
 	codeFlow              *policy.CodeFlow
 	localScheme           string // "http" or "https", derived from PublicOrigin
 	generateAccessTokenFn func() (string, error)
+	exchangeObserver      ExchangeObserver
 }
 
 // NewHandler builds a token handler. Settings must have ApplyDefaults() called (done by cfg.Decode).
@@ -45,6 +54,11 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 		codeFlow:     codeFlow,
 		localScheme:  localScheme,
 	}
+}
+
+// SetExchangeObserver installs the optional post-exchange observer.
+func (h *Handler) SetExchangeObserver(observer ExchangeObserver) {
+	h.exchangeObserver = observer
 }
 
 // HandleToken serves POST /ocm/token.
@@ -238,6 +252,15 @@ func (h *Handler) issueTokenResponse(w http.ResponseWriter, r *http.Request, req
 		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorServerError, "token storage failed")
 
 		return
+	}
+
+	if h.exchangeObserver != nil {
+		if err := h.exchangeObserver(ctx, share); err != nil {
+			log.Error("token exchange observer failed", "error", err)
+			h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorServerError, "token exchange not available")
+
+			return
+		}
 	}
 
 	log.Info("token issued",

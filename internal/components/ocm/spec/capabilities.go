@@ -5,6 +5,8 @@
 
 package spec
 
+import "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec/wire"
+
 // Canonical OCM discovery capability wire values (IETF-RFC / OpenAPI).
 //
 // Invites dual-plane: outbound.EndpointInvites is an endpoint/type-plane
@@ -16,5 +18,5 @@ const (
 	CapabilityExchangeToken = "exchange-token"
 	CapabilityInvite        = "invites"
 	CapabilityInviteWAYF    = "invite-wayf"
-	CapabilityNotifications = "notifications"
+	CapabilityNotifications = wire.CapabilityNotifications
 )

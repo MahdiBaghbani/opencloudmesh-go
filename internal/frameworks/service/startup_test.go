@@ -6,6 +6,7 @@
 package service
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -39,6 +40,49 @@ func TestValidatePreBootstrap_ValidServices(t *testing.T) {
 	}
 }
 
+func TestValidatePreBootstrap_ValidatorServiceName(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DevConfig()
+
+	cfg.HTTP.Services = map[string]map[string]any{
+		"validator": {},
+	}
+	if err := ValidatePreBootstrap(cfg); err != nil {
+		t.Fatalf("ValidatePreBootstrap() = %v, want nil for validator service", err)
+	}
+}
+
+func TestValidatePreBootstrap_ValidatorMode(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.ValidatorConfig()
+
+	if cfg.Mode != string(config.ModeValidator) {
+		t.Fatalf("Mode = %q, want %q", cfg.Mode, config.ModeValidator)
+	}
+
+	if err := ValidatePreBootstrap(cfg); err != nil {
+		t.Fatalf("ValidatePreBootstrap() = %v, want nil for validator mode preset", err)
+	}
+}
+
+func TestValidatePreBootstrap_ValidatorModeRejectsSSRFOff(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.ValidatorConfig()
+	cfg.OutboundHTTP.SSRF.Mode = "off"
+
+	err := ValidatePreBootstrap(cfg)
+	if err == nil {
+		t.Fatal("ValidatePreBootstrap() = nil, want error for validator mode with ssrf off")
+	}
+
+	if !strings.Contains(err.Error(), "mode=validator requires outbound_http.ssrf.mode=strict") {
+		t.Fatalf("ValidatePreBootstrap() = %v, want validator SSRF guard", err)
+	}
+}
+
 func TestValidateBuiltServices_HappyPath(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +102,7 @@ func TestValidateBuiltServices_CountMismatch(t *testing.T) {
 		t.Fatal("ValidateBuiltServices() = nil, want count mismatch error")
 	}
 
-	if !strings.Contains(err.Error(), "built service count = 5, want 6 from descriptor table") {
+	if !strings.Contains(err.Error(), fmt.Sprintf("built service count = %d, want %d from descriptor table", len(descriptors)-1, len(descriptors))) {
 		t.Fatalf("ValidateBuiltServices() error = %q, want count mismatch message", err)
 	}
 }

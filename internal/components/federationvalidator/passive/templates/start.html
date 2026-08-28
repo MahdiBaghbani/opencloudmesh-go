@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Start federation validation</title>
+  </head>
+  <body>
+    <h1>Start federation validation</h1>
+    <form id="start-form" method="post" action="{{.FormAction}}">
+      <p>
+        <label for="target">target (OCM address or absolute http(s) URL)</label>
+        <input
+          id="target"
+          name="target"
+          type="text"
+          required
+          placeholder="https://peer.example or user@peer.example"
+        />
+      </p>
+      <section id="opt-in-active-block">
+        <h2>optInActive</h2>
+        <p>Enable the active validation path for this target.</p>
+        <label for="optInActive">
+          <input
+            id="optInActive"
+            name="optInActive"
+            type="checkbox"
+            value="true"
+          />
+          optInActive
+        </label>
+      </section>
+      <p>
+        <label for="optInStats">
+          <input
+            id="optInStats"
+            name="optInStats"
+            type="checkbox"
+            value="true"
+          />
+          optInStats
+        </label>
+      </p>
+      <p>
+        <label for="optInPermanent">
+          <input
+            id="optInPermanent"
+            name="optInPermanent"
+            type="checkbox"
+            value="true"
+          />
+          optInPermanent
+        </label>
+      </p>
+      <p>
+        <button type="submit">Start</button>
+      </p>
+    </form>
+  </body>
+</html>

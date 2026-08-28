@@ -135,11 +135,11 @@ validate_mode() {
   fi
 
   case "$mode" in
-    strict|dev)
+    strict|dev|validator)
       printf "%s" "$mode"
       ;;
     *)
-      echo "OCM_GO_MODE must be strict or dev. Got: $mode" >&2
+      echo "OCM_GO_MODE must be strict, dev, or validator. Got: $mode" >&2
       exit 1
       ;;
   esac

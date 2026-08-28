@@ -6,6 +6,7 @@
 package wiring
 
 import (
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/core"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
@@ -23,6 +24,7 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
 // Deps holds shared dependencies built by wiring.Build for service construction.
@@ -68,4 +70,15 @@ type Deps struct {
 
 	// RealIP provides trusted-proxy-aware client IP extraction.
 	RealIP *realip.TrustedProxies
+
+	// ValidatorCore holds federation validator shared state in validator mode.
+	ValidatorCore *core.Core
+
+	// ValidatorStore holds federation validator session persistence in validator mode.
+	ValidatorStore *validatorcore.Core
+
+	// lateStops collects process-lifetime stop funcs started after the
+	// store sweeps, such as the active runner. StopRetentionSweep joins
+	// them with the store sweeps.
+	lateStops *lateSweepStops
 }

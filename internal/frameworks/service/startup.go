@@ -34,6 +34,10 @@ func ValidatePreBootstrap(cfg *config.Config) error {
 		return fmt.Errorf("startup: validate guardrails: %w", err)
 	}
 
+	if err := config.ValidateValidatorModeStartupGuardrails(cfg); err != nil {
+		return fmt.Errorf("startup: validate guardrails: %w", err)
+	}
+
 	return nil
 }
 

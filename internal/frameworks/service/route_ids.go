@@ -16,6 +16,34 @@ const (
 	RouteIDUIWAYF = "ui-wayf"
 	// RouteIDAPIHealthz is the API health check route identifier.
 	RouteIDAPIHealthz = "api-healthz"
+	// RouteIDValidatorStartCreateSession is the validator POST /start identifier.
+	RouteIDValidatorStartCreateSession = "validator-start-create-session"
+	// RouteIDValidatorStopSession is the validator POST /stop identifier.
+	RouteIDValidatorStopSession = "validator-stop-session"
+	// RouteIDValidatorAPIScan is the validator scan route identifier.
+	RouteIDValidatorAPIScan = "validator-api-scan"
+	// RouteIDValidatorAPIManifest is the validator manifest route identifier.
+	RouteIDValidatorAPIManifest = "validator-api-manifest"
+	// RouteIDValidatorAPIStatistics is the validator statistics route identifier.
+	RouteIDValidatorAPIStatistics = "validator-api-statistics"
+	// RouteIDValidatorAPISession is the validator session polling route identifier.
+	RouteIDValidatorAPISession = "validator-api-session"
+	// RouteIDValidatorAPISessionInvite is the validator session invite-claim route identifier.
+	RouteIDValidatorAPISessionInvite = "validator-api-session-invite"
+	// RouteIDValidatorAPISessionAbort is the validator active-session abort route identifier.
+	RouteIDValidatorAPISessionAbort = "validator-api-session-abort"
+	// RouteIDValidatorAPISessionReverseInvite is the validator reverse-invite paste route identifier.
+	RouteIDValidatorAPISessionReverseInvite = "validator-api-session-reverse-invite"
+	// RouteIDValidatorAPIReport is the validator JSON report route identifier.
+	RouteIDValidatorAPIReport = "validator-api-report"
+	// RouteIDValidatorHTMLReport is the validator HTML report route identifier.
+	RouteIDValidatorHTMLReport = "validator-html-report"
+	// RouteIDValidatorHTMLStart is the validator HTML start-page route identifier.
+	RouteIDValidatorHTMLStart = "validator-html-start"
+	// RouteIDValidatorAPIReportRetention is the validator report retention PATCH identifier.
+	RouteIDValidatorAPIReportRetention = "validator-api-report-retention"
+	// RouteIDValidatorAPIReportLock is the validator report lock POST identifier.
+	RouteIDValidatorAPIReportLock = "validator-api-report-lock"
 )
 
 const subtreeDefaultIDSuffix = "-subtree-default"

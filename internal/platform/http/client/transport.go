@@ -113,11 +113,21 @@ func (c *Client) newTransport(rootCAs *x509.CertPool, proxyFunc func(*http.Reque
 // ssrfCheckedDial returns a DialContext that enforces SSRF protection before
 // dialing.
 //
-// In strict mode: skip the SSRF check only when dialing a trusted proxy host
-// (operator-controlled). All other dials - direct connections including those
-// caused by NO_PROXY - are checked.
+// A mapped dial-host skips the loopback re-check: the advertised hostname has
+// already passed SSRF validation, so the mapped address is dialed without
+// re-checking that loopback target. This is not a private-target allow list.
+//
+// In strict mode, unmapped dials skip the SSRF check only when dialing a
+// trusted proxy host (operator-controlled). All other unmapped dials - direct
+// connections including those caused by NO_PROXY - are checked.
 func (c *Client) ssrfCheckedDial(dialer *net.Dialer) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if mapped, ok := c.mappedDialAddr(addr); ok {
+			// Mapped dial-host: advertised hostname already passed SSRF.
+			// Skip the loopback re-check and dial the mapped address.
+			return dialer.DialContext(ctx, network, mapped)
+		}
+
 		if c.isStrictMode() {
 			host, _, splitErr := net.SplitHostPort(addr)
 			if splitErr != nil {
@@ -133,4 +143,33 @@ func (c *Client) ssrfCheckedDial(dialer *net.Dialer) func(ctx context.Context, n
 
 		return dialer.DialContext(ctx, network, addr)
 	}
+}
+
+func (c *Client) lookupDialHost(host string) (string, bool) {
+	if c == nil || len(c.dialHosts) == 0 {
+		return "", false
+	}
+
+	ip, ok := c.dialHosts[strings.ToLower(host)]
+
+	return ip, ok
+}
+
+func (c *Client) mappedDialAddr(addr string) (string, bool) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+		port = ""
+	}
+
+	mapped, ok := c.lookupDialHost(host)
+	if !ok {
+		return "", false
+	}
+
+	if port == "" {
+		return mapped, true
+	}
+
+	return net.JoinHostPort(mapped, port), true
 }

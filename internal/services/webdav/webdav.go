@@ -54,6 +54,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.TokenStore,
 		log.With("component", "webdav"),
 	)
+	handler.SetShareAccessObserver(inputs.ShareAccessObserver)
 
 	r := chi.NewRouter()
 	r.HandleFunc(RouteOCMWildcard, handler.ServeHTTP)

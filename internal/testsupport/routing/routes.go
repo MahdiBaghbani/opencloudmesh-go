@@ -17,6 +17,7 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocmaux"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/validator"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/wellknown"
 )

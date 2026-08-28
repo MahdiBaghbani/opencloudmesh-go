@@ -26,11 +26,18 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// ShareAccessObserver runs after an authorized GET for a resolved outgoing
+// share, before the file is served. A non-nil error suppresses the serve in
+// favor of a retryable error, so the client's retry re-enters the observer.
+// A nil observer keeps the plain product path.
+type ShareAccessObserver func(ctx context.Context, share *sharesoutgoing.OutgoingShare) error
+
 // Handler provides WebDAV access to shared files.
 type Handler struct {
-	outgoingRepo sharesoutgoing.OutgoingShareRepo
-	tokenStore   token.TokenStore
-	logger       *slog.Logger
+	outgoingRepo        sharesoutgoing.OutgoingShareRepo
+	tokenStore          token.TokenStore
+	logger              *slog.Logger
+	shareAccessObserver ShareAccessObserver
 }
 
 // NewHandler builds a WebDAV handler.
@@ -42,6 +49,11 @@ func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.
 		tokenStore:   tokenStore,
 		logger:       logger,
 	}
+}
+
+// SetShareAccessObserver installs the optional authorized-GET observer.
+func (h *Handler) SetShareAccessObserver(observer ShareAccessObserver) {
+	h.shareAccessObserver = observer
 }
 
 // ServeHTTP handles WebDAV requests at /webdav/ocm/{webdavId}.
@@ -97,6 +109,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.Debug("WebDAV authorized", "webdav_id", webdavID)
+
+	if r.Method == http.MethodGet && h.shareAccessObserver != nil {
+		if err := h.shareAccessObserver(r.Context(), share); err != nil {
+			h.logger.Error("WebDAV share access observer failed", "webdav_id", webdavID, "error", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+
+			return
+		}
+	}
 
 	h.serveFile(w, r, share)
 }

@@ -31,9 +31,11 @@ type Core struct {
 	db *gorm.DB
 }
 
-// Open opens (or creates) ocm.db under dataDir, runs AutoMigrate for all four
-// persistence models, and returns a ready Core. The caller owns the Core and
-// must call Close when done.
+// Open opens (or creates) ocm.db under dataDir, runs AutoMigrate for the four
+// PEER persistence models (outgoing/incoming shares and invites), and returns a
+// ready Core. Validator models are migrated later by validatorcore.Attach on
+// the mode-gated validator attach path, not by sqlitecore.Open. The caller
+// owns the Core and must call Close when done.
 func Open(dataDir string) (*Core, error) {
 	// Create the data dir up front so a fresh-CWD first boot works; matches
 	// the JSON driver's Init behavior.
@@ -43,17 +45,18 @@ func Open(dataDir string) (*Core, error) {
 
 	dbPath := filepath.Join(dataDir, "ocm.db")
 
-	// busy_timeout lets a competing writer wait (up to 5s) for the database
-	// lock instead of failing immediately with SQLITE_BUSY. _txlock=immediate
-	// opens every write transaction with BEGIN IMMEDIATE, so the write lock is
-	// taken at BEGIN instead of upgraded from a read lock mid-transaction: a
-	// second writer blocks at its own BEGIN until the first transaction
-	// commits, which eliminates the SHARED-to-RESERVED upgrade race that made
-	// concurrent updates intermittently fail. Combined with wrapping the
-	// read-then-write update paths in one transaction, the pre-read +
+	// _pragma=foreign_keys(1) enables foreign-key enforcement on every pooled
+	// SQLite connection. busy_timeout lets a competing writer wait (up to 5s)
+	// for the database lock instead of failing immediately with SQLITE_BUSY.
+	// _txlock=immediate opens every write transaction with BEGIN IMMEDIATE, so
+	// the write lock is taken at BEGIN instead of upgraded from a read lock
+	// mid-transaction: a second writer blocks at its own BEGIN until the first
+	// transaction commits, which eliminates the SHARED-to-RESERVED upgrade race
+	// that made concurrent updates intermittently fail. Combined with wrapping
+	// the read-then-write update paths in one transaction, the pre-read +
 	// validate + coalesce + write is atomic: no other writer can commit
 	// between the pre-read and the write.
-	dsn := dbPath + "?_pragma=busy_timeout(5000)&_txlock=immediate"
+	dsn := dbPath + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_txlock=immediate"
 
 	db, err := gorm.Open(gormsqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
@@ -80,6 +83,15 @@ func Open(dataDir string) (*Core, error) {
 	}
 
 	return &Core{db: db}, nil
+}
+
+// DB returns the shared GORM handle. The handle remains valid until Close.
+func (c *Core) DB() *gorm.DB {
+	if c == nil {
+		return nil
+	}
+
+	return c.db
 }
 
 // Close releases the underlying database connection. Safe to call on a nil Core.

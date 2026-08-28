@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/validatorpeer"
 )
 
 // FixtureBuildOpts mirrors wiring.BuildOpts for harness fixtures without
@@ -21,6 +22,7 @@ type FixtureBuildOpts struct {
 	SkipCrypto         bool
 	SkipPeerTrust      bool
 	OutboundOverride   *config.OutboundHTTPConfig
+	OutboundDialHosts  map[string]string
 	SkipDiscoveryCache bool
 }
 
@@ -32,6 +34,7 @@ var HarnessWireOptions = FixtureBuildOpts{
 	SkipCrypto:         false,
 	SkipPeerTrust:      true,
 	OutboundOverride:   tshttp.HarnessOutboundConfig(),
+	OutboundDialHosts:  validatorpeer.DialHosts(),
 	SkipDiscoveryCache: true,
 }
 
@@ -43,6 +46,7 @@ var IETFWireOptions = FixtureBuildOpts{
 	SkipCrypto:         false,
 	SkipPeerTrust:      true,
 	OutboundOverride:   tshttp.HarnessOutboundConfig(),
+	OutboundDialHosts:  validatorpeer.DialHosts(),
 	SkipDiscoveryCache: true,
 }
 

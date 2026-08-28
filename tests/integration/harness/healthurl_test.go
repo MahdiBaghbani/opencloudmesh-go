@@ -6,10 +6,12 @@
 package harness
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/validatorpeer"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
 
@@ -124,6 +126,15 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			wantError:  true,
 			wantSubstr: "mode=strict requires tls.mode!=off",
 		},
+		{
+			name: "validator config with ssrf off rejected",
+			mutate: func(cfg *config.Config) {
+				cfg.Mode = string(config.ModeValidator)
+				cfg.OutboundHTTP.SSRF.Mode = "off"
+			},
+			wantError:  true,
+			wantSubstr: "mode=validator requires outbound_http.ssrf.mode=strict",
+		},
 	}
 
 	for _, tc := range cases {
@@ -210,9 +221,10 @@ func TestIETFIntegrationBuildOpts_MatchesWiringBuildOpts(t *testing.T) {
 		SkipCrypto:         false,
 		SkipPeerTrust:      true,
 		OutboundOverride:   got.OutboundOverride,
+		OutboundDialHosts:  validatorpeer.DialHosts(),
 		SkipDiscoveryCache: true,
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)
 	}
 }

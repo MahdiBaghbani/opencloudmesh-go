@@ -24,12 +24,25 @@ var (
 	// Parenthesized coordinates require at least one digit (T7, T7a, F2); bare (T)/(F) are not.
 	planCoordParen = regexp.MustCompile(`\([CBFMKFTQPW]\d+[a-zA-Z]*\)|\([CBF]:`)
 	planCoordBare  = regexp.MustCompile(`(?i)\b(?:K2 JSON|K2 format|M1 union)\b`)
-	planCoordToken = regexp.MustCompile(`(?:^|[^a-zA-Z0-9_])(?:Phase\s+)?[CBFMKFTQPW]\d{1,2}[a-zA-Z]*(?:[^a-zA-Z0-9_]|$)`)
+	// Hyphen is identifier-internal; do not use \b. Under \b, p7 in compat-p7-hash
+	// would match because hyphens are non-word; [^A-Za-z0-9_-] keeps p7 inside
+	// hyphenated tokens. ecdsa-p256-sha256 is another smoke case.
+	planCoordToken = regexp.MustCompile(
+		`(?:^|[^A-Za-z0-9_-])` +
+			`(?:(?:Phase\s+)?[CBFMKFTQPW]\d{1,2}[a-zA-Z]*|T-SCHEMA|T-PURGE|q5|t3|p7|w2)` +
+			`(?:[^A-Za-z0-9_-]|$)`,
+	)
+	planCoordPhrase = regexp.MustCompile(
+		`(?:^|[^A-Za-z0-9_-])` +
+			`(?:Wave\s+(?:9|10)|Gate\s+[DE]|Round\s+4|interlaced\s+research)` +
+			`(?:[^A-Za-z0-9_-]|$)`,
+	)
 
 	planMetadataPatterns = []*regexp.Regexp{
 		planCoordParen,
 		planCoordBare,
 		planCoordToken,
+		planCoordPhrase,
 	}
 
 	ietfLegacyPatterns = []*regexp.Regexp{
@@ -46,8 +59,9 @@ var (
 )
 
 var planMetadataSelfSkip = map[string]bool{
-	"internal/architecture/plan_metadata_leakage_test.go": true,
-	"internal/architecture/findaccepted_guard_test.go":    true,
+	"internal/architecture/plan_metadata_leakage_test.go":          true,
+	"internal/architecture/plan_metadata_leakage_fixtures_test.go": true,
+	"internal/architecture/findaccepted_guard_test.go":             true,
 }
 
 func TestPlanMetadata_NoLeaks(t *testing.T) {
@@ -67,18 +81,7 @@ func TestPlanMetadata_NoLeaks(t *testing.T) {
 func TestFindPlanMetadataLeak_PositiveCoordinate(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		text string
-	}{
-		{name: "paren letter suffix", text: "reason-coded failure (T7a)."},
-		{name: "paren bare digits", text: "see (F2) for details"},
-		{name: "bare token suffix", text: "covers M1a edge case"},
-		{name: "slog-style message", text: "discovery failed (F2b)"},
-		{name: "appendix adjacent coordinate", text: "See Appendix C (T7a) for the failure path."},
-	}
-
-	for _, tc := range cases {
+	for _, tc := range planMetadataLeakPositiveCoords {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -92,20 +95,7 @@ func TestFindPlanMetadataLeak_PositiveCoordinate(t *testing.T) {
 func TestFindPlanMetadataLeak_NegativeLegitimate(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		text string
-	}{
-		{name: "rfc reference", text: "See RFC 9383 for the OCM discovery profile."},
-		{name: "ietf appendix", text: "Defined in Appendix A.1 of the IETF OCM draft."},
-		{name: "plain appendix", text: "See Appendix C for the discovery profile."},
-		{name: "digitless paren T", text: "retry helper (T) after timeout"},
-		{name: "digitless paren F", text: "fallback path (F) when upstream is down"},
-		{name: "non coordinate token", text: "retry the Class helper after timeout"},
-		{name: "plain prose", text: "upstream discovery succeeded without invite dialog"},
-	}
-
-	for _, tc := range cases {
+	for _, tc := range planMetadataLeakNegativeLegitimate {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -121,17 +111,7 @@ func TestScanFilePlanMetadataLeaks_PositiveAndSlog(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "leak.go")
 
-	src := `package sample
-
-import "log/slog"
-
-// helper returns a reason-coded failure (T7a).
-func helper(log *slog.Logger) {
-	log.InfoContext(nil, "discovery failed (F2b)")
-}
-`
-
-	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(planMetadataScanPositiveSlogSrc), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
 
@@ -159,15 +139,7 @@ func TestScanFilePlanMetadataLeaks_NegativeRFC(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ok.go")
 
-	src := `package sample
-
-// See RFC 9383 and Appendix A.1 for discovery requirements.
-func helper() string {
-	return "compat with github.com/cs3org/OCM-API schema"
-}
-`
-
-	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(planMetadataScanNegativeRFCSrc), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
 
@@ -178,6 +150,55 @@ func helper() string {
 
 	if len(violations) != 0 {
 		t.Fatalf("expected no leaks for IETF/RFC references, got %v", violations)
+	}
+}
+
+func TestScanFilePlanMetadataLeaks_PositiveNewCoordinates(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range planMetadataScanPositiveNew {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			path := filepath.Join(dir, "leak.go")
+
+			if err := os.WriteFile(path, []byte(tc.src), 0o600); err != nil {
+				t.Fatalf("write fixture: %v", err)
+			}
+
+			violations, err := scanFilePlanMetadataLeaks(dir, path)
+			if err != nil {
+				t.Fatalf("scan fixture: %v", err)
+			}
+
+			if len(violations) == 0 {
+				t.Fatalf("expected leak containing %q, got none", tc.want)
+			}
+
+			joined := strings.Join(violations, "\n")
+			if !strings.Contains(joined, tc.want) {
+				t.Fatalf("expected %q in violations: %v", tc.want, violations)
+			}
+		})
+	}
+}
+
+func TestScanFilePlanMetadataLeaks_NegativeHyphenatedIdentifiers(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sigalg.go")
+
+	if err := os.WriteFile(path, []byte(planMetadataScanNegativeHyphenSrc), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	violations, err := scanFilePlanMetadataLeaks(dir, path)
+	if err != nil {
+		t.Fatalf("scan fixture: %v", err)
+	}
+
+	if len(violations) != 0 {
+		t.Fatalf("expected no leaks for hyphenated identifiers, got %v", violations)
 	}
 }
 

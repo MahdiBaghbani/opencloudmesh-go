@@ -71,22 +71,22 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/frameworks/service/descriptors.go": {
 		16: {},
 		24: {},
-		45: {},
-		47: {},
-		69: {},
-		71: {},
+		49: {},
+		51: {},
+		73: {},
+		75: {},
 	},
 	"internal/frameworks/service/route_aggregate.go": {
 		135: {},
 		143: {},
 	},
 	"internal/frameworks/service/route_opts.go": {
-		55: {},
+		56: {},
 	},
 	"internal/frameworks/service/route_specs.go": {
 		51:  {},
-		85:  {},
-		101: {},
+		87:  {},
+		103: {},
 	},
 	"internal/platform/config/loader_validate_ssrf.go": {
 		// loader.go split into loader_*.go; literal moved to loader_validate_ssrf.go:300.
@@ -117,10 +117,10 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		25: {},
 	},
 	"internal/services/webdav/webdav.go": {
-		// wrapcheck rollout added a "fmt" import (+1).
+		// wrapcheck rollout added a "fmt" import (+1); share-access observer wiring added a setter call (+1).
 		49: {},
 		55: {},
-		71: {},
+		72: {},
 	},
 }
 

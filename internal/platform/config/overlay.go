@@ -58,6 +58,8 @@ type fileConfig struct {
 	HTTP          *httpFileConfig         `toml:"http"`
 	Persistence   *persistenceFileConfig  `toml:"persistence"`
 	OCM           *ocmFileConfig          `toml:"ocm"`
+	Statistics    *statisticsFileConfig   `toml:"statistics"`
+	Validator     *validatorFileConfig    `toml:"validator"`
 }
 
 // ocmFileConfig holds OCM settings from TOML.
@@ -131,6 +133,18 @@ type bootstrapAdmin struct {
 	Username       string `toml:"username"`
 	Password       string `toml:"password"`
 	CredentialFile string `toml:"password_file"`
+}
+
+type statisticsFileConfig struct {
+	Enabled bool `toml:"enabled"`
+}
+
+func overlayStatisticsConfig(cfg *Config, fc *statisticsFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	cfg.Statistics.Enabled = fc.Enabled
 }
 
 func overlayServerConfig(cfg *Config, fc *serverConfig) {

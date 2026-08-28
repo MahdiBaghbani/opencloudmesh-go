@@ -82,11 +82,103 @@ func TestPathMatchesRoute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := pathMatchesRoute(tt.path, tt.pattern)
+			got := pathMatchesRoute(tt.path, tt.pattern, false)
 			if got != tt.want {
 				t.Errorf("pathMatchesRoute(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPathMatchesRoute_MatchExact(t *testing.T) {
+	t.Parallel()
+
+	if !pathMatchesRoute("/validator/api/statistics", "/validator/api/statistics", true) {
+		t.Fatal("expected exact statistics path to match")
+	}
+
+	if pathMatchesRoute("/validator/api/statistics/foo", "/validator/api/statistics", true) {
+		t.Fatal("expected statistics subpath to not match with MatchExact")
+	}
+
+	if !pathMatchesRoute("/validator/api/session/run-1", "/validator/api/session/{id}", true) {
+		t.Fatal("expected session id path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1/extra", "/validator/api/session/{id}", true) {
+		t.Fatal("expected session suffix path to not match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session", "/validator/api/session/{id}", true) {
+		t.Fatal("expected session prefix without id to not match with MatchExact")
+	}
+
+	if !pathMatchesRoute("/validator/api/report/run-1/retention", "/validator/api/report/{id}/retention", true) {
+		t.Fatal("expected retention path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/report/run-1/retention/extra", "/validator/api/report/{id}/retention", true) {
+		t.Fatal("expected retention suffix path to not match with MatchExact")
+	}
+
+	if !pathMatchesRoute("/validator/api/report/run-1/lock", "/validator/api/report/{id}/lock", true) {
+		t.Fatal("expected lock path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/report/run-1/lock/extra", "/validator/api/report/{id}/lock", true) {
+		t.Fatal("expected lock suffix path to not match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/report/run-1/", "/validator/report/{id}", true) {
+		t.Fatal("expected HTML trailing slash not to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/report/run-1/", "/validator/api/report/{id}", true) {
+		t.Fatal("expected JSON trailing slash not to match with MatchExact")
+	}
+
+	if !pathMatchesRoute("/validator/report/run-1", "/validator/report/{id}", true) {
+		t.Fatal("expected HTML report path to match with MatchExact")
+	}
+
+	if !pathMatchesRoute("/validator/api/report/run-1", "/validator/api/report/{id}", true) {
+		t.Fatal("expected JSON report path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("//validator/api/report/run-1", "/validator/api/report/{id}", true) {
+		t.Fatal("expected double-leading-slash report path not to match with MatchExact")
+	}
+}
+
+func TestPathMatchesRoute_MatchExactSessionInvite(t *testing.T) {
+	t.Parallel()
+
+	if !pathMatchesRoute("/validator/api/session/run-1/invite", "/validator/api/session/{id}/invite", true) {
+		t.Fatal("expected session invite claim path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1/invite/extra", "/validator/api/session/{id}/invite", true) {
+		t.Fatal("expected session invite suffix path to not match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1", "/validator/api/session/{id}/invite", true) {
+		t.Fatal("expected session poll path to not match invite claim pattern")
+	}
+}
+
+func TestPathMatchesRoute_MatchExactSessionAbort(t *testing.T) {
+	t.Parallel()
+
+	if !pathMatchesRoute("/validator/api/session/run-1/abort", "/validator/api/session/{id}/abort", true) {
+		t.Fatal("expected session abort path to match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1/abort/extra", "/validator/api/session/{id}/abort", true) {
+		t.Fatal("expected session abort suffix path to not match with MatchExact")
+	}
+
+	if pathMatchesRoute("/validator/api/session/run-1", "/validator/api/session/{id}/abort", true) {
+		t.Fatal("expected session poll path to not match abort pattern")
 	}
 }
 

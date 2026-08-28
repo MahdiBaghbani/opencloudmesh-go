@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec/wire"
 )
 
 // WebDAVReceiveURIKind is the uri field of a webdav-receive protocol role.
@@ -23,7 +25,7 @@ const (
 
 // ProtocolWebDAV and ProtocolWebDAVReceive are the canonical OCM discovery protocol role keys.
 const (
-	ProtocolWebDAV        = "webdav"
+	ProtocolWebDAV        = wire.ProtocolWebDAV
 	ProtocolWebDAVReceive = "webdav-receive"
 )
 

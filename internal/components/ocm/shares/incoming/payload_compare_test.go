@@ -235,7 +235,7 @@ func TestHandleExistingIncomingShare_ReorderedSlicesReturns409(t *testing.T) {
 			log := slog.Default()
 			resolvedUser := &identity.User{DisplayName: "Alice A"}
 
-			if !handleExistingIncomingShare(w, log, existing, req, "sender.com", resolvedUser) {
+			if !handleExistingIncomingShare(t.Context(), w, log, existing, req, "sender.com", resolvedUser, nil) {
 				t.Fatal("expected existing share to be handled")
 			}
 

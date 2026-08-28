@@ -6,6 +6,7 @@
 package api
 
 import (
+	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
@@ -44,4 +45,8 @@ type Inputs struct {
 	ContentDir            string
 	Ratelimit             ratelimit.Inputs
 	InterceptorProfiles   map[string]map[string]any
+
+	// OutgoingDispatchHook is the optional dispatch policy seat on the
+	// outgoing-share handler. Nil keeps the generic flow.
+	OutgoingDispatchHook outgoingshares.DispatchHook
 }

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Federation report</title>
+    <style>
+      #fail-mode:empty { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Federation report</h1>
+    <dl id="report-page">
+      <dt>state</dt>
+      <dd id="report-state">{{.State}}</dd>
+      <dt>sessionKind</dt>
+      <dd id="report-session-kind">{{.SessionKind}}</dd>
+      {{if .Grade}}
+      <dt>grade</dt>
+      <dd id="report-grade">{{.Grade}}</dd>
+      {{end}}
+      <dt>optInStats</dt>
+      <dd id="report-opt-in-stats">{{.OptInStats}}</dd>
+      <dt>optInPermanent</dt>
+      <dd id="report-opt-in-permanent">{{.OptInPermanent}}</dd>
+      <dt>score</dt>
+      <dd id="report-score-grade">{{if .Score.Grade}}{{.Score.Grade}}{{else}}unassessed{{end}}</dd>
+      <dt>coverage</dt>
+      <dd id="report-score-coverage">{{.Score.AssessedAreas}} / {{.Score.TotalAreas}}</dd>
+      <dt>areas</dt>
+      <dd>
+        <ul id="report-score-areas">
+          {{range .Score.Areas}}
+          <li>{{.Area}}: {{if .Grade}}{{.Grade}}{{else}}unassessed{{end}}</li>
+          {{end}}
+        </ul>
+      </dd>
+      <dt>evidenceCount</dt>
+      <dd id="report-evidence-count">{{.EvidenceCount}}</dd>
+    </dl>
+    {{if .ShowEvidence}}
+    <ul id="report-evidence">
+      {{range .Evidence}}
+      <li>
+        {{.Source}}
+        {{if .Area}} {{.Area}}{{end}}
+        {{if .ScoreArea}} {{.ScoreArea}}{{end}}
+        {{if .Step}} {{.Step}}{{end}}
+        {{if .ReasonCode}} {{.ReasonCode}}{{end}}
+        {{if .Severity}} {{.Severity}}{{end}}
+        {{if .Grade}} {{.Grade}}{{end}}
+        {{if .PayloadRedacted}} {{.PayloadRedacted}}{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{end}}
+    {{if .IdentityBindingWarning}}
+    <p id="identity-binding-warning">{{.IdentityBindingMessage}}</p>
+    {{end}}
+    <p id="next-instruction">{{.NextInstructionLabel}}</p>
+    <p id="fail-mode">{{.FailModeLabel}}</p>
+    <script>
+      (function () {
+        var instructionSink = document.getElementById("next-instruction");
+        var failModeSink = document.getElementById("fail-mode");
+        var labels = {{.NextInstructionLabels}};
+        if (!instructionSink && !failModeSink) {
+          return;
+        }
+        var path = window.location.pathname || "";
+        var pollPath = path.replace(/\/report\/([^/]+)$/, "/api/session/$1");
+        if (!pollPath || pollPath === path) {
+          return;
+        }
+        fetch(pollPath, { credentials: "same-origin" })
+          .then(function (res) {
+            return res.ok ? res.json() : null;
+          })
+          .then(function (data) {
+            if (!data) {
+              return;
+            }
+            if (instructionSink && data.nextInstruction && labels) {
+              var label = labels[data.nextInstruction];
+              if (typeof label === "string" && label) {
+                instructionSink.textContent = label;
+              }
+            }
+            if (failModeSink && typeof data.failModeLabel === "string" && data.failModeLabel) {
+              failModeSink.textContent = data.failModeLabel;
+            }
+          })
+          .catch(function () {});
+      })();
+    </script>
+  </body>
+</html>

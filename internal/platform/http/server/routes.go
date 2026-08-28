@@ -71,6 +71,7 @@ func (s *Server) setupRoutes() chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
+	r.Use(s.deps.RealIP.Middleware)
 	r.Use(httpmw.RequestLoggerMiddleware(s.logger, s.deps.RealIP))
 	r.Use(httpmw.AccessLogMiddleware(s.logger, s.deps.RealIP))
 	r.Use(chimw.Recoverer)

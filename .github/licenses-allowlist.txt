@@ -10,6 +10,8 @@
 # LicenseRef-scancode-google-patent-license-golang is the Go PATENTS grant
 # that GitHub dependency-review ANDs with BSD-3-Clause for golang.org/x/*.
 # go-licenses reports bare BSD-3-Clause and does not emit this token.
+# CC0-1.0 is zeebo/blake3 (go-licenses). LicenseRef-scancode-public-domain
+# is the same grant as emitted by GitHub dependency-review.
 Apache-2.0
 BSD-2-Clause
 BSD-3-Clause
@@ -28,4 +30,6 @@ AGPL-3.0-or-later
 Unlicense
 0BSD
 Zlib
+CC0-1.0
 LicenseRef-scancode-google-patent-license-golang
+LicenseRef-scancode-public-domain

@@ -42,12 +42,21 @@ func Routes(opts RouteOpts) []RouteRow {
 			ServicePrefix: desc.Prefix,
 			FullPath:      fullPathForSpec(desc, opts.ExternalBasePath, spec.Pattern),
 			AtHostRoot:    desc.MountAtRoot,
+			MatchExact:    validatorMatchExact(spec.ID),
 		})
 	}
 
 	rows = append(rows, syntheticSubtreeRows(opts)...)
 
 	return rows
+}
+
+func validatorMatchExact(id string) bool {
+	if id == "" || !strings.HasPrefix(id, string(BuildValidator)+"-") {
+		return false
+	}
+
+	return !strings.HasSuffix(id, subtreeDefaultIDSuffix)
 }
 
 func fullPathForSpec(desc Descriptor, basePath, pattern string) string {
@@ -121,6 +130,8 @@ func subtreePrefix(desc Descriptor, basePath string) string {
 
 func defaultSubtreeSessionPolicy(serviceName string) SessionPolicy {
 	switch serviceName {
+	case string(BuildValidator):
+		return SessionProtected
 	case string(BuildAPI), string(BuildUI):
 		return SessionProtected
 	default:
@@ -142,6 +153,8 @@ func surfaceClassForService(serviceName string) SurfaceClass {
 		return SurfaceUI
 	case string(BuildWebDAV):
 		return SurfaceWebDAV
+	case string(BuildValidator):
+		return SurfaceAPI
 	default:
 		return ""
 	}

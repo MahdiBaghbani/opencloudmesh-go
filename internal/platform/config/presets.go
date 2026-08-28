@@ -18,6 +18,8 @@ const (
 	ModeStrict Mode = "strict"
 	// ModeDev is the development server operating mode.
 	ModeDev Mode = "dev"
+	// ModeValidator is the federation validator operating mode.
+	ModeValidator Mode = "validator"
 )
 
 // CompatibilityScope selects how peer-compat leniency is applied.
@@ -50,17 +52,22 @@ func ParseMode(s string) (Mode, error) {
 		return ModeStrict, nil
 	case "dev":
 		return ModeDev, nil
+	case "validator":
+		return ModeValidator, nil
 	default:
-		return "", fmt.Errorf("invalid mode %q: must be one of strict, dev", s)
+		return "", fmt.Errorf("invalid mode %q: must be one of strict, dev, validator", s)
 	}
 }
 
 // presetForMode returns the base config for a given mode.
 func presetForMode(mode Mode) *Config {
-	//nolint:exhaustive // ModeStrict intentionally folds into the default strict preset
 	switch mode {
+	case ModeStrict:
+		return StrictConfig()
 	case ModeDev:
 		return DevConfig()
+	case ModeValidator:
+		return ValidatorConfig()
 	default:
 		return StrictConfig()
 	}
@@ -145,6 +152,50 @@ func DevConfig() *Config {
 	cfg.Persistence.Backend = BackendMemory
 	cfg.Persistence.DataDir = ""
 	cfg.Persistence.ContentDir = DefaultContentDir
+
+	return cfg
+}
+
+// DefaultValidatorTrustedProxies includes loopback and common Docker bridge ranges.
+var DefaultValidatorTrustedProxies = []string{
+	"127.0.0.0/8",
+	"::1/128",
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+}
+
+// ValidatorConfig returns federation validator defaults as an overlay on StrictConfig.
+func ValidatorConfig() *Config {
+	cfg := StrictConfig()
+	cfg.Mode = string(ModeValidator)
+	cfg.Persistence.DataDir = DefaultValidatorPersistenceDataDir
+
+	cfg.Server.TrustedProxies = append([]string(nil), DefaultValidatorTrustedProxies...)
+	cfg.Statistics.Enabled = true
+	cfg.HTTP.Interceptors = map[string]map[string]any{
+		"ratelimit": {
+			"profiles": map[string]any{
+				ScanPublicRatelimitProfile: map[string]any{
+					StartPublicRatelimitBucket: map[string]any{
+						"requests_per_window": int64(10),
+						"window_seconds":      defaultStartPublicWindowSeconds,
+					},
+				},
+			},
+		},
+	}
+	cfg.HTTP.Services = map[string]map[string]any{
+		"validator": {
+			"ratelimit": map[string]any{
+				"profile": ScanPublicRatelimitProfile,
+			},
+		},
+	}
+	cfg.Validator.Probe = ValidatorProbeConfig{
+		Email:       DefaultValidatorProbeEmail,
+		DisplayName: DefaultValidatorProbeDisplayName,
+	}
 
 	return cfg
 }

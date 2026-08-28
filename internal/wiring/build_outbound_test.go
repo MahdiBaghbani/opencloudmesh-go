@@ -7,6 +7,9 @@ package wiring_test
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +18,7 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/validatorpeer"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -100,6 +104,88 @@ func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
 	}
 }
 
+func TestOutboundDialHosts_ReachesValidatorPeer(t *testing.T) {
+	t.Parallel()
+
+	peer := validatorpeer.Start(t, validatorpeer.Options{})
+
+	result, err := wiring.Build(config.DevConfig(), tslog.DiscardLogger(), harnessBuildOpts())
+	if err != nil {
+		t.Fatalf("bootstrap failed: %v", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, peer.URL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req) //nolint:bodyclose // closed by shared helper
+	if reqErr != nil {
+		t.Fatalf("expected advertised peer host to reach TLS listener, got: %v", reqErr)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestOutboundDialHosts_RequiredForAdvertisedPeerHost(t *testing.T) {
+	t.Parallel()
+
+	peer := validatorpeer.Start(t, validatorpeer.Options{})
+
+	opts := harnessBuildOpts()
+	opts.OutboundDialHosts = nil
+
+	result, err := wiring.Build(config.DevConfig(), tslog.DiscardLogger(), opts)
+	if err != nil {
+		t.Fatalf("bootstrap failed: %v", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, peer.URL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req) //nolint:bodyclose // closed by shared helper
+	if resp != nil {
+		defer tshttp.MustClose(t, resp.Body)
+	}
+
+	assertUnmappedAdvertisedPeerHost(t, reqErr, peer)
+}
+
+func TestOutboundDialHosts_DoesNotAllowPrivateIPLiteral(t *testing.T) {
+	t.Parallel()
+
+	opts := harnessBuildOpts()
+	opts.OutboundOverride = nil
+
+	result, err := wiring.Build(strictSSRFCfg(), tslog.DiscardLogger(), opts)
+	if err != nil {
+		t.Fatalf("bootstrap failed: %v", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://127.0.0.1/test", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req) //nolint:bodyclose // closed by shared helper
+	if resp != nil {
+		defer tshttp.MustClose(t, resp.Body)
+	}
+
+	if reqErr == nil {
+		t.Fatal("expected SSRF error blocking 127.0.0.1 literal")
+	}
+
+	if !httpclient.IsSSRFError(reqErr) {
+		t.Errorf("expected an SSRF error, got: %v", reqErr)
+	}
+}
+
 func TestOutbound_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
 	t.Parallel()
 
@@ -113,4 +199,45 @@ func TestOutbound_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
 	if err == nil {
 		t.Fatal("bootstrap must fail when cfg.OutboundHTTP.TLSRootCAFile is invalid and no override is set")
 	}
+}
+
+// assertUnmappedAdvertisedPeerHost requires a resolve/dial failure that never
+// reaches the validator peer listener. A successful ambient resolve that hits
+// the listener or returns a response must not pass.
+func assertUnmappedAdvertisedPeerHost(t *testing.T, err error, peer *validatorpeer.Peer) {
+	t.Helper()
+
+	if peer.Hits.Load() != 0 {
+		t.Fatal("httptest listener was reached without dial hosts; ambient resolve must not silently pass")
+	}
+
+	if err == nil {
+		t.Fatal("expected resolve/dial failure without dial hosts; ambient resolve must not succeed")
+	}
+
+	if httpclient.IsSSRFError(err) {
+		t.Fatalf("permissive client must not report SSRF, got: %v", err)
+	}
+
+	if !isResolveOrDialFailure(err) {
+		t.Fatalf("expected resolve/dial failure without dial hosts, got: %v", err)
+	}
+}
+
+func isResolveOrDialFailure(err error) bool {
+	if httpclient.IsHostUnresolvable(err) {
+		return true
+	}
+
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+
+	return errors.Is(err, io.EOF)
 }

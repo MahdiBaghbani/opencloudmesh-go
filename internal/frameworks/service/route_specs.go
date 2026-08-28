@@ -71,6 +71,8 @@ const (
 	FeatureWAYFEnabled FeatureCondition = "WAYF enabled"
 	// FeatureInviteAcceptEnabled gates routes on invite accept being enabled.
 	FeatureInviteAcceptEnabled FeatureCondition = "invite accept enabled"
+	// FeatureValidatorEnabled gates routes on federation validator being enabled.
+	FeatureValidatorEnabled FeatureCondition = "validator enabled"
 )
 
 // OutboundProtocolKind records outbound OCM protocol calls triggered by API routes.
@@ -131,6 +133,7 @@ type RouteOpts struct {
 	InviteAcceptEnabled bool
 	InvitesEnabled      bool
 	TokenExchangePath   string
+	ValidatorEnabled    bool
 }
 
 // RouteRow is a mounted route with derived full-path metadata. Routes(opts) is
@@ -143,6 +146,7 @@ type RouteRow struct {
 	FullPath      string
 	AtHostRoot    bool
 	Synthetic     bool
+	MatchExact    bool
 }
 
 // AuthRow is a projection used by the session auth gate.

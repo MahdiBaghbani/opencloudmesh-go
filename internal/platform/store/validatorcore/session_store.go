@@ -1,0 +1,273 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+package validatorcore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// GetTestRun loads one test_run row by primary key.
+func (c *Core) GetTestRun(ctx context.Context, testRunID string) (*TestRun, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("validatorcore: store is not configured")
+	}
+
+	var row TestRun
+
+	err := c.db.WithContext(ctx).First(&row, "test_run_id = ?", testRunID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSessionNotFound
+		}
+
+		return nil, err
+	}
+
+	return &row, nil
+}
+
+// CountInFlightPassive returns passive in-flight sessions (created or passive_running).
+func (c *Core) CountInFlightPassive(ctx context.Context) (int64, error) {
+	if c == nil || c.db == nil {
+		return 0, errors.New("validatorcore: store is not configured")
+	}
+
+	var count int64
+
+	err := c.db.WithContext(ctx).Model(&TestRun{}).
+		Where("is_active = 0 AND state IN ?", []string{StateCreated, StatePassiveRunning}).
+		Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// CreatePassiveSession inserts a passive-core session without taking the active lock.
+func (c *Core) CreatePassiveSession(ctx context.Context, row *TestRun) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if row == nil {
+		return errors.New("validatorcore: nil test run")
+	}
+
+	cfg := c.SessionConfig()
+
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if countErr := tx.Model(&TestRun{}).
+			Where("is_active = 0 AND state IN ?", []string{StateCreated, StatePassiveRunning}).
+			Count(&count).Error; countErr != nil {
+			return countErr
+		}
+
+		if count >= int64(cfg.InFlightPassiveLimit) {
+			return ErrInFlightPassiveLimit
+		}
+
+		if createErr := tx.Create(row).Error; createErr != nil {
+			return NewStoreError(OpCreateSessionInsert, createErr)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("validatorcore: create passive session: %w", err)
+	}
+
+	return nil
+}
+
+// TransitionState performs a guarded state update for passive sessions.
+func (c *Core) TransitionState(
+	ctx context.Context,
+	testRunID string,
+	expectedIsActive bool,
+	expectedState, newState string,
+) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	now := time.Now().Unix()
+	isActive := boolToInt(expectedIsActive)
+
+	res := c.db.WithContext(ctx).Model(&TestRun{}).
+		Where("test_run_id = ? AND is_active = ? AND state = ?", testRunID, isActive, expectedState).
+		Updates(map[string]any{
+			colState:     newState,
+			colUpdatedAt: now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+
+	if res.RowsAffected == 0 {
+		return ErrStateTransitionMiss
+	}
+
+	return nil
+}
+
+// RunStartProbe transitions created -> passive_running for a passive session.
+func (c *Core) RunStartProbe(ctx context.Context, testRunID string) error {
+	return c.TransitionState(ctx, testRunID, false, StateCreated, StatePassiveRunning)
+}
+
+// CompletePassiveProbe transitions passive_running -> passive_complete.
+func (c *Core) CompletePassiveProbe(ctx context.Context, testRunID string) error {
+	return c.TransitionState(ctx, testRunID, false, StatePassiveRunning, StatePassiveComplete)
+}
+
+// RecordPassiveProbeFacts writes discovery-derived platform and API version
+// onto the run and, when a TLS grade is present, a first-wins passive TLS
+// evidence row. Terminal stats later read these persisted fields and rows.
+func (c *Core) RecordPassiveProbeFacts(
+	ctx context.Context,
+	testRunID string,
+	platform, apiVersion string,
+	tlsGrade *string,
+) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if testRunID == "" {
+		return errors.New("validatorcore: empty test run id")
+	}
+
+	now := time.Now().Unix()
+	updates := map[string]any{
+		colUpdatedAt: now,
+	}
+
+	if platform != "" {
+		updates["platform"] = platform
+	}
+
+	if apiVersion != "" {
+		updates["api_version"] = apiVersion
+	}
+
+	if len(updates) > 1 {
+		if err := c.db.WithContext(ctx).Model(&TestRun{}).
+			Where("test_run_id = ?", testRunID).
+			Updates(updates).Error; err != nil {
+			return fmt.Errorf("validatorcore: record passive probe facts: %w", err)
+		}
+	}
+
+	if tlsGrade == nil || *tlsGrade == "" {
+		return nil
+	}
+
+	return c.ApplyEvidenceFact(ctx, ApplyEvidenceFactInput{
+		TestRunID:    testRunID,
+		Area:         SpecificationAreaTLS,
+		Step:         "handshake",
+		ReasonCode:   "tls_probed",
+		Severity:     *tlsGrade,
+		AffectsGrade: true,
+		Leg:          evidenceLegPassive,
+	})
+}
+
+// harvestReasonRetentionExpired is the harvest_reason stamped on permanent
+// test_run rows tombstoned by the retention sweep. Non-permanent pass and
+// fail rows are hard-deleted children first, then parent; only permanent
+// rows are tombstoned, and only by that sweep.
+const harvestReasonRetentionExpired = HarvestReasonExpired
+
+// PruneTerminalSessions applies retention to aged non-permanent pass and
+// fail rows. Interrupted rows stay so a later resume or flip can still find
+// them. opt_in_permanent=1 rows are skipped so durable reports survive the
+// default window. Already-harvested rows, nonterminal rows, is_active=1
+// rows, and rows newer than the cutoff are excluded. Child rows are
+// harvested first (RESTRICT FKs), then the parent test_run is hard-deleted.
+func (c *Core) PruneTerminalSessions(ctx context.Context, retentionDays int) error {
+	if c == nil || c.db == nil {
+		return errors.New("validatorcore: store is not configured")
+	}
+
+	if retentionDays <= 0 {
+		return nil
+	}
+
+	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
+
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		rows := []TestRun{}
+
+		if err := tx.Model(&TestRun{}).
+			Where(
+				"state IN ? AND finished_at IS NOT NULL AND finished_at < ? "+
+					"AND harvested_at IS NULL AND opt_in_permanent = 0 AND is_active = 0",
+				prunableTerminalStateSet(),
+				cutoff,
+			).
+			Select(colTestRunID).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+
+		for _, row := range rows {
+			if err := pruneAgedNonPermanentRun(tx, row.TestRunID); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("validatorcore: prune terminal sessions: %w", err)
+	}
+
+	return nil
+}
+
+func pruneAgedNonPermanentRun(tx *gorm.DB, id string) error {
+	if err := harvestRunChildren(tx, id); err != nil {
+		return err
+	}
+
+	return tx.Where("test_run_id = ?", id).Delete(&TestRun{}).Error
+}
+
+// harvestRunChildren deletes the validator-owned child rows of one test run.
+// report_exchange goes first so evidence_row.exchange_id ON DELETE SET NULL
+// fires before the evidence rows themselves are removed.
+func harvestRunChildren(tx *gorm.DB, testRunID string) error {
+	models := []any{
+		&ReportExchange{},
+		&EvidenceRow{},
+		&DispatchReservation{},
+		&ShareCorrelation{},
+	}
+
+	for _, model := range models {
+		if err := tx.Where("test_run_id = ?", testRunID).Delete(model).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+
+	return 0
+}

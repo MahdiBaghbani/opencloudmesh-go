@@ -90,6 +90,8 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	overlayHTTPConfig(cfg, fc.HTTP)
 	overlayPersistenceConfig(cfg, fc.Persistence)
 	overlayOCMConfig(cfg, fc.OCM)
+	overlayStatisticsConfig(cfg, fc.Statistics)
+	overlayValidatorConfig(cfg, fc.Validator)
 }
 
 // EnvOutboundHTTPUseEnvFallback is the environment-variable name that overrides

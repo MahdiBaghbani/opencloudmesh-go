@@ -6,15 +6,19 @@
 package ocm
 
 import (
+	"net/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	notificationsincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
@@ -36,4 +40,23 @@ type Inputs struct {
 	KeyManager          *crypto.KeyManager
 	// MustInviteEnforced gates inbound share creation on an exchanged invite.
 	MustInviteEnforced bool
+	// InviteAcceptedDecorator optionally wraps the POST /ocm/invite-accepted
+	// handler from outside; the validator uses it to observe acceptances
+	// without the product handler knowing about test runs.
+	InviteAcceptedDecorator func(http.HandlerFunc) http.HandlerFunc
+	// IncomingShareObserver optionally runs after an incoming share is
+	// durably stored, before the 201 is encoded; the validator uses it to
+	// observe reverse shares without the product handler knowing about test
+	// runs.
+	IncomingShareObserver sharesincoming.CreateObserver
+	// TokenExchangeObserver optionally runs after a successful token
+	// exchange, before the success response is encoded; the validator uses
+	// it to observe the capability exercise without the product handler
+	// knowing about test runs.
+	TokenExchangeObserver tokenincoming.ExchangeObserver
+	// NotificationObserver optionally runs after a successful outgoing-share
+	// lifecycle notification, before the 200 is encoded; the validator uses
+	// it to record notification evidence without the product handler knowing
+	// about test runs.
+	NotificationObserver notificationsincoming.Observer
 }

@@ -20,6 +20,14 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
+// CreateObserver runs after an incoming share is durably stored, on both the
+// fresh create and the matching idempotent-duplicate paths, before the 201
+// response is encoded. A non-nil error suppresses the 201 in favor of a
+// retryable storage error; the persisted share makes the client's retry take
+// the duplicate path, where the observer runs again. The mismatched-duplicate
+// 409 path never invokes the observer.
+type CreateObserver func(ctx context.Context, share *IncomingShare) error
+
 // Handler serves POST /ocm/shares with recipient resolution and peer-trust gating.
 type Handler struct {
 	repo                        IncomingShareRepo
@@ -31,6 +39,7 @@ type Handler struct {
 	mustInviteEnforced          bool
 	localProviderFQDNForCompare string
 	localScheme                 string
+	createObserver              CreateObserver
 }
 
 func NewHandler( //nolint:revive // exported: trivial constructor wiring the handler dependencies
@@ -55,6 +64,12 @@ func NewHandler( //nolint:revive // exported: trivial constructor wiring the han
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 	}
+}
+
+// SetCreateObserver installs the optional post-persist observer. A nil
+// observer keeps the handler on the plain product path.
+func (h *Handler) SetCreateObserver(observer CreateObserver) {
+	h.createObserver = observer
 }
 
 // CreateShare handles POST /ocm/shares: parses, resolves the recipient, and persists the incoming share.

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 
@@ -130,34 +129,12 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery,
 }
 
 func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *spec.Discovery, error) {
-	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
-	if resp != nil {
-		//nolint:errcheck // best-effort cleanup; error is not actionable
-		resp.Body.Close()
-	}
-
+	result, err := c.fetchDiscoveryFresh(ctx, discoveryURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("ocm: fetch discovery document: %w", err)
+		return nil, nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusNotFound {
-			return nil, nil, fmt.Errorf("discovery returned status %d: %w", resp.StatusCode, ErrDiscoveryNotFound)
-		}
-
-		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
-	}
-
-	disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(discoveryURL), true)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", ErrInvalidDiscoveryJSON, err)
-	}
-
-	if !disc.Enabled {
-		return nil, nil, fmt.Errorf("%w at %s", ErrOCMDisabled, discoveryURL)
-	}
-
-	return data, &disc, nil
+	return result.Raw, result.Discovery, nil
 }
 
 func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string, freshFetch bool) (spec.Discovery, error) {
