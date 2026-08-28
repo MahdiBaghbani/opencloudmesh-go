@@ -278,6 +278,18 @@ func (h *Handler) handleCreateSession(
 		return
 	}
 
+	if guardErr := rejectNonPublicTarget(parsed); guardErr != nil {
+		writeJSONError(
+			w,
+			h.log,
+			http.StatusBadRequest,
+			"target_not_public",
+			"target must be a public address",
+		)
+
+		return
+	}
+
 	testRunID, err := identity.UUIDv7()
 	if err != nil {
 		writeJSONError(w, h.log, http.StatusInternalServerError, "id_generation_failed", "failed to mint session id")

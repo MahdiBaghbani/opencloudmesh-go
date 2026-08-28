@@ -8,7 +8,6 @@ package passive
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/httpsigprobe"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/platformdetect"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -117,25 +117,45 @@ func startContributeScan(
 ) startCreateResponse {
 	t.Helper()
 
-	createReq := httptest.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		"/api/scan?target="+target+"&contribute=1",
-		nil,
-	)
-	createRec := httptest.NewRecorder()
-	handler.HandleScan(createRec, createReq)
-
-	if createRec.Code != http.StatusCreated {
-		t.Fatalf("scan status = %d, want 201", createRec.Code)
+	// Seed through the store so loopback httptest targets can still exercise
+	// the probe runner. The HTTP create path rejects non-public addresses.
+	parsed, err := parseTarget(target)
+	if err != nil {
+		t.Fatalf("parseTarget: %v", err)
 	}
 
-	var created startCreateResponse
-	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
-		t.Fatalf("decode create: %v", err)
+	testRunID, err := identity.UUIDv7()
+	if err != nil {
+		t.Fatalf("mint session id: %v", err)
 	}
 
-	return created
+	now := time.Now().Unix()
+	row := &validatorcore.TestRun{
+		TestRunID:    testRunID,
+		IsActive:     false,
+		State:        validatorcore.StateCreated,
+		TargetOrigin: parsed.origin,
+		TargetHost:   parsed.targetHost,
+		RemoteOCMID:  parsed.remoteOCMID,
+		DiscoveryURL: strings.TrimSuffix(parsed.origin, "/") + "/.well-known/ocm",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	applyCreateConsent(row, sessionOptIn{
+		Stats:   true,
+		Channel: validatorcore.OptInChannelScan,
+	}, now)
+
+	if err := handler.store.CreatePassiveSession(ctx, row); err != nil {
+		t.Fatalf("CreatePassiveSession: %v", err)
+	}
+
+	handler.probe.StartAsync(context.WithoutCancel(ctx), testRunID)
+
+	return startCreateResponse{
+		ID:         testRunID,
+		OptInStats: true,
+	}
 }
 
 func stopContributeScan(t *testing.T, handler *Handler, ctx context.Context, runID string) {
