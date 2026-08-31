@@ -35,6 +35,7 @@ func TestLegalTerminalReasons(t *testing.T) {
 		ReasonStallInactivityExpired,
 		ReasonStartupUnrecoverableActive,
 		ReasonForwardShareCommitStall,
+		ReasonActiveDriveTimeout,
 	}
 	wantPass := []string{
 		ReasonStopped,
@@ -51,8 +52,8 @@ func TestLegalTerminalReasons(t *testing.T) {
 	assertExactReasonSet(t, "terminal_pass", gotPass, wantPass)
 
 	union := slices.Concat(gotFail, gotInterrupted, gotPass)
-	if len(union) != 21 {
-		t.Fatalf("union size = %d, want 21", len(union))
+	if len(union) != 22 {
+		t.Fatalf("union size = %d, want 22", len(union))
 	}
 
 	owner := map[string]string{}
@@ -71,8 +72,8 @@ func TestLegalTerminalReasons(t *testing.T) {
 		}
 	}
 
-	if len(owner) != 21 {
-		t.Fatalf("unique tokens = %d, want 21", len(owner))
+	if len(owner) != 22 {
+		t.Fatalf("unique tokens = %d, want 22", len(owner))
 	}
 
 	gotCreated := legalTerminalReasons(StateCreated)
@@ -164,6 +165,17 @@ func TestValidateTerminalReason(t *testing.T) {
 			name:   "reverse share timeout is legal for interrupted",
 			state:  StateInterrupted,
 			reason: ReasonReverseShareTimeout,
+		},
+		{
+			name:   "active drive timeout is legal for interrupted",
+			state:  StateInterrupted,
+			reason: ReasonActiveDriveTimeout,
+		},
+		{
+			name:    "active drive timeout rejected for terminal fail",
+			state:   StateTerminalFail,
+			reason:  ReasonActiveDriveTimeout,
+			wantErr: ErrTerminalReasonInvalid,
 		},
 	}
 

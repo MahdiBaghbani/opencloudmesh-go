@@ -52,6 +52,8 @@ func TerminalReasonLabel(state, reason string) string { //nolint:cyclop // exhau
 		return "Interrupted on startup recovery"
 	case ReasonForwardShareCommitStall:
 		return "Forward share commit stalled"
+	case ReasonActiveDriveTimeout:
+		return "Active drive timed out"
 	case ReasonStopped:
 		return "Run stopped"
 	case ReasonReverseShareObserved:

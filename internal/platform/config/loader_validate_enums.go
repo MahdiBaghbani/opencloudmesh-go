@@ -274,6 +274,7 @@ func validateEnums(cfg *Config) error {
 		validateValidatorStatistics,
 		validateValidatorScanPublicRatelimit,
 		validateValidatorSessionWindows,
+		validateValidatorSessionConcurrency,
 	}
 
 	for _, validator := range validators {

@@ -269,6 +269,12 @@ func Load(opts LoaderOptions) (*Config, error) {
 
 	// Overlay TOML file values.
 	if opts.ConfigPath != "" {
+		if fc.Validator != nil {
+			if err := rejectNegativeValidatorSessionConcurrency(fc.Validator.Session); err != nil {
+				return nil, err
+			}
+		}
+
 		overlayFileConfig(cfg, &fc)
 	}
 

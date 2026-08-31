@@ -86,6 +86,10 @@ const (
 	// send cannot commit the run forward.
 	ReasonForwardShareCommitStall = "forward_share_commit_stall"
 
+	// ReasonActiveDriveTimeout is recorded when an active drive exceeds
+	// its idle window.
+	ReasonActiveDriveTimeout = "active_drive_timeout"
+
 	// Destination terminal_pass.
 
 	// ReasonStopped is recorded when the operator stops a complete passive run.
@@ -130,6 +134,7 @@ func legalTerminalReasons(state string) []string {
 			ReasonStallInactivityExpired,
 			ReasonStartupUnrecoverableActive,
 			ReasonForwardShareCommitStall,
+			ReasonActiveDriveTimeout,
 		})
 	case StateTerminalPass:
 		return slices.Clone([]string{
