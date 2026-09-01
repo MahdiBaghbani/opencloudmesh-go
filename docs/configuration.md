@@ -113,20 +113,19 @@ Raw zero values are treated as absent and replaced by the documented default.
 Raw negative values are invalid and cause startup to fail. After defaulting,
 startup requires all of these rules:
 
-`stall_timeout_seconds` has an existing default of `43200` seconds and defines
-the inactivity window for the active run. In validator mode, the TOML overlay
-applies `stall_timeout_seconds` only when it is greater than `0`, so a
-non-positive TOML value reads as the `43200` default and keeps the stall sweep
-enabled. A non-positive resolved value disables the sweep only when supplied
-through in-memory config. Thus, `max_drive_idle_seconds` must be greater than
-`0` and less than `stall_timeout_seconds`.
-
 - `reap_interval_seconds <= max_drive_idle_seconds`
-- `0 < max_drive_idle_seconds < stall_timeout_seconds`
+- `0 < max_drive_idle_seconds < stall_timeout_seconds` (the idle window must
+  be shorter than the active-run stall timeout)
 - `1 <= session_limit <= 256`
 - `max_dispatch_attempts > 0`
 - `backoff_base_seconds > 0`
 - `backoff_cap_seconds >= backoff_base_seconds`
+
+`stall_timeout_seconds` has an existing default of `43200` seconds and defines
+the inactivity window for the active run. In validator mode, a non-positive
+TOML value reads as the `43200` default, so the stall sweep stays enabled. At
+the store level, a non-positive resolved value disables the sweep. This state
+is only reachable through in-memory configuration, not TOML.
 
 ## Example configs
 

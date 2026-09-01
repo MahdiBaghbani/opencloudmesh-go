@@ -280,7 +280,7 @@ max_drive_idle_seconds = 10
 	}
 }
 
-func TestLoad_ValidatorSessionSection_ConcurrencyKnobsAllDefaultNonzero(t *testing.T) {
+func TestLoad_ValidatorSessionSection_ConcurrencyKnobsAllNonzeroResolveToSetValues(t *testing.T) {
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 
 	tomlContent := validatorModeTestBaseTOML + `
@@ -378,27 +378,22 @@ func defaultResolvedConcurrencyKnobs() resolvedConcurrencyKnobs {
 func assertResolvedConcurrencyKnobs(t *testing.T, got validatorcore.SessionConfig, want resolvedConcurrencyKnobs) {
 	t.Helper()
 
-	if got.MaxDriveIdleSeconds != want.MaxDriveIdleSeconds {
-		t.Errorf("MaxDriveIdleSeconds = %d, want %d", got.MaxDriveIdleSeconds, want.MaxDriveIdleSeconds)
+	checks := []struct {
+		name string
+		got  int
+		want int
+	}{
+		{name: "MaxDriveIdleSeconds", got: got.MaxDriveIdleSeconds, want: want.MaxDriveIdleSeconds},
+		{name: "ReapIntervalSeconds", got: got.ReapIntervalSeconds, want: want.ReapIntervalSeconds},
+		{name: "SessionLimit", got: got.SessionLimit, want: want.SessionLimit},
+		{name: "MaxDispatchAttempts", got: got.MaxDispatchAttempts, want: want.MaxDispatchAttempts},
+		{name: "BackoffBaseSeconds", got: got.BackoffBaseSeconds, want: want.BackoffBaseSeconds},
+		{name: "BackoffCapSeconds", got: got.BackoffCapSeconds, want: want.BackoffCapSeconds},
 	}
 
-	if got.ReapIntervalSeconds != want.ReapIntervalSeconds {
-		t.Errorf("ReapIntervalSeconds = %d, want %d", got.ReapIntervalSeconds, want.ReapIntervalSeconds)
-	}
-
-	if got.SessionLimit != want.SessionLimit {
-		t.Errorf("SessionLimit = %d, want %d", got.SessionLimit, want.SessionLimit)
-	}
-
-	if got.MaxDispatchAttempts != want.MaxDispatchAttempts {
-		t.Errorf("MaxDispatchAttempts = %d, want %d", got.MaxDispatchAttempts, want.MaxDispatchAttempts)
-	}
-
-	if got.BackoffBaseSeconds != want.BackoffBaseSeconds {
-		t.Errorf("BackoffBaseSeconds = %d, want %d", got.BackoffBaseSeconds, want.BackoffBaseSeconds)
-	}
-
-	if got.BackoffCapSeconds != want.BackoffCapSeconds {
-		t.Errorf("BackoffCapSeconds = %d, want %d", got.BackoffCapSeconds, want.BackoffCapSeconds)
+	for _, check := range checks {
+		if check.got != check.want {
+			t.Errorf("%s = %d, want %d", check.name, check.got, check.want)
+		}
 	}
 }
