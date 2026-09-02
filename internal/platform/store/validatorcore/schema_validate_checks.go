@@ -15,9 +15,10 @@ import (
 )
 
 // sqliteConstraintUnique is SQLite's SQLITE_CONSTRAINT_UNIQUE extended
-// result code (19 | (8 << 8)). The is_active=1 flag probe can hit the
-// one-active partial unique index when a live active row already exists;
-// that is not a CHECK rejection.
+// result code (19 | (8 << 8)). The is_active=1 flag probe can hit
+// idx_test_run_active_per_target when a live active row already exists
+// for the same target_host; that is not a CHECK rejection. A bob_user_id
+// collision would hit idx_test_run_bob_user_id the same way.
 const sqliteConstraintUnique = 2067
 
 const (
@@ -246,9 +247,10 @@ func probeFlagAccepted(ctx context.Context, conn *sql.Conn, column string, value
 
 		return nil
 	}, func(insertErr error) bool {
-		// A live is_active=1 row makes the one-active unique index fire
-		// before a second 1 can persist. That unique failure means the
-		// CHECK admitted 1, so the required-value probe still holds.
+		// A live is_active=1 row for the same target_host makes
+		// idx_test_run_active_per_target fire before a second 1 can
+		// persist. That unique failure means the CHECK admitted 1, so
+		// the required-value probe still holds.
 		return column == colIsActive && value == 1 && isUniqueConstraintRejection(insertErr)
 	})
 }

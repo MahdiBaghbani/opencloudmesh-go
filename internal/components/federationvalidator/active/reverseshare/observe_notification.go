@@ -25,13 +25,13 @@ func (s *Service) ObserveNotification(ctx context.Context, share *sharesoutgoing
 		return nil
 	}
 
-	runID, err := s.deps.Store.FindOneActive(ctx, validatorcore.LocalIdentityA)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil
+	runID, err := s.findActiveRunByProvider(ctx, share.ProviderID)
+	if err != nil {
+		return err
 	}
 
-	if err != nil {
-		return fmt.Errorf("reverseshare: find active run: %w", err)
+	if runID == "" {
+		return nil
 	}
 
 	reservation, err := s.deps.Store.GetDispatchReservation(ctx, runID)
@@ -56,4 +56,23 @@ func (s *Service) ObserveNotification(ctx context.Context, share *sharesoutgoing
 	}
 
 	return nil
+}
+
+// findActiveRunByProvider returns the active run bound to providerID.
+// An empty or missing provider is a skip, never an arbitrary active row.
+func (s *Service) findActiveRunByProvider(ctx context.Context, providerID string) (string, error) {
+	if providerID == "" {
+		return "", nil
+	}
+
+	runID, err := s.deps.Store.FindActiveByProviderID(ctx, providerID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("reverseshare: find active run: %w", err)
+	}
+
+	return runID, nil
 }

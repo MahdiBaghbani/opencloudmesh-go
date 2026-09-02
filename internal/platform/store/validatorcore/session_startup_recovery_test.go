@@ -38,8 +38,8 @@ func TestTerminalizeUnrecoverableActiveRuns_InterruptsLeftoverActiveRuns(t *test
 			ctx := t.Context()
 			now := time.Now().Unix()
 
-			// The one-active-run index allows a single lock holder per
-			// store, so each state gets its own store.
+			// The active-per-target index allows a single lock holder per
+			// target_host, so each state gets its own store.
 			runID := "run-recovery-" + state
 
 			if err := core.DB().WithContext(ctx).Create(&TestRun{

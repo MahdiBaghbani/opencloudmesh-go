@@ -105,7 +105,10 @@ func TestFindRunByRecipientAndTarget_MultipleMatchesNeverArbitrary(t *testing.T)
 	ctx := t.Context()
 
 	// A reused recipient binding across two runs must not resolve to either
-	// one; the caller gets not-found instead of an arbitrary row.
+	// one; the caller gets not-found instead of an arbitrary row. The live
+	// unique index forbids that reuse, so drop it to seed the finder case.
+	mustExec(t, core.DB(), "DROP INDEX idx_test_run_bob_user_id")
+
 	shared := "bob-user-shared"
 	seedReverseShareRun(t, core, "run-find-multi-1", StateInterrupted, false, &shared)
 	seedReverseShareRun(t, core, "run-find-multi-2", StateInterrupted, false, &shared)

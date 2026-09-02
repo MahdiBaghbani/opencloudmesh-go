@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,11 +18,11 @@ import (
 
 const extendEligibleSQL = "((state = ? AND opt_in_active = 1) OR (state = ? AND opt_in_active = 0))"
 
-// ExtendToActive promotes a session onto the one-active-run lock.
+// ExtendToActive promotes a session onto that target's active-run lock.
 // Auto-promotion CASes is_active 0->1 from passive_running when
 // opt_in_active=1. Opt-out rows may still heal from passive_complete.
 // Both paths refuse persisted discovery or TLS fail evidence. bob_user_id
-// is minted in the same transaction. A duplicate one-active key is
+// is minted in the same transaction. A duplicate per-target active key is
 // OpExtendUpdate. A repeat promote of the same already-active row is a
 // successful no-op and does not report a CAS win.
 func (c *Core) ExtendToActive(ctx context.Context, testRunID string) error {
@@ -116,43 +117,33 @@ func extendMissReason(tx *gorm.DB, testRunID string) error {
 	return ErrSessionNotReady
 }
 
-// FindOldestReadyOptInWaiter returns the oldest lock-wait row:
-// opt_in_active=1, is_active=0, state=passive_running, passive_ready_at set.
-// FindOneActive never sees these rows. Missing waiters return
-// ErrSessionNotFound.
-func (c *Core) FindOldestReadyOptInWaiter(ctx context.Context) (*TestRun, error) {
+func (c *Core) listReadyWaiterTargetHosts(ctx context.Context) ([]string, error) {
 	if c == nil || c.db == nil {
 		return nil, errors.New("validatorcore: store is not configured")
 	}
 
-	var row TestRun
+	hosts := []string{}
 
-	err := c.db.WithContext(ctx).
-		Where(
-			"opt_in_active = 1 AND is_active = 0 AND state = ? AND passive_ready_at IS NOT NULL",
-			StatePassiveRunning,
-		).
-		Order("passive_ready_at ASC, created_at ASC, test_run_id ASC").
-		First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrSessionNotFound
-	}
-
+	err := c.db.WithContext(ctx).Raw(
+		"SELECT DISTINCT target_host FROM test_run WHERE opt_in_active = 1 "+
+			"AND is_active = 0 AND state = ? AND passive_ready_at IS NOT NULL "+
+			"ORDER BY target_host ASC",
+		StatePassiveRunning,
+	).Scan(&hosts).Error
 	if err != nil {
-		return nil, fmt.Errorf("validatorcore: find ready opt-in waiter: %w", err)
+		return nil, fmt.Errorf("validatorcore: list ready waiter target hosts: %w", err)
 	}
 
-	return &row, nil
+	if hosts == nil {
+		hosts = []string{}
+	}
+
+	return hosts, nil
 }
 
-// PromoteOldestReadyWaiter promotes the oldest ready opt-in waiter when the
-// active slot is free. A busy slot leaves the waiter in place. No waiter is
-// a successful no-op. A concurrent stop that terminalizes the selected
-// waiter after selection and before the CAS is skipped so the next oldest
-// ready waiter can take the slot.
-func (c *Core) PromoteOldestReadyWaiter(ctx context.Context) error {
+func (c *Core) promoteOldestReadyWaiterForTarget(ctx context.Context, targetHost string) error {
 	for {
-		row, err := c.FindOldestReadyOptInWaiter(ctx)
+		row, err := c.FindOldestReadyWaiterForTarget(ctx, targetHost)
 		if err != nil {
 			if errors.Is(err, ErrSessionNotFound) {
 				return nil
@@ -161,11 +152,20 @@ func (c *Core) PromoteOldestReadyWaiter(ctx context.Context) error {
 			return err
 		}
 
+		_, activeErr := c.FindActiveByTarget(ctx, targetHost)
+		if activeErr == nil {
+			return nil
+		}
+
+		if !errors.Is(activeErr, gorm.ErrRecordNotFound) {
+			return activeErr
+		}
+
 		if hook := c.promoteAfterSelectHook; hook != nil {
 			hook(row.TestRunID)
 		}
 
-		casWon, err := c.extendToActive(ctx, row.TestRunID)
+		casWon, err := c.ExtendToActiveCAS(ctx, row.TestRunID)
 		if err == nil {
 			if casWon {
 				c.notePromotedWaiter(ctx, row.TestRunID)
@@ -174,7 +174,7 @@ func (c *Core) PromoteOldestReadyWaiter(ctx context.Context) error {
 			return nil
 		}
 
-		if IsActiveSlotBusy(err) {
+		if IsTargetSlotBusy(err) {
 			return nil
 		}
 
@@ -195,10 +195,48 @@ func (c *Core) PromoteOldestReadyWaiter(ctx context.Context) error {
 	}
 }
 
+// PromoteOldestReadyWaiter promotes the oldest ready opt-in waiter for each
+// requested target when that target's active slot is free. An omitted or
+// empty host iterates every target that currently has a ready waiter, in
+// ascending host order. A non-empty host is handled alone. A busy slot
+// leaves that target's waiter in place and does not stop other hosts. No
+// waiter is a successful no-op. A concurrent stop that terminalizes the
+// selected waiter after selection and before the CAS is skipped so the next
+// oldest ready waiter for the same target can take the slot.
+func (c *Core) PromoteOldestReadyWaiter(ctx context.Context, targetHosts ...string) error {
+	hosts := make([]string, 0, len(targetHosts))
+	for _, host := range targetHosts {
+		if host != "" {
+			hosts = append(hosts, host)
+		}
+	}
+
+	if len(hosts) == 0 {
+		listed, err := c.listReadyWaiterTargetHosts(ctx)
+		if err != nil {
+			return err
+		}
+
+		hosts = listed
+	}
+
+	for _, host := range hosts {
+		if err := c.promoteOldestReadyWaiterForTarget(ctx, host); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // shouldSkipStalePromoteWaiter re-reads a CAS miss and reports whether the
-// selected waiter is no longer a ready opt-in waiter. That happens when a
-// concurrent /stop terminalizes the row between selection and the CAS; the
-// miss is then skipped instead of surfaced as ErrSessionNotReady.
+// selected waiter is no longer a ready opt-in waiter with no persisted
+// discovery or TLS fail evidence. That happens when a concurrent /stop
+// terminalizes the row between selection and the CAS, or when fail
+// evidence lands in the same window; the miss is then skipped instead of
+// surfaced as ErrSessionNotReady. A waiter that still satisfies the
+// ready opt-in plus fail-evidence CAS predicate is a genuine not-ready
+// condition and is not skipped.
 func (c *Core) shouldSkipStalePromoteWaiter(ctx context.Context, testRunID string) (bool, error) {
 	current, loadErr := c.GetTestRun(ctx, testRunID)
 	if loadErr != nil {
@@ -209,7 +247,25 @@ func (c *Core) shouldSkipStalePromoteWaiter(ctx context.Context, testRunID strin
 		return false, loadErr
 	}
 
-	return !IsReadyOptInWaiter(current), nil
+	if !IsReadyOptInWaiter(current) {
+		return true, nil
+	}
+
+	var eligible int64
+
+	err := c.db.WithContext(ctx).Model(&TestRun{}).
+		Where(
+			"test_run_id = ? AND "+notPersistedFailPredicateSQL(),
+			testRunID,
+			failGatedAreas(),
+			failSeverityAliases(),
+		).
+		Count(&eligible).Error
+	if err != nil {
+		return false, err
+	}
+
+	return eligible == 0, nil
 }
 
 func (c *Core) notePromotedWaiter(ctx context.Context, testRunID string) {
@@ -222,8 +278,9 @@ func (c *Core) notePromotedWaiter(ctx context.Context, testRunID string) {
 }
 
 // RememberPendingPromote records a promoted waiter that still needs
-// follow-up. It does not flush, so a deferred Bob-then-Kick can wait
-// until the reverse receiver is wired.
+// follow-up. It adds the id without overwriting other pending ids, and
+// does not flush, so a deferred Bob-then-Kick can wait until the reverse
+// receiver is wired.
 func (c *Core) RememberPendingPromote(testRunID string) {
 	if c == nil || testRunID == "" {
 		return
@@ -232,13 +289,17 @@ func (c *Core) RememberPendingPromote(testRunID string) {
 	c.promoteMu.Lock()
 	defer c.promoteMu.Unlock()
 
-	c.lastPromotedID = testRunID
+	if c.pendingPromoteIDs == nil {
+		c.pendingPromoteIDs = map[string]struct{}{}
+	}
+
+	c.pendingPromoteIDs[testRunID] = struct{}{}
 }
 
 // SetPromoteFollowUp binds the shared after-ExtendToActive follow-up.
 // The callback returns true when Bob then Kick were delivered so the
-// pending id can be consumed. False keeps lastPromotedID so a later
-// flush can deliver once the Bob materializer is wired.
+// pending id can be consumed. False keeps that id so a later flush can
+// deliver once the Bob materializer is wired.
 func (c *Core) SetPromoteFollowUp(fn func(context.Context, string) bool) {
 	if c == nil {
 		return
@@ -250,24 +311,36 @@ func (c *Core) SetPromoteFollowUp(fn func(context.Context, string) bool) {
 	c.promoteFollowUp = fn
 }
 
-// LastPromotedID is the waiter still waiting for a post-promotion
-// follow-up. Empty after that follow-up is delivered or when none
-// is pending.
-func (c *Core) LastPromotedID() string {
+// PendingPromoteIDs lists waiters still waiting for a post-promotion
+// follow-up, in sorted order. Empty after every follow-up is delivered or
+// when none is pending.
+func (c *Core) PendingPromoteIDs() []string {
 	if c == nil {
-		return ""
+		return []string{}
 	}
 
 	c.promoteMu.Lock()
 	defer c.promoteMu.Unlock()
 
-	return c.lastPromotedID
+	return c.pendingPromoteIDsLocked()
 }
 
-// FlushPromoteFollowUp runs the bound follow-up for the last CAS-winning
-// promotion. A missing hook or promoted id is a no-op so Attach can
-// promote before the handler binds the seam. A delivered follow-up
-// consumes lastPromotedID so a later flush cannot replay it. The
+// LastPromotedID is a compatibility wrapper for callers that still expect
+// a single pending id. It returns one pending waiter when any exist, or
+// empty after follow-up is delivered or when none is pending.
+func (c *Core) LastPromotedID() string {
+	ids := c.PendingPromoteIDs()
+	if len(ids) == 0 {
+		return ""
+	}
+
+	return ids[0]
+}
+
+// FlushPromoteFollowUp runs the bound follow-up for every CAS-winning
+// promotion still pending. A missing hook or empty pending set is a no-op
+// so Attach can promote before the handler binds the seam. A delivered
+// follow-up removes that id so a later flush cannot replay it. The
 // callback must not re-enter pending-promote methods; the lock is held
 // for the whole flush so concurrent startup, probe, and late-bind
 // flushes serialize instead of racing.
@@ -287,16 +360,35 @@ func (c *Core) flushPromoteFollowUp(ctx context.Context) {
 	c.promoteMu.Lock()
 	defer c.promoteMu.Unlock()
 
-	fn := c.promoteFollowUp
-	id := c.lastPromotedID
+	if c.pendingPromoteIDs == nil {
+		c.pendingPromoteIDs = map[string]struct{}{}
+	}
 
-	if fn == nil || id == "" {
+	fn := c.promoteFollowUp
+	if fn == nil || len(c.pendingPromoteIDs) == 0 {
 		return
 	}
 
-	if fn(ctx, id) && c.lastPromotedID == id {
-		c.lastPromotedID = ""
+	for _, id := range c.pendingPromoteIDsLocked() {
+		if fn(ctx, id) {
+			delete(c.pendingPromoteIDs, id)
+		}
 	}
+}
+
+func (c *Core) pendingPromoteIDsLocked() []string {
+	if c.pendingPromoteIDs == nil {
+		c.pendingPromoteIDs = map[string]struct{}{}
+	}
+
+	ids := make([]string, 0, len(c.pendingPromoteIDs))
+	for id := range c.pendingPromoteIDs {
+		ids = append(ids, id)
+	}
+
+	slices.Sort(ids)
+
+	return ids
 }
 
 // SetPromoteAfterSelectHook installs a test seam invoked after a ready

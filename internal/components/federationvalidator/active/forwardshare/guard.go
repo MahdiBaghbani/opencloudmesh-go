@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
@@ -28,40 +27,38 @@ import (
 // dead owner; a live send holds a fresh permit and keeps it.
 const dispatchClaimStaleSeconds int64 = 30
 
-// GuardCreate implements the outgoing-share dispatch hook. With no active run
-// the guard is a no-op and the generic flow proceeds. With an active run every
-// share is refused except the one designated dispatch: the session's own
-// dispatching party (whose local user ID is the run ID) sharing the
-// snapshotted probe path with the designated recipient at the run's target
-// host. The designated dispatch reserves its outbox row and takes the single
-// send permit before the handler persists or sends anything.
+// GuardCreate implements the outgoing-share dispatch hook. The session
+// party is keyed by user ID (the local user ID is the run ID).
+// GetTestRun(userID) is the only lookup: a missing or inactive row is a
+// miss and the generic flow proceeds. There is no fallback to an
+// arbitrary active row. The fifth re-key is the runner via ListActive
+// and GetTestRun on each listed id, not this hook. An active row gates
+// every share from that party: only the designated dispatch is allowed,
+// including when the receiver host is wrong. The designated dispatch
+// reserves its outbox row and takes the single send permit before the
+// handler persists or sends anything.
 func (s *Service) GuardCreate(
 	ctx context.Context,
 	req sharesoutgoing.OutgoingShareRequest,
 	userID string,
 ) (*outgoingshares.DispatchPlan, error) {
-	runID, err := s.deps.Store.FindOneActive(ctx, validatorcore.LocalIdentityA)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil //nolint:nilnil // intentional: (nil, nil) means no active run; the generic path proceeds
+	// Party-keyed miss: this user ID is the run ID. A miss skips safely.
+	// The runner's fifth re-key is ListActive/GetTestRun; this hook does
+	// not fall back to an arbitrary active row.
+	run, err := s.deps.Store.GetTestRun(ctx, userID)
+	if errors.Is(err, validatorcore.ErrSessionNotFound) {
+		return nil, nil //nolint:nilnil // intentional: (nil, nil) means no matching active run; the generic path proceeds
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("forwardshare: find active run: %w", err)
+		return nil, fmt.Errorf("forwardshare: load test run: %w", err)
 	}
 
-	run, err := s.deps.Store.GetTestRun(ctx, runID)
-	if err != nil {
-		return nil, fmt.Errorf("forwardshare: load active run: %w", err)
+	if run == nil || !run.IsActive {
+		return nil, nil //nolint:nilnil // inactive row is a miss; the generic path proceeds
 	}
 
-	// Only the session's own dispatching party may dispatch while its run is
-	// active; every other local user, bound recipient or not, is refused even
-	// when the request matches the designated dispatch exactly.
-	if userID != run.TestRunID {
-		return nil, outgoingshares.ErrDispatchRefused
-	}
-
-	reservation, err := s.deps.Store.GetDispatchReservation(ctx, runID)
+	reservation, err := s.deps.Store.GetDispatchReservation(ctx, run.TestRunID)
 	switch {
 	case err == nil:
 		return s.guardExisting(ctx, run, reservation, req)
@@ -134,7 +131,11 @@ func (s *Service) guardFirstDispatch(
 	}
 
 	if err := s.deps.Store.ClaimForwardDispatchSend(ctx, run.TestRunID, in.ProviderID, claimToken); err != nil {
-		return s.handleClaimMiss(ctx, run, req)
+		if errors.Is(err, validatorcore.ErrDispatchClaimMiss) {
+			return s.handleClaimMiss(ctx, run, req)
+		}
+
+		return nil, fmt.Errorf("forwardshare: claim dispatch send: %w", err)
 	}
 
 	return &outgoingshares.DispatchPlan{
@@ -174,7 +175,11 @@ func (s *Service) guardExisting(
 		}
 
 		if err := s.deps.Store.ClaimForwardDispatchSend(ctx, run.TestRunID, reservation.ProviderID, claimToken); err != nil {
-			return s.handleClaimMiss(ctx, run, req)
+			if errors.Is(err, validatorcore.ErrDispatchClaimMiss) {
+				return s.handleClaimMiss(ctx, run, req)
+			}
+
+			return nil, fmt.Errorf("forwardshare: claim dispatch send: %w", err)
 		}
 
 		return s.retryPlan(ctx, run, reservation, claimToken)
@@ -198,7 +203,11 @@ func (s *Service) guardExisting(
 
 		staleBefore := time.Now().Unix() - dispatchClaimStaleSeconds
 		if err := s.deps.Store.ReclaimForwardDispatchClaim(ctx, run.TestRunID, reservation.ProviderID, observed, claimToken, staleBefore); err != nil {
-			return nil, outgoingshares.ErrDispatchInProgress
+			if errors.Is(err, validatorcore.ErrDispatchClaimMiss) {
+				return nil, outgoingshares.ErrDispatchInProgress
+			}
+
+			return nil, fmt.Errorf("forwardshare: reclaim dispatch claim: %w", err)
 		}
 
 		return s.retryPlan(ctx, run, reservation, claimToken)

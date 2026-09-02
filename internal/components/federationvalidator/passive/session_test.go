@@ -14,6 +14,17 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
+func pollOptInActive(t *testing.T, payload map[string]json.RawMessage) bool {
+	t.Helper()
+
+	var optIn bool
+	if err := json.Unmarshal(payload["optInActive"], &optIn); err != nil {
+		t.Fatalf("optInActive: %v", err)
+	}
+
+	return optIn
+}
+
 func TestHandleSession_ReturnsStateTsAndNextInstruction(t *testing.T) {
 	t.Parallel()
 
@@ -32,7 +43,11 @@ func TestHandleSession_ReturnsStateTsAndNextInstruction(t *testing.T) {
 
 	payload := pollSession(t, h, runID)
 
-	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+	assertExactKeys(t, payload, []string{"optInActive", "state", "ts", "nextInstruction"})
+
+	if got := pollOptInActive(t, payload); got {
+		t.Fatal("optInActive = true, want false")
+	}
 
 	var state string
 	if err := json.Unmarshal(payload["state"], &state); err != nil {
@@ -99,7 +114,11 @@ func TestHandleSession_NextInstructionPerState(t *testing.T) {
 
 			payload := pollSession(t, h, runID)
 
-			assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+			assertExactKeys(t, payload, []string{"optInActive", "state", "ts", "nextInstruction"})
+
+			if got := pollOptInActive(t, payload); got {
+				t.Fatal("optInActive = true, want false")
+			}
 
 			if next := pollNextInstruction(t, payload); next != tc.want {
 				t.Fatalf("nextInstruction = %q, want %q", next, tc.want)
@@ -127,7 +146,11 @@ func TestHandleSession_PassiveCompletePublishesStop(t *testing.T) {
 
 	payload := pollSession(t, h, runID)
 
-	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+	assertExactKeys(t, payload, []string{"optInActive", "state", "ts", "nextInstruction"})
+
+	if got := pollOptInActive(t, payload); got {
+		t.Fatal("optInActive = true, want false")
+	}
 
 	if next := pollNextInstruction(t, payload); next != "stop" {
 		t.Fatalf("nextInstruction = %q, want %q", next, "stop")
@@ -185,7 +208,11 @@ func TestHandleSession_ReadyWaiterPublishesActiveSlot(t *testing.T) {
 
 	payload := pollSession(t, h, runID)
 
-	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+	assertExactKeys(t, payload, []string{"optInActive", "state", "ts", "nextInstruction"})
+
+	if got := pollOptInActive(t, payload); !got {
+		t.Fatal("optInActive = false, want true")
+	}
 
 	if next := pollNextInstruction(t, payload); next != "wait_active_slot" {
 		t.Fatalf("nextInstruction = %q, want wait_active_slot", next)
@@ -224,6 +251,10 @@ func TestHandleSession_EmptyCapsDoesNotPromoteReadyWaiter(t *testing.T) {
 
 	payload := pollSession(t, h, runID)
 
+	if got := pollOptInActive(t, payload); !got {
+		t.Fatal("optInActive = false, want true")
+	}
+
 	if next := pollNextInstruction(t, payload); next != "wait_active_slot" {
 		t.Fatalf("nextInstruction = %q, want wait_active_slot", next)
 	}
@@ -261,6 +292,10 @@ func TestHandleSession_FullCapsPromotesReadyWaiter(t *testing.T) {
 
 	payload := pollSession(t, h, runID)
 
+	if got := pollOptInActive(t, payload); !got {
+		t.Fatal("optInActive = false, want true")
+	}
+
 	if next := pollNextInstruction(t, payload); next != "wait_invite_mint" {
 		t.Fatalf("nextInstruction = %q, want wait_invite_mint", next)
 	}
@@ -297,6 +332,10 @@ func TestHandleSession_ReadyWaiterPromotesWhenSlotFree(t *testing.T) {
 	})
 
 	payload := pollSession(t, h, runID)
+
+	if got := pollOptInActive(t, payload); !got {
+		t.Fatal("optInActive = false, want true")
+	}
 
 	if next := pollNextInstruction(t, payload); next != "wait_invite_mint" {
 		t.Fatalf("nextInstruction = %q, want wait_invite_mint", next)

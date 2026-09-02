@@ -173,6 +173,8 @@ func validateTerminalReason(state, reason string) error {
 // after the state write commits. expectedStates must be a non-empty
 // non-terminal set; update.State must be terminal. The guarded seam
 // validates the closed terminal-reason set before the UPDATE.
+// WriteTerminalObserved uses this same writer and adds state plus
+// updated_at equality predicates on the same UPDATE.
 // FlipLateReverseShareToPass and hybrid lock repair do not use this writer.
 func (c *Core) WriteTerminal(
 	ctx context.Context,
@@ -208,7 +210,8 @@ func (c *Core) writeTerminalExcept(
 // UPDATE, after the store-config guard and the wrapper dest-state
 // validators. Out-of-set, empty, or whitespace reasons return
 // ErrTerminalReasonInvalid (wrapped); a non-terminal dest returns bare
-// ErrTerminalStateInvalid.
+// ErrTerminalStateInvalid. WriteTerminalObserved adds state and
+// updated_at equality predicates through the same UPDATE.
 func (c *Core) writeTerminalGuarded(
 	ctx context.Context,
 	testRunID string,
@@ -216,6 +219,26 @@ func (c *Core) writeTerminalGuarded(
 	stateOp string,
 	states []string,
 	update ActiveTerminalUpdate,
+) error {
+	return c.writeTerminalGuardedObserved(
+		ctx,
+		testRunID,
+		requireActive,
+		stateOp,
+		states,
+		update,
+		nil,
+	)
+}
+
+func (c *Core) writeTerminalGuardedObserved(
+	ctx context.Context,
+	testRunID string,
+	requireActive bool,
+	stateOp string,
+	states []string,
+	update ActiveTerminalUpdate,
+	observed *terminalObservedPredicates,
 ) error {
 	if c == nil || c.db == nil {
 		return errors.New("validatorcore: store is not configured")
@@ -226,16 +249,11 @@ func (c *Core) writeTerminalGuarded(
 	}
 
 	now := time.Now().Unix()
-	isActive := boolToInt(requireActive)
+	where, args := terminalGuardWhere(testRunID, requireActive, stateOp, states, observed)
 
 	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&TestRun{}).
-			Where(
-				"test_run_id = ? AND is_active = ? AND state "+stateOp+" ?",
-				testRunID,
-				isActive,
-				states,
-			).
+			Where(where, args...).
 			Updates(map[string]any{
 				colIsActive:       false,
 				colState:          update.State,
@@ -261,6 +279,25 @@ func (c *Core) writeTerminalGuarded(
 	bestEffortPersistTerminalStats(c, ctx, testRunID)
 
 	return nil
+}
+
+func terminalGuardWhere(
+	testRunID string,
+	requireActive bool,
+	stateOp string,
+	states []string,
+	observed *terminalObservedPredicates,
+) (string, []any) {
+	where := "test_run_id = ? AND is_active = ? AND state " + stateOp + " ?"
+	args := []any{testRunID, boolToInt(requireActive), states}
+
+	if observed != nil {
+		where += " AND state = ? AND " + colUpdatedAt + " = ?"
+
+		args = append(args, observed.state, observed.updatedAt)
+	}
+
+	return where, args
 }
 
 // StopPassive terminalizes a core-only passive_complete session. A ready

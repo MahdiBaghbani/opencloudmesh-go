@@ -36,15 +36,23 @@ func newActiveRunner(
 		return nil, fmt.Errorf("wiring: resolve validator probe file: %w", err)
 	}
 
+	session := config.SessionConfigFromValidator(cfg)
+
 	activeRunner, err := runner.New(runner.Deps{
-		Store:         d.ValidatorStore,
-		Invites:       invites,
-		Parties:       d.PartyRepo,
-		LocalIdentity: d.LocalIdentity,
-		ProbeEmail:    probeEmail,
-		ProbeName:     probeName,
-		ProbeFilePath: filepath.Join(resolvedDir, config.SeedContentFileName),
-		Log:           log,
+		Store:               d.ValidatorStore,
+		Invites:             invites,
+		Parties:             d.PartyRepo,
+		LocalIdentity:       d.LocalIdentity,
+		ProbeEmail:          probeEmail,
+		ProbeName:           probeName,
+		ProbeFilePath:       filepath.Join(resolvedDir, config.SeedContentFileName),
+		Log:                 log,
+		MaxDriveIdleSeconds: session.MaxDriveIdleSeconds,
+		ReapIntervalSeconds: session.ReapIntervalSeconds,
+		SessionLimit:        session.SessionLimit,
+		MaxDispatchAttempts: session.MaxDispatchAttempts,
+		BackoffBaseSeconds:  session.BackoffBaseSeconds,
+		BackoffCapSeconds:   session.BackoffCapSeconds,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("wiring: build active runner: %w", err)

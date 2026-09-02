@@ -15,28 +15,53 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
-func (r *Runner) handleDriveErr(ctx context.Context, run *validatorcore.TestRun, err error) {
+func (r *Runner) handleDriveErr(ctx context.Context, run *validatorcore.TestRun, err error, h *sessionHandle) {
 	if err == nil {
 		return
 	}
 
 	if errors.Is(err, outgoingshares.ErrDispatchInProgress) {
-		r.touchWait(ctx, run)
+		r.noteInProgressRetry(run, h)
 
 		return
 	}
 
 	if reason, hard := classifyHardFail(err); hard {
-		r.writeHardFail(ctx, run.TestRunID, reason, err)
+		if r.writeHardFail(ctx, run.TestRunID, reason, err) {
+			r.clearDriveRetry(run.TestRunID)
+		}
 
 		return
 	}
 
-	r.log.Warn("active runner: retryable drive error", "test_run_id", run.TestRunID, "error", err)
-	r.touchWait(ctx, run)
+	if isRetryableReceiverStatus(err) && r.noteDispatchFailure(run, h) {
+		if r.writeHardFail(
+			ctx,
+			run.TestRunID,
+			validatorcore.ReasonActiveHardFailDispatch,
+			err,
+		) {
+			r.clearDriveRetry(run.TestRunID)
+		}
+
+		return
+	}
+
+	r.log.Warn(driveErrorLogMsg(err), "test_run_id", run.TestRunID, "error", err)
+}
+
+func driveErrorLogMsg(err error) string {
+	switch {
+	case isRetryableReceiverStatus(err):
+		return "active runner: retryable drive error"
+	default:
+		return "active runner: drive error"
+	}
 }
 
 func classifyHardFail(err error) (string, bool) {
+	var recv *outgoingshares.ReceiverStatusError
+
 	switch {
 	case errors.Is(err, validatorcore.ErrShareCorrelationConflict),
 		errors.Is(err, reverseinvite.ErrCorrelationMismatch):
@@ -49,12 +74,25 @@ func classifyHardFail(err error) (string, bool) {
 		return validatorcore.ReasonActiveHardFailIdentity, true
 	case errors.Is(err, outgoingshares.ErrDispatchRefused):
 		return validatorcore.ReasonActiveHardFailDispatch, true
+	case errors.As(err, &recv) && recv.PermanentRefuse():
+		return validatorcore.ReasonActiveHardFailDispatch, true
 	default:
 		return "", false
 	}
 }
 
-func (r *Runner) writeHardFail(ctx context.Context, testRunID, reason string, cause error) {
+func isRetryableReceiverStatus(err error) bool {
+	var recv *outgoingshares.ReceiverStatusError
+
+	return errors.As(err, &recv) && !recv.PermanentRefuse()
+}
+
+func (r *Runner) writeHardFail(
+	ctx context.Context,
+	testRunID string,
+	reason string,
+	cause error,
+) bool {
 	if failErr := r.store.ReleaseActiveHardFail(ctx, testRunID, reason); failErr != nil {
 		r.log.Warn(
 			"active runner: hard-fail write failed",
@@ -64,8 +102,10 @@ func (r *Runner) writeHardFail(ctx context.Context, testRunID, reason string, ca
 			"cause", cause,
 		)
 
-		return
+		return false
 	}
 
 	r.log.Warn("active runner: hard-failed run", "test_run_id", testRunID, "reason", reason, "error", cause)
+
+	return true
 }

@@ -201,6 +201,15 @@ func assertPromotedFollowUp(
 func assertLastPromotedID(t *testing.T, store *validatorcore.Core, want string) {
 	t.Helper()
 
+	ids := store.PendingPromoteIDs()
+	if want == "" {
+		if len(ids) != 0 {
+			t.Fatalf("PendingPromoteIDs = %v, want empty", ids)
+		}
+	} else if len(ids) != 1 || ids[0] != want {
+		t.Fatalf("PendingPromoteIDs = %v, want [%q]", ids, want)
+	}
+
 	if got := store.LastPromotedID(); got != want {
 		t.Fatalf("LastPromotedID = %q, want %q", got, want)
 	}

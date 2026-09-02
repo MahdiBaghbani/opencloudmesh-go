@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestFindOldestReadyOptInWaiter_OrdersOldestReady(t *testing.T) {
+func TestFindOldestReadyWaiterForTarget_OrdersOldestReady(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -24,19 +24,38 @@ func TestFindOldestReadyOptInWaiter_OrdersOldestReady(t *testing.T) {
 
 	seedReadyWaiter(t, core, "run-waiter-new", newer)
 	seedReadyWaiter(t, core, "run-waiter-old", older)
+	seedReadyWaiterOn(t, core, "run-waiter-other", "other.example", older-1)
 	seedPassiveRunningOptIn(t, core, "run-not-ready")
 
-	got, err := core.FindOldestReadyOptInWaiter(ctx)
+	got, err := core.FindOldestReadyWaiterForTarget(ctx, "waiter.example")
 	if err != nil {
-		t.Fatalf("FindOldestReadyOptInWaiter: %v", err)
+		t.Fatalf("FindOldestReadyWaiterForTarget: %v", err)
 	}
 
 	if got == nil || got.TestRunID != "run-waiter-old" {
 		t.Fatalf("oldest waiter = %v, want run-waiter-old", got)
 	}
+
+	other, err := core.FindOldestReadyWaiterForTarget(ctx, "other.example")
+	if err != nil {
+		t.Fatalf("FindOldestReadyWaiterForTarget other: %v", err)
+	}
+
+	if other == nil || other.TestRunID != "run-waiter-other" {
+		t.Fatalf("other waiter = %v, want run-waiter-other", other)
+	}
+
+	if _, err := core.FindOldestReadyWaiterForTarget(ctx, "missing.example"); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("missing host = %v, want ErrSessionNotFound", err)
+	}
+
+	if _, err := core.FindOldestReadyWaiterForTarget(ctx, ""); err == nil ||
+		err.Error() != "validatorcore: empty target host" {
+		t.Fatalf("empty host = %v, want empty target host", err)
+	}
 }
 
-func TestFindOneActive_DoesNotSeeReadyWaiter(t *testing.T) {
+func TestFindActiveByTarget_DoesNotSeeReadyWaiter(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -44,8 +63,17 @@ func TestFindOneActive_DoesNotSeeReadyWaiter(t *testing.T) {
 
 	seedReadyWaiter(t, core, "run-waiter-hidden", time.Now().Unix())
 
-	if _, err := core.FindOneActive(ctx, LocalIdentityA); !errors.Is(err, gorm.ErrRecordNotFound) {
-		t.Fatalf("FindOneActive = %v, want ErrRecordNotFound", err)
+	if _, err := core.FindActiveByTarget(ctx, "waiter.example"); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("FindActiveByTarget = %v, want ErrRecordNotFound", err)
+	}
+
+	rows, err := core.ListActive(ctx)
+	if err != nil {
+		t.Fatalf("ListActive: %v", err)
+	}
+
+	if len(rows) != 0 {
+		t.Fatalf("ListActive count = %d, want 0", len(rows))
 	}
 }
 
@@ -82,7 +110,7 @@ func TestPromoteOldestReadyWaiter_LeavesWaiterWhenBusy(t *testing.T) {
 		TestRunID:  "run-holder",
 		IsActive:   true,
 		State:      StateActiveRunning,
-		TargetHost: "lock.example",
+		TargetHost: "waiter.example",
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}).Error; err != nil {
@@ -205,7 +233,7 @@ func TestStartupMaintenance_PromotesReadyWaiterBeforePassiveTTL(t *testing.T) { 
 		TestRunID:  "run-startup-leftover",
 		IsActive:   true,
 		State:      StateActiveRunning,
-		TargetHost: "boot.example",
+		TargetHost: "waiter.example",
 		CreatedAt:  stale,
 		UpdatedAt:  stale,
 	}).Error; err != nil {
@@ -256,13 +284,54 @@ func TestStartupMaintenance_PromotesReadyWaiterBeforePassiveTTL(t *testing.T) { 
 	}
 }
 
+func TestPromoteOldestReadyWaiter_PromotesIndependentlyPerTarget(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	now := time.Now().Unix()
+
+	seedReadyWaiterOn(t, core, "run-promote-a", "alpha.example", now-20)
+	seedReadyWaiterOn(t, core, "run-promote-b", "beta.example", now-10)
+
+	if err := core.PromoteOldestReadyWaiter(ctx); err != nil {
+		t.Fatalf("PromoteOldestReadyWaiter: %v", err)
+	}
+
+	for _, id := range []string{"run-promote-a", "run-promote-b"} {
+		got, err := core.GetTestRun(ctx, id)
+		if err != nil {
+			t.Fatalf("GetTestRun %s: %v", id, err)
+		}
+
+		if !got.IsActive || got.State != StateActiveRunning {
+			t.Fatalf("%s is_active=%v state=%q, want active_running", id, got.IsActive, got.State)
+		}
+	}
+
+	ids := core.PendingPromoteIDs()
+	if len(ids) != 2 || ids[0] != "run-promote-a" || ids[1] != "run-promote-b" {
+		t.Fatalf("PendingPromoteIDs = %v, want [run-promote-a run-promote-b]", ids)
+	}
+
+	if core.LastPromotedID() != "run-promote-a" {
+		t.Fatalf("LastPromotedID = %q, want run-promote-a", core.LastPromotedID())
+	}
+}
+
 func seedReadyWaiter(t *testing.T, core *Core, runID string, readyAt int64) {
+	t.Helper()
+
+	seedReadyWaiterOn(t, core, runID, "waiter.example", readyAt)
+}
+
+func seedReadyWaiterOn(t *testing.T, core *Core, runID, host string, readyAt int64) {
 	t.Helper()
 
 	row := &TestRun{
 		TestRunID:      runID,
 		State:          StatePassiveRunning,
-		TargetHost:     "waiter.example",
+		TargetHost:     host,
 		OptInActive:    true,
 		PassiveReadyAt: &readyAt,
 		CreatedAt:      readyAt,

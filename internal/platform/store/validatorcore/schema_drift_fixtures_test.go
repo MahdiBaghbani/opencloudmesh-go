@@ -146,10 +146,28 @@ var versionOneShapeDrifts = []shapeDrift{
 		name: "missing partial predicate",
 		mutate: func(t *testing.T, db *gorm.DB) {
 			t.Helper()
-			mustExec(t, db, "DROP INDEX idx_test_run_one_active")
-			mustExec(t, db, "CREATE UNIQUE INDEX idx_test_run_one_active ON test_run (is_active)")
+			mustExec(t, db, "DROP INDEX idx_test_run_active_per_target")
+			mustExec(t, db, "CREATE UNIQUE INDEX idx_test_run_active_per_target ON test_run (target_host)")
 		},
-		wantErr: "index idx_test_run_one_active partial = false, want true",
+		wantErr: "index idx_test_run_active_per_target partial = false, want true",
+	},
+	{
+		name: "missing bob_user_id uniqueness",
+		mutate: func(t *testing.T, db *gorm.DB) {
+			t.Helper()
+			mustExec(t, db, "DROP INDEX idx_test_run_bob_user_id")
+			mustExec(t, db, "CREATE INDEX idx_test_run_bob_user_id ON test_run (bob_user_id) WHERE bob_user_id IS NOT NULL")
+		},
+		wantErr: "index idx_test_run_bob_user_id unique = false, want true",
+	},
+	{
+		name: "missing bob_user_id partial predicate",
+		mutate: func(t *testing.T, db *gorm.DB) {
+			t.Helper()
+			mustExec(t, db, "DROP INDEX idx_test_run_bob_user_id")
+			mustExec(t, db, "CREATE UNIQUE INDEX idx_test_run_bob_user_id ON test_run (bob_user_id)")
+		},
+		wantErr: "index idx_test_run_bob_user_id partial = false, want true",
 	},
 	{
 		name: "wrong partial predicate",

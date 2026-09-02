@@ -166,24 +166,24 @@ func TestRunner_KickWakesMint(t *testing.T) {
 	t.Fatal("kick did not mint the outgoing invite")
 }
 
-func TestRunner_PollMintsWithoutKick(t *testing.T) {
+func TestRunner_SupervisorMintsWithoutKick(t *testing.T) {
 	t.Parallel()
 
 	env := newRealInviteEnv(t)
-	runID := "run-poll-mint"
+	runID := "run-supervisor-mint"
 
 	env.seedActive(t, runID, validatorcore.StateActiveRunning)
 	env.bindBob(t, runID)
 
 	fast, err := runner.New(runner.Deps{
-		Store:         env.store,
-		Invites:       env.svc,
-		Parties:       env.parties,
-		LocalIdentity: testLocalIdentity(),
-		ProbeEmail:    testProbeEmail,
-		ProbeName:     testProbeName,
-		ProbeFilePath: createProbeFile(t),
-		PollInterval:  20 * time.Millisecond,
+		Store:               env.store,
+		Invites:             env.svc,
+		Parties:             env.parties,
+		LocalIdentity:       testLocalIdentity(),
+		ProbeEmail:          testProbeEmail,
+		ProbeName:           testProbeName,
+		ProbeFilePath:       createProbeFile(t),
+		ReapIntervalSeconds: 1,
 	})
 	if err != nil {
 		t.Fatalf("runner.New: %v", err)
@@ -208,7 +208,7 @@ func TestRunner_PollMintsWithoutKick(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	t.Fatal("poll did not mint the outgoing invite")
+	t.Fatal("supervisor did not mint the outgoing invite")
 }
 
 func TestRunner_NewRequiresDeps(t *testing.T) {
@@ -235,7 +235,7 @@ func TestRunner_ReverseShareWaitTimesOutAndFlipsLate(t *testing.T) {
 	stale := time.Now().Unix() - 2
 	env.ageUpdatedAt(t, runID, stale)
 
-	fast := env.startFastRunner(t, 20*time.Millisecond)
+	fast := env.startFastRunner(t, 1)
 	t.Cleanup(fast.Stop)
 
 	time.Sleep(100 * time.Millisecond)

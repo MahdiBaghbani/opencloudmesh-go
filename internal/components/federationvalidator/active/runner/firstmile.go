@@ -14,27 +14,47 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
-func (r *Runner) driveFirstMile(ctx context.Context, run *validatorcore.TestRun) {
+func (r *Runner) driveFirstMile(ctx context.Context, run *validatorcore.TestRun, h *sessionHandle) {
 	if err := r.ensureBob(ctx, run); err != nil {
-		r.handleDriveErr(ctx, run, err)
+		r.handleDriveErr(
+			ctx,
+			run,
+			err,
+			h,
+		)
 
 		return
 	}
 
 	if _, err := r.invites.MintOutgoingInvite(ctx, run.TestRunID); err != nil {
-		r.handleDriveErr(ctx, run, err)
+		r.handleDriveErr(
+			ctx,
+			run,
+			err,
+			h,
+		)
 	}
 }
 
-func (r *Runner) driveSolicit(ctx context.Context, run *validatorcore.TestRun) {
+func (r *Runner) driveSolicit(ctx context.Context, run *validatorcore.TestRun, h *sessionHandle) {
 	if err := r.ensureBob(ctx, run); err != nil {
-		r.handleDriveErr(ctx, run, err)
+		r.handleDriveErr(
+			ctx,
+			run,
+			err,
+			h,
+		)
 
 		return
 	}
 
 	if err := r.invites.SolicitReverse(ctx, run.TestRunID); err != nil {
-		r.handleDriveErr(ctx, run, err)
+		r.handleDriveErr(
+			ctx,
+			run,
+			err,
+			h,
+		)
 	}
 }
 

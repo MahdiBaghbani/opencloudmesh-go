@@ -9,14 +9,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"gorm.io/gorm"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federationvalidator/active/identitybind"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
@@ -65,8 +69,10 @@ func (s *Service) DecorateInviteAccepted(next http.HandlerFunc) http.HandlerFunc
 // observeAccepted advances invite_minted -> invite_accepted when the protocol
 // exchange matches the active run's bound outgoing invite exactly. Evidence
 // must persist before the run advances; a persist failure is returned so the
-// caller can surface it and a later request can retry. Mismatch or lookup
-// failures skip without disturbing the protocol response.
+// caller can surface it and a later request can retry. Mismatch and genuine
+// lookup misses skip without disturbing the protocol response. Unexpected
+// lookup errors are returned so the outer handler can log them; they still
+// do not change the protocol response.
 func (s *Service) observeAccepted(r *http.Request, reqBody []byte, status int, respBody []byte) error {
 	if status != http.StatusOK && status != http.StatusConflict {
 		return nil
@@ -83,8 +89,12 @@ func (s *Service) observeAccepted(r *http.Request, reqBody []byte, status int, r
 		return nil
 	}
 
-	match, ok := s.correlateAcceptedInvite(r.Context(), token)
-	if !ok {
+	match, err := s.correlateAcceptedInvite(r.Context(), token)
+	if err != nil {
+		return err
+	}
+
+	if match.run == nil {
 		return nil
 	}
 
@@ -162,41 +172,55 @@ type acceptedInviteMatch struct {
 	invite *invitesoutgoing.OutgoingInvite
 }
 
-// correlateAcceptedInvite loads the active run and the observed invite and
-// reports them only when the pointer, creator, and token match and the
-// accepted user and host fields are present. It does not bind identity or
-// pin designated_share_with.
-func (s *Service) correlateAcceptedInvite(ctx context.Context, token string) (acceptedInviteMatch, bool) {
+// correlateAcceptedInvite loads the observed invite and the run bound to
+// that outgoing invite and reports them only when the pointer, creator,
+// and token match and the accepted user and host fields are present. A
+// genuine lookup miss skips. Unexpected lookup errors are returned so
+// observeAccepted can surface them. Correlation mismatches skip without
+// an error. It does not bind identity or pin designated_share_with.
+func (s *Service) correlateAcceptedInvite(ctx context.Context, token string) (acceptedInviteMatch, error) {
 	var none acceptedInviteMatch
 
-	runID, err := s.deps.Store.FindOneActive(ctx, validatorcore.LocalIdentityA)
+	invite, err := s.deps.OutgoingInvites.GetByToken(ctx, token)
 	if err != nil {
-		return none, false
+		if errors.Is(err, invites.ErrTokenNotFound) {
+			return none, nil
+		}
+
+		return none, fmt.Errorf("reverseinvite: lookup outgoing invite: %w", err)
+	}
+
+	runID, err := s.deps.Store.FindRunByOutgoingInviteID(ctx, invite.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return none, nil
+		}
+
+		return none, fmt.Errorf("reverseinvite: lookup run by outgoing invite: %w", err)
 	}
 
 	run, err := s.deps.Store.GetTestRun(ctx, runID)
 	if err != nil {
-		return none, false
-	}
+		if errors.Is(err, validatorcore.ErrSessionNotFound) {
+			return none, nil
+		}
 
-	invite, err := s.deps.OutgoingInvites.GetByToken(ctx, token)
-	if err != nil {
-		return none, false
+		return none, fmt.Errorf("reverseinvite: load test run: %w", err)
 	}
 
 	if run.OutgoingInviteID == nil || *run.OutgoingInviteID != invite.ID {
-		return none, false
+		return none, nil
 	}
 
 	if invite.CreatedByUserID != run.TestRunID {
-		return none, false
+		return none, nil
 	}
 
 	if invite.AcceptedProviderFQDN == "" || invite.AcceptedUserID == "" {
-		return none, false
+		return none, nil
 	}
 
-	return acceptedInviteMatch{run: run, invite: invite}, true
+	return acceptedInviteMatch{run: run, invite: invite}, nil
 }
 
 // bindAcceptedIdentity compares the composed incoming accepter identity to

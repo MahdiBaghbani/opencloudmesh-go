@@ -45,7 +45,7 @@ var validatorTableContract = map[string][]columnContract{
 		{name: colIsActive, colType: colTypeInteger, notNull: true},
 		{name: colState, colType: colTypeText, notNull: true},
 		{name: "target_origin", colType: colTypeText, notNull: true},
-		{name: "target_host", colType: colTypeText, notNull: true},
+		{name: colTargetHost, colType: colTypeText, notNull: true},
 		{name: colRemoteOCMID, colType: colTypeText},
 		{name: "discovery_url", colType: colTypeText, notNull: true},
 		{name: "jwks_uri", colType: colTypeText},
@@ -270,9 +270,9 @@ type indexContract struct {
 // must carry. Inline UNIQUE column constraints are covered separately by
 // validatorUniqueColumns because SQLite materializes them as auto-indexes.
 var validatorIndexContract = []indexContract{
-	{name: "idx_test_run_one_active", table: tableTestRun, unique: true, columns: []string{colIsActive}, partial: "is_active = 1"},
+	{name: "idx_test_run_active_per_target", table: tableTestRun, unique: true, columns: []string{colTargetHost}, partial: "is_active = 1"},
 	{name: "idx_test_run_state", table: tableTestRun, columns: []string{colState}},
-	{name: "idx_test_run_bob_user_id", table: tableTestRun, columns: []string{"bob_user_id"}},
+	{name: "idx_test_run_bob_user_id", table: tableTestRun, unique: true, columns: []string{"bob_user_id"}, partial: "bob_user_id IS NOT NULL"},
 	{name: "idx_test_run_expires_at", table: tableTestRun, columns: []string{"expires_at"}},
 	{
 		name: "idx_test_run_stats_heal", table: tableTestRun,
@@ -281,7 +281,8 @@ var validatorIndexContract = []indexContract{
 	// idx_test_run_opt_in_active_ready is the lock-wait finder: partial on
 	// opted-in inactive passive_running rows. Unique on test_run_id is
 	// redundant with the PK (one waiter per run). Multiple ready waiters
-	// may coexist while idx_test_run_one_active owns the single active slot.
+	// may coexist while idx_test_run_active_per_target owns one active
+	// slot per target_host.
 	{
 		name: "idx_test_run_opt_in_active_ready", table: tableTestRun, unique: true,
 		columns: []string{colTestRunID},

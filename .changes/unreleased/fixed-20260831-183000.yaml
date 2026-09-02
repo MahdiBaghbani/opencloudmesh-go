@@ -1,0 +1,6 @@
+kind: fixed
+body: >-
+  Federation validator active sessions now run concurrently across
+  different target hosts, with one active session per target host
+  enforced by a partial unique index, so independent targets no
+  longer serialize behind a single global active slot

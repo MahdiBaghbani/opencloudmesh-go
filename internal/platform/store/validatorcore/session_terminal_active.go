@@ -14,12 +14,51 @@ import (
 
 // ActiveTerminalUpdate carries the terminal fields written on a first-write
 // terminal transition. OverallGrade may be nil (an interrupted run carries no
-// grade). finished_at and updated_at are stamped by WriteTerminal; session_kind
-// is never rewritten.
+// grade). finished_at and updated_at are stamped by WriteTerminal and
+// WriteTerminalObserved; session_kind is never rewritten.
 type ActiveTerminalUpdate struct {
 	State          string
 	TerminalReason string
 	OverallGrade   *string
+}
+
+// terminalObservedPredicates are the extra equality guards WriteTerminalObserved
+// adds to the shared terminal UPDATE. Both must match the row that was read.
+type terminalObservedPredicates struct {
+	state     string
+	updatedAt int64
+}
+
+// WriteTerminalObserved is the observed-snapshot first-write terminal writer.
+// It is WriteTerminal plus state = expectedState and
+// updated_at = expectedUpdatedAt on the same atomic UPDATE. The existing
+// test_run_id, active-status, and allowed non-terminal state guards stay
+// in place. A zero-row match returns ErrStateTransitionMiss so a stale
+// watchdog snapshot cannot terminalize after later progress.
+func (c *Core) WriteTerminalObserved(
+	ctx context.Context,
+	testRunID string,
+	requireActive bool,
+	expectedState string,
+	expectedUpdatedAt int64,
+	update ActiveTerminalUpdate,
+) error {
+	if err := validateActiveTerminalRelease([]string{expectedState}, update.State); err != nil {
+		return err
+	}
+
+	return c.writeTerminalGuardedObserved(
+		ctx,
+		testRunID,
+		requireActive,
+		terminalStateOpIn,
+		[]string{expectedState},
+		update,
+		&terminalObservedPredicates{
+			state:     expectedState,
+			updatedAt: expectedUpdatedAt,
+		},
+	)
 }
 
 // ActivePassExpectedStates returns the expected-state set for releasing a

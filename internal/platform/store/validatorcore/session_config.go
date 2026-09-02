@@ -29,9 +29,11 @@ type SessionConfig struct {
 	PassiveCompleteTTLSeconds int
 	TerminalRetentionDays     int
 
-	// StallTimeoutSeconds is the inactivity window for the one active run:
+	// StallTimeoutSeconds is the inactivity window for each active run:
 	// an active session whose updated_at is older than this window is
-	// interrupted by the stall sweep. Non-positive disables the sweep.
+	// interrupted by the stall sweep. The store keeps one active row per
+	// target_host; multiple target hosts may run concurrently. Non-positive
+	// disables the sweep.
 	StallTimeoutSeconds int
 
 	// ReverseShareTimeoutSeconds is the declared reverse-share wait budget.
