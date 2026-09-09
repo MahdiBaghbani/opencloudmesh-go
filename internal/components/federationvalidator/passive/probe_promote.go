@@ -36,15 +36,25 @@ func (p *ProbeRunner) promoteOrWait(ctx context.Context, testRunID string) error
 		return nil
 	}
 
-	if validatorcore.IsActiveSlotBusy(err) {
-		if stampErr := p.store.StampPassiveReadyAt(ctx, testRunID); stampErr != nil {
-			return fmt.Errorf("passive: stamp ready waiter: %w", stampErr)
-		}
-
-		return nil
+	if !validatorcore.IsTargetSlotBusy(err) {
+		return fmt.Errorf("passive: promote to active: %w", err)
 	}
 
-	return fmt.Errorf("passive: promote to active: %w", err)
+	run, getErr := p.store.GetTestRun(ctx, testRunID)
+	if getErr != nil {
+		return fmt.Errorf("passive: promote to active: %w", getErr)
+	}
+
+	_, findErr := p.store.FindActiveByTarget(ctx, run.TargetHost)
+	if findErr != nil {
+		return fmt.Errorf("passive: promote to active: %w", findErr)
+	}
+
+	if stampErr := p.store.StampPassiveReadyAt(ctx, testRunID); stampErr != nil {
+		return fmt.Errorf("passive: stamp ready waiter: %w", stampErr)
+	}
+
+	return nil
 }
 
 func (h *Handler) deliverPromoteFollowUp(ctx context.Context, testRunID string) bool {

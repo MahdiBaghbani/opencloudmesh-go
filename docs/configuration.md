@@ -93,6 +93,40 @@ mounts and stays public and rate-limited.
 Validator mode requires `outbound_http.ssrf.mode=strict`. Startup rejects
 any other value. See [outbound-http-ssrf.md](outbound-http-ssrf.md).
 
+### Validator session controls
+
+The `[validator.session]` section controls active validator sessions. These
+defaults apply when a key is absent:
+
+- `max_drive_idle_seconds` (default `1800`): Maximum idle window for a
+  session drive before it is eligible for reaping.
+- `reap_interval_seconds` (default `1`): Interval between reaper passes that
+  find idle sessions.
+- `session_limit` (default `16`): Maximum number of validator workers that
+  may run at once.
+- `max_dispatch_attempts` (default `5`): Maximum dispatch attempts for one
+  session operation.
+- `backoff_base_seconds` (default `1`): Initial delay used between retries.
+- `backoff_cap_seconds` (default `60`): Maximum delay used by retry backoff.
+
+Raw zero values are treated as absent and replaced by the documented default.
+Raw negative values are invalid and cause startup to fail. After defaulting,
+startup requires all of these rules:
+
+- `reap_interval_seconds <= max_drive_idle_seconds`
+- `0 < max_drive_idle_seconds < stall_timeout_seconds` (the idle window must
+  be shorter than the active-run stall timeout)
+- `1 <= session_limit <= 256`
+- `max_dispatch_attempts > 0`
+- `backoff_base_seconds > 0`
+- `backoff_cap_seconds >= backoff_base_seconds`
+
+`stall_timeout_seconds` has an existing default of `43200` seconds and defines
+the inactivity window for the active run. In validator mode, a non-positive
+TOML value reads as the `43200` default, so the stall sweep stays enabled. At
+the store level, a non-positive resolved value disables the sweep. This state
+is only reachable through in-memory configuration, not TOML.
+
 ## Example configs
 
 | Path | Use |

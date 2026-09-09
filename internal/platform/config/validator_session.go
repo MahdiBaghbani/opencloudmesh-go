@@ -6,6 +6,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
@@ -18,6 +20,12 @@ type ValidatorSessionConfig struct {
 	TerminalRetentionDays      int `toml:"terminal_retention_days"`
 	StallTimeoutSeconds        int `toml:"stall_timeout_seconds"`
 	ReverseShareTimeoutSeconds int `toml:"reverse_share_timeout_seconds"`
+	MaxDriveIdleSeconds        int `toml:"max_drive_idle_seconds"`
+	ReapIntervalSeconds        int `toml:"reap_interval_seconds"`
+	SessionLimit               int `toml:"session_limit"`
+	MaxDispatchAttempts        int `toml:"max_dispatch_attempts"`
+	BackoffBaseSeconds         int `toml:"backoff_base_seconds"`
+	BackoffCapSeconds          int `toml:"backoff_cap_seconds"`
 }
 
 // SessionConfigFromValidator returns validatorcore session limits from cfg.
@@ -56,6 +64,30 @@ func SessionConfigFromValidator(cfg *Config) validatorcore.SessionConfig {
 
 	if vs.ReverseShareTimeoutSeconds > 0 {
 		out.ReverseShareTimeoutSeconds = vs.ReverseShareTimeoutSeconds
+	}
+
+	if vs.MaxDriveIdleSeconds > 0 {
+		out.MaxDriveIdleSeconds = vs.MaxDriveIdleSeconds
+	}
+
+	if vs.ReapIntervalSeconds > 0 {
+		out.ReapIntervalSeconds = vs.ReapIntervalSeconds
+	}
+
+	if vs.SessionLimit > 0 {
+		out.SessionLimit = vs.SessionLimit
+	}
+
+	if vs.MaxDispatchAttempts > 0 {
+		out.MaxDispatchAttempts = vs.MaxDispatchAttempts
+	}
+
+	if vs.BackoffBaseSeconds > 0 {
+		out.BackoffBaseSeconds = vs.BackoffBaseSeconds
+	}
+
+	if vs.BackoffCapSeconds > 0 {
+		out.BackoffCapSeconds = vs.BackoffCapSeconds
 	}
 
 	return out
@@ -161,4 +193,82 @@ func overlayValidatorSessionConfig(cfg *Config, session *ValidatorSessionConfig)
 	if session.ReverseShareTimeoutSeconds > 0 {
 		cfg.Validator.Session.ReverseShareTimeoutSeconds = session.ReverseShareTimeoutSeconds
 	}
+
+	if session.MaxDriveIdleSeconds > 0 {
+		cfg.Validator.Session.MaxDriveIdleSeconds = session.MaxDriveIdleSeconds
+	}
+
+	if session.ReapIntervalSeconds > 0 {
+		cfg.Validator.Session.ReapIntervalSeconds = session.ReapIntervalSeconds
+	}
+
+	if session.SessionLimit > 0 {
+		cfg.Validator.Session.SessionLimit = session.SessionLimit
+	}
+
+	if session.MaxDispatchAttempts > 0 {
+		cfg.Validator.Session.MaxDispatchAttempts = session.MaxDispatchAttempts
+	}
+
+	if session.BackoffBaseSeconds > 0 {
+		cfg.Validator.Session.BackoffBaseSeconds = session.BackoffBaseSeconds
+	}
+
+	if session.BackoffCapSeconds > 0 {
+		cfg.Validator.Session.BackoffCapSeconds = session.BackoffCapSeconds
+	}
+}
+
+// rejectNegativeValidatorSessionConcurrency fails closed on raw negative
+// values for the six concurrency knobs. Zero means absent/default and is
+// left for overlay. Old session knobs keep their existing >0 overlay
+// semantics and are not checked here.
+func rejectNegativeValidatorSessionConcurrency(session *ValidatorSessionConfig) error {
+	if session == nil {
+		return nil
+	}
+
+	if session.MaxDriveIdleSeconds < 0 {
+		return fmt.Errorf(
+			"validator.session.max_drive_idle_seconds (%d) must not be negative",
+			session.MaxDriveIdleSeconds,
+		)
+	}
+
+	if session.ReapIntervalSeconds < 0 {
+		return fmt.Errorf(
+			"validator.session.reap_interval_seconds (%d) must not be negative",
+			session.ReapIntervalSeconds,
+		)
+	}
+
+	if session.SessionLimit < 0 {
+		return fmt.Errorf(
+			"validator.session.session_limit (%d) must not be negative",
+			session.SessionLimit,
+		)
+	}
+
+	if session.MaxDispatchAttempts < 0 {
+		return fmt.Errorf(
+			"validator.session.max_dispatch_attempts (%d) must not be negative",
+			session.MaxDispatchAttempts,
+		)
+	}
+
+	if session.BackoffBaseSeconds < 0 {
+		return fmt.Errorf(
+			"validator.session.backoff_base_seconds (%d) must not be negative",
+			session.BackoffBaseSeconds,
+		)
+	}
+
+	if session.BackoffCapSeconds < 0 {
+		return fmt.Errorf(
+			"validator.session.backoff_cap_seconds (%d) must not be negative",
+			session.BackoffCapSeconds,
+		)
+	}
+
+	return nil
 }

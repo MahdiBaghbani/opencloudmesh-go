@@ -203,7 +203,7 @@ func TestHandleClaimInvite_PollStaysTokenFreeWithPasteS1(t *testing.T) {
 	}
 
 	payload := decodeClaimJSON(t, rec)
-	assertExactKeys(t, payload, []string{"nextInstruction", "state", "ts"})
+	assertExactKeys(t, payload, []string{"nextInstruction", "optInActive", "state", "ts"})
 
 	var next string
 	if err := json.Unmarshal(payload["nextInstruction"], &next); err != nil {

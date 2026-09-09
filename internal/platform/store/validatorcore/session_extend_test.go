@@ -37,7 +37,7 @@ func TestExtendToActive_RequiresPassiveComplete(t *testing.T) {
 	}
 }
 
-func TestExtendToActive_ConflictsWithOneActiveLock(t *testing.T) {
+func TestExtendToActive_ConflictsWithTargetActiveLock(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
@@ -67,6 +67,52 @@ func TestExtendToActive_ConflictsWithOneActiveLock(t *testing.T) {
 	var storeErr *StoreError
 	if !errors.As(extendErr, &storeErr) || storeErr.Op != OpExtendUpdate {
 		t.Fatalf("second extend error = %v, want OpExtendUpdate store error", extendErr)
+	}
+}
+
+func TestExtendToActive_AllowsDifferentTargetHosts(t *testing.T) {
+	t.Parallel()
+
+	core := openTestCore(t)
+	ctx := t.Context()
+	now := time.Now().Unix()
+
+	for _, row := range []TestRun{
+		{
+			TestRunID:  "run-active-a",
+			State:      StatePassiveComplete,
+			TargetHost: "alpha.example",
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		},
+		{
+			TestRunID:  "run-active-b",
+			State:      StatePassiveComplete,
+			TargetHost: "beta.example",
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		},
+	} {
+		if err := core.DB().WithContext(ctx).Create(&row).Error; err != nil {
+			t.Fatalf("seed %s: %v", row.TestRunID, err)
+		}
+	}
+
+	if err := core.ExtendToActive(ctx, "run-active-a"); err != nil {
+		t.Fatalf("extend alpha: %v", err)
+	}
+
+	if err := core.ExtendToActive(ctx, "run-active-b"); err != nil {
+		t.Fatalf("extend beta: %v", err)
+	}
+
+	rows, err := core.ListActive(ctx)
+	if err != nil {
+		t.Fatalf("ListActive: %v", err)
+	}
+
+	if len(rows) != 2 {
+		t.Fatalf("ListActive count = %d, want 2", len(rows))
 	}
 }
 

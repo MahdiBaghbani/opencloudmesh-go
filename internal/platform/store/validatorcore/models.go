@@ -112,7 +112,7 @@ func NextInstructionForRun(row *TestRun) string {
 }
 
 // IsReadyOptInWaiter reports an opt-in session that finished the passive
-// probe, is still inactive, and is waiting for the one-active slot.
+// probe, is still inactive, and is waiting for that target's active slot.
 func IsReadyOptInWaiter(row *TestRun) bool {
 	if row == nil || !row.OptInActive || row.IsActive {
 		return false
@@ -122,7 +122,7 @@ func IsReadyOptInWaiter(row *TestRun) bool {
 }
 
 // SessionKindOf reports the statistics session kind implied by a test run.
-// Active-path runs (the one-active lock or a minted bob_user_id) are
+// Active-path runs (a per-target active lock or a minted bob_user_id) are
 // active_full; every other run is passive_only.
 func SessionKindOf(row *TestRun) string {
 	if row == nil {
@@ -169,12 +169,13 @@ type TestRun struct {
 	// idx_test_run_opt_in_active_ready is unique on this column with a
 	// partial predicate so every matching ready waiter is visible; one
 	// waiter per run is the PK, and multiple ready waiters may coexist
-	// while idx_test_run_one_active owns the single active slot.
+	// while idx_test_run_active_per_target owns one active slot per
+	// target_host.
 	TestRunID      string  `gorm:"column:test_run_id;primaryKey;uniqueIndex:idx_test_run_opt_in_active_ready,where:opt_in_active = 1 AND is_active = 0 AND state = 'passive_running'"`
-	IsActive       bool    `gorm:"column:is_active;not null;uniqueIndex:idx_test_run_one_active,where:is_active = 1"`
+	IsActive       bool    `gorm:"column:is_active;not null"`
 	State          string  `gorm:"column:state;not null;index:idx_test_run_state"`
 	TargetOrigin   string  `gorm:"column:target_origin;not null"`
-	TargetHost     string  `gorm:"column:target_host;not null"` // target authority from target discovery, not an operator alias
+	TargetHost     string  `gorm:"column:target_host;not null;uniqueIndex:idx_test_run_active_per_target,where:is_active = 1"` // target authority from target discovery, not an operator alias
 	RemoteOCMID    *string `gorm:"column:remote_ocm_id"`
 	DiscoveryURL   string  `gorm:"column:discovery_url;not null"`
 	JwksURI        string  `gorm:"column:jwks_uri"`
@@ -188,7 +189,7 @@ type TestRun struct {
 
 	// Reverse-plane, consent, and retention fields. Nullable until the
 	// corresponding lifecycle step records them.
-	BobUserID                   *string `gorm:"column:bob_user_id;index:idx_test_run_bob_user_id"`
+	BobUserID                   *string `gorm:"column:bob_user_id;uniqueIndex:idx_test_run_bob_user_id,where:bob_user_id IS NOT NULL"`
 	OutgoingInviteID            *string `gorm:"column:outgoing_invite_id;uniqueIndex:idx_test_run_outgoing_invite,where:outgoing_invite_id IS NOT NULL"`
 	S1ClaimedAt                 *int64  `gorm:"column:s1_claimed_at"`
 	ReverseInviteToken          *string `gorm:"column:reverse_invite_token"`

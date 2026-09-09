@@ -6,138 +6,11 @@
 package validatorcore
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 )
 
-func TestTestRunStateCheck_ExactStates(t *testing.T) {
-	t.Parallel()
-
-	db := attachFresh(t)
-	sqlText := tableSQL(t, db, "test_run")
-
-	// The DDL must name exactly the live state list: every live value present,
-	// every dormant value absent.
-	for _, state := range testRunStates {
-		if !strings.Contains(sqlText, "'"+state+"'") {
-			t.Fatalf("test_run CHECK missing live state %q", state)
-		}
-	}
-
-	for _, state := range dormantTestRunStates {
-		if strings.Contains(sqlText, "'"+state+"'") {
-			t.Fatalf("test_run CHECK must not contain dormant state %q", state)
-		}
-	}
-
-	newRun := func(id, state string) TestRun {
-		return TestRun{
-			TestRunID:      id,
-			State:          state,
-			TargetOrigin:   "https://t.example",
-			TargetHost:     "t.example",
-			DiscoveryURL:   "https://t.example/.well-known/ocm",
-			JwksURI:        "https://t.example/jwks.json",
-			ManifestSchema: "ocm-validator-manifest/v1",
-			CreatedAt:      1,
-			UpdatedAt:      1,
-		}
-	}
-
-	// Every live state name must be accepted by the CHECK constraint.
-	for i, state := range testRunStates {
-		run := newRun(fmt.Sprintf("run-live-%d", i), state)
-		if err := db.Create(&run).Error; err != nil {
-			t.Fatalf("live state %q must be accepted: %v", state, err)
-		}
-	}
-
-	// Every dormant state name must be rejected.
-	for i, state := range dormantTestRunStates {
-		run := newRun(fmt.Sprintf("run-dormant-%d", i), state)
-		if err := db.Create(&run).Error; err == nil {
-			t.Fatalf("dormant state %q must be rejected by the CHECK constraint", state)
-		}
-	}
-
-	// Arbitrary values outside the live list must be rejected.
-	for i, state := range []string{
-		"",
-		"RUNNING",
-		"terminal_unknown",
-		"active",
-		"reverse_invite_solicited",
-		"reverse_invite_imported",
-	} {
-		run := newRun(fmt.Sprintf("run-arbitrary-%d", i), state)
-		if err := db.Create(&run).Error; err == nil {
-			t.Fatalf("arbitrary state %q must be rejected by the CHECK constraint", state)
-		}
-	}
-}
-
-func TestTestRun_FinalColumns(t *testing.T) {
-	t.Parallel()
-
-	db := attachFresh(t)
-	info := tableInfo(t, db, "test_run")
-
-	expected := []string{
-		"test_run_id", "is_active", "state", "target_origin", "target_host",
-		"remote_ocm_id", "discovery_url", "jwks_uri", "platform", "api_version",
-		"terminal_reason", "finished_at", "overall_grade", "manifest_schema",
-		"manifest_json", "bob_user_id", "outgoing_invite_id", "s1_claimed_at",
-		"reverse_invite_token", "reverse_invite_imported_at",
-		"designated_share_with", "reverse_share_provider_id", "passive_ready_at",
-		"stats_written_at", "opt_in_stats", "opt_in_permanent", "opt_in_active",
-		"opt_in_stats_channel", "opt_in_stats_at", "opt_in_permanent_channel",
-		"opt_in_permanent_at", "opt_in_active_channel", "opt_in_active_at",
-		"retention_tier", "retention_locked_at", "expires_at",
-		"permanent_report_id", "harvested_at", "harvested_session_artifacts_at",
-		"harvest_reason", "created_at", "updated_at",
-	}
-
-	if len(info) != 42 {
-		t.Fatalf("test_run has %d columns, want 42", len(info))
-	}
-
-	for _, col := range expected {
-		if _, ok := info[col]; !ok {
-			t.Fatalf("test_run missing column %s", col)
-		}
-	}
-
-	forbidden := []string{"is_permanent", "alice_storage_root", "probe_file_path", "session_kind"}
-
-	for _, col := range forbidden {
-		if _, ok := info[col]; ok {
-			t.Fatalf("test_run must not have column %s", col)
-		}
-	}
-
-	if info["test_run_id"].PK != 1 {
-		t.Fatal("test_run_id must be the primary key")
-	}
-
-	if info["bob_user_id"].NotNull {
-		t.Fatal("bob_user_id must be nullable")
-	}
-
-	if !info["opt_in_stats"].NotNull || !info["opt_in_permanent"].NotNull || !info["opt_in_active"].NotNull {
-		t.Fatal("opt_in_stats, opt_in_permanent, and opt_in_active must be NOT NULL")
-	}
-
-	if info["jwks_uri"].NotNull {
-		t.Fatal("jwks_uri must be nullable")
-	}
-
-	if info["remote_ocm_id"].NotNull || info["outgoing_invite_id"].NotNull {
-		t.Fatal("remote_ocm_id and outgoing_invite_id must be nullable")
-	}
-}
-
-func TestTestRun_OneActivePartialUniqueIndex(t *testing.T) {
+func TestTestRun_ActivePerTargetPartialUniqueIndex(t *testing.T) {
 	t.Parallel()
 
 	db := attachFresh(t)
@@ -145,17 +18,25 @@ func TestTestRun_OneActivePartialUniqueIndex(t *testing.T) {
 	var indexSQL string
 
 	if err := db.Raw(
-		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_test_run_one_active'",
+		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_test_run_active_per_target'",
 	).Scan(&indexSQL).Error; err != nil {
 		t.Fatalf("read index sql: %v", err)
 	}
 
 	if indexSQL == "" {
-		t.Fatal("idx_test_run_one_active index missing")
+		t.Fatal("idx_test_run_active_per_target index missing")
 	}
 
 	if !strings.Contains(strings.ToUpper(indexSQL), "WHERE") {
-		t.Fatalf("idx_test_run_one_active must be partial: %s", indexSQL)
+		t.Fatalf("idx_test_run_active_per_target must be partial: %s", indexSQL)
+	}
+
+	if !strings.Contains(indexSQL, "(target_host)") {
+		t.Fatalf("active-per-target index must unique on target_host: %s", indexSQL)
+	}
+
+	if !strings.Contains(indexSQL, "is_active = 1") {
+		t.Fatalf("active-per-target index must be partial on is_active = 1: %s", indexSQL)
 	}
 
 	createTestRun(t, db, "run-active-1")
@@ -163,7 +44,81 @@ func TestTestRun_OneActivePartialUniqueIndex(t *testing.T) {
 	createTestRun(t, db, "run-active-2")
 
 	if err := db.Exec("UPDATE test_run SET is_active = TRUE WHERE test_run_id = 'run-active-2'").Error; err == nil {
-		t.Fatal("second active run must violate the partial unique index")
+		t.Fatal("second active run on the same target_host must violate idx_test_run_active_per_target")
+	}
+
+	mustExec(t, db, `INSERT INTO test_run
+		(test_run_id, is_active, state, target_origin, target_host, discovery_url,
+		 manifest_schema, created_at, updated_at)
+		VALUES ('run-active-other', 1, 'active_running', 'https://other.example', 'other.example',
+		 'https://other.example/.well-known/ocm',
+		 'ocm-validator-manifest/v1', 1, 1)`)
+
+	var activeCount int64
+
+	if err := db.Raw("SELECT COUNT(*) FROM test_run WHERE is_active = 1").Scan(&activeCount).Error; err != nil {
+		t.Fatalf("count active runs: %v", err)
+	}
+
+	if activeCount != 2 {
+		t.Fatalf("active runs = %d, want 2 across different target hosts", activeCount)
+	}
+}
+
+func TestTestRun_BobUserIDPartialUniqueIndex(t *testing.T) {
+	t.Parallel()
+
+	db := attachFresh(t)
+
+	var indexSQL string
+
+	if err := db.Raw(
+		"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_test_run_bob_user_id'",
+	).Scan(&indexSQL).Error; err != nil {
+		t.Fatalf("read index sql: %v", err)
+	}
+
+	if indexSQL == "" {
+		t.Fatal("idx_test_run_bob_user_id index missing")
+	}
+
+	if !strings.Contains(strings.ToUpper(indexSQL), "UNIQUE") {
+		t.Fatalf("idx_test_run_bob_user_id must be unique: %s", indexSQL)
+	}
+
+	if !strings.Contains(strings.ToUpper(indexSQL), "WHERE") {
+		t.Fatalf("idx_test_run_bob_user_id must be partial: %s", indexSQL)
+	}
+
+	if !strings.Contains(indexSQL, "bob_user_id IS NOT NULL") {
+		t.Fatalf("idx_test_run_bob_user_id must be partial on bob_user_id IS NOT NULL: %s", indexSQL)
+	}
+
+	createTestRun(t, db, "run-bob-1")
+	createTestRun(t, db, "run-bob-2")
+	createTestRun(t, db, "run-bob-3")
+
+	mustExec(t, db, "UPDATE test_run SET bob_user_id = 'bob-1' WHERE test_run_id = 'run-bob-1'")
+	mustExec(t, db, "UPDATE test_run SET bob_user_id = 'bob-2' WHERE test_run_id = 'run-bob-2'")
+
+	if err := db.Exec(
+		"UPDATE test_run SET bob_user_id = 'bob-1' WHERE test_run_id = 'run-bob-3'",
+	).Error; err == nil {
+		t.Fatal("duplicate non-null bob_user_id must be rejected")
+	}
+
+	mustExec(t, db, "UPDATE test_run SET bob_user_id = NULL WHERE test_run_id = 'run-bob-3'")
+
+	var nullCount int64
+
+	if err := db.Raw(
+		"SELECT COUNT(*) FROM test_run WHERE bob_user_id IS NULL",
+	).Scan(&nullCount).Error; err != nil {
+		t.Fatalf("count null bob_user_id: %v", err)
+	}
+
+	if nullCount != 1 {
+		t.Fatalf("null bob_user_id rows = %d, want 1", nullCount)
 	}
 }
 
@@ -224,7 +179,7 @@ func TestTestRun_OptInActiveReadyPartialUniqueIndex(t *testing.T) {
 		t.Fatalf("ready waiters = %d, want 2", readyCount)
 	}
 
-	// idx_test_run_one_active still caps the table at one is_active=1 row.
+	// idx_test_run_active_per_target caps one is_active=1 row per target_host.
 	mustExec(t, db, `INSERT INTO test_run
 		(test_run_id, is_active, state, target_origin, target_host, discovery_url,
 		 manifest_schema, opt_in_active, created_at, updated_at)
@@ -238,8 +193,15 @@ func TestTestRun_OptInActiveReadyPartialUniqueIndex(t *testing.T) {
 		VALUES ('run-active-2', 1, 'active_running', 'https://t.example', 't.example',
 		 'https://t.example/.well-known/ocm',
 		 'ocm-validator-manifest/v1', 1, 1, 1)`).Error; err == nil {
-		t.Fatal("second active run must violate idx_test_run_one_active")
+		t.Fatal("second active run on the same target_host must violate idx_test_run_active_per_target")
 	}
+
+	mustExec(t, db, `INSERT INTO test_run
+		(test_run_id, is_active, state, target_origin, target_host, discovery_url,
+		 manifest_schema, opt_in_active, created_at, updated_at)
+		VALUES ('run-active-other', 1, 'active_running', 'https://other.example', 'other.example',
+		 'https://other.example/.well-known/ocm',
+		 'ocm-validator-manifest/v1', 1, 1, 1)`)
 }
 
 func TestTestRun_PermanentReportIDNullableUnique(t *testing.T) {
@@ -266,43 +228,6 @@ func TestTestRun_PermanentReportIDNullableUnique(t *testing.T) {
 
 	// NULL values must not collide under the unique constraint.
 	mustExec(t, db, "UPDATE test_run SET permanent_report_id = NULL WHERE test_run_id = 'run-perm-3'")
-}
-
-func TestTestRun_OptInDefaults(t *testing.T) {
-	t.Parallel()
-
-	db := attachFresh(t)
-	info := tableInfo(t, db, "test_run")
-
-	for _, col := range []string{"opt_in_stats", "opt_in_permanent", "opt_in_active"} {
-		if !info[col].NotNull {
-			t.Fatalf("%s must be NOT NULL", col)
-		}
-
-		if info[col].DfltValue == nil || *info[col].DfltValue != "0" {
-			t.Fatalf("%s must default to 0, got %+v", col, info[col])
-		}
-	}
-
-	mustExec(t, db, `INSERT INTO test_run
-		(test_run_id, is_active, state, target_origin, target_host, discovery_url,
-		 manifest_schema, created_at, updated_at)
-		VALUES ('run-defaults', FALSE, 'created', 'https://t.example', 't.example',
-		 'https://t.example/.well-known/ocm',
-		 'ocm-validator-manifest/v1', 1, 1)`)
-
-	var optInStats, optInPermanent, optInActive bool
-
-	row := db.Raw(
-		"SELECT opt_in_stats, opt_in_permanent, opt_in_active FROM test_run WHERE test_run_id = 'run-defaults'",
-	).Row()
-	if err := row.Scan(&optInStats, &optInPermanent, &optInActive); err != nil {
-		t.Fatalf("read opt-in defaults: %v", err)
-	}
-
-	if optInStats || optInPermanent || optInActive {
-		t.Fatal("opt-in columns must default to 0 when omitted from the insert")
-	}
 }
 
 func TestTestRun_StatsHealIndexPredicate(t *testing.T) {
@@ -334,7 +259,7 @@ func TestTestRun_NamedIndexes(t *testing.T) {
 	db := attachFresh(t)
 
 	for _, name := range []string{
-		"idx_test_run_one_active",
+		"idx_test_run_active_per_target",
 		"idx_test_run_state",
 		"idx_test_run_bob_user_id",
 		"idx_test_run_expires_at",

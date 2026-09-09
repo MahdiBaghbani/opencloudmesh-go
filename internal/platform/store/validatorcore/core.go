@@ -32,7 +32,7 @@ type Core struct {
 	// waiter is selected and before ExtendToActive CASes it.
 	// Production leaves it nil.
 	promoteAfterSelectHook func(testRunID string)
-	// promoteMu guards lastPromotedID and promoteFollowUp. Startup
+	// promoteMu guards pendingPromoteIDs and promoteFollowUp. Startup
 	// promotion, probe promotion, and a late reverse-receiver bind
 	// all touch that pending follow-up state.
 	promoteMu sync.Mutex
@@ -42,15 +42,18 @@ type Core struct {
 	// id can be consumed. False defers until the next flush. Nil is a
 	// no-op so Attach can promote before the handler exists.
 	promoteFollowUp func(ctx context.Context, testRunID string) bool
-	// lastPromotedID is the test_run_id last promoted by a CAS
-	// winner that still needs follow-up. Cleared after a successful
-	// delivery. Empty means none is pending.
-	lastPromotedID string
+	// pendingPromoteIDs holds test_run_id values promoted by a CAS
+	// winner that still need follow-up. Each delivered id is removed.
+	// Empty means none is pending.
+	pendingPromoteIDs map[string]struct{}
 }
 
 // NewCore wraps an existing GORM DB handle for validator persistence.
 func NewCore(db *gorm.DB) *Core {
-	return &Core{db: db}
+	return &Core{
+		db:                db,
+		pendingPromoteIDs: map[string]struct{}{},
+	}
 }
 
 // DB exposes the underlying GORM handle for tests.

@@ -251,9 +251,9 @@ func (e *testEnv) receiverHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-// seedActiveRun creates the singleton active run in the given state with the
-// designated recipient pinned, and binds the session's dispatching party as
-// the current user: its local user ID is the run ID.
+// seedActiveRun creates one active run for this env's target host in the
+// given state with the designated recipient pinned, and binds the session's
+// dispatching party as the current user: its local user ID is the run ID.
 func (e *testEnv) seedActiveRun(t *testing.T, runID, state string) {
 	t.Helper()
 

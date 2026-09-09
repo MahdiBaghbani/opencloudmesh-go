@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 
-	"gorm.io/gorm"
-
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
@@ -60,13 +58,13 @@ func (s *Service) observeCapabilityExercise(
 		return nil
 	}
 
-	runID, err := s.deps.Store.FindOneActive(ctx, validatorcore.LocalIdentityA)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil
+	runID, err := s.findActiveRunByProvider(ctx, share.ProviderID)
+	if err != nil {
+		return err
 	}
 
-	if err != nil {
-		return fmt.Errorf("reverseshare: find active run: %w", err)
+	if runID == "" {
+		return nil
 	}
 
 	reservation, err := s.deps.Store.GetDispatchReservation(ctx, runID)

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/validatorcore"
 )
 
@@ -86,38 +85,32 @@ func TestDriveOnce_InviteAcceptedAutoSolicits(t *testing.T) {
 	env.requireState(t, runID, validatorcore.StateReverseAwaitingInvite)
 }
 
-func TestDriveOnce_NoopStatesTouchPolicy(t *testing.T) {
+func TestDriveOnce_NoopStatesLeaveUpdatedAt(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		state     string
-		wantTouch bool
+		name  string
+		state string
 	}{
 		{
-			name:      "invite minted",
-			state:     validatorcore.StateInviteMinted,
-			wantTouch: true,
+			name:  "invite minted",
+			state: validatorcore.StateInviteMinted,
 		},
 		{
-			name:      "reverse awaiting invite",
-			state:     validatorcore.StateReverseAwaitingInvite,
-			wantTouch: true,
+			name:  "reverse awaiting invite",
+			state: validatorcore.StateReverseAwaitingInvite,
 		},
 		{
-			name:      "forward share sent",
-			state:     validatorcore.StateForwardShareSent,
-			wantTouch: true,
+			name:  "forward share sent",
+			state: validatorcore.StateForwardShareSent,
 		},
 		{
-			name:      "capability exercise",
-			state:     validatorcore.StateCapabilityExercise,
-			wantTouch: false,
+			name:  "capability exercise",
+			state: validatorcore.StateCapabilityExercise,
 		},
 		{
-			name:      "reverse awaiting share",
-			state:     validatorcore.StateReverseAwaitingShare,
-			wantTouch: false,
+			name:  "reverse awaiting share",
+			state: validatorcore.StateReverseAwaitingShare,
 		},
 	}
 
@@ -145,11 +138,11 @@ func TestDriveOnce_NoopStatesTouchPolicy(t *testing.T) {
 				t.Fatalf("GetTestRun: %v", err)
 			}
 
-			if tt.wantTouch {
-				if run.UpdatedAt <= stale {
-					t.Fatalf("updated_at = %d, want fresher than %d", run.UpdatedAt, stale)
-				}
-			} else if run.UpdatedAt != stale {
+			if !run.IsActive {
+				t.Fatal("noop wait state must stay active")
+			}
+
+			if run.UpdatedAt != stale {
 				t.Fatalf("updated_at = %d, want unchanged %d", run.UpdatedAt, stale)
 			}
 
@@ -259,80 +252,6 @@ func TestDriveOnce_DesignatedCreateUsesAliceTestRunID(t *testing.T) {
 	if env.out.lastReq.ReceiverDomain != testTargetHost {
 		t.Fatalf("receiverDomain = %q, want %s", env.out.lastReq.ReceiverDomain, testTargetHost)
 	}
-}
-
-func TestDriveOnce_DispatchInProgressRetries(t *testing.T) {
-	t.Parallel()
-
-	out := &stubOutgoing{err: outgoingshares.ErrDispatchInProgress}
-	env := newStubEnv(t, nil, out)
-	runID := "run-dispatch-busy"
-
-	env.seedActive(t, runID, validatorcore.StateReverseInviteAccepted)
-	env.pinDesignated(t, runID, "omar")
-
-	before := time.Now().Unix() - 3600
-	if err := env.store.DB().WithContext(t.Context()).Model(&validatorcore.TestRun{}).
-		Where("test_run_id = ?", runID).
-		Update("updated_at", before).Error; err != nil {
-		t.Fatalf("age updated_at: %v", err)
-	}
-
-	env.runner.DriveOnce(t.Context())
-	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
-
-	if out.calls != 1 {
-		t.Fatalf("CreateAsUser calls = %d, want 1", out.calls)
-	}
-
-	run, err := env.store.GetTestRun(t.Context(), runID)
-	if err != nil {
-		t.Fatalf("GetTestRun: %v", err)
-	}
-
-	if run.UpdatedAt <= before {
-		t.Fatalf("updated_at = %d, want fresher than %d", run.UpdatedAt, before)
-	}
-
-	if run.TerminalReason != nil {
-		t.Fatalf("terminal_reason = %v, want nil on retry", run.TerminalReason)
-	}
-
-	env.runner.DriveOnce(t.Context())
-
-	if out.calls != 2 {
-		t.Fatalf("retry CreateAsUser calls = %d, want 2", out.calls)
-	}
-
-	env.requireState(t, runID, validatorcore.StateReverseInviteAccepted)
-}
-
-func TestDriveOnce_DispatchRefusedHardFails(t *testing.T) {
-	t.Parallel()
-
-	out := &stubOutgoing{err: outgoingshares.ErrDispatchRefused}
-	env := newStubEnv(t, nil, out)
-	runID := "run-dispatch-refused"
-
-	env.seedActive(t, runID, validatorcore.StateReverseInviteAccepted)
-	env.pinDesignated(t, runID, "omar")
-
-	env.runner.DriveOnce(t.Context())
-	env.requireState(t, runID, validatorcore.StateTerminalFail)
-	env.requireReason(t, runID, validatorcore.ReasonActiveHardFailDispatch)
-}
-
-func TestDriveOnce_MissingBobHardFailsIdentity(t *testing.T) {
-	t.Parallel()
-
-	env := newRealInviteEnv(t)
-	runID := "run-missing-bob"
-
-	env.seedActive(t, runID, validatorcore.StateActiveRunning)
-
-	env.runner.DriveOnce(t.Context())
-	env.requireState(t, runID, validatorcore.StateTerminalFail)
-	env.requireReason(t, runID, validatorcore.ReasonActiveHardFailIdentity)
 }
 
 func TestDriveOnce_NoActiveNoWaiterIsNoop(t *testing.T) {

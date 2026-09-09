@@ -111,6 +111,7 @@ type startCreateResponse struct {
 type sessionPollResponse struct {
 	State           string `json:"state"`
 	Ts              int64  `json:"ts"`
+	OptInActive     bool   `json:"optInActive"`
 	NextInstruction string `json:"nextInstruction,omitempty"`
 	FailModeLabel   string `json:"failModeLabel,omitempty"`
 }
@@ -246,6 +247,7 @@ func (h *Handler) HandleSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, h.log, http.StatusOK, sessionPollResponse{
 		State:           row.State,
 		Ts:              row.UpdatedAt,
+		OptInActive:     row.OptInActive,
 		NextInstruction: validatorcore.NextInstructionForRun(row),
 		FailModeLabel:   validatorcore.TerminalReasonLabel(row.State, terminalReasonOf(row)),
 	})
@@ -356,8 +358,31 @@ func (h *Handler) promoteReadyWaiter(ctx context.Context, testRunID string) erro
 		return nil
 	}
 
-	err := h.store.ExtendToActive(ctx, testRunID)
-	if err == nil || validatorcore.IsActiveSlotBusy(err) {
+	casWon, err := h.store.ExtendToActiveCAS(ctx, testRunID)
+	if err == nil {
+		if casWon {
+			h.store.RememberPendingPromote(testRunID)
+			h.store.FlushPromoteFollowUp(ctx)
+		}
+
+		return nil
+	}
+
+	if validatorcore.IsTargetSlotBusy(err) {
+		run, getErr := h.store.GetTestRun(ctx, testRunID)
+		if getErr != nil {
+			return fmt.Errorf("passive: promote ready waiter: %w", getErr)
+		}
+
+		_, findErr := h.store.FindActiveByTarget(ctx, run.TargetHost)
+		if findErr != nil {
+			return fmt.Errorf("passive: promote ready waiter: %w", findErr)
+		}
+
+		if stampErr := h.store.StampPassiveReadyAt(ctx, testRunID); stampErr != nil {
+			return fmt.Errorf("passive: stamp ready waiter: %w", stampErr)
+		}
+
 		return nil
 	}
 

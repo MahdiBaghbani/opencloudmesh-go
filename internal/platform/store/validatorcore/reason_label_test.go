@@ -125,6 +125,17 @@ func TestTerminalReasonLabel(t *testing.T) {
 			want:   "Forward share commit stalled",
 		},
 		{
+			name:   "active drive timed out",
+			state:  StateInterrupted,
+			reason: ReasonActiveDriveTimeout,
+			want:   "Active drive timed out",
+		},
+		{
+			name:   "unpaired active drive timeout on terminal fail",
+			state:  StateTerminalFail,
+			reason: ReasonActiveDriveTimeout,
+		},
+		{
 			name:   "run stopped",
 			state:  StateTerminalPass,
 			reason: ReasonStopped,

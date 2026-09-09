@@ -13,6 +13,12 @@ const (
 	defaultTerminalRetentionDays      = 30
 	defaultStallTimeoutSeconds        = 43200
 	defaultReverseShareTimeoutSeconds = 43200
+	defaultMaxDriveIdleSeconds        = 1800
+	defaultReapIntervalSeconds        = 1
+	defaultSessionLimit               = 16
+	defaultMaxDispatchAttempts        = 5
+	defaultBackoffBaseSeconds         = 1
+	defaultBackoffCapSeconds          = 60
 )
 
 // SessionConfig holds federation validator session limits and TTL knobs.
@@ -23,9 +29,11 @@ type SessionConfig struct {
 	PassiveCompleteTTLSeconds int
 	TerminalRetentionDays     int
 
-	// StallTimeoutSeconds is the inactivity window for the one active run:
+	// StallTimeoutSeconds is the inactivity window for each active run:
 	// an active session whose updated_at is older than this window is
-	// interrupted by the stall sweep. Non-positive disables the sweep.
+	// interrupted by the stall sweep. The store keeps one active row per
+	// target_host; multiple target hosts may run concurrently. Non-positive
+	// disables the sweep.
 	StallTimeoutSeconds int
 
 	// ReverseShareTimeoutSeconds is the declared reverse-share wait budget.
@@ -33,6 +41,29 @@ type SessionConfig struct {
 	// so it must never exceed StallTimeoutSeconds; config load fails closed
 	// when it does. Non-positive values fall back to the default.
 	ReverseShareTimeoutSeconds int
+
+	// MaxDriveIdleSeconds is the drive idle window. Default 1800; must
+	// satisfy 0 < max_drive_idle < stall_timeout_seconds.
+	MaxDriveIdleSeconds int
+
+	// ReapIntervalSeconds is the reaper cadence. Default 1; must
+	// satisfy reap_interval <= max_drive_idle_seconds.
+	ReapIntervalSeconds int
+
+	// SessionLimit is the driving worker cap. Default 16; must satisfy
+	// 1 <= session_limit <= 256.
+	SessionLimit int
+
+	// MaxDispatchAttempts is the dispatch attempt cap. Default 5; must
+	// be > 0.
+	MaxDispatchAttempts int
+
+	// BackoffBaseSeconds is the backoff base. Default 1; must be > 0.
+	BackoffBaseSeconds int
+
+	// BackoffCapSeconds is the backoff cap. Default 60; must satisfy
+	// backoff_cap >= backoff_base_seconds.
+	BackoffCapSeconds int
 }
 
 // DefaultSessionConfig returns production-safe session defaults.
@@ -45,5 +76,11 @@ func DefaultSessionConfig() SessionConfig {
 		TerminalRetentionDays:      defaultTerminalRetentionDays,
 		StallTimeoutSeconds:        defaultStallTimeoutSeconds,
 		ReverseShareTimeoutSeconds: defaultReverseShareTimeoutSeconds,
+		MaxDriveIdleSeconds:        defaultMaxDriveIdleSeconds,
+		ReapIntervalSeconds:        defaultReapIntervalSeconds,
+		SessionLimit:               defaultSessionLimit,
+		MaxDispatchAttempts:        defaultMaxDispatchAttempts,
+		BackoffBaseSeconds:         defaultBackoffBaseSeconds,
+		BackoffCapSeconds:          defaultBackoffCapSeconds,
 	}
 }

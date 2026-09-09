@@ -143,10 +143,10 @@ func TestGuard_RefusesNonDesignatedPath(t *testing.T) {
 	}
 }
 
-// An unbound admin submitting the exact designated triple is still refused:
-// only the session's own dispatching party may dispatch while its run is
-// active, and refusal happens before any persistence or outbound call.
-func TestGuard_RefusesUnboundSuperadmin(t *testing.T) {
+// An unbound admin is keyed by its own user ID, not the run ID. GuardCreate
+// looks up GetTestRun(userID) only and does not fall back to an arbitrary
+// active row, so a miss takes the generic outgoing path.
+func TestGuard_UnboundSuperadminUsesGenericPath(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, true)
@@ -155,14 +155,22 @@ func TestGuard_RefusesUnboundSuperadmin(t *testing.T) {
 	env.user.Store(&identity.User{ID: "user-root", Username: "root", Role: "admin"})
 
 	w := env.doCreate(t, env.designatedBody())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
 
-	requireRefused(t, env, w.Code, "run-guard-admin")
+	if got := env.postCount.Load(); got != 1 {
+		t.Fatalf("outbound POSTs = %d, want 1", got)
+	}
+
+	requireNoReservation(t, env, "run-guard-admin")
+	env.requireState(t, "run-guard-admin", validatorcore.StateReverseInviteAccepted)
 }
 
-// An unbound user cannot replay an existing reservation either: after the
-// designated party dispatched, the same request from another user is refused
-// without a second remote share.
-func TestGuard_RefusesUnboundReplay(t *testing.T) {
+// After the designated party dispatched, another user ID is still a miss:
+// there is no fallback onto the live run, so the replay takes the generic
+// path and leaves the run's reservation untouched.
+func TestGuard_UnboundReplayUsesGenericPath(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, true)
@@ -176,39 +184,46 @@ func TestGuard_RefusesUnboundReplay(t *testing.T) {
 	env.user.Store(&identity.User{ID: "user-intruder", Username: "intruder"})
 
 	w = env.doCreate(t, env.designatedBody())
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("replay status = %d, want 403: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("replay status = %d, want 201: %s", w.Code, w.Body.String())
 	}
 
-	if got := env.postCount.Load(); got != 1 {
-		t.Fatalf("outbound POSTs = %d, want 1", got)
+	if got := env.postCount.Load(); got != 2 {
+		t.Fatalf("outbound POSTs = %d, want 2", got)
 	}
 
-	if got := len(env.listShares(t)); got != 1 {
-		t.Fatalf("stored shares = %d, want 1", got)
+	if got := len(env.listShares(t)); got != 2 {
+		t.Fatalf("stored shares = %d, want 2", got)
 	}
 
-	// The refusal left the designated dispatch's reservation untouched.
 	reservation := env.requireReservation(t, "run-guard-replay")
 	if reservation.Status != validatorcore.DispatchStatusCASCommitted {
 		t.Fatalf("reservation status = %q, want %q", reservation.Status, validatorcore.DispatchStatusCASCommitted)
 	}
 }
 
-func TestGuard_RefusesBoundRecipient(t *testing.T) {
+func TestGuard_BoundRecipientUsesGenericPath(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, true)
 	env.seedActiveRun(t, "run-guard-bob", validatorcore.StateReverseInviteAccepted)
 
-	// The bound recipient is refused even when asking for the designated
-	// dispatch identity.
+	// Bob is keyed by bob_user_id, not the run ID, so GuardCreate misses
+	// and the generic outgoing path proceeds.
 	bob := env.bindRecipient(t, "run-guard-bob")
 	env.user.Store(bob)
 
 	w := env.doCreate(t, env.designatedBody())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
 
-	requireRefused(t, env, w.Code, "run-guard-bob")
+	if got := env.postCount.Load(); got != 1 {
+		t.Fatalf("outbound POSTs = %d, want 1", got)
+	}
+
+	requireNoReservation(t, env, "run-guard-bob")
+	env.requireState(t, "run-guard-bob", validatorcore.StateReverseInviteAccepted)
 }
 
 func TestGuard_RefusesWhenRunNotAwaitingDispatch(t *testing.T) {

@@ -76,6 +76,66 @@ func validateValidatorSessionWindows(cfg *Config) error {
 	return nil
 }
 
+// validateValidatorSessionConcurrency fails closed on resolved
+// concurrency-knob invariants. Effective values come from
+// SessionConfigFromValidator, so an absent or non-positive knob reads as
+// its default here. Raw negatives are rejected before overlay and never
+// reach this check.
+func validateValidatorSessionConcurrency(cfg *Config) error {
+	if !IsValidatorMode(cfg) {
+		return nil
+	}
+
+	session := SessionConfigFromValidator(cfg)
+
+	if session.ReapIntervalSeconds > session.MaxDriveIdleSeconds {
+		return fmt.Errorf(
+			"validator.session.reap_interval_seconds (%d) must not exceed validator.session.max_drive_idle_seconds (%d)",
+			session.ReapIntervalSeconds,
+			session.MaxDriveIdleSeconds,
+		)
+	}
+
+	if session.MaxDriveIdleSeconds <= 0 || session.MaxDriveIdleSeconds >= session.StallTimeoutSeconds {
+		return fmt.Errorf(
+			"validator.session.max_drive_idle_seconds (%d) must be greater than 0 and less than validator.session.stall_timeout_seconds (%d)",
+			session.MaxDriveIdleSeconds,
+			session.StallTimeoutSeconds,
+		)
+	}
+
+	if session.SessionLimit < 1 || session.SessionLimit > 256 {
+		return fmt.Errorf(
+			"validator.session.session_limit (%d) must be between 1 and 256",
+			session.SessionLimit,
+		)
+	}
+
+	if session.MaxDispatchAttempts <= 0 {
+		return fmt.Errorf(
+			"validator.session.max_dispatch_attempts (%d) must be greater than 0",
+			session.MaxDispatchAttempts,
+		)
+	}
+
+	if session.BackoffBaseSeconds <= 0 {
+		return fmt.Errorf(
+			"validator.session.backoff_base_seconds (%d) must be greater than 0",
+			session.BackoffBaseSeconds,
+		)
+	}
+
+	if session.BackoffCapSeconds < session.BackoffBaseSeconds {
+		return fmt.Errorf(
+			"validator.session.backoff_cap_seconds (%d) must be greater than or equal to validator.session.backoff_base_seconds (%d)",
+			session.BackoffCapSeconds,
+			session.BackoffBaseSeconds,
+		)
+	}
+
+	return nil
+}
+
 func validateValidatorScanPublicRatelimit(cfg *Config) error {
 	if !IsValidatorMode(cfg) {
 		return nil

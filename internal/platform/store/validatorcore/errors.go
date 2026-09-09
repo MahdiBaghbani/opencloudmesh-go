@@ -119,8 +119,8 @@ func (e *StoreError) Unwrap() error {
 	return e.Err
 }
 
-// IsActiveSlotBusy reports a one-active unique-index conflict on promote.
-func IsActiveSlotBusy(err error) bool {
+// IsTargetSlotBusy reports a per-target unique-index conflict on promote.
+func IsTargetSlotBusy(err error) bool {
 	var storeErr *StoreError
 
 	return errors.As(err, &storeErr) && storeErr.Op == OpExtendUpdate
@@ -141,6 +141,7 @@ const (
 	colOutgoingInviteID = "outgoing_invite_id"
 	colRemoteOCMID      = "remote_ocm_id"
 	colS1ClaimedAt      = "s1_claimed_at"
+	colTargetHost       = "target_host"
 	colOptInActive      = "opt_in_active"
 	colOptInPermanent   = "opt_in_permanent"
 	colOptInStats       = "opt_in_stats"

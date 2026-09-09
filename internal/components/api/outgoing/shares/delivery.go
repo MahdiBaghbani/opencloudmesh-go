@@ -19,6 +19,46 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
+// ReceiverStatusError is a receiver response that is not an accepted
+// success (HTTP 200 or 201). Callers inspect it with errors.As. Unwrap
+// exposes a read or size cause when the body could not be captured
+// cleanly.
+type ReceiverStatusError struct {
+	Status int
+	Body   []byte
+	err    error
+}
+
+func (e *ReceiverStatusError) Error() string {
+	if e == nil {
+		return "receiver status error"
+	}
+
+	if e.err != nil {
+		return fmt.Sprintf("receiver returned status %d: %v", e.Status, e.err)
+	}
+
+	return fmt.Sprintf("receiver returned status %d (response body %d bytes)", e.Status, len(e.Body))
+}
+
+func (e *ReceiverStatusError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.err
+}
+
+// PermanentRefuse reports receiver HTTP 400 and 403, the only permanent
+// dispatch hard failures. Every other receiver status is retryable.
+func (e *ReceiverStatusError) PermanentRefuse() bool {
+	if e == nil {
+		return false
+	}
+
+	return e.Status == http.StatusBadRequest || e.Status == http.StatusForbidden
+}
+
 type resolvedPeerOrigin struct {
 	baseURL    string
 	peerDomain string
@@ -66,22 +106,37 @@ func (h *Handler) sendShareToReceiver(
 		resp.Body.Close()
 	}()
 
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		maxBytes := int64(config.DefaultMaxResponseBytes)
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		return nil
+	default:
+		return readReceiverStatusError(resp)
+	}
+}
 
-		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
-		if readErr != nil {
-			return fmt.Errorf("receiver returned status %d: %w", resp.StatusCode, readErr)
+func readReceiverStatusError(resp *http.Response) error {
+	maxBytes := int64(config.DefaultMaxResponseBytes)
+
+	respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
+	if readErr != nil {
+		return &ReceiverStatusError{
+			Status: resp.StatusCode,
+			err:    readErr,
 		}
-
-		if int64(len(respBody)) > maxBytes {
-			return fmt.Errorf("receiver returned status %d: response body too large (%d bytes read)", resp.StatusCode, len(respBody))
-		}
-
-		return fmt.Errorf("receiver returned status %d (response body %d bytes)", resp.StatusCode, len(respBody))
 	}
 
-	return nil
+	if int64(len(respBody)) > maxBytes {
+		return &ReceiverStatusError{
+			Status: resp.StatusCode,
+			Body:   respBody[:maxBytes],
+			err:    fmt.Errorf("response body too large (%d bytes read)", len(respBody)),
+		}
+	}
+
+	return &ReceiverStatusError{
+		Status: resp.StatusCode,
+		Body:   respBody,
+	}
 }
 
 func generateSharedSecret() (string, error) {

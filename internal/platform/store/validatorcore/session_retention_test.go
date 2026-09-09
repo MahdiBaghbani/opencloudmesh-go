@@ -428,7 +428,7 @@ func seedExpiredPermanentRun(
 
 	manifest := `{"k":"v"}`
 	grade := GradePass
-	bob := "bob-pii"
+	bob := "bob-pii-" + id
 	token := "invite-token"
 	shareWith := "alice@pii.example"
 	provider := "prov-pii"

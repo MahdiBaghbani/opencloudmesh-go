@@ -215,14 +215,14 @@ func newRealInviteEnv(t *testing.T) *testEnv {
 	out := &stubOutgoing{}
 
 	active, err := runner.New(runner.Deps{
-		Store:         store,
-		Invites:       svc,
-		Parties:       parties,
-		LocalIdentity: testLocalIdentity(),
-		ProbeEmail:    testProbeEmail,
-		ProbeName:     testProbeName,
-		ProbeFilePath: createProbeFile(t),
-		PollInterval:  time.Hour,
+		Store:               store,
+		Invites:             svc,
+		Parties:             parties,
+		LocalIdentity:       testLocalIdentity(),
+		ProbeEmail:          testProbeEmail,
+		ProbeName:           testProbeName,
+		ProbeFilePath:       createProbeFile(t),
+		ReapIntervalSeconds: 3600,
 	})
 	if err != nil {
 		t.Fatalf("runner.New: %v", err)
@@ -279,14 +279,14 @@ func newStubEnv(t *testing.T, invites runner.InviteDriver, out *stubOutgoing) *t
 	parties := identity.NewMemoryPartyRepo()
 
 	active, err := runner.New(runner.Deps{
-		Store:         store,
-		Invites:       invites,
-		Parties:       parties,
-		LocalIdentity: testLocalIdentity(),
-		ProbeEmail:    testProbeEmail,
-		ProbeName:     testProbeName,
-		ProbeFilePath: createProbeFile(t),
-		PollInterval:  time.Hour,
+		Store:               store,
+		Invites:             invites,
+		Parties:             parties,
+		LocalIdentity:       testLocalIdentity(),
+		ProbeEmail:          testProbeEmail,
+		ProbeName:           testProbeName,
+		ProbeFilePath:       createProbeFile(t),
+		ReapIntervalSeconds: 3600,
 	})
 	if err != nil {
 		t.Fatalf("runner.New: %v", err)
@@ -406,7 +406,7 @@ func (e *testEnv) requireInactive(t *testing.T, runID string) {
 	}
 }
 
-func (e *testEnv) startFastRunner(t *testing.T, poll time.Duration) *runner.Runner {
+func (e *testEnv) startFastRunner(t *testing.T, reapSeconds int) *runner.Runner {
 	t.Helper()
 
 	var invites runner.InviteDriver
@@ -417,14 +417,14 @@ func (e *testEnv) startFastRunner(t *testing.T, poll time.Duration) *runner.Runn
 	}
 
 	fast, err := runner.New(runner.Deps{
-		Store:         e.store,
-		Invites:       invites,
-		Parties:       e.parties,
-		LocalIdentity: testLocalIdentity(),
-		ProbeEmail:    testProbeEmail,
-		ProbeName:     testProbeName,
-		ProbeFilePath: createProbeFile(t),
-		PollInterval:  poll,
+		Store:               e.store,
+		Invites:             invites,
+		Parties:             e.parties,
+		LocalIdentity:       testLocalIdentity(),
+		ProbeEmail:          testProbeEmail,
+		ProbeName:           testProbeName,
+		ProbeFilePath:       createProbeFile(t),
+		ReapIntervalSeconds: reapSeconds,
 	})
 	if err != nil {
 		t.Fatalf("runner.New: %v", err)

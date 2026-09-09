@@ -285,9 +285,9 @@ var validatorSchemaStatements = []string{
 		updated_at INTEGER NOT NULL,
 		CHECK (NOT (state = 'passive_complete' AND opt_in_active = 1))
 	)`,
-	`CREATE UNIQUE INDEX idx_test_run_one_active ON test_run (is_active) WHERE is_active = 1`,
+	`CREATE UNIQUE INDEX idx_test_run_active_per_target ON test_run (target_host) WHERE is_active = 1`,
 	`CREATE INDEX idx_test_run_state ON test_run (state)`,
-	`CREATE INDEX idx_test_run_bob_user_id ON test_run (bob_user_id)`,
+	`CREATE UNIQUE INDEX idx_test_run_bob_user_id ON test_run (bob_user_id) WHERE bob_user_id IS NOT NULL`,
 	`CREATE INDEX idx_test_run_expires_at ON test_run (expires_at)`,
 	`CREATE INDEX idx_test_run_stats_heal ON test_run (stats_written_at) WHERE opt_in_stats = 1 AND stats_written_at IS NULL`,
 	`CREATE UNIQUE INDEX idx_test_run_opt_in_active_ready ON test_run (test_run_id) WHERE opt_in_active = 1 AND is_active = 0 AND state = 'passive_running'`,

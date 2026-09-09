@@ -46,7 +46,11 @@ func TestHandleSession_TerminalStatesOmitNextInstruction(t *testing.T) {
 
 			payload := pollSession(t, h, runID)
 
-			assertExactKeys(t, payload, []string{"state", "ts"})
+			assertExactKeys(t, payload, []string{"optInActive", "state", "ts"})
+
+			if got := pollOptInActive(t, payload); got {
+				t.Fatal("optInActive = true, want false")
+			}
 		})
 	}
 }
@@ -83,7 +87,11 @@ func TestHandleSession_TerminalFailPublishesFailModeLabel(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	assertExactKeys(t, payload, []string{"state", "ts", "failModeLabel"})
+	assertExactKeys(t, payload, []string{"failModeLabel", "optInActive", "state", "ts"})
+
+	if got := pollOptInActive(t, payload); got {
+		t.Fatal("optInActive = true, want false")
+	}
 
 	var label string
 	if err := json.Unmarshal(payload["failModeLabel"], &label); err != nil {
@@ -169,10 +177,67 @@ func TestHandleSession_PollOmitsSensitiveSessionFields(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	assertExactKeys(t, payload, []string{"state", "ts", "nextInstruction"})
+	assertExactKeys(t, payload, []string{"optInActive", "state", "ts", "nextInstruction"})
+
+	if got := pollOptInActive(t, payload); got {
+		t.Fatal("optInActive = true, want false")
+	}
 
 	if next := pollNextInstruction(t, payload); next != "paste_s2" {
 		t.Fatalf("nextInstruction = %q, want %q", next, "paste_s2")
+	}
+}
+
+func TestHandleSession_PollReturnsPersistedOptInActive(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		optInActive bool
+		state       string
+	}{
+		{
+			name:        "false",
+			optInActive: false,
+			state:       validatorcore.StatePassiveRunning,
+		},
+		{
+			name:        "true",
+			optInActive: true,
+			state:       validatorcore.StatePassiveRunning,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := openHandlerTestStore(t)
+			h := NewHandler(store, nil)
+			now := time.Now().Unix()
+			runID := "run-opt-in-" + tc.name
+
+			seedSessionRow(t, store, &validatorcore.TestRun{
+				TestRunID:   runID,
+				State:       tc.state,
+				TargetHost:  "peer.example",
+				OptInActive: tc.optInActive,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			})
+
+			payload := pollSession(t, h, runID)
+
+			assertExactKeys(t, payload, []string{"optInActive", "state", "ts", "nextInstruction"})
+
+			if got := pollOptInActive(t, payload); got != tc.optInActive {
+				t.Fatalf("optInActive = %v, want %v", got, tc.optInActive)
+			}
+
+			if next := pollNextInstruction(t, payload); next != "wait_probe" {
+				t.Fatalf("nextInstruction = %q, want wait_probe", next)
+			}
+		})
 	}
 }
 

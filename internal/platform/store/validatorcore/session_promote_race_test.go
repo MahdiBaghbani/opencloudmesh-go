@@ -50,8 +50,17 @@ func TestPromoteOldestReadyWaiter_NoReadyAfterConcurrentStop(t *testing.T) {
 
 	assertWaiterStoppedByOperator(t, core, "run-race-only")
 
-	if _, findErr := core.FindOneActive(ctx, LocalIdentityA); !errors.Is(findErr, gorm.ErrRecordNotFound) {
-		t.Fatalf("FindOneActive = %v, want ErrRecordNotFound", findErr)
+	if _, findErr := core.FindActiveByTarget(ctx, "waiter.example"); !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		t.Fatalf("FindActiveByTarget = %v, want ErrRecordNotFound", findErr)
+	}
+
+	rows, listErr := core.ListActive(ctx)
+	if listErr != nil {
+		t.Fatalf("ListActive: %v", listErr)
+	}
+
+	if len(rows) != 0 {
+		t.Fatalf("ListActive count = %d, want 0", len(rows))
 	}
 }
 
@@ -97,9 +106,7 @@ func TestStartupMaintenance_SucceedsWhenSelectedWaiterStopped(t *testing.T) { //
 		t.Fatalf("follow-up for promoted waiter called %d times, want 1", followed["run-attach-new"])
 	}
 
-	if core.LastPromotedID() != "" {
-		t.Fatalf("lastPromotedID = %q after delivery, want empty", core.LastPromotedID())
-	}
+	assertNoPendingPromote(t, core)
 }
 
 func TestPromoteOldestReadyWaiter_FollowUpReplaysAfterBind(t *testing.T) {
@@ -129,9 +136,7 @@ func TestPromoteOldestReadyWaiter_FollowUpReplaysAfterBind(t *testing.T) {
 		t.Fatalf("replayed follow-up id = %q, want run-replay", got)
 	}
 
-	if core.LastPromotedID() != "" {
-		t.Fatalf("lastPromotedID = %q after delivery, want empty", core.LastPromotedID())
-	}
+	assertNoPendingPromote(t, core)
 
 	got = ""
 
@@ -174,9 +179,7 @@ func TestAttach_PromotesWaiterAndReplaysFollowUp(t *testing.T) { //nolint:parall
 		t.Fatalf("Attach follow-up id = %q, want run-attach-follow", got)
 	}
 
-	if core.LastPromotedID() != "" {
-		t.Fatalf("lastPromotedID = %q after delivery, want empty", core.LastPromotedID())
-	}
+	assertNoPendingPromote(t, core)
 }
 
 func TestPromoteFollowUp_ConcurrentIdempotentCASWinnerOnly(t *testing.T) {
@@ -247,9 +250,7 @@ func TestPromoteFollowUp_ConcurrentIdempotentCASWinnerOnly(t *testing.T) {
 		t.Fatalf("follow-up called %d times, want 1", followed.Load())
 	}
 
-	if core.LastPromotedID() != "" {
-		t.Fatalf("lastPromotedID = %q after delivery, want empty", core.LastPromotedID())
-	}
+	assertNoPendingPromote(t, core)
 }
 
 func TestPromoteFollowUp_ConcurrentStartupProbeAndFlush(t *testing.T) {
@@ -326,8 +327,18 @@ func TestPromoteFollowUp_ConcurrentStartupProbeAndFlush(t *testing.T) {
 		t.Fatalf("follow-up called %d times, want 1", followed.Load())
 	}
 
+	assertNoPendingPromote(t, core)
+}
+
+func assertNoPendingPromote(t *testing.T, core *Core) {
+	t.Helper()
+
+	if ids := core.PendingPromoteIDs(); len(ids) != 0 {
+		t.Fatalf("PendingPromoteIDs = %v, want empty", ids)
+	}
+
 	if core.LastPromotedID() != "" {
-		t.Fatalf("lastPromotedID = %q after delivery, want empty", core.LastPromotedID())
+		t.Fatalf("LastPromotedID = %q after delivery, want empty", core.LastPromotedID())
 	}
 }
 

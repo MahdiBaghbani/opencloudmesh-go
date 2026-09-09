@@ -312,8 +312,8 @@ func TestGuard_ReclaimsStaleClaimedReservation(t *testing.T) {
 
 	// A live claim refuses the concurrent dispatcher.
 	_, err = env.svc.GuardCreate(t.Context(), designatedRequest(env), "run-guard-reclaim")
-	if err == nil {
-		t.Fatal("expected in-progress refusal for a fresh claim")
+	if !errors.Is(err, outgoingshares.ErrDispatchInProgress) {
+		t.Fatalf("fresh claim = %v, want ErrDispatchInProgress", err)
 	}
 
 	// Once the claim goes stale, the next dispatcher reclaims it with the

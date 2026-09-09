@@ -95,9 +95,8 @@ func TestFindCorrelationAnyStatus_ABRunIsolation(t *testing.T) {
 	runA := "run-isolate-a"
 	runB := "run-isolate-b"
 
-	mustExec(t, core.DB(), "DROP INDEX idx_test_run_one_active")
-	seedActiveRun(t, core, runA, "peer.example", true)
-	seedActiveRun(t, core, runB, "peer.example", true)
+	seedActiveRun(t, core, runA, "peer-a.example", true)
+	seedActiveRun(t, core, runB, "peer-b.example", true)
 
 	seedCorrelation(t, core, ShareCorrelation{
 		TestRunID:     runA,
@@ -222,69 +221,71 @@ func TestFinders_InactiveRunCorrelationNotFound(t *testing.T) {
 	}
 }
 
-func TestFindOneActive_EmptyBobUserID(t *testing.T) {
+func TestFindActiveByTarget_IgnoresBobUserID(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
 	ctx := t.Context()
 	runID := "run-empty-bob"
+	host := "peer.example"
 
-	seedActiveRun(t, core, runID, "peer.example", true)
+	seedActiveRun(t, core, runID, host, true)
 	seedCorrelation(t, core, ShareCorrelation{
 		TestRunID:     runID,
 		Role:          RoleOutgoingToTarget,
-		SenderHost:    "peer.example",
+		SenderHost:    host,
 		ProviderID:    "share-empty-bob",
 		LocalIdentity: LocalIdentityB,
 		Status:        CorrelationStatusConfirmed,
 		CreatedAt:     1,
 	})
 
-	if _, err := core.FindOneActive(ctx, LocalIdentityB); !errors.Is(err, gorm.ErrRecordNotFound) {
-		t.Fatalf("FindOneActive b with null bob_user_id: %v, want ErrRecordNotFound", err)
-	}
-
-	gotA, err := core.FindOneActive(ctx, LocalIdentityA)
+	gotNull, err := core.FindActiveByTarget(ctx, host)
 	if err != nil {
-		t.Fatalf("FindOneActive a with null bob_user_id: %v", err)
+		t.Fatalf("FindActiveByTarget with null bob_user_id: %v", err)
 	}
 
-	if gotA != runID {
-		t.Fatalf("FindOneActive a with null bob_user_id = %q, want %q", gotA, runID)
+	if gotNull != runID {
+		t.Fatalf("FindActiveByTarget with null bob_user_id = %q, want %q", gotNull, runID)
 	}
 
 	mustExec(t, core.DB(),
 		"UPDATE test_run SET bob_user_id = '' WHERE test_run_id = '"+runID+"'")
 
-	if _, errB := core.FindOneActive(ctx, LocalIdentityB); !errors.Is(errB, gorm.ErrRecordNotFound) {
-		t.Fatalf("FindOneActive b with empty bob_user_id: %v, want ErrRecordNotFound", errB)
-	}
-
-	gotAEmpty, err := core.FindOneActive(ctx, LocalIdentityA)
+	gotEmpty, err := core.FindActiveByTarget(ctx, host)
 	if err != nil {
-		t.Fatalf("FindOneActive a with empty bob_user_id: %v", err)
+		t.Fatalf("FindActiveByTarget with empty bob_user_id: %v", err)
 	}
 
-	if gotAEmpty != runID {
-		t.Fatalf("FindOneActive a with empty bob_user_id = %q, want %q", gotAEmpty, runID)
+	if gotEmpty != runID {
+		t.Fatalf("FindActiveByTarget with empty bob_user_id = %q, want %q", gotEmpty, runID)
 	}
 }
 
-func TestFindOneActive_AmbiguousIdentityB(t *testing.T) {
+func TestFindActiveByTarget_AmbiguousSameTarget(t *testing.T) {
 	t.Parallel()
 
 	core := openTestCore(t)
 	ctx := t.Context()
 
-	mustExec(t, core.DB(), "DROP INDEX idx_test_run_one_active")
+	mustExec(t, core.DB(), "DROP INDEX idx_test_run_active_per_target")
 	seedActiveRun(t, core, "run-b-active-1", "peer.example", true)
 	seedActiveRun(t, core, "run-b-active-2", "peer.example", true)
 	setBobUserID(t, core, "run-b-active-1", "bob-user-1")
 	setBobUserID(t, core, "run-b-active-2", "bob-user-2")
 
-	got, err := core.FindOneActive(ctx, LocalIdentityB)
+	got, err := core.FindActiveByTarget(ctx, "peer.example")
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		t.Fatalf("FindOneActive b ambiguous: got %q err %v, want ErrRecordNotFound", got, err)
+		t.Fatalf("FindActiveByTarget ambiguous: got %q err %v, want ErrRecordNotFound", got, err)
+	}
+
+	rows, listErr := core.ListActive(ctx)
+	if listErr != nil {
+		t.Fatalf("ListActive: %v", listErr)
+	}
+
+	if len(rows) != 2 {
+		t.Fatalf("ListActive count = %d, want 2", len(rows))
 	}
 }
 
@@ -307,15 +308,24 @@ func probeSharedCoreFinders(
 ) *concurrentFinderFault {
 	calls := []sharedCoreFinderCall{
 		{
-			method: "FindOneActive a",
+			method: "FindActiveByTarget",
 			invoke: func() (string, error) {
-				return core.FindOneActive(ctx, LocalIdentityA)
+				return core.FindActiveByTarget(ctx, "peer.example")
 			},
 		},
 		{
-			method: "FindOneActive b",
+			method: "ListActive",
 			invoke: func() (string, error) {
-				return core.FindOneActive(ctx, LocalIdentityB)
+				rows, err := core.ListActive(ctx)
+				if err != nil {
+					return "", err
+				}
+
+				if len(rows) != 1 || rows[0] == nil {
+					return "", gorm.ErrRecordNotFound
+				}
+
+				return rows[0].TestRunID, nil
 			},
 		},
 		{
