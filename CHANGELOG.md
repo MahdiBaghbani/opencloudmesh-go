@@ -12,6 +12,11 @@ All notable changes to this project are documented using changie.
 See `.changie.yaml` for the configuration and the changie workflow for how
 fragments are authored and released.
 
+## v1.3.1
+
+### Fixed
+
+* Federation validator active sessions now run concurrently across different target hosts, with one active session per target host enforced by a partial unique index, so independent targets no longer serialize behind a single global active slot
 ## v1.3.0
 
 ### Changed
