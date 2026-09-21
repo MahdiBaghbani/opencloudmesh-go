@@ -11,7 +11,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/google/uuid v1.6.0
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/valkey-io/valkey-go v1.0.77
+	github.com/valkey-io/valkey-go v1.0.78
 	github.com/zeebo/blake3 v0.2.4
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
