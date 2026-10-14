@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/alicebob/miniredis/v2 v2.39.0
+	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-acme/lego/v4 v4.35.2
 	github.com/go-chi/chi/v5 v5.3.2
@@ -13,9 +13,9 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/valkey-io/valkey-go v1.0.78
 	github.com/zeebo/blake3 v0.2.4
-	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.59.0
-	golang.org/x/sync v0.23.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.60.0
+	golang.org/x/sync v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.31.2
 )
@@ -34,9 +34,9 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/tools v0.49.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 	// Explicit pins so MVS selects these over the older versions glebarez/sqlite requires transitively.
 	modernc.org/libc v1.74.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
